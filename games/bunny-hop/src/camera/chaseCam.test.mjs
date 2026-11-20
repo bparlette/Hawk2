@@ -167,3 +167,13 @@ test('bail: yaw holds (watch the tumble), no shake, no NaN', () => {
   assert.ok(Math.abs(s.yaw - 0.5) < 1e-9);
   for (const k of ['x', 'y', 'z', 'lookX', 'lookY', 'lookZ', 'fov']) assert.ok(Number.isFinite(s[k]), k);
 });
+
+test('bail framing: rises above obstacles and pulls back to watch the body (frame-3), smoothly', () => {
+  const cam = createChaseCam();
+  cam.reset(ride({ heading: 0.5, speed: 8 }));
+  const trace = steps(cam, 1.5, ride({ mode: 'bail', heading: 0.5, x: 2, z: 3, y: 0, grounded: true }));
+  const s = cam.state;
+  assert.ok(Math.abs(s.y - CAM_CONFIG.bailHeight) < 0.01, `height ${s.y.toFixed(2)}`);
+  assert.ok(Math.abs(Math.hypot(s.x - 2, s.z - 3) - CAM_CONFIG.bailBackDist) < 1e-6);
+  for (let i = 1; i < trace.length; i++) assert.ok(Math.abs(trace[i].y - trace[i - 1].y) < 0.25, 'height eases, no jump');
+});

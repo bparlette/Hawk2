@@ -2,7 +2,7 @@
 
 Implements `tasking/iteration-2.md` Round 1c: plan pushes #2 (camera model) and #9 (landing-impulse shake).
 
-`chaseCam.js` is pure ESM (no DOM, no three.js). Run its tests with `node --test games/bunny-hop/src/camera/*.test.mjs`: 13/13 pass.
+`chaseCam.js` is pure ESM (no DOM, no three.js). Run its tests with `node --test games/bunny-hop/src/camera/*.test.mjs`: 14/14 pass.
 
 **Why it's a separate module.** The camera reads bike state but never feeds back into physics, and it has its own CONFIG and its own tests. Keeping it out of `bikePhysics.js` means a camera tuning pass can never break a play proof.
 
@@ -14,7 +14,9 @@ const chase = createChaseCam();
 // each frame, after physics / swim / bail:
 const ct = mode === 'swim'
   ? { mode: 'swim', x: swimPos.x, z: swimPos.z, heading: swimHeading, speed: swimSpeed, grounded: true, waterLevel: WATER_Y }
-  : { mode: mode === 'bail' ? 'bail' : 'ride', x: S.x, y: S.y, z: S.z, heading: S.heading, speed: S.speed, grounded: S.grounded, waterLevel: WATER_Y };
+  : mode === 'bail'   // follow the FLYING RIDER (src/rider/bailSim.js), not the crashed bike
+  ? { mode: 'bail', x: BS.rider.x, z: BS.rider.z, y: env.groundAt(BS.rider.x, BS.rider.z).height, heading: S.heading, speed: 0, grounded: true, waterLevel: WATER_Y }
+  : { mode: 'ride', x: S.x, y: S.y, z: S.z, heading: S.heading, speed: S.speed, grounded: S.grounded, waterLevel: WATER_Y };
 const cs = chase.step(dt, ct);
 camera.position.set(cs.x, cs.y, cs.z); camera.up.set(0, 1, 0);       // never roll
 camera.lookAt(cs.lookX, cs.lookY, cs.lookZ);
@@ -70,6 +72,9 @@ The plan's intent is kept: shoulder height, rider dead centre, horizon in the to
 | `swimHeight` | 0.6 m | Above `waterLevel` (`frame-7`). |
 | `swimBackDist` | 3.0 m | The swimmer fills the lower frame (`frame-7`). |
 | `swimPitchUp` | 6° | Looking slightly up at the world (`frame-7`). |
+| `bailBackDist` | 5.5 m | In bail, the camera follows the flying rider from farther back... |
+| `bailHeight` | 3.0 m | ...and higher, clearing bins (1.1 m), rails and cars, so you watch the dive over the obstacle (`frame-3`). At shoulder height it sat behind the bin the rider had hit, verified in the scratch host. |
+| `bailAimHeight` | 0.3 m | Tilts down onto the body. Yaw holds through the bail, and the height eases in at `heightRate`. |
 | `shadowHalfSize` | 15 m | A 30 m square around the rider (the plan). That's a tighter frustum than the default, so the 1024² map gets sharper rider shadows. |
 | `shadowLead` | 5 m | The frustum centre sits ahead along the view, because that's where the shadow falls (`frame-2`) and where you look. |
 | `CAMERA_ROLL` | 0 (export, not in CONFIG) | `frame-5`: the horizon stays dead level under lean. The plan makes this "not a tunable". The camera never reads `lean`; a test asserts this. |
@@ -87,4 +92,4 @@ The plan's intent is kept: shoulder height, rider dead centre, horizon in the to
 - **Swim cam:** placement.
 - **Shadow frustum.**
 - **Frame-rate independence** (30 vs 144 fps).
-- **Bail:** yaw holds.
+- **Bail:** yaw holds, and the bail framing rises and pulls back smoothly.

@@ -43,6 +43,10 @@ export const CAM_CONFIG = {
   swimHeight: 0.6,        // m above waterLevel
   swimBackDist: 3.0,      // m behind the swimmer (frame-7 swimmer fills the lower frame)
   swimPitchUp: 6,         // deg, camera tilted up
+  // --- bail (frame-3: the separation seen from above the obstacle, not from behind it) ---
+  bailBackDist: 5.5,      // m behind the flying rider (host passes the rider's x/z in bail mode)
+  bailHeight: 3.0,        // m above the ground under the rider: clears bins (1.1 m), rails and cars
+  bailAimHeight: 0.3,     // m: tilt down onto the body
   // --- shadow frustum (plan push #2: ~30 m around the rider) ---
   shadowHalfSize: 15,     // m, orthographic half-extent → 30 m square
   shadowLead: 5,          // m, centre shifted ahead of the rider along the view (that's where shadows are seen)
@@ -67,6 +71,7 @@ export function createChaseCam(config = CAM_CONFIG) {
 
   function rigBaseY(t) {
     if (t.mode === 'swim') return (t.waterLevel ?? 0) + C.swimHeight;
+    if (t.mode === 'bail') return t.y + C.bailHeight;
     const groundRef = t.grounded === false ? takeoffY + C.airFollow * (t.y - takeoffY) : t.y;
     return groundRef + C.height;
   }
@@ -80,11 +85,12 @@ export function createChaseCam(config = CAM_CONFIG) {
       state.lookX = state.x + fx * L; state.lookZ = state.z + fz * L;
       state.lookY = state.y + Math.tan(C.swimPitchUp * RAD) * L;
     } else {
-      const back = C.backDist + C.rearWheelOffset;
+      const bail = t.mode === 'bail';
+      const back = bail ? C.bailBackDist : C.backDist + C.rearWheelOffset;
       state.x = t.x - fx * back; state.z = t.z - fz * back;
       state.y = state.baseY + state.shakeY;
       // aim at the hip, expressed as a fixed down-tilt so the horizon doesn't bob with the hop
-      const tilt = Math.atan2(C.height - C.aimHeight, back);
+      const tilt = bail ? Math.atan2(C.bailHeight - C.bailAimHeight, back) : Math.atan2(C.height - C.aimHeight, back);
       const L = 10;
       state.lookX = state.x + fx * L; state.lookZ = state.z + fz * L;
       state.lookY = state.y - Math.tan(tilt) * L;
