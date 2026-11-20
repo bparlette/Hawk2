@@ -93,7 +93,7 @@ scene.fog = new THREE.Fog(WORLD_LIGHTING.fog.color, WORLD_LIGHTING.fog.near, WOR
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   scene.background = tex;
 }
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 400); // 60 = Opus's shipped base FOV (his +4 deg speed breathe not wired; cap was 64)
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 400); // 60 = Opus's shipped base FOV (+4 deg speed breathe wired in the camera block; 64 hard cap)
 const hemi = new THREE.HemisphereLight(WORLD_LIGHTING.hemi.sky, WORLD_LIGHTING.hemi.ground, WORLD_LIGHTING.hemi.intensity); scene.add(hemi);
 const sun = new THREE.DirectionalLight(WORLD_LIGHTING.sun.color, WORLD_LIGHTING.sun.intensity);
 const SUN_OFF = new THREE.Vector3(...WORLD_LIGHTING.sun.dir).normalize().multiplyScalar(45);
@@ -197,24 +197,6 @@ const frameMat = mat(0xd8434f, 0.35, 0.6), chromeMat = mat(0xb9c0c9, 0.3, 0.85),
       teeMat = mat(0xf3efe6, 0.92), shortsMat = mat(0xb09a72, 0.95), shortsDarkMat = mat(0x8a764f, 0.95),
       capDarkMat = mat(0x182238, 0.85), strapMat = mat(0x30363f, 0.8),
       hairMat = mat(0x2a1c12, 0.9), eyeMat = mat(0xf8f8f5, 0.3), soleMat = mat(0x3a3a3e, 0.9);
-/* Cloth response for the tee (shirt v2): a woven bump + near-full matte so the
-   shirt shades unlike skin (rough 0.8) and unlike the smooth khaki pants —
-   garment first, body second. collarMat = the darker ribbed tone used for the
-   collar / hem / cuff bands. */
-function clothBumpTex(){
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d'); const img = g.createImageData(128, 128);
-  for (let i = 0; i < img.data.length; i += 4){
-    const px = (i/4) % 128, py = ((i/4)/128)|0;
-    const v = 116 + ((px + py) % 2) * 14 + Math.random()*16;
-    img.data[i] = img.data[i+1] = img.data[i+2] = v; img.data[i+3] = 255;
-  }
-  g.putImageData(img, 0, 0);
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(5, 3); return t;
-}
-teeMat.bumpMap = clothBumpTex(); teeMat.bumpScale = 0.2; teeMat.roughness = 0.98;
-const collarMat = new THREE.MeshStandardMaterial({ color: 0xdfd7c3, roughness: 1.0, bumpMap: teeMat.bumpMap, bumpScale: 0.2 });
 /* --- geometry helpers for the modelled bike + Figure-Factory-style rider --- */
 function xform(geo, px,py,pz, rx=0,ry=0,rz=0, sx=1,sy=1,sz=1){
   const g = geo.clone();
@@ -225,14 +207,6 @@ function xform(geo, px,py,pz, rx=0,ry=0,rz=0, sx=1,sy=1,sz=1){
 function tubeGeo(a, b, r, seg=10){
   const d = new THREE.Vector3().subVectors(b,a); const len = d.length();
   const g = new THREE.CylinderGeometry(r, r, len, seg);
-  g.applyMatrix4(new THREE.Matrix4().compose(a.clone().addScaledVector(d,0.5),
-    new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), d.normalize()), new THREE.Vector3(1,1,1)));
-  return g;
-}
-/* tapered tube between two points: radius rA at a, rB at b */
-function coneTube(a, b, rA, rB, seg=12){
-  const d = new THREE.Vector3().subVectors(b,a); const len = d.length();
-  const g = new THREE.CylinderGeometry(rB, rA, len, seg);
   g.applyMatrix4(new THREE.Matrix4().compose(a.clone().addScaledVector(d,0.5),
     new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), d.normalize()), new THREE.Vector3(1,1,1)));
   return g;
@@ -324,21 +298,15 @@ function buildHead(parent, y0){
   ], strapMat, parent);
 }
 function buildArmParts(sh, el, side){
-  /* SHIRT SLEEVE v2 (Cherie, Nov 20, second pass): a loose garment tube, not
-     an arm coating — r ~0.095 around a ~0.045 arm, in two segments with a
-     baked gravity drape: the lower half bends toward local -Z (down-and-back
-     in ride pose) so the sleeve HANGS from the shoulder instead of tracing
-     the arm's angle, then flares into a ribbed cuff band. The shoulder cloth
-     cap (r 0.098) still overlaps shell + sleeve at any arm angle — no gap,
-     no detached puff (the Nov 20 fix, kept). */
+  /* Loose shirt construction (Cherie, Nov 20): the sleeve is one continuous
+     garment from the shoulder — a flattened cloth cap over the joint (overlaps
+     the torso shell AND the sleeve at any arm angle, so no gap and no detached
+     ball) plus a loose tube down the upper arm with the arm hidden inside it. */
   mergedMesh([
-    xform(new THREE.SphereGeometry(0.098, 12, 10), 0, 0, 0, 0, 0, 0, 1.06, 0.66, 1.06),
-    coneTube(V3(0, 0.015, 0), V3(0, -0.125, -0.010), 0.096, 0.094),
-    coneTube(V3(0, -0.125, -0.010), V3(0, -0.252, -0.040), 0.094, 0.103),
+    xform(new THREE.SphereGeometry(0.086, 12, 10), 0, 0, 0, 0, 0, 0, 1, 0.62, 1),
+    tapered(0.076, 0.062, 0.27),
+    xform(new THREE.CylinderGeometry(0.064, 0.068, 0.05, 12), 0, -0.25, 0),
   ], teeMat, sh);
-  mergedMesh([
-    coneTube(V3(0, -0.238, -0.035), V3(0, -0.282, -0.049), 0.104, 0.107),
-  ], collarMat, sh);
   mergedMesh([
     xform(new THREE.SphereGeometry(0.041, 10, 8), 0, 0, 0),
     tapered(0.040, 0.032, 0.24),
@@ -443,38 +411,20 @@ const BB = { y: 0.37, z: -0.04 }, CRANK_R = 0.17, LEG_L1 = 0.42, LEG_L2 = 0.42;
   ], shortsDarkMat, riderRig);
   spineJ = pivot(riderRig, 0, 1.05, -0.19);
   {
-    /* SHIRT SHELL v2 (Cherie, Nov 20, second pass): v1 still read as body
-       parts — it tapered at the waist and followed the torso's own curve.
-       v2 hangs STRAIGHT from the shoulder line: one near-constant radius
-       from chest to hem (NO waist taper), a slight flare at the hem, hem
-       0.165 below the spine pivot hanging free past the waist. Cloth folds
-       are geometry: the lathe radius is modulated by angle (6 broad + 11
-       fine vertical ridges, fading out at shoulder and hem) with normals
-       recomputed so the folds shade. Collar + hem are standing bands in
-       the darker ribbed collarMat. Depth fix kept and strengthened: the
-       z-scale stays 0.92 (outfit lane) and the profile radius is larger
-       than v1 at every height (min 0.205 vs 0.175), so pelvis clearance
-       only grows — no poke-through, crouch included. */
-    const prof = [[0.001, -0.165], [0.222, -0.160], [0.224, -0.08], [0.220, 0.05], [0.218, 0.18], [0.218, 0.30], [0.222, 0.38], [0.205, 0.435], [0.118, 0.458], [0.078, 0.472]];
-    const pts = prof.map(p => new THREE.Vector2(p[0], p[1]));
-    const shellGeo = new THREE.LatheGeometry(pts, 36, Math.PI/2);
-    { const pa = shellGeo.attributes.position;
-      for (let i = 0; i < pa.count; i++){
-        const x = pa.getX(i), y = pa.getY(i), z = pa.getZ(i);
-        const r = Math.hypot(x, z); if (r < 0.02) continue;
-        const th = Math.atan2(z, x);
-        const fade = Math.max(0, Math.min(1, (0.44 - y)/0.10, (y + 0.17)/0.07));
-        const f = 1 + fade * (0.020*Math.sin(th*6 + y*2.0) + 0.010*Math.sin(th*11 - y*3.0));
-        pa.setX(i, x*f); pa.setZ(i, z*f);
-      }
-      shellGeo.computeVertexNormals(); }
+    /* LOOSE SHIRT SHELL (Cherie, Nov 20): a garment volume standing off the body
+       on all sides (~+0.04 m of air), shoulder line wide enough to swallow the
+       sleeve tops, hem hanging 0.14 m below the spine pivot — past the waist,
+       over the pants. The body's silhouette does not show through it. */
+    const pts = [[0.001, -0.14], [0.175, -0.135], [0.180, -0.06], [0.178, 0.06], [0.182, 0.18], [0.190, 0.30], [0.196, 0.38], [0.188, 0.435], [0.120, 0.465], [0.074, 0.48]]
+      .map(p => new THREE.Vector2(p[0], p[1]));
     mergedMesh([
-      xform(shellGeo, 0, 0, 0, 0, 0, 0, 1.12, 1, 0.92),
+      /* z-scale 0.92 (outfit lane fix): at 0.78 the shell was shallower than
+         the pelvis (z half-extent 0.171), so the trouser seat bulged out
+         behind the hem as a visible band; 0.92 wraps it fully */
+      xform(new THREE.LatheGeometry(pts, 18), 0, 0, 0, 0, 0, 0, 1.12, 1, 0.92),
+      xform(new THREE.TorusGeometry(0.072, 0.015, 8, 18), 0, 0.465, 0, Math.PI/2),
+      xform(new THREE.CylinderGeometry(0.176, 0.180, 0.04, 14), 0, -0.115, 0, 0, 0, 0, 1.12, 1, 0.92),
     ], teeMat, spineJ);
-    mergedMesh([
-      xform(new THREE.CylinderGeometry(0.080, 0.089, 0.052, 16), 0, 0.466, 0),
-      xform(new THREE.CylinderGeometry(0.230, 0.234, 0.05, 18), 0, -0.138, 0, 0, 0, 0, 1.12, 1, 0.92),
-    ], collarMat, spineJ);
   }
   neckJ = pivot(spineJ, 0, 0.47, 0.02);
   buildHead(neckJ, 0);
@@ -506,13 +456,13 @@ const RIDER_POSE = {
   legAir: { hip: -0.34, knee: 0.26 },
 };
 /* pedal-locked 2-bone IK in the sagittal plane: feet stay ON the pedals */
-function solveLeg(hipJ, kneeJ, ankJ, side, ph, rigY){
+function solveLeg(hipJ, kneeJ, ankJ, side, ph, rigY, rigZ){
   const a = side > 0 ? ph : ph + Math.PI;
   const ty = BB.y + Math.sin(a) * CRANK_R, tz = BB.z + Math.cos(a) * CRANK_R;
-  const hy = 1.04 + rigY, hz = -0.18;
+  const hy = 1.04 + rigY, hz = -0.18 + rigZ; // hip z must track riderRig.position.z — ignoring it put the feet 13 cm off the pedals in the crouch (lane-pose audit)
   let dy = ty - hy, dz = tz - hz;
   let d = Math.hypot(dy, dz);
-  const maxD = LEG_L1 + LEG_L2 - 0.02;
+  const maxD = LEG_L1 + LEG_L2 - 0.002;
   if (d > maxD){ dy *= maxD/d; dz *= maxD/d; d = maxD; }
   const phi = Math.atan2(dz, -dy);
   const alpha = Math.acos(Math.max(-1, Math.min(1, (LEG_L1*LEG_L1 + d*d - LEG_L2*LEG_L2) / (2*LEG_L1*d))));
@@ -529,7 +479,7 @@ let swimArmL, swimArmR, swimElbL, swimElbR, swimLegL, swimLegR, swimShinL, swimS
     new THREE.MeshBasicMaterial({ color:0xdff2ff, transparent:true, opacity:0.55, depthWrite:false }));
   swimFoam.rotation.x = -Math.PI/2; swimFoam.position.y = 0.24; swimmer.add(swimFoam); // +0.24: ring stays at the surface while the body axis rides 0.16 under it (swim-in-water fix, Cherie Nov 20)
   const sTorso = new THREE.Mesh(new THREE.CapsuleGeometry(0.158, 0.38, 4, 12), teeMat);
-  sTorso.rotation.x = Math.PI/2; sTorso.scale.set(1.34, 1, 0.88); // same loose tee as the rider (v2 width)
+  sTorso.rotation.x = Math.PI/2; sTorso.scale.set(1.26, 1, 0.86); // same loose tee as the rider
   sTorso.position.set(0, 0, -0.02); sTorso.castShadow = true; swimmer.add(sTorso);
   mergedMesh([
     xform(new THREE.SphereGeometry(0.14, 14, 10), 0, -0.01, -0.30, 0, 0, 0, 1.05, 0.7, 1.15),
@@ -658,6 +608,7 @@ function showPrompt(t){ if (t){ promptEl.textContent = t; promptEl.style.display
 
 /* ============================================================ MAIN LOOP */
 const camPos = new THREE.Vector3(S.x - 6, 4, S.z);
+let camYawS = null; // smoothed follow yaw for ride mode (Opus lazy yaw)
 /* Host-owned modes: the physics module stops dead at splash/bail (step() is a no-op
    until reset), so swimming, climb-out and remount are driven here, as in v1. */
 let mode = 'ride';           // ride | swim | bail
@@ -903,6 +854,7 @@ function animate(now){
     coast01 += ((((modInput.pedal <= 0 || grind) && S.grounded && S.speed > 0.5) ? 1 : 0) - coast01) * Math.min(1, dt * 4); // grinding = coast stance, feet level
     pedalBlend += ((((modInput.pedal > 0 && !grind) && S.speed > 0.2) ? 1 : 0) - pedalBlend) * Math.min(1, dt * 6);
     riderRig.position.y = -S.crouch01 * 0.20 + airBlend * 0.05 - brace01 * 0.18 + coast01 * 0.01
+      - 0.03 * pedalBlend // 3 cm pedal sit: at bottom-dead-centre the pedal is 0.852 m from the hip vs 0.84 m of leg — without the sit the IK clamp eats the difference and the foot floats ~2-3 cm off the pedal (lane-pose audit: 17.6 mm cruise error)
       + Math.sin(pedalPhase * 2) * 0.012 * pedalBlend; // 12 mm torso bob at 2x cadence
     riderRig.position.z = -S.crouch01 * 0.14 - airBlend * 0.11 + coast01 * 0.10 - brace01 * 0.06;
     riderRig.rotation.z = Math.sin(pedalPhase) * 0.05 * pedalBlend; // hip rock at cadence
@@ -916,8 +868,8 @@ function animate(now){
     }
     crank.rotation.x = -pedalPhase;
     const ph = pedalPhase, ab = airBlend;
-    solveLeg(hipJL, kneeJL, ankJL, -1, ph, riderRig.position.y);
-    solveLeg(hipJR, kneeJR, ankJR, 1, ph, riderRig.position.y);
+    solveLeg(hipJL, kneeJL, ankJL, -1, ph, riderRig.position.y, riderRig.position.z);
+    solveLeg(hipJR, kneeJR, ankJR, 1, ph, riderRig.position.y, riderRig.position.z);
     if (ab > 0.001){ /* blend toward the extended air pose */
       for (const [h, k] of [[hipJL, kneeJL], [hipJR, kneeJR]]){
         h.rotation.x += (RIDER_POSE.legAir.hip - h.rotation.x) * ab;
@@ -1013,7 +965,12 @@ function animate(now){
     : mode === 'bail' && BS
     ? { x: BS.rider.x, z: BS.rider.z, h: BS.rider.yaw, y: BS.rider.y }
     : { x: S.x, z: S.z, h: S.heading, y: S.y + 0.65 };
-  const bx = Math.sin(tgt.h), bz = Math.cos(tgt.h);
+  if (camYawS === null) camYawS = tgt.h;
+  if (mode === 'ride'){ // lazy yaw: the follow heading eases toward the bike's (tau 0.55 s -> ~0.9 s to 80%, Opus chaseCam)
+    let dyaw = tgt.h - camYawS; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+    camYawS += dyaw * (1 - Math.exp(-dt / 0.55));
+  } else camYawS = tgt.h;
+  const bx = Math.sin(mode === 'ride' ? camYawS : tgt.h), bz = Math.cos(mode === 'ride' ? camYawS : tgt.h);
   /* Ride framing adopts Opus's measured chaseCam geometry exactly: 3.8 m behind
      the REAR WHEEL (= 4.3 m behind the bike origin; at 3.6 m the rider filled
      35.8% of frame), camera 1.65 m above the contact patch, aim 0.65 m above the
@@ -1026,14 +983,24 @@ function animate(now){
      the same kind he made (his numbers were rig-specific; the band is the
      settlement). Swim keeps the waterline/underwater blend (Cherie's frame-7
      steer); bail pulls back to 5.5 m and rises to watch the dive (frame-3). */
-  const dist = mode === 'swim' ? 3.8 : mode === 'bail' ? 5.5 : 3.8,
+  const dist = mode === 'swim' ? 3.8 : mode === 'bail' ? 5.5 : 3.28,
         hgt = mode === 'swim' ? THREE.MathUtils.lerp(0.08, -0.15, dBlend) : mode === 'bail' ? 2.2 : 1.65 - 0.65; // surface end +0.08 keeps camY ~+0.22: waterline framing with the lowered body
+  /* Lane-pose audit correction (Nov 20): the settled chase distance is 3.8 m
+     behind the REAR WHEEL. At 3.8 behind the origin the landed build measured
+     4.38 m behind the rear contact with the rider at 29.6% of frame — under
+     the 30-35% band. 3.28 behind the origin = 3.8 behind the rear contact
+     (origin sits 0.52 ahead of it) and lands the frame in band. (Slowing the
+     positional follow to fake the lazy yaw was measured and rejected: at
+     1.9/s the moving target lagged the camera to 4.6 m behind the contact —
+     the yaw smoothing above is the right mechanism.) */
   camPos.x += ((tgt.x - bx*dist) - camPos.x) * Math.min(1, dt*4.5);
   camPos.z += ((tgt.z - bz*dist) - camPos.z) * Math.min(1, dt*4.5);
   camPos.y += ((tgt.y + hgt) - camPos.y) * Math.min(1, dt*4.5);
   camera.position.copy(camPos);
   if (mode === 'ride') camera.lookAt(S.x, S.y + 0.65, S.z); // aim at the rider, 0.65 above contact
   else camera.lookAt(tgt.x + bx*2.2, tgt.y + 0.35, tgt.z + bz*2.2);
+  const fovT = mode === 'ride' ? 60 + 4 * THREE.MathUtils.smoothstep(S.speed, 4, 11) : 60; // Opus speed breathe: 60 base, 64 hard cap at full speed
+  if (Math.abs(camera.fov - fovT) > 0.02){ camera.fov = fovT; camera.updateProjectionMatrix(); }
   sun.position.set(tgt.x + SUN_OFF.x, SUN_OFF.y, tgt.z + SUN_OFF.z); sun.target.position.set(tgt.x, 0, tgt.z);
   /* underwater ambience: as the camera slips below the surface, fog closes in
      blue-green, the background follows, and a tint veil fades up */
@@ -1090,7 +1057,8 @@ window.__dbg = {
   teleport(x, z, heading = 0){
     mode = 'ride'; flowFactor = 1; grind = null; bike.config.topSpeed = FLOW_BASE;
     bike.reset({ x, z, heading }, env);
-    camPos.set(x - Math.sin(heading)*4.3, S.y + 2.3, z - Math.cos(heading)*4.3);
+    camPos.set(x - Math.sin(heading)*3.8, S.y + 2.3, z - Math.cos(heading)*3.8);
+    camYawS = heading;
   },
   frameStats(){
     const a = ftSamples.slice(-240); if (!a.length) return null;
@@ -1100,6 +1068,24 @@ window.__dbg = {
              workMedianMs: w.length ? +w[Math.floor(w.length/2)].toFixed(2) : null, n: a.length };
   },
   setFreeze(v){ window.__freeze = !!v; },
+  /* lane-pose audit hooks: camera/bail state for the verification harness */
+  camera,
+  get bailState(){ return BS; },
+  get channels(){ return { brace01: +brace01.toFixed(3), squashCur: +squashCur.toFixed(4), coast01: +coast01.toFixed(2), pedalBlend: +pedalBlend.toFixed(2) }; },
+  camCheck(){
+    const bx = S.x - Math.sin(S.heading) * 0.52, bz = S.z - Math.cos(S.heading) * 0.52;
+    const backM = Math.hypot(camera.position.x - bx, camera.position.z - bz);
+    const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+    const tXZ = ((S.x - camera.position.x) * dir.x + (S.z - camera.position.z) * dir.z) / Math.max(1e-6, dir.x * dir.x + dir.z * dir.z);
+    const aimY = camera.position.y + dir.y * tXZ; // height of the view ray over the rider's vertical line
+    const px = S.x - camera.position.x, py = (S.y + 0.65) - camera.position.y, pz = S.z - camera.position.z;
+    const along = px * dir.x + py * dir.y + pz * dir.z;
+    const aimOff = Math.hypot(px - dir.x * along, py - dir.y * along, pz - dir.z * along); // ray's closest approach to the aim point
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    return { backM: +backM.toFixed(2), heightM: +(camera.position.y - S.y).toFixed(2),
+             aimAboveContactM: +(aimY - S.y).toFixed(2), aimOffM: +aimOff.toFixed(2), fov: +camera.fov.toFixed(1),
+             roll: +Math.asin(Math.max(-1, Math.min(1, right.y))).toFixed(3) };
+  },
   ready: true,
 };
 </script>
