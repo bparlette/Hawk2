@@ -306,3 +306,119 @@ test('frame-rate independence: 30 fps and 144 fps hops agree', () => {
   };
   assert.ok(Math.abs(apexAt(30) - apexAt(144)) < 0.03);
 });
+
+// ---- tuning round-trip (opus-tuning.md + visual-push-plan.md Phase A) ----
+
+/** Hold a full charge from `v0` on flat ground with the given pedal; return speed at the pop. */
+function speedAtPop(v0, pedal) {
+  const bike = makeBike();
+  bike.state.speed = v0;
+  run(bike, flat, CONFIG.hopFullTime + 0.05, inp({ pedal, hopHeld: true }));
+  let popSpeed = null;
+  run(bike, flat, DT, inp({ pedal, hopReleased: true }), (s, ev) => { if (ev.some(e => e.type === 'hop')) popSpeed = s.speed; });
+  assert.ok(popSpeed !== null, 'popped');
+  return popSpeed;
+}
+
+test('pedal taper: pedalling through a full charge is roughly speed-neutral (option 2)', () => {
+  for (const v0 of [2, 3.5, CONFIG.cruiseSpeed]) {
+    const held = speedAtPop(v0, 1), coasted = speedAtPop(v0, 0);
+    assert.ok(held <= v0 + 0.2, `v0 ${v0}: charge with pedal held gains ${(held - v0).toFixed(2)} m/s (was ~+2.5)`);
+    assert.ok(held >= coasted - 1e-9, `v0 ${v0}: pedal-held ${held.toFixed(2)} never slower than coasted ${coasted.toFixed(2)}`);
+    assert.ok(v0 - coasted < 0.8, `v0 ${v0}: scrub + coast over the charge stays small (${(v0 - coasted).toFixed(2)} m/s)`);
+  }
+  // pedalling still matters when not charging
+  const bike = makeBike();
+  run(bike, flat, 1, inp({ pedal: 1 }));
+  assert.ok(bike.state.speed > 3);
+});
+
+test('charge carries through the air: hold during descent, land, release = full-charge pop', () => {
+  const bike = makeBike();
+  bike.state.speed = 3;
+  run(bike, flat, 0.2, inp({ hopHeld: true }));
+  const evs = [];
+  // pop (tap-ish), then hold again in the air until well after touchdown is impossible: release on first grounded frame
+  run(bike, flat, DT, inp({ hopReleased: true }));
+  let landed = false;
+  for (let i = 0; i < 120 && !landed; i++) {
+    const ev = bike.step(DT, inp({ hopHeld: true }), flat);
+    if (ev.some(e => e.type === 'land')) landed = true;
+  }
+  assert.ok(landed, 'landed');
+  assert.ok(bike.state.crouch01 > 0.9, 'crouched and loaded on touchdown');
+  evs.push(...bike.step(DT, inp({ hopReleased: true }), flat));
+  const hop = evs.find(e => e.type === 'hop');
+  assert.ok(hop, 'pops on the first frame after landing');
+  assert.ok(hop.charge01 > 0.9, `charge ${hop.charge01}`);
+});
+
+test('a release in the air (outside coyote) still never pops, and drops the stored charge', () => {
+  const bike = makeBike();
+  bike.state.speed = 3;
+  run(bike, flat, 0.5, inp({ hopHeld: true }));
+  run(bike, flat, DT, inp({ hopReleased: true }));
+  run(bike, flat, 0.3, inp({ hopHeld: true }));
+  const ev = bike.step(DT, inp({ hopReleased: true }), flat);
+  assert.ok(!ev.some(e => e.type === 'hop'), 'no mid-air pop');
+  let landed = false;
+  for (let i = 0; i < 120 && !landed; i++) landed = bike.step(DT, inp(), flat).some(e => e.type === 'land');
+  const ev2 = bike.step(DT, inp({ hopReleased: true }), flat);
+  const hop = ev2.find(e => e.type === 'hop');
+  assert.ok(!hop || hop.charge01 === 0, 'stored charge was dropped by the air release');
+});
+
+// Neon's hop line (Hawk2 c5079bc): bins every 3.5 m along +x at z 22.4, sidewalk 1.72, lid 2.82, footprint ±0.52
+const LINE = { pitch: 3.5, z: 22.4, walk: 1.72, top: 2.82, x0: -26.5 };
+const lineBins = [0, 1, 2].map(i => LINE.x0 + i * LINE.pitch);
+const lineEnv = {
+  waterLevel: -10,
+  groundAt: (x, z) => (lineBins.some(bx => Math.abs(x - bx) < 0.52 && Math.abs(z - LINE.z) < 0.52)
+    ? { height: LINE.top, type: 'bin' } : { height: LINE.walk, type: 'ground' }),
+};
+
+/** Ride the line: hop onto bin 0 (release at rel0), hold hop through the descent if `carry`, release on the lid at rel1. */
+function binToBin(v, rel0, rel1, carry) {
+  const bike = createBike(CONFIG);
+  bike.reset({ x: -34, z: LINE.z, heading: Math.PI / 2 }, lineEnv);
+  bike.state.speed = v;
+  let phase = 0, prevHeld = false;
+  for (let i = 0; i < 900; i++) {
+    const s = bike.state;
+    let held = false, rel = false, pedal = phase === 0 ? v / CONFIG.topSpeed : 0;
+    if (phase === 0) { held = s.x < rel0; rel = !held && prevHeld; }
+    else if (phase === 1) held = carry && s.vy < 0;
+    else if (phase === 2) { held = s.x < rel1; rel = !held && prevHeld; }
+    const ev = bike.step(DT, inp({ pedal, hopHeld: held, hopReleased: rel }), lineEnv);
+    prevHeld = held;
+    for (const e of ev) {
+      if (e.type === 'hop') phase = phase === 0 ? 1 : 3;
+      if (e.type === 'bail') return 'bail';
+      if (e.type === 'land') {
+        if (phase === 1) { if (e.surface !== 'bin') return 'miss0'; phase = 2; }
+        else if (phase === 3) return e.surface === 'bin' && Math.abs(s.x - lineBins[1]) < 0.6 ? 'BIN1' : 'short';
+        else return 'off-lid';
+      }
+    }
+    if (phase >= 2 && s.grounded && s.speed === 0) return 'stop';
+  }
+  return 'timeout';
+}
+
+test('bin-to-bin on the 3.5 m hop line: hold through the descent, release at the lid lip = reliable', () => {
+  // Moth's failing case (b5a2017 / 743ad60): bin-0 landing ~3.5 m/s, release just past the lid's front edge.
+  // Sweep the bin-0 takeoff point (player timing); the lid release is the natural "pop at the lip" (x = -26.0).
+  for (const v of [3.5, 4.0]) {
+    let landedOn0 = 0, hit1 = 0, lidOnly = 0;
+    for (let r0 = -31; r0 <= -27; r0 += 0.05) {
+      const r = binToBin(v, r0, -26.0, true);
+      if (r === 'miss0' || r === 'bail') continue;
+      landedOn0++;
+      if (r === 'BIN1') hit1++;
+      if (binToBin(v, r0, -26.0, false) === 'BIN1') lidOnly++;
+    }
+    assert.ok(landedOn0 >= 15, `enough bin-0 landings at ${v} m/s (${landedOn0})`);
+    assert.ok(hit1 / landedOn0 >= 0.8, `${v} m/s: carried charge lands bin 1 ${hit1}/${landedOn0}`);
+    assert.ok(lidOnly / landedOn0 <= 0.3, `${v} m/s: lid-only charge (the old way) ${lidOnly}/${landedOn0}`);
+  }
+});

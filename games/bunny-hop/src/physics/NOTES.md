@@ -1,6 +1,6 @@
 # Bunny Hop — bike physics: shipped tuning & integration notes
 
-`bikePhysics.js` is pure ESM (no DOM, no three.js). `node --test games/bunny-hop/src/physics/` → 17/17 passing
+`bikePhysics.js` is pure ESM (no DOM, no three.js). `node --test games/bunny-hop/src/physics/` → 21/21 passing
 (the 7 brief tests plus 10 more for steering, braking, the bin clear/land-on, edges and coyote time, walls, reset, and frame-rate independence).
 
 ## Conventions (read these first)
@@ -69,6 +69,8 @@
 | `popPitchRise` | 0.4 | The nose rises over the first 40% of the predicted airtime (spec)… |
 | `popPitchSettle` | 0.9 | …and eases back to level by 90%, so an untouched hop lands clean on flat. On a bin top (~76% of airtime) ~4° of lift is left: still clean. The pop is applied as a delta, so air control and takeoff slope stack on top of it. |
 | `coyoteTime` | 0.08 s | A hop still pops for 80 ms after rolling off an edge (spec limit). |
+| `airChargeRate` | 1.0 | Holding hop in the air keeps charging, and the charge carries into the landing (release still only pops from the ground or inside the coyote window; releasing in the air spends the charge). This is what makes lid-to-lid possible: a 1.04 m lid at ~3.5 m/s gives only ~0.3 s of runway. |
+| `chargePedalTaper` | 4.0 | Pedal thrust × (1 − min(1, 4·crouch01)), so it is gone by ~0.11 s of crouch, i.e. inside the tap window. After that, a held pedal *holds* speed and adds none. Fixes the ~+2.5 m/s overshoot of a bin lid. |
 
 ### Air control
 | Key | Value | Why |
@@ -108,3 +110,35 @@
 - Turning too twitchy: `maxTurnRate`, then `steerPeakSpeed` to move where it peaks.
 - Too punishing: widen `cleanAngle` / `wobbleAngle`, or raise `wallBailSpeed`.
 - Any key can be overridden per instance: `createBike({ gravity: 12 })` merges over `CONFIG`.
+
+## Tuning round-trip: ruling and results
+
+Answers `tasking/opus-tuning.md` and the bin-to-bin failure in `neon-followup.md` / `b5a2017`. Plan item: `responses/visual-push-plan.md` Phase A.
+
+**Ruling: option 2 (taper), plus charge carried through the air.**
+- **Taper.** While charging, pedal thrust fades out within ~0.11 s (the tap window). After that, holding the pedal holds speed and adds none. Hop distance is then set by entry speed, so landing on a bin is a speed-reading skill, not a throttle-release trick. Pedalling before the crouch still builds speed for a long hop over a bin.
+- **Air charge.** Holding hop during the descent loads the charge, so landing on bin 1 and releasing at the lip gives a full pop straight away. A release in the air outside the coyote window still never pops, and it spends the charge, so no double jumps are possible.
+
+**Measured on Neon's hop line (Hawk2 `c5079bc` geometry: 3.5 m pitch, lid 2.82, sidewalk 1.72).** The table counts how many of the swept bin-0 takeoff points also land on bin 1, with the lid release at the lip (x = −26.0):
+
+| Approach speed | Shipped module | This change (hold through the descent) |
+|---|---|---|
+| 3.5 m/s (Moth's case: landing ~3.5) | 0/23 | **19/23** |
+| 4.0 m/s | 7/24 | **24/24** |
+| 5–6 m/s | 9/25 – 18/20 | 8/25 – 0/20: a carried full charge overshoots, so charge on the lid instead for the shorter hop |
+
+**Land-on-bin with the pedal held through a full charge** (number of the 80 sampled takeoff points that land on the lid):
+
+| Approach speed | Shipped | This change |
+|---|---|---|
+| 2.5–4 m/s | 10–14 | **23–25** |
+
+**Conclusion: the 3.5 m hop line can stay as Neon built it. No world change is needed.** `hopLinePitch` at 3.4 m (Neon's plan default) also works, because a shorter pitch only widens the window (at 3.3 m: 23/23 at 3.5 m/s).
+
+**Player technique for the hint line:** hop onto bin 1, hold the button through the drop, release at the front edge of the lid.
+
+**Tests pinning this:**
+- pedal taper: holding the pedal through a full charge gains ≤ 0.2 m/s, and is never slower than coasting;
+- charge carry: hold through the air, land, release gives charge01 > 0.9;
+- an air release never pops and drops the stored charge;
+- bin-to-bin on the 3.5 m line: ≥ 80% at 3.5 and 4.0 m/s with the carry, and ≤ 30% the old way.
