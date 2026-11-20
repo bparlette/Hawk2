@@ -61,8 +61,14 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { buildWorld, WORLD_LIGHTING } from './src/world/buildWorld.js';
+import { buildWorld, WORLD_LIGHTING, applyWorldEnvMap } from './src/world/buildWorld.js';
 import { createBike } from './src/physics/bikePhysics.js';
+import { createBailSim } from './src/rider/bailSim.js';
+
+/* SUN: Neon's WORLD_LIGHTING now carries the ~20 deg sun herself (a9fe0e5, sunDir
+   [-0.80, 0.34, 0.48], exposure 1.16) — the host adopts her export wholesale, no
+   override. (Opus's finding that prompted it: at the old 11 deg sun the rider's
+   shadow was invisible in the house shade on the main street.) */
 
 /* ============================================================ RENDERER / SCENE / DUSK SKY */
 const container = document.getElementById('game');
@@ -87,7 +93,7 @@ scene.fog = new THREE.Fog(WORLD_LIGHTING.fog.color, WORLD_LIGHTING.fog.near, WOR
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   scene.background = tex;
 }
-const camera = new THREE.PerspectiveCamera(62, window.innerWidth/window.innerHeight, 0.1, 400);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 400); // 60 = Opus's shipped base FOV (his +4 deg speed breathe not wired; cap was 64)
 const hemi = new THREE.HemisphereLight(WORLD_LIGHTING.hemi.sky, WORLD_LIGHTING.hemi.ground, WORLD_LIGHTING.hemi.intensity); scene.add(hemi);
 const sun = new THREE.DirectionalLight(WORLD_LIGHTING.sun.color, WORLD_LIGHTING.sun.intensity);
 const SUN_OFF = new THREE.Vector3(...WORLD_LIGHTING.sun.dir).normalize().multiplyScalar(45);
@@ -100,6 +106,7 @@ scene.add(new THREE.AmbientLight(WORLD_LIGHTING.ambient.color, WORLD_LIGHTING.am
 
 /* ============================================================ WORLD + PHYSICS (standalone modules) */
 const world = buildWorld(scene);
+const envInfo = applyWorldEnvMap(renderer, scene); // Neon's PMREM sky-reflection helper (was exported but never called — Opus handover)
 const WATER_Y = world.water.y;
 /* ---- Prop response (host-side, additive — the physics module is untouched):
    bins are loose props. A side hit at speed knocks the bin over (it becomes
@@ -115,6 +122,7 @@ for (const bp of binProps){
 }
 function knockBin(bp, fx, fz){
   bp.knocked = true;
+  flowBreak(0.5); // a knock-over costs half the speed build (Cherie: collisions break the flow)
   const pivot = new THREE.Group();
   pivot.position.set(bp.x + fx * 0.48, bp.baseY, bp.z + fz * 0.48);
   scene.add(pivot);
@@ -135,8 +143,8 @@ function propResponse(dt){
       knockBin(bp, fx, fz);
       S.heading -= THREE.MathUtils.clamp(rel * 0.55, -0.35, 0.35);
       S.speed *= 0.8;
-    } else if (!S.grounded && spd >= 2.2 && toward > 0.2 && S.y < bp.top - 0.45 && S.vy < -0.5){
-      knockBin(bp, fx, fz); // falling short into the bin's face: tip it, keep flying
+    } else if (!S.grounded && spd >= 2.2 && toward > 0.2 && S.y < bp.top - 0.60 && S.vy < -1.2){
+      knockBin(bp, fx, fz); // falling well short into the bin's face (not a lid landing): tip it, keep flying
       S.heading -= THREE.MathUtils.clamp(rel * 0.55, -0.35, 0.35);
       S.speed *= 0.85;
     } else if (S.grounded && spd < 2.2 && dist < 0.9 && S.y < bp.top - 0.25){
@@ -183,10 +191,11 @@ function tube(a, b, r, material, parent){
 }
 const V3 = (x,y,z)=>new THREE.Vector3(x,y,z);
 const frameMat = mat(0xd8434f, 0.35, 0.6), chromeMat = mat(0xb9c0c9, 0.3, 0.85), tyreMat = mat(0x17181c, 0.95),
-      skinMat = mat(0xc98a5e, 0.8), shirtMat = mat(0xffd23f, 0.85), pantsMat = mat(0x2b4d8f, 0.9),
+      skinMat = mat(0xc98a5e, 0.8), shirtMat = mat(0xffd23f, 0.85), pantsMat = mat(0xb09a72, 0.95),
       shoeMat = mat(0xf2f2f2, 0.7), capMat = mat(0x24304f, 0.85),
       darkSteelMat = mat(0x2a2c30, 0.55, 0.7), rubberMat = mat(0x141416, 0.95),
       teeMat = mat(0xf3efe6, 0.92), shortsMat = mat(0xb09a72, 0.95), shortsDarkMat = mat(0x8a764f, 0.95),
+      capDarkMat = mat(0x182238, 0.85), strapMat = mat(0x30363f, 0.8),
       hairMat = mat(0x2a1c12, 0.9), eyeMat = mat(0xf8f8f5, 0.3), soleMat = mat(0x3a3a3e, 0.9);
 /* --- geometry helpers for the modelled bike + Figure-Factory-style rider --- */
 function xform(geo, px,py,pz, rx=0,ry=0,rz=0, sx=1,sy=1,sz=1){
@@ -268,15 +277,29 @@ function buildHead(parent, y0){
   ], eyeMat, parent);
   mergedMesh([
     xform(new THREE.SphereGeometry(0.121, 18, 10, 0, Math.PI*2, 0, 1.35), 0, y0 + 0.118, 0),
-    xform(new THREE.BoxGeometry(0.17, 0.018, 0.115), 0, y0 + 0.126, 0.118, -0.10),
     xform(new THREE.CylinderGeometry(0.02, 0.02, 0.014, 10), 0, y0 + 0.238, 0),
   ], capMat, parent);
+  /* BACKWARDS cap (Cherie, Nov 20): the brim is a real visor piece — flat, thick,
+     clearly its own part — worn pointing BACK over the neck so the chase camera
+     reads it instantly; snap strap band above it on the dome's back. */
+  mergedMesh([
+    xform(new THREE.BoxGeometry(0.20, 0.026, 0.145), 0, y0 + 0.110, -0.150, -0.10),
+  ], capDarkMat, parent);
+  mergedMesh([
+    xform(new THREE.BoxGeometry(0.125, 0.034, 0.016), 0, y0 + 0.152, -0.104, -0.15),
+    xform(new THREE.SphereGeometry(0.011, 8, 6), -0.032, y0 + 0.152, -0.113),
+    xform(new THREE.SphereGeometry(0.011, 8, 6), 0.032, y0 + 0.152, -0.113),
+  ], strapMat, parent);
 }
 function buildArmParts(sh, el, side){
+  /* Loose shirt construction (Cherie, Nov 20): the sleeve is one continuous
+     garment from the shoulder — a flattened cloth cap over the joint (overlaps
+     the torso shell AND the sleeve at any arm angle, so no gap and no detached
+     ball) plus a loose tube down the upper arm with the arm hidden inside it. */
   mergedMesh([
-    xform(new THREE.SphereGeometry(0.06, 12, 10), 0, 0, 0),
-    tapered(0.053, 0.047, 0.20),
-    xform(new THREE.CylinderGeometry(0.050, 0.053, 0.05, 12), 0, -0.20, 0),
+    xform(new THREE.SphereGeometry(0.086, 12, 10), 0, 0, 0, 0, 0, 0, 1, 0.62, 1),
+    tapered(0.076, 0.062, 0.27),
+    xform(new THREE.CylinderGeometry(0.064, 0.068, 0.05, 12), 0, -0.25, 0),
   ], teeMat, sh);
   mergedMesh([
     xform(new THREE.SphereGeometry(0.041, 10, 8), 0, 0, 0),
@@ -286,17 +309,17 @@ function buildArmParts(sh, el, side){
   ], skinMat, el);
 }
 function buildLegParts(hip, knee, ank){
+  /* PANTS (Cherie, Nov 20 — replaces the shorts): loose full-length legs, cloth
+     tubes from hip to shoe with the leg hidden inside, cuff at the ankle. */
   mergedMesh([
-    xform(new THREE.SphereGeometry(0.066, 12, 10), 0, 0, 0),
-    tapered(0.070, 0.060, 0.21),
-    xform(new THREE.CylinderGeometry(0.062, 0.068, 0.055, 12), 0, -0.225, 0),
-  ], shortsMat, hip);
-  const thighSkin = new THREE.Mesh(new THREE.CapsuleGeometry(0.047, 0.15, 3, 10), skinMat);
-  thighSkin.geometry.translate(0, 0, 0); thighSkin.position.y = -0.315; thighSkin.castShadow = true; hip.add(thighSkin);
+    xform(new THREE.SphereGeometry(0.070, 12, 10), 0, 0, 0),
+    tapered(0.080, 0.062, 0.40),
+  ], pantsMat, hip);
   mergedMesh([
-    xform(new THREE.SphereGeometry(0.044, 10, 8), 0, 0, 0),
-    tapered(0.040, 0.030, 0.34),
-  ], skinMat, knee);
+    xform(new THREE.SphereGeometry(0.052, 10, 8), 0, 0, 0),
+    tapered(0.056, 0.044, 0.35),
+    xform(new THREE.CylinderGeometry(0.047, 0.050, 0.07, 12), 0, -0.375, 0),
+  ], pantsMat, knee);
   mergedMesh([
     xform(new THREE.BoxGeometry(0.088, 0.052, 0.175), 0, -0.028, 0.028),
     xform(new THREE.SphereGeometry(0.048, 10, 8), 0, -0.034, 0.115, 0, 0, 0, 1.0, 0.55, 1.1),
@@ -376,18 +399,22 @@ const BB = { y: 0.37, z: -0.04 }, CRANK_R = 0.17, LEG_L1 = 0.42, LEG_L2 = 0.42;
   riderRig = new THREE.Group(); pitchGroup.add(riderRig);
   mergedMesh([
     xform(new THREE.SphereGeometry(0.145, 16, 12), 0, 1.03, -0.19, 0, 0, 0, 1.05, 0.68, 1.18),
-  ], shortsMat, riderRig);
+  ], pantsMat, riderRig);
   mergedMesh([
     xform(new THREE.CylinderGeometry(0.150, 0.156, 0.055, 14), 0, 1.115, -0.19, 0, 0, 0, 1.05, 1, 0.8),
   ], shortsDarkMat, riderRig);
   spineJ = pivot(riderRig, 0, 1.05, -0.19);
   {
-    const pts = [[0.001, 0], [0.148, 0.0], [0.152, 0.04], [0.140, 0.16], [0.150, 0.30], [0.156, 0.36], [0.138, 0.42], [0.072, 0.465], [0.070, 0.48]]
+    /* LOOSE SHIRT SHELL (Cherie, Nov 20): a garment volume standing off the body
+       on all sides (~+0.04 m of air), shoulder line wide enough to swallow the
+       sleeve tops, hem hanging 0.14 m below the spine pivot — past the waist,
+       over the pants. The body's silhouette does not show through it. */
+    const pts = [[0.001, -0.14], [0.175, -0.135], [0.180, -0.06], [0.178, 0.06], [0.182, 0.18], [0.190, 0.30], [0.196, 0.38], [0.188, 0.435], [0.120, 0.465], [0.074, 0.48]]
       .map(p => new THREE.Vector2(p[0], p[1]));
     mergedMesh([
-      xform(new THREE.LatheGeometry(pts, 18), 0, 0, 0, 0, 0, 0, 1.12, 1, 0.74),
+      xform(new THREE.LatheGeometry(pts, 18), 0, 0, 0, 0, 0, 0, 1.12, 1, 0.78),
       xform(new THREE.TorusGeometry(0.072, 0.015, 8, 18), 0, 0.465, 0, Math.PI/2),
-      xform(new THREE.CylinderGeometry(0.150, 0.154, 0.04, 14), 0, 0.02, 0, 0, 0, 0, 1.12, 1, 0.74),
+      xform(new THREE.CylinderGeometry(0.176, 0.180, 0.04, 14), 0, -0.115, 0, 0, 0, 0, 1.12, 1, 0.78),
     ], teeMat, spineJ);
   }
   neckJ = pivot(spineJ, 0, 0.47, 0.02);
@@ -413,7 +440,7 @@ const BB = { y: 0.37, z: -0.04 }, CRANK_R = 0.17, LEG_L1 = 0.42, LEG_L2 = 0.42;
 }
 /* rider pose data (Figure-Factory style): joint -> [rx, ry, rz] targets */
 const RIDER_POSE = {
-  spine:  { ride: [0.50, 0, 0], crouchAdd: 0.30, airAdd: -0.16 },
+  spine:  { ride: [0.50, 0, 0], crouchAdd: 0.38, airAdd: -0.16 }, // crouchAdd = Opus's 0.38 rad torso flatten
   neck:   { ride: [-0.28, 0, 0] },
   shoulder: { ride: [-1.04, 0, 0], crouchAdd: -0.16, airAdd: 0.04 },
   elbow:  { ride: [-0.60, 0, 0], crouchAdd: -0.10 },
@@ -437,17 +464,17 @@ function solveLeg(hipJ, kneeJ, ankJ, side, ph, rigY){
 }
 /* ---- swimmer: same articulated figure, prone swim pose — visible in swim / bail */
 const swimmer = new THREE.Group(); swimmer.visible = false; scene.add(swimmer);
-let swimArmL, swimArmR, swimElbL, swimElbR, swimLegL, swimLegR, swimShinL, swimShinR, swimFoam;
+let swimArmL, swimArmR, swimElbL, swimElbR, swimLegL, swimLegR, swimShinL, swimShinR, swimAnkL, swimAnkR, swimFoam;
 {
   swimFoam = new THREE.Mesh(new THREE.CircleGeometry(0.88, 20),
     new THREE.MeshBasicMaterial({ color:0xdff2ff, transparent:true, opacity:0.55, depthWrite:false }));
-  swimFoam.rotation.x = -Math.PI/2; swimFoam.position.y = -0.4; swimmer.add(swimFoam);
-  const sTorso = new THREE.Mesh(new THREE.CapsuleGeometry(0.145, 0.34, 4, 12), teeMat);
-  sTorso.rotation.x = Math.PI/2; sTorso.scale.set(1.12, 1, 0.72);
+  swimFoam.rotation.x = -Math.PI/2; swimFoam.position.y = 0.24; swimmer.add(swimFoam); // +0.24: ring stays at the surface while the body axis rides 0.16 under it (swim-in-water fix, Cherie Nov 20)
+  const sTorso = new THREE.Mesh(new THREE.CapsuleGeometry(0.158, 0.38, 4, 12), teeMat);
+  sTorso.rotation.x = Math.PI/2; sTorso.scale.set(1.26, 1, 0.86); // same loose tee as the rider
   sTorso.position.set(0, 0, -0.02); sTorso.castShadow = true; swimmer.add(sTorso);
   mergedMesh([
     xform(new THREE.SphereGeometry(0.14, 14, 10), 0, -0.01, -0.30, 0, 0, 0, 1.05, 0.7, 1.15),
-  ], shortsMat, swimmer);
+  ], pantsMat, swimmer);
   const sHeadP = pivot(swimmer, 0, -0.055, 0.315); sHeadP.rotation.x = 0.38;
   buildHead(sHeadP, 0);
   function sArm(side){
@@ -463,10 +490,11 @@ let swimArmL, swimArmR, swimElbL, swimElbR, swimLegL, swimLegR, swimShinL, swimS
     const knee = pivot(hip, 0, -0.40, 0);
     const ank = pivot(knee, 0, -0.40, 0);
     buildLegParts(hip, knee, ank);
-    return { hip, knee };
+    return { hip, knee, ank };
   }
   const slL = sLeg(-1), slR = sLeg(1);
   swimLegL = slL.hip; swimShinL = slL.knee; swimLegR = slR.hip; swimShinR = slR.knee;
+  swimAnkL = slL.ank; swimAnkR = slR.ank;
 }
 /* ---- splash rings (pooled) */
 const splashes = [];
@@ -490,12 +518,20 @@ let joyActive = false, joyId = null, joyOX = 0, joyOY = 0, joyX = 0, joyY = 0;
 let btnA = false, btnB = false;
 /* Touch scheme: the stick STEERS ONLY — its vertical axis never throttles, so a
    steering push can't surge the bike forward into things. Instead the bike
-   auto-pedals at a gentle cruise once any touch control has been used
-   (pedal 0.6 -> settles ~0.6 x topSpeed 12 = ~7.2 m/s, CONFIG.cruiseSpeed).
-   B (brake) overrides the cruise. Stick vertical is kept as stickY and used
-   for air pitch ONLY, while airborne, when it can't accelerate the bike. */
+   auto-pedals once any touch control has been used. B (brake) overrides the
+   cruise. Stick vertical is kept as stickY and used for air pitch ONLY, while
+   airborne, when it can't accelerate the bike. */
 let touchMode = false;
 const AUTO_PEDAL = 0.6;
+/* Cherie's speed spec (Nov 20, from live play: "26 km/h still top. Needs to be
+   75"): base top is now 25 km/h (module CONFIG.topSpeed 6.94) and the flow
+   build raises the cap 3x to 75 km/h. The TOUCH settle must ride the cap the
+   whole way up — a phone player on a clean straight has to watch the speedo
+   climb ~26 -> 75 with no brake. At the old 12 m/s base, AUTO_PEDAL 0.6 was
+   the 26 km/h cruise; at the 6.94 base that settle needs ~full pedal, so the
+   touch pedal scales with flowFactor and the 12/FLOW_BASE ratio, clamped at
+   1. Keyboard full pedal reaches the same caps (settle = pedal x cap). */
+const touchPedal = () => Math.min(1, AUTO_PEDAL * flowFactor * (12 / FLOW_BASE));
 /* Latch touchMode on the FIRST touch-origin interaction of ANY kind, not just
    the joystick/buttons' own pointerdown handlers: a first tap that lands on
    the canvas or anywhere else must also engage the auto-pedal cruise. */
@@ -584,9 +620,29 @@ bubGeo.setAttribute('position', new THREE.BufferAttribute(bubPos, 3));
 const bubbles = new THREE.Points(bubGeo, new THREE.PointsMaterial({ color: 0xd8f4ff, size: 0.06, transparent: true, opacity: 0.75, depthWrite: false }));
 bubbles.visible = false; bubbles.frustumCulled = false; scene.add(bubbles);
 let bailT = 0, bailY = 0;
+const bailSim = createBailSim(); // Opus bail integrator: rider separates ballistically, bike skids and falls
+let BS = null;                   // latest bailSim output while mode === 'bail'
+let prevState = { x: 0, y: 0, z: 0, heading: 0, speed: 0, vy: 0 }; // pre-step snapshot (physics zeroes speed on bail/splash)
+let brace01 = 0, squashCur = 0, coast01 = 0, pedalBlend = 0, airPivot01 = 0; // pose-driver channels (Opus pose table, mapped)
 const floatBike = { x: world.spawn.x, z: world.spawn.z, heading: world.spawn.heading };
+/* FLOW — speed-build (Cherie Nov 20): keep riding clean (throttle on, roughly
+   straight, no brake) and the effective top speed climbs from the module's base
+   cap toward 3x. Implemented by scaling bike.config.topSpeed — the module reads
+   its config every step, so this is a config knob, not a module change; Opus's
+   charge-carry / pedal taper key off crouch01 and are untouched at any factor. */
+let flowFactor = 1;
+const FLOW_BASE = bike.config.topSpeed, FLOW_MAX = 3, FLOW_BUILD_S = 14; // ~14 s of clean riding to full build
+function flowBreak(mult = 0){ flowFactor = 1 + (flowFactor - 1) * mult; }
+/* RAIL GRIND (Cherie Nov 20): hop close to a bridge rail travelling along the
+   bridge and the rider auto-locks on and rides the rail; a jump clearly
+   carrying him over it (high, or driving outward) still goes in the water.
+   Geometry mirrors buildWorld: rails at x = ±(DECK_HALF_X − 0.18), top at
+   DECK_Y + RAIL_H, deck span |z| ≤ DECK_HALF_Z. Host-driven like swim — the
+   physics module is paused while grinding and S stays the single source. */
+const RAIL_X = 4.42, RAIL_TOP = 4.62, RAIL_HALF_SPAN = 10.6;
+let grind = null; // { railX, dirZ, speed, steerT }
 function enterSwim(){
-  mode = 'swim';
+  mode = 'swim'; flowFactor = 1; grind = null; bike.config.topSpeed = FLOW_BASE;
   swimPos = { x: S.x, z: S.z };
   swimHeading = S.heading; swimSpeed = 0; canClimb = false;
   swimDepth = 0.2; swimDivePitch = 0; // a little plunge on entry, buoyancy brings him back up
@@ -597,6 +653,8 @@ function enterSwim(){
 }
 function enterBail(){
   mode = 'bail'; bailT = 0; bailY = world.groundAt(S.x, S.z);
+  flowFactor = 1; grind = null; bike.config.topSpeed = FLOW_BASE;
+  BS = bailSim.start(prevState, env); // separation starts from the pre-bail motion
 }
 function stepSwim(dt){
   swimHeading -= input.steer * dt * 1.9;
@@ -620,8 +678,53 @@ function stepSwim(dt){
   swimDivePitch += (THREE.MathUtils.clamp(dv * 0.55, -0.55, 0.5) * pitchRoom - swimDivePitch) * Math.min(1, dt * 6);
   if (exit && input.action && swimDepth <= 0.2){
     bike.reset({ x: exit.x, z: exit.z, heading: exit.heading }, env); // reset with env: grounded at once
-    mode = 'ride';
+    mode = 'ride'; flowFactor = 1; grind = null;
   }
+}
+/* ---- flow + grind drivers (host-side, additive; module untouched) ---- */
+function updateFlow(dt, mi){
+  const clean = mi.pedal > 0 && !input.brake && S.grounded && Math.abs(mi.steer) < 0.3 && S.speed > 2;
+  if (clean) flowFactor = Math.min(FLOW_MAX, flowFactor + dt * (FLOW_MAX - 1) / FLOW_BUILD_S);
+  else if (input.brake) flowFactor = Math.max(1, flowFactor - dt * 0.9);            // brake is the release
+  else if (S.grounded && Math.abs(mi.steer) >= 0.6) flowFactor = Math.max(1, flowFactor - dt * 0.7); // hard steering bleeds it
+  else if (S.grounded && mi.pedal <= 0) flowFactor = Math.max(1, flowFactor - dt * 0.15);             // coasting fades it slowly
+  bike.config.topSpeed = FLOW_BASE * flowFactor; // the bike settles at each level — cap, not thrust
+}
+function tryGrindCapture(){
+  if (grind || Math.abs(S.z) > RAIL_HALF_SPAN + 0.3 || Math.abs(S.x) > RAIL_X + 1.2) return;
+  const rail = S.x < 0 ? -RAIL_X : RAIL_X;
+  if (Math.abs(S.x - rail) > 0.55) return; // near-miss window around the rail line
+  const onRailTop = S.grounded && S.y >= RAIL_TOP - 0.05;                       // landed right on it
+  const droppingIn = !S.grounded && S.vy <= 0.5 && S.y >= RAIL_TOP - 0.30 && S.y <= RAIL_TOP + 0.60; // coming down onto it
+  if (!onRailTop && !droppingIn) return; // above that window = clearly clearing it → water, no snap
+  const vx = Math.sin(S.heading) * S.speed, vz = Math.cos(S.heading) * S.speed;
+  if (Math.abs(vz) < Math.abs(S.speed) * 0.6) return;  // trajectory must run roughly along the bridge
+  if (vx * Math.sign(rail) > 1.0) return;              // driving outward over the rail = a dive, not a grind
+  grind = { railX: rail, dirZ: vz >= 0 ? 1 : -1, speed: Math.max(Math.abs(S.speed), 1.5), steerT: 0 };
+  S.x = rail; S.y = RAIL_TOP; S.heading = grind.dirZ > 0 ? 0 : Math.PI;
+  S.speed = grind.speed; S.vy = 0; S.grounded = true; S.crouch01 = 0;
+}
+function stepGrind(dt, mi){
+  const cap = FLOW_BASE * flowFactor;
+  if (input.brake){ grind.speed = Math.max(0, grind.speed - 7 * dt); flowFactor = Math.max(1, flowFactor - dt * 0.9); }
+  else if (mi.pedal > 0){ // the 3x build rules still apply on the rail
+    grind.speed = Math.min(cap, grind.speed + 7 * (mi.pedal - grind.speed / cap) * dt);
+    flowFactor = Math.min(FLOW_MAX, flowFactor + dt * (FLOW_MAX - 1) / FLOW_BUILD_S);
+  } else grind.speed = Math.max(0, grind.speed - 1.0 * dt);
+  bike.config.topSpeed = FLOW_BASE * flowFactor;
+  S.z += grind.dirZ * grind.speed * dt;
+  S.x = grind.railX; S.y = RAIL_TOP; S.speed = grind.speed;
+  S.heading = grind.dirZ > 0 ? 0 : Math.PI; S.vy = 0; S.grounded = true;
+  if (mi.hopHeld) S.crouch01 = Math.min(1, S.crouch01 + dt * 3); // charge the hop-off on the rail
+  if (mi.hopReleased){ // hop input releases the grind into a normal hop
+    S.vy = 2.6 + 1.8 * (S.crouch01 || 0); S.crouch01 = 0; S.grounded = false; grind = null; return;
+  }
+  if (Math.abs(mi.steer) > 0.85){ // hard steering bails him off the side (out = water, in = deck)
+    grind.steerT += dt;
+    if (grind.steerT > 0.25){ S.heading -= Math.sign(mi.steer) * 0.6; S.vy = 0.4; S.grounded = false; grind = null; return; }
+  } else grind.steerT = 0;
+  if (Math.abs(S.z) >= RAIL_HALF_SPAN){ S.vy = 0; S.grounded = false; grind = null; return; } // rail end: drop to the ramp
+  if (grind.speed < 0.6){ S.x = grind.railX - Math.sign(grind.railX) * 0.85; S.vy = 0; S.grounded = false; grind = null; } // crawl: step down to the deck
 }
 let last = performance.now(), ftSamples = [], workSamples = [];
 function animate(now){
@@ -653,7 +756,7 @@ function animate(now){
   const modInput = {
     pedal: input.brake ? -1
       : input.throttle !== 0 ? input.throttle
-      : (touchMode && mode === 'ride' ? AUTO_PEDAL : 0),
+      : (touchMode && mode === 'ride' ? touchPedal() : 0),
     steer: input.steer,
     hopHeld: input.hopHeld,
     hopReleased: prevHopHeld && !input.hopHeld,
@@ -662,18 +765,41 @@ function animate(now){
   lastModInput = modInput;
   prevHopHeld = input.hopHeld;
   if (mode === 'ride'){
-    propResponse(dt);
-    const events = bike.step(dt, modInput, env);
-    for (const ev of events){
-      if (ev.type === 'splash') enterSwim();
-      else if (ev.type === 'bail') enterBail();
+    prevState = { x: S.x, y: S.y, z: S.z, heading: S.heading, speed: S.speed, vy: S.vy };
+    if (grind) stepGrind(dt, modInput); // module paused on the rail; S already carries the grind state
+    else {
+      updateFlow(dt, modInput);
+      propResponse(dt);
+      const events = bike.step(dt, modInput, env);
+      for (const ev of events){
+        if (ev.type === 'splash') enterSwim();
+        else if (ev.type === 'bail') enterBail();
+        else if (ev.type === 'land'){ // Opus landing brace: impact-scaled, silent on curbs (< 2 m/s)
+          const impact = Math.abs(prevState.vy);
+          if (impact > 2.0) brace01 = Math.min(1, (impact - 2.0) * 0.22);
+        }
+      }
+      if (prevState.speed > 3 && S.speed === 0 && S.grounded) flowFactor = 1; // a wall-stop breaks the build
+      tryGrindCapture();
     }
   } else if (mode === 'swim'){
     stepSwim(dt);
-  } else { // bail: wait out the beat, then A / E remounts via reset (grounded immediately)
+  } else { // bail: the integrator flies the rider and skids the bike; A / E remounts at the bike
     bailT += dt;
-    if (bailT > 0.8 && input.action){
-      bike.reset({ x: S.x, z: S.z, heading: S.heading }, env);
+    BS = bailSim.step(dt, env);
+    for (const ev of BS.events){
+      if (ev.type === 'riderWater'){ // bailed off the bridge into the canal: straight into the swim
+        swimPos = { x: BS.rider.x, z: BS.rider.z };
+        swimHeading = BS.rider.yaw; swimSpeed = 0; canClimb = false;
+        swimDepth = 0.15; swimDivePitch = 0;
+        floatBike.x = BS.bike.x; floatBike.z = BS.bike.z; floatBike.heading = BS.bike.yaw;
+        mode = 'swim';
+        splash(BS.rider.x, BS.rider.z, true);
+      }
+    }
+    if (mode === 'bail' && bailT > 0.8 && input.action){
+      bike.reset({ x: BS ? BS.bike.x : S.x, z: BS ? BS.bike.z : S.z, heading: S.heading }, env);
+      bailSim.stop(); BS = null;
       mode = 'ride';
     }
   }
@@ -694,24 +820,40 @@ function animate(now){
     if (a.t > 1.4) bp.anim = null;
   }
   if (mode !== 'swim') bubbles.visible = false;
+  if (mode !== 'swim' && world.setSwimmerWake) world.setSwimmerWake(0, 0, 0); // wake off out of the water
   const dBlend = mode === 'swim' ? THREE.MathUtils.smoothstep(swimDepth, 0.35, 0.95) : 0;
   if (mode === 'ride'){
     bikeGroup.position.set(S.x, S.y, S.z);
     bikeGroup.rotation.y = S.heading;
     leanGroup.rotation.z = S.lean + (S.wobbling ? Math.sin(hostTime*34) * 0.06 : 0);
-    leanGroup.position.y = -S.crouch01 * 0.07;
+    leanGroup.position.y = 0; // Opus pose mapping: the crouch lives in the hips, not a whole-rig sink
     pitchGroup.rotation.x = -S.pitch; // module pitch: positive = nose up; rotation.x positive = nose down
+    /* landing squash + rear-contact air pivot (Opus channels): frame squashes up to
+       7 cm on a hard landing while the tyres stay planted; in the air the pitch
+       pivots on the rear contact point so the pop reads as a wheelie */
+    brace01 *= Math.exp(-5 * dt);
+    squashCur += (brace01 * 0.07 - squashCur) * Math.min(1, dt * 22);
+    airPivot01 += ((S.grounded ? 0 : 1) - airPivot01) * Math.min(1, dt * 18);
+    const pa = -S.pitch;
+    pitchGroup.position.set(0, -squashCur - 0.52 * Math.sin(pa) * airPivot01, -0.52 * (1 - Math.cos(pa)) * airPivot01);
+    wheelF.position.y = wheelR.position.y = 0.34 + squashCur;
     airBlend += ((S.grounded ? 0 : 1) - airBlend) * Math.min(1, dt * 7);
-    riderRig.position.y = -S.crouch01 * 0.17 + airBlend * 0.05;
-    riderRig.position.z = airBlend * 0.03;
+    /* hips channels (Opus pose table mapped onto this rig): crouch = 20 cm down +
+       14 cm back, air = standing back over the rear wheel, coast = hips forward,
+       brace = landing absorb. Feet stay on the pedals throughout (pedal IK). */
+    coast01 += ((((modInput.pedal <= 0 || grind) && S.grounded && S.speed > 0.5) ? 1 : 0) - coast01) * Math.min(1, dt * 4); // grinding = coast stance, feet level
+    pedalBlend += ((((modInput.pedal > 0 && !grind) && S.speed > 0.2) ? 1 : 0) - pedalBlend) * Math.min(1, dt * 6);
+    riderRig.position.y = -S.crouch01 * 0.20 + airBlend * 0.05 - brace01 * 0.18 + coast01 * 0.01
+      + Math.sin(pedalPhase * 2) * 0.012 * pedalBlend; // 12 mm torso bob at 2x cadence
+    riderRig.position.z = -S.crouch01 * 0.14 - airBlend * 0.11 + coast01 * 0.10 - brace01 * 0.06;
+    riderRig.rotation.z = Math.sin(pedalPhase) * 0.05 * pedalBlend; // hip rock at cadence
     const spin = S.grounded ? S.speed / 0.34 : 9;
     wheelF.rotation.x += spin * dt; wheelR.rotation.x += spin * dt;
-    if (S.grounded){
-      if (modInput.pedal > 0 && S.speed > 0.2) pedalPhase += dt * (2 + S.speed * 1.6);
-      else if (S.speed > 0.5) pedalPhase += dt * S.speed * 0.9;
-    } else { /* level the cranks mid-air, BMX style */
+    if (S.grounded && !grind && modInput.pedal > 0 && S.speed > 0.2){
+      pedalPhase += dt * S.speed * 1.07; // exact cadence: speed / 0.34 wheel radius / 2.75 gear = 72 rpm at 7 m/s
+    } else { /* coasting or airborne: cranks freewheel to level */
       const lvl = Math.round(pedalPhase / Math.PI) * Math.PI;
-      pedalPhase += (lvl - pedalPhase) * Math.min(1, dt * 5);
+      pedalPhase += (lvl - pedalPhase) * Math.min(1, dt * 6);
     }
     crank.rotation.x = -pedalPhase;
     const ph = pedalPhase, ab = airBlend;
@@ -725,7 +867,8 @@ function animate(now){
       ankJL.rotation.x = -(hipJL.rotation.x + kneeJL.rotation.x);
       ankJR.rotation.x = -(hipJR.rotation.x + kneeJR.rotation.x);
     }
-    spineJ.rotation.x = RIDER_POSE.spine.ride[0] + S.crouch01 * RIDER_POSE.spine.crouchAdd + ab * RIDER_POSE.spine.airAdd;
+    spineJ.rotation.x = RIDER_POSE.spine.ride[0] + S.crouch01 * RIDER_POSE.spine.crouchAdd + ab * RIDER_POSE.spine.airAdd
+      - coast01 * 0.13 + brace01 * 0.26; // coast: sits up; brace: folds toward the bars (Opus deltas)
     spineJ.rotation.z = -S.lean * 0.30;
     neckJ.rotation.x = RIDER_POSE.neck.ride[0] - S.crouch01 * 0.12;
     neckJ.rotation.z = -S.lean * 0.25;
@@ -735,8 +878,10 @@ function animate(now){
   } else if (mode === 'swim'){
     const t = hostTime;
     swimFoam.visible = swimDepth < 0.15;
-    swimmer.position.set(swimPos.x, WATER_Y + 0.48 - swimDepth + Math.sin(t*2.2)*0.045*(1 - dBlend), swimPos.z);
+    swimmer.position.set(swimPos.x, WATER_Y - 0.16 - swimDepth + Math.sin(t*2.2)*0.045*(1 - dBlend), swimPos.z); // body axis IN the water (was +0.48, lying on top like a board — Cherie Nov 20)
+    if (world.setSwimmerWake) world.setSwimmerWake(swimPos.x, swimPos.z, Math.abs(swimSpeed)); // Neon's wake/churn hook (a9fe0e5)
     swimmer.scale.setScalar(1.18);
+    swimmer.rotation.order = 'XYZ';
     swimmer.rotation.set(0.12 + Math.sin(t*2.2)*0.03*(1 - dBlend) + swimDivePitch, swimHeading, 0);
     /* bubbles stream from the swimmer while submerged */
     bubbles.visible = swimDepth > 0.2;
@@ -747,7 +892,7 @@ function animate(now){
         if (d.life <= 0 || y > WATER_Y - 0.04){
           d.life = 1 + Math.random() * 2;
           bubPos[i*3]   = swimPos.x + Math.sin(swimHeading) * 0.55 + (Math.random() - 0.5) * 0.3;
-          bubPos[i*3+1] = (WATER_Y + 0.42 - swimDepth) + (Math.random() - 0.5) * 0.15;
+          bubPos[i*3+1] = (WATER_Y - 0.10 - swimDepth) + (Math.random() - 0.5) * 0.15;
           bubPos[i*3+2] = swimPos.z + Math.cos(swimHeading) * 0.55 + (Math.random() - 0.5) * 0.3;
         } else {
           bubPos[i*3] += Math.sin(t * 3 + i) * 0.0006;
@@ -761,20 +906,40 @@ function animate(now){
     swimArmR.rotation.x = -1.45 - Math.sin(stroke + Math.PI) * 1.05;
     swimElbL.rotation.x = -0.30 - 0.50 * Math.max(0, Math.sin(stroke - 0.7));
     swimElbR.rotation.x = -0.30 - 0.50 * Math.max(0, Math.sin(stroke + Math.PI - 0.7));
-    swimLegL.rotation.x = Math.PI/2 + Math.sin(stroke*1.35) * 0.30;
-    swimLegR.rotation.x = Math.PI/2 + Math.sin(stroke*1.35 + Math.PI) * 0.30;
-    swimShinL.rotation.x = -Math.max(0, Math.sin(stroke*1.35 + 0.6)) * 0.45;
-    swimShinR.rotation.x = -Math.max(0, Math.sin(stroke*1.35 + Math.PI + 0.6)) * 0.45;
+    swimLegL.rotation.x = Math.PI/2 + Math.sin(stroke*1.35) * 0.13;
+    swimLegR.rotation.x = Math.PI/2 + Math.sin(stroke*1.35 + Math.PI) * 0.13;
+    swimShinL.rotation.x = -Math.max(0, Math.sin(stroke*1.35 + 0.6)) * 0.18;
+    swimShinR.rotation.x = -Math.max(0, Math.sin(stroke*1.35 + Math.PI + 0.6)) * 0.18;
+    // toes point BACK in line with the body (ankle counters leg+shin tilt) — kills the dangling dark-sole "black slab" read
+    swimAnkL.rotation.x = Math.PI - (swimLegL.rotation.x + swimShinL.rotation.x);
+    swimAnkR.rotation.x = Math.PI - (swimLegR.rotation.x + swimShinR.rotation.x);
     bikeGroup.position.set(floatBike.x, WATER_Y + 0.1 + Math.sin(t*1.7)*0.05, floatBike.z);
     bikeGroup.rotation.y = floatBike.heading;
     leanGroup.rotation.z = 1.25;
-  } else { // bail
+  } else { // bail: Opus integrator — rider flies flat and settles, bike skids and falls on its side
     swimFoam.visible = false;
-    bikeGroup.position.set(S.x, bailY, S.z);
-    bikeGroup.rotation.y = S.heading;
-    leanGroup.rotation.z = 1.35;
-    swimmer.position.set(S.x + 0.7, bailY + 0.16, S.z + 0.4);
-    swimmer.rotation.set(-Math.PI/2 + 0.25, S.heading, 0);
+    if (BS){
+      bikeGroup.position.set(BS.bike.x, BS.bike.y, BS.bike.z);
+      bikeGroup.rotation.y = BS.bike.yaw;
+      leanGroup.rotation.z = BS.bike.roll;
+      leanGroup.position.y = 0;
+      pitchGroup.rotation.x = 0;
+      pitchGroup.position.set(0, 0, 0);
+      swimmer.scale.setScalar(1.18);
+      swimmer.rotation.order = 'YXZ';
+      swimmer.rotation.set(0, 0, 0);
+      swimmer.rotation.y = BS.rider.yaw;
+      swimmer.rotation.x = -(BS.rider.pitch + Math.PI / 2); // prone-built figure: pitch -PI/2 (flat dive) reads level
+      swimmer.position.set(BS.rider.x, BS.rider.y, BS.rider.z);
+      const L = BS.rider.limbs01; // limbs trail as the tumble settles
+      swimArmL.rotation.x = swimArmR.rotation.x = -0.3 - 0.9 * L;
+      swimElbL.rotation.x = swimElbR.rotation.x = -0.2 * L;
+      swimLegL.rotation.x = Math.PI / 2 + 0.25 * L;
+      swimLegR.rotation.x = Math.PI / 2 - 0.25 * L;
+      swimShinL.rotation.x = swimShinR.rotation.x = 0;
+      swimAnkL.rotation.x = Math.PI - swimLegL.rotation.x;
+      swimAnkR.rotation.x = Math.PI - swimLegR.rotation.x;
+    }
   }
   /* splashes */
   for (const s of splashes){
@@ -785,15 +950,31 @@ function animate(now){
   }
   /* camera */
   const tgt = mode === 'swim'
-    ? { x: swimPos.x, z: swimPos.z, h: swimHeading, y: WATER_Y + 0.48 - swimDepth + 0.30 }
-    : { x: S.x, z: S.z, h: S.heading, y: S.y + 0.9 };
+    ? { x: swimPos.x, z: swimPos.z, h: swimHeading, y: WATER_Y - 0.16 - swimDepth + 0.30 }
+    : mode === 'bail' && BS
+    ? { x: BS.rider.x, z: BS.rider.z, h: BS.rider.yaw, y: BS.rider.y }
+    : { x: S.x, z: S.z, h: S.heading, y: S.y + 0.65 };
   const bx = Math.sin(tgt.h), bz = Math.cos(tgt.h);
-  const dist = mode === 'swim' ? 3.8 : 5.7, hgt = mode === 'swim' ? THREE.MathUtils.lerp(-0.40, -0.15, dBlend) : 2.4; // surface swim: camera sits at the waterline (frame-7 feel); underwater: just above the swimmer
+  /* Ride framing adopts Opus's measured chaseCam geometry exactly: 3.8 m behind
+     the REAR WHEEL (= 4.3 m behind the bike origin; at 3.6 m the rider filled
+     35.8% of frame), camera 1.65 m above the contact patch, aim 0.65 m above the
+     contact patch (~13 deg down-tilt; hip + 0.5 m aim put the horizon at 44% from
+     top). His live-host measure on the old rig: rider 32.4-33.5% of frame, horizon
+     29.9-30.5% from top. RE-MEASURED on the Figure Factory v2 rig in this
+     integration: at 4.3 m the v2 rider filled only 26.7-28% of frame (the v2
+     rig is smaller than his 1.715 m figure), so ride distance closes to 3.8 m
+     behind the ORIGIN to restore the 30-35% band — a documented deviation of
+     the same kind he made (his numbers were rig-specific; the band is the
+     settlement). Swim keeps the waterline/underwater blend (Cherie's frame-7
+     steer); bail pulls back to 5.5 m and rises to watch the dive (frame-3). */
+  const dist = mode === 'swim' ? 3.8 : mode === 'bail' ? 5.5 : 3.8,
+        hgt = mode === 'swim' ? THREE.MathUtils.lerp(0.08, -0.15, dBlend) : mode === 'bail' ? 2.2 : 1.65 - 0.65; // surface end +0.08 keeps camY ~+0.22: waterline framing with the lowered body
   camPos.x += ((tgt.x - bx*dist) - camPos.x) * Math.min(1, dt*4.5);
   camPos.z += ((tgt.z - bz*dist) - camPos.z) * Math.min(1, dt*4.5);
   camPos.y += ((tgt.y + hgt) - camPos.y) * Math.min(1, dt*4.5);
   camera.position.copy(camPos);
-  camera.lookAt(tgt.x + bx*2.2, tgt.y + 0.35, tgt.z + bz*2.2);
+  if (mode === 'ride') camera.lookAt(S.x, S.y + 0.65, S.z); // aim at the rider, 0.65 above contact
+  else camera.lookAt(tgt.x + bx*2.2, tgt.y + 0.35, tgt.z + bz*2.2);
   sun.position.set(tgt.x + SUN_OFF.x, SUN_OFF.y, tgt.z + SUN_OFF.z); sun.target.position.set(tgt.x, 0, tgt.z);
   /* underwater ambience: as the camera slips below the surface, fog closes in
      blue-green, the background follows, and a tint veil fades up */
@@ -804,7 +985,7 @@ function animate(now){
   if (scene.background && scene.background.isColor) scene.background.lerpColors(SURF_BG, UW_FOG.color, uw);
   uwTint.style.opacity = (uw * 0.9).toFixed(3);
   speedEl.textContent = Math.round(Math.abs(mode === 'swim' ? swimSpeed : S.speed) * 3.6);
-  modeEl.textContent = mode === 'swim' ? (swimDepth > 0.55 ? '🤿 UNDERWATER' : '🏊 SWIMMING') : (mode === 'bail' ? '💥 BAILED' : (!S.grounded ? '🕊 AIRBORNE' : (S.crouch01 > 0.02 ? '🦘 CROUCH…' : '')));
+  modeEl.textContent = mode === 'swim' ? (swimDepth > 0.55 ? '🤿 UNDERWATER' : '🏊 SWIMMING') : (mode === 'bail' ? '💥 BAILED' : (grind ? '🛹 GRINDING' : (!S.grounded ? '🕊 AIRBORNE' : (S.crouch01 > 0.02 ? '🦘 CROUCH…' : ''))));
   renderer.render(scene, camera);
   workSamples.push(performance.now() - w0);
 }
@@ -822,13 +1003,35 @@ window.__dbg = {
   get touchMode(){ return touchMode; },
   get lastInput(){ return lastModInput; },
   get swim(){ return { x: swimPos.x, z: swimPos.z, heading: swimHeading, canClimb, depth: swimDepth }; },
+  get envMs(){ return envInfo.initMs; },
+  get flow(){ return +flowFactor.toFixed(3); },
+  get grind(){ return grind ? { railX: grind.railX, dirZ: grind.dirZ, speed: +grind.speed.toFixed(2) } : null; },
   bins(){ return binProps.map(b => ({ x: b.x, z: b.z, knocked: b.knocked })); },
+  poseCheck(){ // rider tolerances: ankle joints vs pedal centres, in metres (world space)
+    const pa = crank.localToWorld(new THREE.Vector3(0.145, 0, CRANK_R));
+    const pb = crank.localToWorld(new THREE.Vector3(-0.145, 0, -CRANK_R));
+    const fa = new THREE.Vector3(), fb = new THREE.Vector3();
+    ankJL.getWorldPosition(fa); ankJR.getWorldPosition(fb);
+    const d = (a, b, c, e) => Math.min(a.distanceTo(c) + b.distanceTo(e), a.distanceTo(e) + b.distanceTo(c)) / 2;
+    const sag = v => { const p = pitchGroup.worldToLocal(v.clone()); return new THREE.Vector3(0, p.y, p.z); };
+    return { footPedalWorldM: +d(fa, fb, pa, pb).toFixed(4), footPedalSagittalM: +d(sag(fa), sag(fb), sag(pa), sag(pb)).toFixed(4) };
+  },
+  frameCheck(){ // rider share of frame height + horizon position, % (Opus framing acceptance)
+    const box = new THREE.Box3().setFromObject(riderRig);
+    const pts = [];
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) pts.push(new THREE.Vector3(x, y, z).project(camera));
+    const ys = pts.map(p => p.y);
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+    const hor = camera.position.clone().add(fwd.multiplyScalar(100)); hor.y = camera.position.y;
+    const hNdc = hor.project(camera).y;
+    return { riderSharePct: +(((Math.max(...ys) - Math.min(...ys)) / 2) * 100).toFixed(1), horizonFromTopPct: +(((1 - hNdc) / 2) * 100).toFixed(1) };
+  },
   groundAt: world.groundAt,
   physGroundAt,
   teleport(x, z, heading = 0){
-    mode = 'ride';
+    mode = 'ride'; flowFactor = 1; grind = null; bike.config.topSpeed = FLOW_BASE;
     bike.reset({ x, z, heading }, env);
-    camPos.set(x - Math.sin(heading)*5.7, S.y + 3.3, z - Math.cos(heading)*5.7);
+    camPos.set(x - Math.sin(heading)*4.3, S.y + 2.3, z - Math.cos(heading)*4.3);
   },
   frameStats(){
     const a = ftSamples.slice(-240); if (!a.length) return null;

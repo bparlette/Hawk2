@@ -633,7 +633,7 @@ export function buildWorld(scene, configOverrides = null) {
     }), true);
   }
   regMat('carGlass', new THREE.MeshStandardMaterial({
-    color: 0x0a1320, roughness: 0.06, metalness: 0.85, transparent: true, opacity: 0.78, envMapIntensity: 1.8,
+    color: 0x162438, roughness: 0.08, metalness: 0.85, transparent: true, opacity: 0.58, envMapIntensity: 1.4,
   }), false);
   regMat('carInterior', new THREE.MeshStandardMaterial({ color: 0x262932, roughness: 0.92 }), false);
   regMat('carTire', new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.90 }), true);
@@ -1048,13 +1048,12 @@ export function buildWorld(scene, configOverrides = null) {
       addBox('carInterior', 0.14, 0.18, 0.24, hrx, hry, hrz, 0, yaw);
     }
 
-    // Flush-tucked cabin windows (matching cabin rake & width, darker tint so glass shape reads cleanly)
-    const [wx, wy, wz] = localToWorld(0.75, 1.13, 0);
-    addBox('carGlass', 0.54, 0.04, 1.32, wx, wy, wz, 0, yaw, -0.76);
-    const [rx, ry, rz] = localToWorld(-1.01, 1.13, 0);
-    addBox('carGlass', 0.48, 0.04, 1.32, rx, ry, rz, 0, yaw, 0.86);
-    const [sx, sy, sz] = localToWorld(-0.15, 1.13, 0);
-    addBox('carGlass', 1.24, 0.34, 1.45, sx, sy, sz, 0, yaw);
+    const [wx, wy, wz] = localToWorld(0.76, 1.14, 0);
+    addBox('carGlass', 0.62, 0.44, 1.34, wx, wy, wz, 0, yaw, -0.72);
+    const [rx, ry, rz] = localToWorld(-1.02, 1.14, 0);
+    addBox('carGlass', 0.54, 0.42, 1.34, rx, ry, rz, 0, yaw, 0.85);
+    const [sx, sy, sz] = localToWorld(-0.14, 1.14, 0);
+    addBox('carGlass', 1.38, 0.36, 1.50, sx, sy, sz, 0, yaw);
 
     const [fbx, fby, fbz] = localToWorld(2.14, 0.46, 0);
     addBox('carTrim', 0.14, 0.16, 1.76, fbx, fby, fbz, 0, yaw);
