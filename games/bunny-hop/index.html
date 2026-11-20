@@ -47,7 +47,7 @@
   <div id="mode"></div>
   <div id="title">BUNNY HOP</div>
   <div id="prompt"></div>
-  <div id="hint"><span>Left stick / WASD to ride &nbsp;·&nbsp; HOLD <b>A</b> or <b>SPACE</b> to crouch, RELEASE to bunny hop &nbsp;·&nbsp; <b>B</b> brake &nbsp;·&nbsp; In air: W/S pitch &nbsp;·&nbsp; Hop the bridge rail and swim!</span></div>
+  <div id="hint"><span>Left stick steers — the bike pedals itself &nbsp;·&nbsp; WASD on keyboard &nbsp;·&nbsp; HOLD <b>A</b> or <b>SPACE</b> to crouch, RELEASE to bunny hop &nbsp;·&nbsp; <b>B</b> brake &nbsp;·&nbsp; In air: stick up/down or W/S pitch &nbsp;·&nbsp; Hop the bridge rail and swim!</span></div>
 </div>
 <div id="stickZone"></div>
 <div id="stickBase"></div><div id="stickKnob"></div>
@@ -228,7 +228,15 @@ function splash(x, z, big=false){
 const keys = {};
 let joyActive = false, joyId = null, joyOX = 0, joyOY = 0, joyX = 0, joyY = 0;
 let btnA = false, btnB = false;
-const input = { steer:0, throttle:0, brake:false, hopHeld:false, action:false };
+/* Touch scheme: the stick STEERS ONLY — its vertical axis never throttles, so a
+   steering push can't surge the bike forward into things. Instead the bike
+   auto-pedals at a gentle cruise once any touch control has been used
+   (pedal 0.6 -> settles ~0.6 x topSpeed 12 = ~7.2 m/s, CONFIG.cruiseSpeed).
+   B (brake) overrides the cruise. Stick vertical is kept as stickY and used
+   for air pitch ONLY, while airborne, when it can't accelerate the bike. */
+let touchMode = false;
+const AUTO_PEDAL = 0.6;
+const input = { steer:0, throttle:0, stickY:0, brake:false, hopHeld:false, action:false };
 window.addEventListener('keydown', e=>{
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
   keys[e.code] = true;
@@ -236,6 +244,7 @@ window.addEventListener('keydown', e=>{
 window.addEventListener('keyup', e=>{ keys[e.code] = false; });
 const zone = document.getElementById('stickZone'), sBase = document.getElementById('stickBase'), sKnob = document.getElementById('stickKnob');
 zone.addEventListener('pointerdown', e=>{
+  touchMode = true;
   joyActive = true; joyId = e.pointerId; joyOX = e.clientX; joyOY = e.clientY; joyX = 0; joyY = 0;
   sBase.style.display = sKnob.style.display = 'block';
   sBase.style.left = joyOX+'px'; sBase.style.top = joyOY+'px';
@@ -254,7 +263,7 @@ function joyEnd(e){ if (e.pointerId === joyId){ joyActive=false; joyX=0; joyY=0;
 zone.addEventListener('pointerup', joyEnd); zone.addEventListener('pointercancel', joyEnd);
 function bindBtn(id, set){
   const el = document.getElementById(id);
-  el.addEventListener('pointerdown', e=>{ e.preventDefault(); set(true); el.classList.add('on'); el.setPointerCapture(e.pointerId); });
+  el.addEventListener('pointerdown', e=>{ e.preventDefault(); touchMode = true; set(true); el.classList.add('on'); el.setPointerCapture(e.pointerId); });
   const off = e=>{ set(false); el.classList.remove('on'); };
   el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off);
 }
@@ -268,9 +277,10 @@ function pollInput(){
   if (keys['KeyD'] || keys['ArrowRight']) steer += 1;
   if (keys['KeyW'] || keys['ArrowUp']) throttle += 1;
   if (keys['KeyS'] || keys['ArrowDown']) throttle -= 1;
-  if (joyActive){ steer += joyX; throttle += -joyY; }
+  if (joyActive){ steer += joyX; } // stick X steers; stick Y is NOT throttle (see AUTO_PEDAL)
   input.steer = THREE.MathUtils.clamp(steer, -1, 1);
   input.throttle = THREE.MathUtils.clamp(throttle, -1, 1);
+  input.stickY = joyActive ? joyY : 0; // raw stick vertical (up = -1); air pitch only
   input.brake = btnB || !!keys['ShiftLeft'];
   input.hopHeld = btnA || !!keys['Space'];
   input.action = btnA || !!keys['KeyE'];
@@ -287,7 +297,7 @@ const camPos = new THREE.Vector3(S.x - 6, 4, S.z);
 /* Host-owned modes: the physics module stops dead at splash/bail (step() is a no-op
    until reset), so swimming, climb-out and remount are driven here, as in v1. */
 let mode = 'ride';           // ride | swim | bail
-let hostTime = 0, pedalPhase = 0, prevHopHeld = false;
+let hostTime = 0, pedalPhase = 0, prevHopHeld = false, lastModInput = null;
 let swimPos = { x: 0, z: 0 }, swimHeading = 0, swimSpeed = 0, canClimb = false;
 let bailT = 0, bailY = 0;
 const floatBike = { x: world.spawn.x, z: world.spawn.z, heading: world.spawn.heading };
@@ -306,7 +316,8 @@ function enterBail(){
 function stepSwim(dt){
   swimHeading -= input.steer * dt * 1.9;
   const fx = Math.sin(swimHeading), fz = Math.cos(swimHeading);
-  const spd = input.throttle > 0.05 ? input.throttle * 3.1 : 0;
+  const fwd = Math.max(input.throttle, touchMode ? AUTO_PEDAL : 0); // touch swims itself at cruise
+  const spd = fwd > 0.05 ? fwd * 3.1 : 0;
   swimPos.x = THREE.MathUtils.clamp(swimPos.x + fx * spd * dt, world.water.bounds.minX, world.water.bounds.maxX);
   swimPos.z = THREE.MathUtils.clamp(swimPos.z + fz * spd * dt, world.water.bounds.minZ, world.water.bounds.maxZ);
   swimSpeed = spd;
@@ -327,18 +338,24 @@ function animate(now){
   pollInput();
   hostTime += dt;
   /* Translate host input to the module's input shape:
-     pedal — B / Shift (brake button) forces -1; otherwise the throttle axis
-             (module: pedal<0 brakes while rolling, reverses from standstill).
-     airPitch — +1 pulls the nose up, so W (throttle +1) maps to -1 and S to +1,
-             keeping v1's W = nose-down feel on keys and stick alike.
+     pedal — B / Shift (brake button) forces -1. Otherwise an explicit keyboard
+             throttle wins; with neither, a touch player gets AUTO_PEDAL cruise
+             (the stick never throttles — steering can't surge the bike forward).
+             (Module: pedal<0 brakes while rolling, reverses from standstill.)
+     airPitch — +1 pulls the nose up, so W (throttle +1) maps to -1 and S to +1.
+             On touch, stick vertical joins in ONLY while airborne: stick up
+             (stickY -1) = nose down like W, stick down = nose up like S.
      hopReleased — an edge; the module applies it once, on the frame it appears. */
   const modInput = {
-    pedal: input.brake ? -1 : input.throttle,
+    pedal: input.brake ? -1
+      : input.throttle !== 0 ? input.throttle
+      : (touchMode && mode === 'ride' ? AUTO_PEDAL : 0),
     steer: input.steer,
     hopHeld: input.hopHeld,
     hopReleased: prevHopHeld && !input.hopHeld,
-    airPitch: -input.throttle,
+    airPitch: THREE.MathUtils.clamp(-input.throttle + (!S.grounded ? input.stickY : 0), -1, 1),
   };
+  lastModInput = modInput;
   prevHopHeld = input.hopHeld;
   if (mode === 'ride'){
     const events = bike.step(dt, modInput, env);
@@ -372,7 +389,7 @@ function animate(now){
     riderRig.rotation.x = S.crouch01 * 0.22;
     const spin = S.grounded ? S.speed / 0.34 : 9;
     wheelF.rotation.x += spin * dt; wheelR.rotation.x += spin * dt;
-    if (input.throttle > 0 && S.speed > 0.2) pedalPhase += dt * (2 + S.speed * 1.6);
+    if (modInput.pedal > 0 && S.speed > 0.2) pedalPhase += dt * (2 + S.speed * 1.6);
     else if (S.speed > 0.5) pedalPhase += dt * S.speed * 0.9;
     crank.rotation.x = -pedalPhase;
     const ph = pedalPhase;
@@ -433,8 +450,10 @@ window.addEventListener('resize', ()=>{
 
 /* ---- debug / scripted-play hooks (verification harness) */
 window.__dbg = {
-  S, world, bike,
+  S, world, bike, input,
   get mode(){ return mode; },
+  get touchMode(){ return touchMode; },
+  get lastInput(){ return lastModInput; },
   get swim(){ return { x: swimPos.x, z: swimPos.z, heading: swimHeading, canClimb }; },
   groundAt: world.groundAt,
   physGroundAt,
