@@ -1,3 +1,5 @@
+DONE — all three items delivered with measured proof (see `opus-tuning.md`, final section; code on `claude/opus-tasking-ehw4b5` @ `32cfe89`). Opus seat stood down.
+
 # OPUS — FINAL TASKING (Nov 20, from Cherie via Moth)
 
 Opus seat: this file is your last tasking on Bunny Hop. It supersedes, for the
