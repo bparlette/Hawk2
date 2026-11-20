@@ -143,3 +143,42 @@ Same harness and crops as `fa6a7f3`.
 - **Budgets are unchanged:** 49 draws, 2.07 MB, PMREM 58 ms headless. Live: 138–140 GL draws/frame, 1.4–1.5 ms. There were zero page errors.
 - **Round 1a is accepted on the preview.** The live re-check is still pending Moth's `WORLD_LIGHTING` wiring (T1). Live crops will read dark until then.
 - **Non-blocking note for Neon's Round 3 tuning:** in (a), the crack and repair glyphs on the asphalt texture render as large blocky shapes in the near field, in the bottom third of the frame. A smaller repeat or finer glyphs would read as wear rather than as decals (`frame-2` wear is fine-grained).
+
+## Live Re-check — Opus, 2026-11-20 (against Hawk2 `36ed104`, host now on `WORLD_LIGHTING`)
+
+**PASS: live road luma**, measured with the same crops as `fa6a7f3`:
+
+| Shot | Road mean | % px < 25 | Clipped ≥ 250 |
+|---|---|---|---|
+| live spawn | 85.7 | 1.5 | 0.2% |
+| live main street, 34 km/h | 91.1 | 0.8 | 0.2% |
+| live bridge deck | 96.5 | 1.3 | 0.3% |
+
+- Live GL draws are 138–140/frame (≤ 170), at a 1.4 ms work median. There were zero page errors.
+- **Round 1a is accepted live** (luma 31–34 → 86–97 from Moth's T1 wiring).
+- For Moth: `applyWorldEnvMap(renderer, scene)` (the PMREM, push #6) is not called by the host yet.
+
+**FINDING (blocks the `frame-2` read): the rider casts no visible shadow on the main street at the current sun.**
+
+**Method.** I froze the live host and rendered the identical frame twice, with the bike and rider `castShadow` on and then off, and counted the pixels darkened by more than 3 luma. To rule out the receivers, I first confirmed that world shadows render: toggling world casters changes 188,723 px, by up to 91 luma. The sun was moved with an override hook in a scratch copy of `index.html` (not committed): `dir × 45 m` from the rider, the same as the host rig.
+
+| Sun dir (position offset) | Elevation | Rider-shadow px | Median drop | Road crop |
+|---|---|---|---|---|
+| **current** `[-0.84, 0.19, 0.50]` | ~11° | **8** | 4 | 85.7 / 1.5% |
+| mirrored `[-0.84, 0.19, -0.50]` | ~11° | 13,977 | 11 | 98.7 / 1.0% |
+| **current azimuth, higher** `[-0.80, 0.34, 0.48]` | ~20° | **12,439** | **18** | 105.6 / 1.0% |
+| current azimuth `[-0.76, 0.47, 0.45]` | ~28° | 32,694 | 34 | 111.6 / 1.0% |
+
+**Cause.**
+- At ~11° the sun sits low on the +z side of the main street, behind the houses and trees there. A 6–7 m roofline then throws a ~30–35 m shadow, so the whole street at spawn, the rider included, is in house shade.
+- That's why the rider's shirt renders dull olive rather than sunlit, and why no raking shadows cross the road.
+- `frame-2`'s read is the opposite: a sunlit road with the rider's shadow thrown metres ahead-left.
+
+**Recommendation (Neon's call; it's her sun):**
+1. **Keep the azimuth, which is the settled `frame-2` geometry: shadows ahead-left. Raise the elevation to ~20°** (dir ≈ `[-0.80, 0.34, 0.48]`). The rider is then sunlit and his shadow is ~4.8 m long and visible (median 18 luma drop). House shadows shrink to ~19 m.
+2. **Trim fill or exposure ~5–8%** to bring the road back into the band: it reads 105.6 at 20°, over 100.
+3. **Re-check the canal sparkle from the bridge** (`frame-3`). The sun stays down the −x canal, so it should hold, but it hasn't been measured.
+
+The mirrored option also lights the street, but it throws the shadows ahead-*right*, contrary to `frame-2`, so I don't recommend it.
+
+**Why it matters for the plan:** pushes #4 and #5 (the landing-target shadow gap and the shadow detaching on the pop) and `frame-2` acceptance all depend on this shadow being visible.
