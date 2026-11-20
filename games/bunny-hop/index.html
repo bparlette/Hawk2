@@ -98,17 +98,25 @@ scene.add(new THREE.AmbientLight(0x33415e, 0.5));
 /* ============================================================ WORLD + PHYSICS (standalone modules) */
 const world = buildWorld(scene);
 const WATER_Y = world.water.y;
-const env = {
-  groundAt: world.groundAt,
-  colliders: world.colliders,
-  inWater: (x, z) => world.water.contains(x, z),
-  waterY: WATER_Y,
-  swimBounds: world.water.bounds,
-  climbOutAt: world.climbOutAt,
-};
-const bike = createBike(world.spawn);
+/* Physics seam (Opus module v2): env.groundAt must return { height, type }.
+   - bin footprints: landable tops, type 'bin' (buildWorld.groundAt already returns the lid height there).
+   - canal: type 'water', height = canal bed (below WATER_Y), so the module fires splash on entry.
+   - bridge deck / ramps / rails: type 'deck'.
+   - buildings / lamps / trees: the new env has no collider list, so they present through
+     groundAt as tall heights and the module's wall rule applies (>0.15 m above the rider:
+     stop below 6 m/s, bail 'crash' above it). */
+function physGroundAt(x, z){
+  let height = world.groundAt(x, z), type = 'ground';
+  for (const b of world.bins) if (Math.abs(x - b.x) < 0.52 && Math.abs(z - b.z) < 0.52) { type = 'bin'; break; }
+  if (type === 'ground' && world.water.contains(x, z)) type = 'water';
+  if (type === 'ground' && Math.abs(x) <= 5.2 && Math.abs(z) < 20.5 && height > 0.02) type = 'deck';
+  for (const c of world.colliders) if (x > c.minX && x < c.maxX && z > c.minZ && z < c.maxZ && c.top > height) { height = c.top; type = 'ground'; }
+  return { height, type };
+}
+const env = { groundAt: physGroundAt, waterLevel: WATER_Y };
+const bike = createBike();
 const S = bike.state;
-S.y = world.groundAt(S.x, S.z);
+bike.reset(world.spawn, env);
 
 /* ============================================================ BIKE + RIDER VISUALS */
 const BOX = new THREE.BoxGeometry(1,1,1);
@@ -276,6 +284,39 @@ function showPrompt(t){ if (t){ promptEl.textContent = t; promptEl.style.display
 
 /* ============================================================ MAIN LOOP */
 const camPos = new THREE.Vector3(S.x - 6, 4, S.z);
+/* Host-owned modes: the physics module stops dead at splash/bail (step() is a no-op
+   until reset), so swimming, climb-out and remount are driven here, as in v1. */
+let mode = 'ride';           // ride | swim | bail
+let hostTime = 0, pedalPhase = 0, prevHopHeld = false;
+let swimPos = { x: 0, z: 0 }, swimHeading = 0, swimSpeed = 0, canClimb = false;
+let bailT = 0, bailY = 0;
+const floatBike = { x: world.spawn.x, z: world.spawn.z, heading: world.spawn.heading };
+function enterSwim(){
+  mode = 'swim';
+  swimPos = { x: S.x, z: S.z };
+  swimHeading = S.heading; swimSpeed = 0; canClimb = false;
+  floatBike.x = S.x + Math.cos(S.heading) * 1.2;
+  floatBike.z = S.z - Math.sin(S.heading) * 1.2;
+  floatBike.heading = S.heading;
+  splash(S.x, S.z, true);
+}
+function enterBail(){
+  mode = 'bail'; bailT = 0; bailY = world.groundAt(S.x, S.z);
+}
+function stepSwim(dt){
+  swimHeading -= input.steer * dt * 1.9;
+  const fx = Math.sin(swimHeading), fz = Math.cos(swimHeading);
+  const spd = input.throttle > 0.05 ? input.throttle * 3.1 : 0;
+  swimPos.x = THREE.MathUtils.clamp(swimPos.x + fx * spd * dt, world.water.bounds.minX, world.water.bounds.maxX);
+  swimPos.z = THREE.MathUtils.clamp(swimPos.z + fz * spd * dt, world.water.bounds.minZ, world.water.bounds.maxZ);
+  swimSpeed = spd;
+  const exit = world.climbOutAt(swimPos.x, swimPos.z);
+  canClimb = !!exit;
+  if (exit && input.action){
+    bike.reset({ x: exit.x, z: exit.z, heading: exit.heading }, env); // reset with env: grounded at once
+    mode = 'ride';
+  }
+}
 let last = performance.now(), ftSamples = [], workSamples = [];
 function animate(now){
   requestAnimationFrame(animate);
@@ -284,49 +325,79 @@ function animate(now){
   if (dt > 0) ftSamples.push(dt);
   if (window.__freeze) dt = 0;
   pollInput();
-  const events = bike.step(dt, input, env);
-  if (events.includes('splash')) splash(S.x, S.z, true);
+  hostTime += dt;
+  /* Translate host input to the module's input shape:
+     pedal — B / Shift (brake button) forces -1; otherwise the throttle axis
+             (module: pedal<0 brakes while rolling, reverses from standstill).
+     airPitch — +1 pulls the nose up, so W (throttle +1) maps to -1 and S to +1,
+             keeping v1's W = nose-down feel on keys and stick alike.
+     hopReleased — an edge; the module applies it once, on the frame it appears. */
+  const modInput = {
+    pedal: input.brake ? -1 : input.throttle,
+    steer: input.steer,
+    hopHeld: input.hopHeld,
+    hopReleased: prevHopHeld && !input.hopHeld,
+    airPitch: -input.throttle,
+  };
+  prevHopHeld = input.hopHeld;
+  if (mode === 'ride'){
+    const events = bike.step(dt, modInput, env);
+    for (const ev of events){
+      if (ev.type === 'splash') enterSwim();
+      else if (ev.type === 'bail') enterBail();
+    }
+  } else if (mode === 'swim'){
+    stepSwim(dt);
+  } else { // bail: wait out the beat, then A / E remounts via reset (grounded immediately)
+    bailT += dt;
+    if (bailT > 0.8 && input.action){
+      bike.reset({ x: S.x, z: S.z, heading: S.heading }, env);
+      mode = 'ride';
+    }
+  }
   /* prompts */
-  if (S.mode === 'swim') showPrompt(S.canClimb ? 'Tap A or E — climb out' : null);
-  else if (S.mode === 'bail') showPrompt(S.bailT > 0.8 ? 'Tap A or E — get back on' : null);
+  if (mode === 'swim') showPrompt(canClimb ? 'Tap A or E — climb out' : null);
+  else if (mode === 'bail') showPrompt(bailT > 0.8 ? 'Tap A or E — get back on' : null);
   else showPrompt(null);
   /* visuals by mode */
-  riderRig.visible = S.mode === 'ride';
-  swimmer.visible = S.mode !== 'ride';
-  if (S.mode === 'ride'){
+  riderRig.visible = mode === 'ride';
+  swimmer.visible = mode !== 'ride';
+  if (mode === 'ride'){
     bikeGroup.position.set(S.x, S.y, S.z);
     bikeGroup.rotation.y = S.heading;
-    leanGroup.rotation.z = S.lean + (S.wobble > 0 ? Math.sin(S.time*34) * 0.09 * S.wobble : 0);
-    leanGroup.position.y = -S.crouch * 0.07;
-    pitchGroup.rotation.x = S.pitch;
-    riderRig.position.y = -S.crouch * 0.17;
-    riderRig.rotation.x = S.crouch * 0.22;
+    leanGroup.rotation.z = S.lean + (S.wobbling ? Math.sin(hostTime*34) * 0.06 : 0);
+    leanGroup.position.y = -S.crouch01 * 0.07;
+    pitchGroup.rotation.x = -S.pitch; // module pitch: positive = nose up; rotation.x positive = nose down
+    riderRig.position.y = -S.crouch01 * 0.17;
+    riderRig.rotation.x = S.crouch01 * 0.22;
     const spin = S.grounded ? S.speed / 0.34 : 9;
     wheelF.rotation.x += spin * dt; wheelR.rotation.x += spin * dt;
-    crank.rotation.x = -S.pedalPhase;
-    const ph = S.pedalPhase;
+    if (input.throttle > 0 && S.speed > 0.2) pedalPhase += dt * (2 + S.speed * 1.6);
+    else if (S.speed > 0.5) pedalPhase += dt * S.speed * 0.9;
+    crank.rotation.x = -pedalPhase;
+    const ph = pedalPhase;
     legL.rotation.x = -0.55 + Math.sin(ph) * 0.5;        legR.rotation.x = -0.55 + Math.sin(ph + Math.PI) * 0.5;
     shinL.rotation.x = 0.75 + Math.cos(ph) * 0.38;       shinR.rotation.x = 0.75 + Math.cos(ph + Math.PI) * 0.38;
-  } else if (S.mode === 'swim'){
-    const t = S.time;
+  } else if (mode === 'swim'){
+    const t = hostTime;
     swimFoam.visible = true;
-    swimmer.position.set(S.x, WATER_Y + 0.48 + Math.sin(t*2.2)*0.045, S.z);
+    swimmer.position.set(swimPos.x, WATER_Y + 0.48 + Math.sin(t*2.2)*0.045, swimPos.z);
     swimmer.scale.setScalar(1.18);
-    swimmer.rotation.set(0.12 + Math.sin(t*2.2)*0.03, S.swimHeading, 0);
-    const stroke = S.speed > 0.1 ? t * 5.2 : t * 1.4;
+    swimmer.rotation.set(0.12 + Math.sin(t*2.2)*0.03, swimHeading, 0);
+    const stroke = swimSpeed > 0.1 ? t * 5.2 : t * 1.4;
     swimArmL.rotation.x = -Math.sin(stroke) * 0.95 - 0.3;
     swimArmR.rotation.x = -Math.sin(stroke + Math.PI) * 0.95 - 0.3;
     swimLegL.rotation.x = Math.sin(stroke*1.35) * 0.3;
     swimLegR.rotation.x = Math.sin(stroke*1.35 + Math.PI) * 0.3;
-    bikeGroup.position.set(S.floatBike.x, WATER_Y + 0.1 + Math.sin(t*1.7)*0.05, S.floatBike.z);
-    bikeGroup.rotation.y = S.floatBike.heading;
+    bikeGroup.position.set(floatBike.x, WATER_Y + 0.1 + Math.sin(t*1.7)*0.05, floatBike.z);
+    bikeGroup.rotation.y = floatBike.heading;
     leanGroup.rotation.z = 1.25;
   } else { // bail
     swimFoam.visible = false;
-    bikeGroup.position.set(S.x, S.y, S.z);
+    bikeGroup.position.set(S.x, bailY, S.z);
     bikeGroup.rotation.y = S.heading;
     leanGroup.rotation.z = 1.35;
-    swimmer.position.set(S.x + 0.7, 0.16, S.z + 0.4);
+    swimmer.position.set(S.x + 0.7, bailY + 0.16, S.z + 0.4);
     swimmer.rotation.set(-Math.PI/2 + 0.25, S.heading, 0);
   }
   /* splashes */
@@ -337,19 +408,19 @@ function animate(now){
     s.m.material.opacity = 0.75 * (1 - s.t);
   }
   /* camera */
-  const tgt = S.mode === 'swim'
-    ? { x: S.x, z: S.z, h: S.swimHeading, y: WATER_Y + 0.4 }
+  const tgt = mode === 'swim'
+    ? { x: swimPos.x, z: swimPos.z, h: swimHeading, y: WATER_Y + 0.4 }
     : { x: S.x, z: S.z, h: S.heading, y: S.y + 0.9 };
   const bx = Math.sin(tgt.h), bz = Math.cos(tgt.h);
-  const dist = S.mode === 'swim' ? 3.8 : 5.7, hgt = S.mode === 'swim' ? 1.9 : 2.4;
+  const dist = mode === 'swim' ? 3.8 : 5.7, hgt = mode === 'swim' ? 1.9 : 2.4;
   camPos.x += ((tgt.x - bx*dist) - camPos.x) * Math.min(1, dt*4.5);
   camPos.z += ((tgt.z - bz*dist) - camPos.z) * Math.min(1, dt*4.5);
   camPos.y += ((tgt.y + hgt) - camPos.y) * Math.min(1, dt*4.5);
   camera.position.copy(camPos);
   camera.lookAt(tgt.x + bx*2.2, tgt.y + 0.35, tgt.z + bz*2.2);
-  sun.position.set(S.x - 38, 17, S.z - 30); sun.target.position.set(S.x, 0, S.z);
-  speedEl.textContent = Math.round(Math.abs(S.speed) * 3.6);
-  modeEl.textContent = S.mode === 'swim' ? '🏊 SWIMMING' : (S.mode === 'bail' ? '💥 BAILED' : (!S.grounded ? '🕊 AIRBORNE' : (S.crouching ? '🦘 CROUCH…' : '')));
+  sun.position.set(tgt.x - 38, 17, tgt.z - 30); sun.target.position.set(tgt.x, 0, tgt.z);
+  speedEl.textContent = Math.round(Math.abs(mode === 'swim' ? swimSpeed : S.speed) * 3.6);
+  modeEl.textContent = mode === 'swim' ? '🏊 SWIMMING' : (mode === 'bail' ? '💥 BAILED' : (!S.grounded ? '🕊 AIRBORNE' : (S.crouch01 > 0.02 ? '🦘 CROUCH…' : '')));
   renderer.render(scene, camera);
   workSamples.push(performance.now() - w0);
 }
@@ -362,21 +433,15 @@ window.addEventListener('resize', ()=>{
 
 /* ---- debug / scripted-play hooks (verification harness) */
 window.__dbg = {
-  S, world,
+  S, world, bike,
+  get mode(){ return mode; },
+  get swim(){ return { x: swimPos.x, z: swimPos.z, heading: swimHeading, canClimb }; },
   groundAt: world.groundAt,
-  teleport(x, z, heading = 0, speed = 0){
-    S.mode = 'ride';
-    S.x = x; S.z = z; S.heading = heading; S.speed = speed;
-    S.y = world.groundAt(x, z); S.grounded = true; S.vy = 0; S.vx = 0; S.vz = 0;
-    S.pitch = 0; S.pitchVel = 0; S.wobble = 0; S.crouch = 0; S.crouching = false; S.lean = 0;
+  physGroundAt,
+  teleport(x, z, heading = 0){
+    mode = 'ride';
+    bike.reset({ x, z, heading }, env);
     camPos.set(x - Math.sin(heading)*5.7, S.y + 3.3, z - Math.cos(heading)*5.7);
-  },
-  hopNow(power = 1){
-    if (S.mode === 'ride' && S.grounded){
-      S.vy = 3.4 + 3.4*power + Math.min(1.3, Math.abs(S.speed)*0.1);
-      S.vx = Math.sin(S.heading) * S.speed; S.vz = Math.cos(S.heading) * S.speed;
-      S.grounded = false; S.pitchVel = -2.0;
-    }
   },
   frameStats(){
     const a = ftSamples.slice(-240); if (!a.length) return null;
