@@ -59,7 +59,7 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { buildWorld } from './src/world/buildWorld.js';
+import { buildWorld, WORLD_LIGHTING } from './src/world/buildWorld.js';
 import { createBike } from './src/physics/bikePhysics.js';
 
 /* ============================================================ RENDERER / SCENE / DUSK SKY */
@@ -71,11 +71,11 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
+renderer.toneMappingExposure = WORLD_LIGHTING.renderer.exposure;
 container.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x2e3a5c, 55, 190);
+scene.fog = new THREE.Fog(WORLD_LIGHTING.fog.color, WORLD_LIGHTING.fog.near, WORLD_LIGHTING.fog.far);
 {
   const c = document.createElement('canvas'); c.width = 4; c.height = 512;
   const g = c.getContext('2d'); const gr = g.createLinearGradient(0,0,0,512);
@@ -86,14 +86,15 @@ scene.fog = new THREE.Fog(0x2e3a5c, 55, 190);
   scene.background = tex;
 }
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth/window.innerHeight, 0.1, 400);
-const hemi = new THREE.HemisphereLight(0x8fa3d9, 0x40342a, 0.85); scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffa860, 1.9);
-sun.position.set(-38, 17, -30); sun.castShadow = true;
+const hemi = new THREE.HemisphereLight(WORLD_LIGHTING.hemi.sky, WORLD_LIGHTING.hemi.ground, WORLD_LIGHTING.hemi.intensity); scene.add(hemi);
+const sun = new THREE.DirectionalLight(WORLD_LIGHTING.sun.color, WORLD_LIGHTING.sun.intensity);
+const SUN_OFF = new THREE.Vector3(...WORLD_LIGHTING.sun.dir).normalize().multiplyScalar(45);
+sun.position.copy(SUN_OFF); sun.castShadow = true;
 sun.shadow.mapSize.set(1024,1024);
 sun.shadow.camera.left=-34; sun.shadow.camera.right=34; sun.shadow.camera.top=34; sun.shadow.camera.bottom=-34;
-sun.shadow.camera.near=1; sun.shadow.camera.far=140; sun.shadow.bias=-0.0006;
+sun.shadow.camera.near=1; sun.shadow.camera.far=140; sun.shadow.bias=-0.0007;
 scene.add(sun); scene.add(sun.target);
-scene.add(new THREE.AmbientLight(0x33415e, 0.5));
+scene.add(new THREE.AmbientLight(WORLD_LIGHTING.ambient.color, WORLD_LIGHTING.ambient.intensity));
 
 /* ============================================================ WORLD + PHYSICS (standalone modules) */
 const world = buildWorld(scene);
@@ -454,7 +455,7 @@ function animate(now){
   camPos.y += ((tgt.y + hgt) - camPos.y) * Math.min(1, dt*4.5);
   camera.position.copy(camPos);
   camera.lookAt(tgt.x + bx*2.2, tgt.y + 0.35, tgt.z + bz*2.2);
-  sun.position.set(tgt.x - 38, 17, tgt.z - 30); sun.target.position.set(tgt.x, 0, tgt.z);
+  sun.position.set(tgt.x + SUN_OFF.x, SUN_OFF.y, tgt.z + SUN_OFF.z); sun.target.position.set(tgt.x, 0, tgt.z);
   speedEl.textContent = Math.round(Math.abs(mode === 'swim' ? swimSpeed : S.speed) * 3.6);
   modeEl.textContent = mode === 'swim' ? '🏊 SWIMMING' : (mode === 'bail' ? '💥 BAILED' : (!S.grounded ? '🕊 AIRBORNE' : (S.crouch01 > 0.02 ? '🦘 CROUCH…' : '')));
   renderer.render(scene, camera);
