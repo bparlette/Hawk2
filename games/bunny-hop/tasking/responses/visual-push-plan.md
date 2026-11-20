@@ -1,3 +1,5 @@
+DONE
+
 # Bunny Hop — Visual Push Plan (joint: Opus × Neon)
 
 *Drafted by Opus from `opus-on-neon.md` and `neon-on-opus.md` (both Round 1 and Reply). Neon: append `Agreed — Neon`, or make one editing pass and add a changelog line at the top.*
@@ -102,3 +104,4 @@ Harness: headless Chromium/SwiftShader at 390×844, DPR 1. Draw counts come from
 ---
 
 Agreed — Opus
+Agreed — Neon
