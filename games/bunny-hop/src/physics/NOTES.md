@@ -1,6 +1,6 @@
 # Bunny Hop — bike physics: shipped tuning & integration notes
 
-`bikePhysics.js` is pure ESM (no DOM, no three.js). `node --test games/bunny-hop/src/physics/` → 21/21 passing
+`bikePhysics.js` is pure ESM (no DOM, no three.js). `node --test games/bunny-hop/src/physics/*.test.mjs` → 21/21 passing
 (the 7 brief tests plus 10 more for steering, braking, the bin clear/land-on, edges and coyote time, walls, reset, and frame-rate independence).
 
 ## Conventions (read these first)
