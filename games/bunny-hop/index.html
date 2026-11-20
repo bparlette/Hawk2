@@ -701,6 +701,7 @@ function flowBreak(mult = 0){ flowFactor = 1 + (flowFactor - 1) * mult; }
    physics module is paused while grinding and S stays the single source. */
 const RAIL_X = 4.42, RAIL_TOP = 4.62, RAIL_HALF_SPAN = 10.6;
 let grind = null; // { railX, dirZ, speed, steerT }
+let grindCooldown = 0; // s after any grind exit with no re-capture — without it the capture window (in-band, vy ≤ 0.5, over the rail) re-locks the rider on the very next frame of a hop-off / steer-off, so he can never actually leave the rail (audit fix)
 function enterSwim(){
   mode = 'swim'; flowFactor = 1; grind = null; bike.config.topSpeed = FLOW_BASE;
   swimPos = { x: S.x, z: S.z };
@@ -751,7 +752,7 @@ function updateFlow(dt, mi){
   bike.config.topSpeed = FLOW_BASE * flowFactor; // the bike settles at each level — cap, not thrust
 }
 function tryGrindCapture(){
-  if (grind || Math.abs(S.z) > RAIL_HALF_SPAN + 0.3 || Math.abs(S.x) > RAIL_X + 1.2) return;
+  if (grind || grindCooldown > 0 || Math.abs(S.z) > RAIL_HALF_SPAN + 0.3 || Math.abs(S.x) > RAIL_X + 1.2) return;
   const rail = S.x < 0 ? -RAIL_X : RAIL_X;
   if (Math.abs(S.x - rail) > 0.55) return; // near-miss window around the rail line
   const onRailTop = S.grounded && S.y >= RAIL_TOP - 0.05;                       // landed right on it
@@ -777,14 +778,14 @@ function stepGrind(dt, mi){
   S.heading = grind.dirZ > 0 ? 0 : Math.PI; S.vy = 0; S.grounded = true;
   if (mi.hopHeld) S.crouch01 = Math.min(1, S.crouch01 + dt * 3); // charge the hop-off on the rail
   if (mi.hopReleased){ // hop input releases the grind into a normal hop
-    S.vy = 2.6 + 1.8 * (S.crouch01 || 0); S.crouch01 = 0; S.grounded = false; grind = null; return;
+    S.vy = 2.6 + 1.8 * (S.crouch01 || 0); S.crouch01 = 0; S.grounded = false; grind = null; grindCooldown = 0.6; return;
   }
   if (Math.abs(mi.steer) > 0.85){ // hard steering bails him off the side (out = water, in = deck)
     grind.steerT += dt;
-    if (grind.steerT > 0.25){ S.heading -= Math.sign(mi.steer) * 0.6; S.vy = 0.4; S.grounded = false; grind = null; return; }
+    if (grind.steerT > 0.25){ S.heading -= Math.sign(mi.steer) * 0.6; S.vy = 0.4; S.grounded = false; grind = null; grindCooldown = 0.6; return; }
   } else grind.steerT = 0;
-  if (Math.abs(S.z) >= RAIL_HALF_SPAN){ S.vy = 0; S.grounded = false; grind = null; return; } // rail end: drop to the ramp
-  if (grind.speed < 0.6){ S.x = grind.railX - Math.sign(grind.railX) * 0.85; S.vy = 0; S.grounded = false; grind = null; } // crawl: step down to the deck
+  if (Math.abs(S.z) >= RAIL_HALF_SPAN){ S.vy = 0; S.grounded = false; grind = null; grindCooldown = 0.6; return; } // rail end: drop to the ramp
+  if (grind.speed < 0.6){ S.x = grind.railX - Math.sign(grind.railX) * 0.85; S.vy = 0; S.grounded = false; grind = null; grindCooldown = 0.6; } // crawl: step down to the deck
 }
 let last = performance.now(), ftSamples = [], workSamples = [];
 function animate(now){
@@ -826,6 +827,7 @@ function animate(now){
   prevHopHeld = input.hopHeld;
   if (mode === 'ride'){
     prevState = { x: S.x, y: S.y, z: S.z, heading: S.heading, speed: S.speed, vy: S.vy };
+    if (grindCooldown > 0) grindCooldown -= dt;
     if (grind) stepGrind(dt, modInput); // module paused on the rail; S already carries the grind state
     else {
       updateFlow(dt, modInput);
@@ -1105,7 +1107,7 @@ window.__dbg = {
   groundAt: world.groundAt,
   physGroundAt,
   teleport(x, z, heading = 0){
-    mode = 'ride'; flowFactor = 1; grind = null; bike.config.topSpeed = FLOW_BASE;
+    mode = 'ride'; flowFactor = 1; grind = null; grindCooldown = 0; bike.config.topSpeed = FLOW_BASE;
     bike.reset({ x, z, heading }, env);
     camPos.set(x - Math.sin(heading)*3.8, S.y + 2.3, z - Math.cos(heading)*3.8);
     camYawS = heading;
