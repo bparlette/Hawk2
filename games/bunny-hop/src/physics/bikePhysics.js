@@ -53,6 +53,8 @@ export const CONFIG = {
   popPitchRise: 0.4,        // fraction of predicted airtime: nose rises until here
   popPitchSettle: 0.9,      // fraction of predicted airtime: back to level by here
   coyoteTime: 0.08,         // s, hop still allowed this long after rolling off an edge
+  airChargeRate: 1.0,       // hold-time gain per second while airborne (charge carries into the landing)
+  chargePedalTaper: 4.0,    // pedal thrust × (1 − min(1, 4·crouch01)): gone by ~0.11 s of crouch; pedal then holds speed
 
   // --- air control ---
   airPitchAccel: 10.0,      // rad/s², stick torque
@@ -190,20 +192,20 @@ export function createBike(config = CONFIG) {
 
     // ---------- hop charge / release ----------
     const canCharge = state.grounded || coyote > 0;
-    if (canCharge && input.hopHeld) {
-      holdTime += dt;
+    if (input.hopHeld) {
+      // Charge builds on the ground AND in the air (carried into the landing, so a lid-to-lid
+      // hop doesn't need runway on a 1 m lid). It can only be *released* from the ground/coyote.
+      holdTime += dt * (canCharge ? 1 : C.airChargeRate);
       if (state.grounded && holdTime <= C.hopFullTime) state.speed -= Math.sign(state.speed) * Math.min(Math.abs(state.speed), C.crouchScrub * dt);
-    } else if (!canCharge) {
-      holdTime = 0;
     }
-    state.crouch01 = canCharge ? clamp(holdTime / C.hopFullTime, 0, 1) : Math.max(0, state.crouch01 - dt * 4);
+    state.crouch01 = clamp(holdTime / C.hopFullTime, 0, 1);
     if (released && canCharge && holdTime > 0) {
       const charge = clamp((holdTime - C.hopTapTime) / (C.hopFullTime - C.hopTapTime), 0, 1);
       pop(events, charge);
     } else if (released) {
-      holdTime = 0;
+      holdTime = 0; // released in the air: the stored charge is spent, no pop
     }
-    if (!input.hopHeld && !released && state.grounded) holdTime = 0;
+    if (!input.hopHeld && !released) holdTime = 0;
 
     // ---------- lean (visual roll) ----------
     const leanTarget = state.grounded
@@ -226,7 +228,11 @@ export function createBike(config = CONFIG) {
     const target = pedal * C.topSpeed;
     const coastDecel = C.rollingResistance + C.aeroDrag * v * v;
     if (pedal > 0 && v < target) {
-      v = Math.min(target, v + C.pedalAccel * (pedal - v / C.topSpeed) * dt); // drag folded into curve
+      // drag folded into the pedal curve; while charging a hop the rider stops pedalling, so
+      // thrust tapers out with crouch01 and coast drag takes over (opus-tuning.md option 2)
+      // Crouched rider: pedal held = hold speed, not add it (no overshoot past a bin lid).
+      const c = clamp(state.crouch01 * C.chargePedalTaper, 0, 1);
+      v = Math.min(target, v + (1 - c) * C.pedalAccel * (pedal - v / C.topSpeed) * dt);
     } else if (pedal < 0 && v > 0.05) {
       v = Math.max(0, v - (C.brakeDecel * -pedal + coastDecel) * dt);
     } else if (pedal < 0) {
@@ -344,7 +350,6 @@ export function createBike(config = CONFIG) {
       state.speed *= C.wobbleSpeedKeep;
       state.wobbling = true; wobbleT = C.wobbleTime;
     }
-    holdTime = 0;
   }
 
   function step(dt, input = {}, env) {
