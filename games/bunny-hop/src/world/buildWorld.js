@@ -32,10 +32,10 @@ export const WORLD_CONFIG = {
 // Reference lighting & renderer values (frame-1 sky, frame-2 sun, frame-5 blue ambient)
 export const WORLD_LIGHTING = {
   fog: { color: 0x8d82a3, near: 42, far: 160 },
-  sun: { color: 0xffb38a, intensity: 2.30, dir: [-0.84, 0.19, 0.50] },
-  hemi: { sky: 0xa0c8f6, ground: 0x60586c, intensity: 1.55 },
-  ambient: { color: 0x5c74a2, intensity: 0.92 },
-  renderer: { toneMapping: 'ACESFilmicToneMapping', exposure: 1.15 },
+  sun: { color: 0xffb38a, intensity: 2.40, dir: [-0.84, 0.19, 0.50] },
+  hemi: { sky: 0xa8d0fa, ground: 0x6c6378, intensity: 1.85 },
+  ambient: { color: 0x6680b0, intensity: 1.12 },
+  renderer: { toneMapping: 'ACESFilmicToneMapping', exposure: 1.22 },
 };
 
 export const WATER_Y = 0.0;
@@ -115,8 +115,8 @@ function makeAsphaltTexture(withLines = true) {
   c.height = 256;
   const g = c.getContext('2d');
   const rng = mulberry32(101);
-  // Mid grey-blue asphalt targeting road luma 70-100 (frame-2, frame-4)
-  g.fillStyle = '#5a677a';
+  // Mid grey-blue asphalt targeting road luma 75-90 (frame-2 measures 85)
+  g.fillStyle = '#728094';
   g.fillRect(0, 0, 256, 256);
 
   // Patchy wear & resurfacing strips (frame-2)
@@ -125,12 +125,12 @@ function makeAsphaltTexture(withLines = true) {
     const py = rng() * 256;
     const pw = 24 + rng() * 68;
     const ph = 18 + rng() * 52;
-    g.fillStyle = rng() < 0.5 ? 'rgba(124, 138, 158, 0.22)' : 'rgba(62, 72, 88, 0.22)';
+    g.fillStyle = rng() < 0.5 ? 'rgba(148, 162, 182, 0.22)' : 'rgba(78, 88, 106, 0.20)';
     g.fillRect(px, py, pw, ph);
   }
 
   // Subtle tire-track polishing bands
-  g.fillStyle = 'rgba(50, 58, 72, 0.20)';
+  g.fillStyle = 'rgba(64, 74, 90, 0.18)';
   g.fillRect(0, 44, 256, 42);
   g.fillRect(0, 170, 256, 42);
 
@@ -138,8 +138,8 @@ function makeAsphaltTexture(withLines = true) {
   for (let i = 0; i < 4200; i++) {
     const x = rng() * 256;
     const y = rng() * 256;
-    const v = 72 + Math.floor(rng() * 42);
-    g.fillStyle = `rgb(${v},${v + 8},${v + 17})`;
+    const v = 94 + Math.floor(rng() * 44);
+    g.fillStyle = `rgb(${v},${v + 8},${v + 18})`;
     g.fillRect(x, y, 2, 2);
   }
 

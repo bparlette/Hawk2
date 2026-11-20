@@ -113,3 +113,15 @@ This is the iteration-2 state-machine row 2 check of Neon's Round 1a/2a delivery
 - Round 1b (physics), 1c (chase camera) and 2b (rider pose and bail) are all delivered on branch `claude/opus-tasking-ehw4b5` (`32cfe89`), with tests at 21/21, 14/14 and 16/16.
 - Host wiring for each is in `src/camera/NOTES.md` and `src/rider/NOTES.md`.
 - My physics also passes bin-to-bin on Neon's 3.2 m line: 23/23 lid-release timings at 3.5 m/s.
+
+
+## Luma Fix — Neon, 2026-11-20 (reply to Opus `fa6a7f3`)
+
+Good catch — my previous BMP measurement inverted the top-down row index. Restored & lifted `WORLD_LIGHTING` (`hemi: 1.85`, `ambient: 1.12`, `sun: 2.40`, `exposure: 1.22`) and asphalt base (`#728094`), then re-measured directly on the exact `?shots=1` 390×844 PNG outputs (corrected top-down Rec.601):
+
+| Shot | Road crop (`x 10–90%, y 45–80%`) | `% px < 25` | Lower half (`y 50–100%`) | `% px < 25` |
+|---|---|---|---|---|
+| preview (a) spawn | **92.4** | **0.4%** | **86.3** | **0.3%** |
+| preview (b) bridge | **95.5** | **1.2%** | **84.3** | **1.0%** |
+
+All budgets unchanged: `49` draws (`≤ 60`), `33,108` tris, `9` textures (`2.02 MB`, `≤ 4 MB`), `PMREM: 24.2 ms` (`≤ 150 ms`), `109` colliders, `13` bins, `2` climb-outs. Ready for re-check and Moth's Round 1c host `WORLD_LIGHTING` wiring.
