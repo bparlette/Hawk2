@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Bunny Hop — Moth Look (Bake-off)</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#1c2338;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
+  #game{position:fixed;inset:0;}
+  canvas{display:block;}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:1100;}
+  #speed{position:absolute;top:calc(10px + env(safe-area-inset-top));left:14px;color:#fff;
+    font-size:15px;font-weight:700;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #speed b{font-size:30px;font-weight:800;}
+  #mode{position:absolute;top:calc(48px + env(safe-area-inset-top));left:14px;color:#ffd9a0;
+    font-size:12px;font-weight:700;letter-spacing:.14em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #title{position:absolute;top:calc(10px + env(safe-area-inset-top));right:14px;color:#fff;opacity:.85;
+    font-size:13px;font-weight:800;letter-spacing:.22em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #prompt{position:absolute;left:50%;bottom:24%;transform:translateX(-50%);color:#fff;background:rgba(10,14,26,.72);
+    border:2px solid #ffd23f;border-radius:999px;padding:10px 20px;font-size:16px;font-weight:800;letter-spacing:.03em;
+    display:none;white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.45);}
+  #hint{position:absolute;left:50%;top:16%;transform:translateX(-50%);color:#fff;text-align:center;
+    font-size:14px;line-height:1.55;font-weight:600;text-shadow:0 1px 5px rgba(0,0,0,.85);
+    transition:opacity 1.2s ease;pointer-events:none;width:92%;}
+  #hint span{background:rgba(10,14,26,.55);border-radius:8px;padding:2px 8px;}
+  /* ---- gptouch: floating joystick (left half) + round buttons (bottom-right) ---- */
+  #stickZone{position:fixed;left:0;bottom:0;width:50%;height:62%;z-index:1150;touch-action:none;}
+  #stickBase{position:fixed;width:112px;height:112px;border-radius:50%;border:2px solid rgba(255,255,255,.4);
+    background:rgba(16,20,36,.32);display:none;z-index:1151;pointer-events:none;transform:translate(-50%,-50%);}
+  #stickKnob{position:fixed;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.75);
+    display:none;z-index:1152;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 2px 8px rgba(0,0,0,.4);}
+  .btn{position:fixed;border-radius:50%;border:3px solid rgba(255,255,255,.55);color:#fff;font-weight:900;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:1200;touch-action:none;
+    text-shadow:0 1px 3px rgba(0,0,0,.5);box-shadow:0 4px 14px rgba(0,0,0,.4);}
+  .btn small{font-size:9px;letter-spacing:.12em;font-weight:700;opacity:.9;}
+  #btnA{right:26px;bottom:calc(30px + env(safe-area-inset-bottom));width:92px;height:92px;font-size:21px;background:rgba(255,46,77,.78);}
+  #btnB{right:132px;bottom:calc(22px + env(safe-area-inset-bottom));width:66px;height:66px;font-size:14px;background:rgba(41,230,255,.5);}
+  .btn.on{filter:brightness(1.5);transform:scale(.94);}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+  <div id="speed"><b>0</b> km/h</div>
+  <div id="mode"></div>
+  <div id="title">BUNNY HOP · MOTH LOOK</div>
+  <div id="prompt"></div>
+  <div id="hint"><span>Left stick steers — the bike pedals itself &nbsp;·&nbsp; WASD on keyboard &nbsp;·&nbsp; HOLD <b>A</b> or <b>SPACE</b> to crouch, RELEASE to bunny hop &nbsp;·&nbsp; <b>B</b> brake &nbsp;·&nbsp; In air: stick up/down or W/S pitch &nbsp;·&nbsp; Hop the bridge rail and swim!</span></div>
+</div>
+<div id="stickZone"></div>
+<div id="stickBase"></div><div id="stickKnob"></div>
+<div class="btn" id="btnB">B<small>BRAKE</small></div>
+<div class="btn" id="btnA">A<small>HOP</small></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from './src/world/buildWorld.js';
+import { createBike } from './src/physics/bikePhysics.js';
+
+/* ============================================================ RENDERER / SCENE / DUSK SKY */
+const container = document.getElementById('game');
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.22;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x66536b, 48, 175);
+{
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512;
+  const g = c.getContext('2d'); const gr = g.createLinearGradient(0,0,0,512);
+  gr.addColorStop(0.0,'#141f42'); gr.addColorStop(0.30,'#2c3a68'); gr.addColorStop(0.52,'#5c4a72');
+  gr.addColorStop(0.66,'#d9734f'); gr.addColorStop(0.76,'#ff9e4a'); gr.addColorStop(0.86,'#ffb763');
+  gr.addColorStop(1.0,'#8a4f33');
+  g.fillStyle = gr; g.fillRect(0,0,4,512);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  scene.background = tex;
+}
+const camera = new THREE.PerspectiveCamera(68, window.innerWidth/window.innerHeight, 0.1, 400);
+const hemi = new THREE.HemisphereLight(0xe8b48c, 0x503a28, 0.9); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xff9a4e, 2.6);
+sun.position.set(-44, 10.5, -27); sun.castShadow = true;
+sun.shadow.mapSize.set(1536,1536);
+sun.shadow.camera.left=-34; sun.shadow.camera.right=34; sun.shadow.camera.top=34; sun.shadow.camera.bottom=-34;
+sun.shadow.camera.near=1; sun.shadow.camera.far=160; sun.shadow.bias=-0.0004; sun.shadow.normalBias=0.03;
+scene.add(sun); scene.add(sun.target);
+scene.add(new THREE.AmbientLight(0x453a30, 0.4));
+
+/* ============================================================ WORLD + PHYSICS (standalone modules) */
+const world = buildWorld(scene);
+const WATER_Y = world.water.y;
+/* Physics seam (Opus module v2): env.groundAt must return { height, type }.
+   - bin footprints: landable tops, type 'bin' (buildWorld.groundAt already returns the lid height there).
+   - canal: type 'water', height = canal bed (below WATER_Y), so the module fires splash on entry.
+   - bridge deck / ramps / rails: type 'deck'.
+   - buildings / lamps / trees: the new env has no collider list, so they present through
+     groundAt as tall heights and the module's wall rule applies (>0.15 m above the rider:
+     stop below 6 m/s, bail 'crash' above it). */
+function physGroundAt(x, z){
+  let height = world.groundAt(x, z), type = 'ground';
+  for (const b of world.bins) if (Math.abs(x - b.x) < 0.52 && Math.abs(z - b.z) < 0.52) { type = 'bin'; break; }
+  if (type === 'ground' && world.water.contains(x, z)) type = 'water';
+  if (type === 'ground' && Math.abs(x) <= 5.2 && Math.abs(z) < 20.5 && height > 0.02) type = 'deck';
+  for (const c of world.colliders) if (x > c.minX && x < c.maxX && z > c.minZ && z < c.maxZ && c.top > height) { height = c.top; type = 'ground'; }
+  return { height, type };
+}
+const env = { groundAt: physGroundAt, waterLevel: WATER_Y };
+const bike = createBike();
+const S = bike.state;
+bike.reset(world.spawn, env);
+
+/* ============================================================ BIKE + RIDER VISUALS */
+const BOX = new THREE.BoxGeometry(1,1,1);
+function mat(color, rough=0.9, metal=0.0){ return new THREE.MeshStandardMaterial({ color, roughness:rough, metalness:metal }); }
+function box(w,h,d,material,x=0,y=0,z=0,parent,shadow=true){
+  const m = new THREE.Mesh(BOX, material); m.scale.set(w,h,d); m.position.set(x,y,z);
+  m.castShadow = shadow; m.receiveShadow = true; parent.add(m); return m;
+}
+function tube(a, b, r, material, parent){
+  const d = new THREE.Vector3().subVectors(b,a); const len = d.length();
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r,r,len,6), material);
+  m.position.copy(a).addScaledVector(d,0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), d.normalize());
+  m.castShadow = true; parent.add(m); return m;
+}
+const V3 = (x,y,z)=>new THREE.Vector3(x,y,z);
+const frameMat = mat(0xc9333f, 0.22, 0.55), chromeMat = mat(0xc7ccd4, 0.18, 0.95), tyreMat = mat(0x0b0b0d, 1.0),
+      skinMat = mat(0xc98a5e, 0.8), shirtMat = mat(0xd98e32, 0.9), pantsMat = mat(0x27364f, 0.95),
+      shoeMat = mat(0xd8d5cc, 0.75), capMat = mat(0x22242c, 0.8);
+const bikeGroup = new THREE.Group(); scene.add(bikeGroup);
+const leanGroup = new THREE.Group(); bikeGroup.add(leanGroup);
+const pitchGroup = new THREE.Group(); leanGroup.add(pitchGroup);
+let wheelF, wheelR, crank, legL, legR, shinL, shinR, riderRig;
+{
+  const wheelGeo = new THREE.CylinderGeometry(0.34,0.34,0.07,20); wheelGeo.rotateZ(Math.PI/2);
+  const hubGeo = new THREE.CylinderGeometry(0.05,0.05,0.1,8); hubGeo.rotateZ(Math.PI/2);
+  function wheel(z){
+    const g = new THREE.Group(); g.position.set(0, 0.34, z); pitchGroup.add(g);
+    const t = new THREE.Mesh(wheelGeo, tyreMat); t.castShadow = true; g.add(t);
+    g.add(new THREE.Mesh(hubGeo, chromeMat));
+    for (let i=0;i<3;i++){ const s = box(0.02, 0.6, 0.03, chromeMat, 0, 0, 0, g); s.rotation.x = i*Math.PI/3; s.castShadow=false; }
+    return g;
+  }
+  wheelF = wheel(0.52); wheelR = wheel(-0.52);
+  tube(V3(0,0.36,-0.5), V3(0,0.62,0.18), 0.032, frameMat, pitchGroup);
+  tube(V3(0,0.62,0.18), V3(0,0.98,-0.18), 0.034, frameMat, pitchGroup);
+  tube(V3(0,0.62,0.18), V3(0,0.92,0.44), 0.034, frameMat, pitchGroup);
+  tube(V3(0,0.98,-0.18), V3(0,0.95,0.42), 0.03, frameMat, pitchGroup);
+  tube(V3(0,0.92,0.44), V3(0,0.34,0.52), 0.026, chromeMat, pitchGroup);
+  tube(V3(0,0.98,-0.18), V3(0,0.36,-0.5), 0.024, frameMat, pitchGroup);
+  box(0.07, 0.05, 0.3, mat(0x1c1c20,0.8), 0, 1.0, -0.2, pitchGroup);
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.52,8), chromeMat);
+  bar.rotation.z = Math.PI/2; bar.position.set(0, 1.06, 0.46); bar.castShadow = true; pitchGroup.add(bar);
+  tube(V3(0,0.95,0.42), V3(0,1.06,0.46), 0.024, chromeMat, pitchGroup);
+  crank = new THREE.Group(); crank.position.set(0, 0.38, 0.16); pitchGroup.add(crank);
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.03,14), chromeMat);
+  disc.rotation.z = Math.PI/2; crank.add(disc);
+  box(0.03, 0.3, 0.03, chromeMat, 0, 0, 0, crank).rotation.x = 0.6;
+  riderRig = new THREE.Group(); pitchGroup.add(riderRig);
+  box(0.3, 0.16, 0.2, pantsMat, 0, 0.98, -0.14, riderRig);
+  const torso = box(0.34, 0.52, 0.19, shirtMat, 0, 1.28, -0.02, riderRig); torso.rotation.x = 0.36;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 14, 12), skinMat);
+  head.position.set(0, 1.6, 0.1); head.castShadow = true; riderRig.add(head);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 8, 0, Math.PI*2, 0, 1.25), capMat);
+  cap.position.set(0, 1.63, 0.1); riderRig.add(cap);
+  box(0.2, 0.03, 0.12, capMat, 0, 1.6, 0.22, riderRig);
+  function arm(side){
+    const g = new THREE.Group(); g.position.set(side*0.21, 1.44, 0.02); riderRig.add(g);
+    tube(V3(0,0,0), V3(side*0.03,-0.24,0.16), 0.042, shirtMat, g);
+    tube(V3(side*0.03,-0.24,0.16), V3(side*-0.02,-0.42,0.42), 0.036, skinMat, g);
+    return g;
+  }
+  arm(-1); arm(1);
+  function leg(side){
+    const hip = new THREE.Group(); hip.position.set(side*0.11, 0.95, -0.08); riderRig.add(hip);
+    box(0.095, 0.44, 0.095, pantsMat, 0, -0.22, 0, hip);
+    const shin = new THREE.Group(); shin.position.set(0, -0.44, 0); hip.add(shin);
+    box(0.08, 0.42, 0.08, pantsMat, 0, -0.21, 0, shin);
+    box(0.09, 0.05, 0.22, shoeMat, 0, -0.43, 0.05, shin);
+    return { hip, shin };
+  }
+  const lL = leg(-1), lR = leg(1); legL = lL.hip; legR = lR.hip; shinL = lL.shin; shinR = lR.shin;
+}
+/* ---- swimmer (same rider, prone) — visible in swim / bail */
+const swimmer = new THREE.Group(); swimmer.visible = false; scene.add(swimmer);
+let swimArmL, swimArmR, swimLegL, swimLegR, swimFoam;
+{
+  swimFoam = new THREE.Mesh(new THREE.CircleGeometry(0.88, 20),
+    new THREE.MeshBasicMaterial({ color:0xdff2ff, transparent:true, opacity:0.55, depthWrite:false }));
+  swimFoam.rotation.x = -Math.PI/2; swimFoam.position.y = -0.4; swimmer.add(swimFoam);
+  box(0.34, 0.18, 0.55, shirtMat, 0, 0, -0.05, swimmer);
+  box(0.3, 0.15, 0.22, pantsMat, 0, -0.01, -0.42, swimmer);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 14, 12), skinMat);
+  head.position.set(0, 0.06, 0.32); head.castShadow = true; swimmer.add(head);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 8, 0, Math.PI*2, 0, 1.25), capMat);
+  cap.position.set(0, 0.09, 0.32); swimmer.add(cap);
+  function sArm(side){ const g = new THREE.Group(); g.position.set(side*0.22, 0.02, 0.18); swimmer.add(g); box(0.08, 0.08, 0.46, skinMat, 0, 0, 0.23, g); return g; }
+  swimArmL = sArm(-1); swimArmR = sArm(1);
+  function sLeg(side){ const g = new THREE.Group(); g.position.set(side*0.1, 0, -0.52); swimmer.add(g); box(0.09, 0.09, 0.5, pantsMat, 0, 0, -0.25, g); return g; }
+  swimLegL = sLeg(-1); swimLegR = sLeg(1);
+}
+/* ---- splash rings (pooled) */
+const splashes = [];
+{
+  const geo = new THREE.RingGeometry(0.4, 0.62, 24); geo.rotateX(-Math.PI/2);
+  for (let i=0;i<4;i++){
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color:0xcfeaff, transparent:true, opacity:0 }));
+    m.position.y = WATER_Y + 0.03; m.visible = false; scene.add(m);
+    splashes.push({ m, t: 99 });
+  }
+}
+function splash(x, z, big=false){
+  const s = splashes.find(s=>s.t>1) || splashes[0];
+  s.t = 0; s.m.position.x = x; s.m.position.z = z; s.m.visible = true;
+  s.m.scale.setScalar(big?1.6:1);
+}
+
+/* ============================================================ INPUT (gptouch + keyboard) */
+const keys = {};
+let joyActive = false, joyId = null, joyOX = 0, joyOY = 0, joyX = 0, joyY = 0;
+let btnA = false, btnB = false;
+/* Touch scheme: the stick STEERS ONLY — its vertical axis never throttles, so a
+   steering push can't surge the bike forward into things. Instead the bike
+   auto-pedals at a gentle cruise once any touch control has been used
+   (pedal 0.6 -> settles ~0.6 x topSpeed 12 = ~7.2 m/s, CONFIG.cruiseSpeed).
+   B (brake) overrides the cruise. Stick vertical is kept as stickY and used
+   for air pitch ONLY, while airborne, when it can't accelerate the bike. */
+let touchMode = false;
+const AUTO_PEDAL = 0.6;
+/* Latch touchMode on the FIRST touch-origin interaction of ANY kind, not just
+   the joystick/buttons' own pointerdown handlers: a first tap that lands on
+   the canvas or anywhere else must also engage the auto-pedal cruise. */
+const latchTouch = ()=>{ touchMode = true; };
+window.addEventListener('touchstart', latchTouch, { passive:true });
+window.addEventListener('pointerdown', e=>{ if (e.pointerType === 'touch' || e.pointerType === 'pen') latchTouch(); }, { passive:true });
+const input = { steer:0, throttle:0, stickY:0, pitchKey:0, brake:false, hopHeld:false, action:false };
+window.addEventListener('keydown', e=>{
+  if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  keys[e.code] = true;
+});
+window.addEventListener('keyup', e=>{ keys[e.code] = false; });
+const zone = document.getElementById('stickZone'), sBase = document.getElementById('stickBase'), sKnob = document.getElementById('stickKnob');
+zone.addEventListener('pointerdown', e=>{
+  touchMode = true;
+  joyActive = true; joyId = e.pointerId; joyOX = e.clientX; joyOY = e.clientY; joyX = 0; joyY = 0;
+  sBase.style.display = sKnob.style.display = 'block';
+  sBase.style.left = joyOX+'px'; sBase.style.top = joyOY+'px';
+  sKnob.style.left = joyOX+'px'; sKnob.style.top = joyOY+'px';
+  try { zone.setPointerCapture(e.pointerId); } catch(_){}
+});
+zone.addEventListener('pointermove', e=>{
+  if (!joyActive || e.pointerId !== joyId) return;
+  let dx = e.clientX - joyOX, dy = e.clientY - joyOY;
+  const len = Math.hypot(dx,dy), max = 52;
+  if (len > max){ dx *= max/len; dy *= max/len; }
+  joyX = dx/max; joyY = dy/max; latchTouch();
+  sKnob.style.left = (joyOX+dx)+'px'; sKnob.style.top = (joyOY+dy)+'px';
+});
+function joyEnd(e){ if (e.pointerId === joyId){ joyActive=false; joyX=0; joyY=0; sBase.style.display = sKnob.style.display = 'none'; } }
+zone.addEventListener('pointerup', joyEnd); zone.addEventListener('pointercancel', joyEnd);
+function bindBtn(id, set){
+  const el = document.getElementById(id);
+  el.addEventListener('pointerdown', e=>{ e.preventDefault(); touchMode = true; set(true); el.classList.add('on'); try { el.setPointerCapture(e.pointerId); } catch(_){} });
+  const off = e=>{ set(false); el.classList.remove('on'); };
+  el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off);
+}
+bindBtn('btnA', v=>{ btnA = v; });
+bindBtn('btnB', v=>{ btnB = v; });
+document.addEventListener('gesturestart', e=>e.preventDefault());
+document.addEventListener('dblclick', e=>e.preventDefault());
+function pollInput(){
+  let steer = 0, throttle = 0;
+  if (keys['KeyA'] || keys['ArrowLeft']) steer -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) steer += 1;
+  if (keys['KeyW'] || keys['ArrowUp']) throttle += 1;
+  if (keys['KeyS'] || keys['ArrowDown']) throttle -= 1;
+  if (joyActive){ steer += joyX; } // stick X steers; stick Y is NOT throttle (see AUTO_PEDAL)
+  input.steer = THREE.MathUtils.clamp(steer, -1, 1);
+  input.throttle = THREE.MathUtils.clamp(throttle, -1, 1);
+  /* Deliberate pitch keys only (W/S + arrows), kept separate from throttle so
+     the auto-pedal / throttle value can never leak into airPitch. */
+  input.pitchKey = ((keys['KeyS'] || keys['ArrowDown']) ? 1 : 0) + ((keys['KeyW'] || keys['ArrowUp']) ? -1 : 0);
+  input.stickY = joyActive ? joyY : 0; // raw stick vertical (up = -1); air pitch only
+  input.brake = btnB || !!keys['ShiftLeft'];
+  input.hopHeld = btnA || !!keys['Space'];
+  input.action = btnA || !!keys['KeyE'];
+}
+
+/* ============================================================ HUD */
+const speedEl = document.querySelector('#speed b'), modeEl = document.getElementById('mode'),
+      promptEl = document.getElementById('prompt'), hintEl = document.getElementById('hint');
+setTimeout(()=>{ hintEl.style.opacity = '0'; }, 8000);
+function showPrompt(t){ if (t){ promptEl.textContent = t; promptEl.style.display = 'block'; } else promptEl.style.display = 'none'; }
+
+/* ============================================================ MAIN LOOP */
+const camPos = new THREE.Vector3(S.x - 6, 4, S.z);
+/* Host-owned modes: the physics module stops dead at splash/bail (step() is a no-op
+   until reset), so swimming, climb-out and remount are driven here, as in v1. */
+let mode = 'ride';           // ride | swim | bail
+let hostTime = 0, pedalPhase = 0, prevHopHeld = false, lastModInput = null;
+let pitchArm = false; // liftoff gate: pitch input counts only after controls pass near-neutral IN AIR
+let swimPos = { x: 0, z: 0 }, swimHeading = 0, swimSpeed = 0, canClimb = false;
+let bailT = 0, bailY = 0;
+const floatBike = { x: world.spawn.x, z: world.spawn.z, heading: world.spawn.heading };
+function enterSwim(){
+  mode = 'swim';
+  swimPos = { x: S.x, z: S.z };
+  swimHeading = S.heading; swimSpeed = 0; canClimb = false;
+  floatBike.x = S.x + Math.cos(S.heading) * 1.2;
+  floatBike.z = S.z - Math.sin(S.heading) * 1.2;
+  floatBike.heading = S.heading;
+  splash(S.x, S.z, true);
+}
+function enterBail(){
+  mode = 'bail'; bailT = 0; bailY = world.groundAt(S.x, S.z);
+}
+function stepSwim(dt){
+  swimHeading -= input.steer * dt * 1.9;
+  const fx = Math.sin(swimHeading), fz = Math.cos(swimHeading);
+  const fwd = Math.max(input.throttle, touchMode ? AUTO_PEDAL : 0); // touch swims itself at cruise
+  const spd = fwd > 0.05 ? fwd * 3.1 : 0;
+  swimPos.x = THREE.MathUtils.clamp(swimPos.x + fx * spd * dt, world.water.bounds.minX, world.water.bounds.maxX);
+  swimPos.z = THREE.MathUtils.clamp(swimPos.z + fz * spd * dt, world.water.bounds.minZ, world.water.bounds.maxZ);
+  swimSpeed = spd;
+  const exit = world.climbOutAt(swimPos.x, swimPos.z);
+  canClimb = !!exit;
+  if (exit && input.action){
+    bike.reset({ x: exit.x, z: exit.z, heading: exit.heading }, env); // reset with env: grounded at once
+    mode = 'ride';
+  }
+}
+let last = performance.now(), ftSamples = [], workSamples = [];
+function animate(now){
+  requestAnimationFrame(animate);
+  const w0 = performance.now();
+  let dt = Math.min(0.033, (now - last)/1000); last = now;
+  if (dt > 0) ftSamples.push(dt);
+  if (window.__freeze) dt = 0;
+  pollInput();
+  hostTime += dt;
+  /* Translate host input to the module's input shape:
+     pedal — B / Shift (brake button) forces -1. Otherwise an explicit keyboard
+             throttle wins; with neither, a touch player gets AUTO_PEDAL cruise
+             (the stick never throttles — steering can't surge the bike forward).
+             (Module: pedal<0 brakes while rolling, reverses from standstill.)
+     airPitch — +1 pulls the nose up. Sources are DELIBERATE pitch inputs only:
+             W/S (pitchKey) and, on touch, stick vertical while airborne. The
+             throttle / auto-pedal value NEVER feeds airPitch. On top of that, a
+             liftoff arm-gate: a pitch control already held when the wheels
+             leave the ground (stick pushed up to ride, W held to pedal) reads
+             as 0 for that whole flight — pitch only engages after the control
+             passes near-neutral in the air and is pushed again. Without this,
+             a held-forward stick/W became full nose-down torque at pop and
+             flipped the bike onto its front tire.
+     hopReleased — an edge; the module applies it once, on the frame it appears. */
+  const rawPitch = THREE.MathUtils.clamp(input.pitchKey + (!S.grounded ? input.stickY : 0), -1, 1);
+  if (S.grounded) pitchArm = false;
+  else if (Math.abs(rawPitch) <= 0.25) pitchArm = true;
+  const modInput = {
+    pedal: input.brake ? -1
+      : input.throttle !== 0 ? input.throttle
+      : (touchMode && mode === 'ride' ? AUTO_PEDAL : 0),
+    steer: input.steer,
+    hopHeld: input.hopHeld,
+    hopReleased: prevHopHeld && !input.hopHeld,
+    airPitch: (!S.grounded && pitchArm) ? rawPitch : 0,
+  };
+  lastModInput = modInput;
+  prevHopHeld = input.hopHeld;
+  if (mode === 'ride'){
+    const events = bike.step(dt, modInput, env);
+    for (const ev of events){
+      if (ev.type === 'splash') enterSwim();
+      else if (ev.type === 'bail') enterBail();
+    }
+  } else if (mode === 'swim'){
+    stepSwim(dt);
+  } else { // bail: wait out the beat, then A / E remounts via reset (grounded immediately)
+    bailT += dt;
+    if (bailT > 0.8 && input.action){
+      bike.reset({ x: S.x, z: S.z, heading: S.heading }, env);
+      mode = 'ride';
+    }
+  }
+  /* prompts */
+  if (mode === 'swim') showPrompt(canClimb ? 'Tap A or E — climb out' : null);
+  else if (mode === 'bail') showPrompt(bailT > 0.8 ? 'Tap A or E — get back on' : null);
+  else showPrompt(null);
+  /* visuals by mode */
+  riderRig.visible = mode === 'ride';
+  swimmer.visible = mode !== 'ride';
+  if (mode === 'ride'){
+    bikeGroup.position.set(S.x, S.y, S.z);
+    bikeGroup.rotation.y = S.heading;
+    leanGroup.rotation.z = S.lean + (S.wobbling ? Math.sin(hostTime*34) * 0.06 : 0);
+    leanGroup.position.y = -S.crouch01 * 0.07;
+    pitchGroup.rotation.x = -S.pitch; // module pitch: positive = nose up; rotation.x positive = nose down
+    riderRig.position.y = -S.crouch01 * 0.17;
+    riderRig.rotation.x = S.crouch01 * 0.22;
+    const spin = S.grounded ? S.speed / 0.34 : 9;
+    wheelF.rotation.x += spin * dt; wheelR.rotation.x += spin * dt;
+    if (modInput.pedal > 0 && S.speed > 0.2) pedalPhase += dt * (2 + S.speed * 1.6);
+    else if (S.speed > 0.5) pedalPhase += dt * S.speed * 0.9;
+    crank.rotation.x = -pedalPhase;
+    const ph = pedalPhase;
+    legL.rotation.x = -0.55 + Math.sin(ph) * 0.5;        legR.rotation.x = -0.55 + Math.sin(ph + Math.PI) * 0.5;
+    shinL.rotation.x = 0.75 + Math.cos(ph) * 0.38;       shinR.rotation.x = 0.75 + Math.cos(ph + Math.PI) * 0.38;
+  } else if (mode === 'swim'){
+    const t = hostTime;
+    swimFoam.visible = true;
+    swimmer.position.set(swimPos.x, WATER_Y + 0.48 + Math.sin(t*2.2)*0.045, swimPos.z);
+    swimmer.scale.setScalar(1.18);
+    swimmer.rotation.set(0.12 + Math.sin(t*2.2)*0.03, swimHeading, 0);
+    const stroke = swimSpeed > 0.1 ? t * 5.2 : t * 1.4;
+    swimArmL.rotation.x = -Math.sin(stroke) * 0.95 - 0.3;
+    swimArmR.rotation.x = -Math.sin(stroke + Math.PI) * 0.95 - 0.3;
+    swimLegL.rotation.x = Math.sin(stroke*1.35) * 0.3;
+    swimLegR.rotation.x = Math.sin(stroke*1.35 + Math.PI) * 0.3;
+    bikeGroup.position.set(floatBike.x, WATER_Y + 0.1 + Math.sin(t*1.7)*0.05, floatBike.z);
+    bikeGroup.rotation.y = floatBike.heading;
+    leanGroup.rotation.z = 1.25;
+  } else { // bail
+    swimFoam.visible = false;
+    bikeGroup.position.set(S.x, bailY, S.z);
+    bikeGroup.rotation.y = S.heading;
+    leanGroup.rotation.z = 1.35;
+    swimmer.position.set(S.x + 0.7, bailY + 0.16, S.z + 0.4);
+    swimmer.rotation.set(-Math.PI/2 + 0.25, S.heading, 0);
+  }
+  /* splashes */
+  for (const s of splashes){
+    if (s.t > 1){ s.m.visible = false; continue; }
+    s.t += dt * 1.5;
+    s.m.scale.multiplyScalar(1 + dt*5);
+    s.m.material.opacity = 0.75 * (1 - s.t);
+  }
+  /* camera */
+  const tgt = mode === 'swim'
+    ? { x: swimPos.x, z: swimPos.z, h: swimHeading, y: WATER_Y + 0.4 }
+    : { x: S.x, z: S.z, h: S.heading, y: S.y + 0.9 };
+  const bx = Math.sin(tgt.h), bz = Math.cos(tgt.h);
+  /* LOOK: hip-height chase cam — lower and closer than the old 5.7 m / +2.4 m
+     rig, pulling back gently and widening FOV slightly as speed builds. */
+  const spdNow = Math.abs(mode === 'swim' ? swimSpeed : S.speed);
+  const dist = mode === 'swim' ? 3.5 : 4.0 + spdNow * 0.10, hgt = mode === 'swim' ? 1.55 : 0.62;
+  camPos.x += ((tgt.x - bx*dist) - camPos.x) * Math.min(1, dt*4.5);
+  camPos.z += ((tgt.z - bz*dist) - camPos.z) * Math.min(1, dt*4.5);
+  camPos.y += ((tgt.y + hgt) - camPos.y) * Math.min(1, dt*4.5);
+  camera.position.copy(camPos);
+  camera.lookAt(tgt.x + bx*3.0, tgt.y + 0.55, tgt.z + bz*3.0);
+  const fovT = 68 + Math.min(5, spdNow * 0.45);
+  if (Math.abs(camera.fov - fovT) > 0.05){ camera.fov += (fovT - camera.fov) * Math.min(1, dt*3); camera.updateProjectionMatrix(); }
+  if (world.waterMat && world.waterMat.map) world.waterMat.map.offset.x = hostTime * 0.01; // slow water drift
+  sun.position.set(tgt.x - 44, 10.5, tgt.z - 27); sun.target.position.set(tgt.x, 0, tgt.z);
+  speedEl.textContent = Math.round(Math.abs(mode === 'swim' ? swimSpeed : S.speed) * 3.6);
+  modeEl.textContent = mode === 'swim' ? '🏊 SWIMMING' : (mode === 'bail' ? '💥 BAILED' : (!S.grounded ? '🕊 AIRBORNE' : (S.crouch01 > 0.02 ? '🦘 CROUCH…' : '')));
+  renderer.render(scene, camera);
+  workSamples.push(performance.now() - w0);
+}
+requestAnimationFrame(animate);
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ---- debug / scripted-play hooks (verification harness) */
+window.__dbg = {
+  S, world, bike, input,
+  get mode(){ return mode; },
+  get touchMode(){ return touchMode; },
+  get lastInput(){ return lastModInput; },
+  get swim(){ return { x: swimPos.x, z: swimPos.z, heading: swimHeading, canClimb }; },
+  groundAt: world.groundAt,
+  physGroundAt,
+  teleport(x, z, heading = 0){
+    mode = 'ride';
+    bike.reset({ x, z, heading }, env);
+    camPos.set(x - Math.sin(heading)*5.7, S.y + 3.3, z - Math.cos(heading)*5.7);
+  },
+  frameStats(){
+    const a = ftSamples.slice(-240); if (!a.length) return null;
+    const s = [...a].sort((p,q)=>p-q);
+    const w = [...workSamples.slice(-240)].sort((p,q)=>p-q);
+    return { medianMs: +(s[Math.floor(s.length/2)]*1000).toFixed(2), p90Ms: +(s[Math.floor(s.length*0.9)]*1000).toFixed(2),
+             workMedianMs: w.length ? +w[Math.floor(w.length/2)].toFixed(2) : null, n: a.length };
+  },
+  setFreeze(v){ window.__freeze = !!v; },
+  ready: true,
+};
+</script>
+</body>
+</html>
