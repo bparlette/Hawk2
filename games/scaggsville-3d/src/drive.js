@@ -38,9 +38,12 @@ export function stepCar(car, input, dt, surface){
   if(car.speed > top) car.speed = Math.max(top, car.speed - 26*dt);
   if(car.speed < -CAR.reverseMax) car.speed = -CAR.reverseMax;
   if(Math.abs(car.speed) < 0.04 && input.throttle===0 && !input.brake) car.speed = 0;
-  // heading: bicycle-ish, only when moving
+  // heading: bicycle-ish, only when moving. steer is driver-convention
+  // (+1 = right turn), but heading is a three.js rotation.y — increasing yaw
+  // swings the nose toward the driver's LEFT — so a right steer must
+  // DECREASE heading. (Was += : right input turned the car left.)
   const wheelBase = 2.7;
-  car.heading += (car.speed / wheelBase) * Math.tan(car.steerVis) * dt;
+  car.heading -= (car.speed / wheelBase) * Math.tan(car.steerVis) * dt;
   car.x += Math.sin(car.heading) * car.speed * dt;
   car.z += Math.cos(car.heading) * car.speed * dt;
   return car;
@@ -83,7 +86,7 @@ export function pursue(car, tx, tz, dt, surface, opts={}){
   const targetHeading=Math.atan2(dx,dz);
   let dh=targetHeading-car.heading;
   while(dh>Math.PI) dh-=2*Math.PI; while(dh<-Math.PI) dh+=2*Math.PI;
-  const steer=Math.max(-1, Math.min(1, dh*1.9));
+  const steer=-Math.max(-1, Math.min(1, dh*1.9)); // stepCar: +steer = right = heading decreases, so steer against dh
   const slow = opts.arriveDist? Math.max(0.25, Math.min(1, dist/opts.arriveDist)) : 1;
   const throttle = (Math.abs(dh)>2.4? -0.4 : 1) * slow;
   stepCar(car, { throttle, steer, brake: dist<1.2 && !!opts.stop }, dt, surface);
