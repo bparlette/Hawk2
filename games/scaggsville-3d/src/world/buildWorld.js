@@ -32,13 +32,25 @@ export const WORLD_CONFIG = {
   houseDetailRadius: 420,  // m from route/stops where houses get window quads
 };
 
-export const WORLD_LIGHTING = {
-  renderer: { toneMapping: 'ACESFilmic', exposure: 1.15, outputColorSpace: 'SRGB' },
-  sun: { color: 0xffb38a, intensity: 2.35, dir: [-0.58, 0.30, 0.42] }, // low WSW sun: shadows rake ahead-left driving north
-  hemi: { sky: 0xa0c8f6, ground: 0x60586c, intensity: 1.5 },
-  ambient: { color: 0x5c74a2, intensity: 0.9 },
-  fog: { color: 0x8d82a3, near: 60, far: 620 },
+export const LIGHTING_PRESETS = {
+  golden: { // the original golden-hour look
+    renderer: { toneMapping: 'ACESFilmic', exposure: 1.15, outputColorSpace: 'SRGB' },
+    sun: { color: 0xffb38a, intensity: 2.35, dir: [-0.58, 0.30, 0.42] }, // low WSW sun: shadows rake ahead-left driving north
+    hemi: { sky: 0xa0c8f6, ground: 0x60586c, intensity: 1.5 },
+    ambient: { color: 0x5c74a2, intensity: 0.9 },
+    fog: { color: 0x8d82a3, near: 60, far: 620 },
+  },
+  dusk: { // BLUE HOUR — the GTA VI reference grade (Nov 20): deep blue
+    // ambient, a low warm sun remnant, lit windows + streetlight pools
+    // carrying the warmth, wet-look roads reflecting the sky.
+    renderer: { toneMapping: 'ACESFilmic', exposure: 1.26, outputColorSpace: 'SRGB' },
+    sun: { color: 0xff9a5e, intensity: 1.85, dir: [-0.58, 0.16, 0.42] },
+    hemi: { sky: 0x46689e, ground: 0x2e3038, intensity: 1.7 },
+    ambient: { color: 0x3d5a8c, intensity: 1.0 },
+    fog: { color: 0x35496b, near: 60, far: 640 },
+  },
 };
+export const WORLD_LIGHTING = LIGHTING_PRESETS.dusk;
 
 // ---------- deterministic RNG ----------
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
@@ -55,8 +67,8 @@ function canvasTex(size, draw, repeat){
 }
 function makeTextures(){
   const asphalt = canvasTex(256,(g,s)=>{
-    g.fillStyle='#565e6e'; g.fillRect(0,0,s,s);           // grey-blue, reads at dusk (summit luma rule)
-    for(let i=0;i<9000;i++){ const v=70+rand()*50; g.fillStyle=`rgba(${v},${v+4},${v+14},${0.12+rand()*0.2})`; g.fillRect(rand()*s,rand()*s,1.6,1.6); }
+    g.fillStyle='#4a5468'; g.fillRect(0,0,s,s);           // dark wet asphalt — the sky reflection does the brightening
+    for(let i=0;i<9000;i++){ const v=58+rand()*44; g.fillStyle=`rgba(${v},${v+4},${v+14},${0.12+rand()*0.2})`; g.fillRect(rand()*s,rand()*s,1.6,1.6); }
     for(let i=0;i<26;i++){ g.fillStyle=`rgba(30,34,44,${0.05+rand()*0.1})`; const w=14+rand()*50; g.fillRect(rand()*s,rand()*s,w,w*0.6); } // patches
     for(let i=0;i<10;i++){ g.strokeStyle='rgba(24,27,36,0.35)'; g.lineWidth=1; g.beginPath(); let x=rand()*s,y=rand()*s; g.moveTo(x,y); for(let j=0;j<4;j++){x+=(rand()-0.5)*36;y+=(rand()-0.5)*36; g.lineTo(x,y);} g.stroke(); } // cracks
   });
@@ -66,7 +78,7 @@ function makeTextures(){
     g.strokeStyle='rgba(70,74,78,0.55)'; g.lineWidth=2; g.strokeRect(0,0,s,s); // slab joints
   });
   const grass = canvasTex(256,(g,s)=>{
-    g.fillStyle='#5d7d3c'; g.fillRect(0,0,s,s);
+    g.fillStyle='#648347'; g.fillRect(0,0,s,s);
     for(let i=0;i<12000;i++){ const gg=90+rand()*70; g.fillStyle=`rgba(${gg*0.55},${gg},${gg*0.38},${0.14+rand()*0.2})`; g.fillRect(rand()*s,rand()*s,1.4,2.6); }
     for(let i=0;i<20;i++){ g.fillStyle=`rgba(112,96,58,${0.05+rand()*0.09})`; const w=20+rand()*60; g.fillRect(rand()*s,rand()*s,w,w*0.7); } // dry patches
   });
@@ -127,14 +139,14 @@ const SKY_FRAG=`
   varying vec3 vDir; uniform vec3 uSunDir;
   void main(){
     float h = clamp(vDir.y, -0.08, 1.0);
-    vec3 zen = vec3(0.36,0.52,0.78);
-    vec3 mid = vec3(0.62,0.66,0.82);
-    vec3 hor = vec3(0.98,0.72,0.55);
-    vec3 col = mix(hor, mid, smoothstep(0.0,0.18,h));
-    col = mix(col, zen, smoothstep(0.12,0.62,h));
+    vec3 zen = vec3(0.10,0.20,0.46);
+    vec3 mid = vec3(0.27,0.42,0.68);
+    vec3 hor = vec3(0.97,0.55,0.30);
+    vec3 col = mix(hor, mid, smoothstep(0.0,0.16,h));
+    col = mix(col, zen, smoothstep(0.10,0.55,h));
     float s = max(dot(normalize(vDir), normalize(uSunDir)), 0.0);
-    col += vec3(1.0,0.55,0.28)*pow(s, 90.0)*0.85;   // sun disc glow
-    col += vec3(1.0,0.62,0.34)*pow(s, 7.0)*0.22;    // warm haze around sun
+    col += vec3(1.0,0.52,0.24)*pow(s, 90.0)*0.9;    // sun disc glow
+    col += vec3(1.0,0.55,0.26)*pow(s, 7.0)*0.20;    // warm haze around sun
     float wisp = sin(vDir.x*14.0 + vDir.y*40.0)*sin(vDir.z*11.0 - vDir.y*30.0);
     col += vec3(1.0,0.8,0.7)*smoothstep(0.55,0.95,wisp)*0.05*smoothstep(0.02,0.2,h);
     gl_FragColor = vec4(col, 1.0);
@@ -220,9 +232,9 @@ export function buildWorld(scene, overrides=null){
   const D=WORLD_DATA;
   const tex=makeTextures();
   const mats={
-    asphalt: new THREE.MeshStandardMaterial({ map:tex.asphalt, roughness:0.94, metalness:0.0, vertexColors:true, side:THREE.DoubleSide }),
+    asphalt: new THREE.MeshStandardMaterial({ map:tex.asphalt, roughness:0.45, metalness:0.04, envMapIntensity:1.5, vertexColors:true, side:THREE.DoubleSide }), // wet look: low roughness throws long sky streaks
     concrete:new THREE.MeshStandardMaterial({ map:tex.concrete, roughness:0.97, vertexColors:true, side:THREE.DoubleSide }),
-    grass:   new THREE.MeshStandardMaterial({ map:tex.grass, roughness:1.0 }),
+    grass:   new THREE.MeshStandardMaterial({ map:tex.grass, roughness:1.0, envMapIntensity:0.35 }),
     walls:   new THREE.MeshStandardMaterial({ roughness:0.92, vertexColors:true }),
     roofs:   new THREE.MeshStandardMaterial({ map:tex.roofTex, roughness:0.95, vertexColors:true }),
     glass:   new THREE.MeshStandardMaterial({ color:0x2c3846, roughness:0.25, metalness:0.6 }),
@@ -235,7 +247,7 @@ export function buildWorld(scene, overrides=null){
     paintY:  new THREE.MeshBasicMaterial({ color:0xf2c230 }),
     beacon:  new THREE.MeshBasicMaterial({ color:0xffd23f, transparent:true, opacity:0.30, depthWrite:false }),
   };
-  scene.environmentIntensity = 0.55;
+  scene.environmentIntensity = 0.95;
 
   const B=new Buckets();
   const colliders=[];
@@ -379,6 +391,7 @@ export function buildWorld(scene, overrides=null){
   const armG=new THREE.BoxGeometry(1.7,0.09,0.09); armG.translate(0.8,7.35,0);
   const bulbG=new THREE.BoxGeometry(0.5,0.08,0.22);
   const wirePts=[]; let prevPole=null;
+  const lampPts=[]; // streetlight head positions -> warm pools + halos below
   let routeAcc=0;
   for(let i=0;i<routePts.length-1;i++){
     const [ax,az]=routePts[i],[bx,bz]=routePts[i+1]; const L=Math.hypot(bx-ax,bz-az);
@@ -408,6 +421,7 @@ export function buildWorld(scene, overrides=null){
       B.add('pole', poleG, mat(px,0,pz,hd, 0.9,1.05,0.9));
       B.add('pole', armG, mat(px,0,pz,hd-Math.PI/2));
       B.add('litwin', bulbG, mat(px-dx*1.4,7.32,pz-dz*1.4, hd), 0xffd9a0);
+      lampPts.push([px-dx*1.4, pz-dz*1.4]);
       s2+=cfg.lampSpacing;
     }
     routeAcc+=L;
@@ -428,6 +442,7 @@ export function buildWorld(scene, overrides=null){
 
   B.build(scene, mats, { walls:true, roofs:true, trunk:true, foliage:true, pole:true });
   buildWindows(scene, winQuads);
+  buildLampGlow(scene, lampPts);
 
   return {
     groundAt: (x,z)=>0,
@@ -444,6 +459,41 @@ export function buildWorld(scene, overrides=null){
       beacon, beaconRing,
     },
   };
+}
+
+function buildLampGlow(scene, pts){
+  // streetlight dressing at blue hour, ONE merged additive mesh: a warm pool
+  // on the wet road under each lamp + a crossed halo card at the lamp head.
+  if(!pts.length) return;
+  const c=document.createElement('canvas'); c.width=c.height=128;
+  const g2=c.getContext('2d');
+  const gr=g2.createRadialGradient(64,64,2,64,64,64);
+  gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.4,'rgba(255,255,255,0.4)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+  g2.fillStyle=gr; g2.fillRect(0,0,128,128);
+  const tex=new THREE.CanvasTexture(c);
+  const geos=[];
+  const poolG=new THREE.PlaneGeometry(10.5,10.5); poolG.rotateX(-Math.PI/2);
+  const glowA=new THREE.PlaneGeometry(2.6,1.5);
+  const glowB=new THREE.PlaneGeometry(2.6,1.5); glowB.rotateY(Math.PI/2);
+  const Q2=new THREE.Quaternion(), E2=new THREE.Euler(), V2=new THREE.Vector3(), S2=new THREE.Vector3(1,1,1);
+  const put=(src,x,y,z)=>{ E2.set(0,0,0); Q2.setFromEuler(E2); V2.set(x,y,z); const gg=src.clone(); gg.applyMatrix4(new THREE.Matrix4().compose(V2,Q2,S2)); geos.push(gg.index?gg.toNonIndexed():gg); };
+  for(const [x,z] of pts){ put(poolG, x, 0.075, z); put(glowA, x, 7.28, z); put(glowB, x, 7.28, z); }
+  let total=0; for(const g of geos) total+=g.attributes.position.count;
+  const pos=new Float32Array(total*3), nor=new Float32Array(total*3), uv=new Float32Array(total*2), col=new Float32Array(total*3);
+  const tint=new THREE.Color(0xffb46a);
+  let o=0;
+  for(const g of geos){ const n=g.attributes.position.count;
+    pos.set(g.attributes.position.array,o*3); nor.set(g.attributes.normal.array,o*3);
+    if(g.attributes.uv) uv.set(g.attributes.uv.array,o*2);
+    for(let i=0;i<n;i++){ col[(o+i)*3]=tint.r; col[(o+i)*3+1]=tint.g; col[(o+i)*3+2]=tint.b; }
+    o+=n; g.dispose(); }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nor,3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv,2));
+  geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+  const mesh=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map:tex, vertexColors:true, transparent:true, opacity:0.42, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, fog:false }));
+  mesh.renderOrder=2; mesh.matrixAutoUpdate=false; mesh.name='lampGlow'; scene.add(mesh);
 }
 
 function makePrism(w, d, h){

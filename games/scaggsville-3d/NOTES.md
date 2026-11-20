@@ -110,8 +110,8 @@ silver** (the car is red).
 
 ## People — Figure Factory / rigkit method
 
-Crew figures stand at their houses, from `src/people.js` (published copy:
-`/games/shared/people.js`): primitive meshes on named pivots, characters
+Crew figures stand at their houses, from the shared module
+`/games/shared/people.js`: primitive meshes on named pivots, characters
 as data rows (`CREW_PEOPLE` in `src/crew.js`), procedural pose programs —
 **idle** (breathing, looking around), **wave** (when you're headed to
 their house), **walk** (to their car when they join; the player figure
@@ -120,6 +120,49 @@ implementation of the same house method (gi/obi/hakama/bare feet) — the
 crew needed street clothes, so the figures follow the documented method
 directly. Judged in motion: see `lineup.html?view=people` and the pickup
 beat in game.
+
+## Nov 20 (later) — the GTA VI car-bar pass
+
+Cherie set the bar from her own GTA VI play (photos + driving video of a
+blue ute at a tiki auto shop, blue hour): glossy reflective paint, curved
+panel flow, glass with a VISIBLE interior and a seated driver, readable
+wheels, light signatures on wet streets, deep-blue grade with warm lit
+dressing. What was adopted into the shared modules (so every game gets it):
+
+- **gpvehicles.js**: paint is now a clearcoat physical material (the
+  clearcoat layer throws the sharp sky reflection); glass is tinted and
+  translucent (opacity 0.72) over a built **interior tub** in every style —
+  floor pan, dash + pad, steering wheel on a column, two front seats, rear
+  bench (non-hatch styles). Wheels rebuilt: sidewall shoulders + readable
+  rims (5-spoke alloy / slotted steel / 12-spoke wire), one cached
+  vertex-colored geometry per (kind, radius). Dusk light signatures:
+  additive halo cards at head/taillamps + a warm headlight pool thrown on
+  the road ahead of every car; `buildVehicle` returns `driverAnchor` +
+  `driverScale` (figure scale fitted to the cabin). The player's car also
+  gets a real SpotLight beam from the host.
+- **people.js**: clothing is geometry now — and LOOSE (Cherie's shirt rule):
+  the shirt is a shell offset outward from the torso, hanging from a
+  shoulder yoke that bridges into loose sleeve tubes (no gaps, no body
+  shape through the garment), with hem, collar and optional chest stripe;
+  full-length loose trousers for every crew member (pants, not shorts —
+  her call), and hats (cap with tipped brim / wide-brim / beanie) varied
+  per crew row in `src/crew.js`. New `buildDriver(row)`: a seated
+  driver as ONE merged vertex-colored mesh (1 draw call) in the same
+  clothing, hands on the wheel — the host seats the player and each
+  convoy driver when their figure reaches the car door.
+- **Scene**: default lighting is now the **blue-hour preset**
+  (`LIGHTING_PRESETS.dusk`; golden kept alongside) — deep-blue sky dome
+  grade, blue fog/hemi, low warm sun remnant. Roads went wet: darker
+  asphalt, roughness 0.94 → 0.52 + env reflection, so the sky streaks
+  down the street. Every route streetlight gained a warm pool on the
+  road + a halo card at the head (one merged additive mesh, 1 draw).
+- **Proof**: `tools/carbar.mjs` captures an identical shot set +
+  measurements before/after (lineup 3/4, people stage, chase spawn,
+  driving, convoy, desktop overhead; renderer.info, frame ms, road luma).
+  Sets live in `shots/carbar/{before,after}` in the workspace.
+- **Ruled out for perf**: real planar reflections and per-car shadow-casting
+  spotlights (one beam, player only); transparent glass stays depth-writing
+  so interiors sort correctly; lamp glow is cards, not point lights.
 
 ## Controls (gamepress gptouch standard)
 
@@ -154,7 +197,8 @@ convoy drives the same real roads the player drove.
 - Flat terrain (the real corridor is gently rolling; elevation is v2).
 - Ambient parked cars are cheap merged silhouettes (`src/fleet.js`) — the
   crew cars are the full gpvehicles models; generic traffic is future work.
-- No day/night cycle — fixed golden hour, the summit's lighting settlement.
+- No day/night cycle — fixed time of day (blue hour since the car-bar pass
+  below; the golden-hour preset is kept in `LIGHTING_PRESETS`).
 - If you pick Jimmy, Billy's Astro doesn't join later (same household).
 - No engine audio in v1.
 - Draw calls: world 13 (preview-measured); the full scene with all 10 crew
