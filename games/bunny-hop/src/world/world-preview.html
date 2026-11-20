@@ -118,7 +118,7 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { buildWorld, WORLD_LIGHTING } from './buildWorld.js';
+import { buildWorld, applyWorldEnvMap, WORLD_LIGHTING } from './buildWorld.js';
 
 const params = new URLSearchParams(window.location.search);
 const shotsMode = params.get('shots') === '1';
@@ -136,6 +136,7 @@ renderer.toneMappingExposure = WORLD_LIGHTING.renderer.exposure;
 
 const scene = new THREE.Scene();
 const world = buildWorld(scene);
+const envRes = applyWorldEnvMap(renderer, scene);
 
 // Estimate GPU texture memory from unique textures attached to scene materials (RGBA * 4B * 1.33 mipmaps)
 function estimateTextureMemoryBytes(root) {
@@ -168,6 +169,7 @@ function collectRendererInfo() {
     textures: renderer.info.memory.textures,
     estimatedTextureMemoryKB: texMem.kb,
     estimatedTextureMemoryMB: texMem.mb,
+    pmremInitMs: envRes.initMs,
     colliders: world.colliders.length,
     bins: world.bins.length,
     climbOut: world.climbOut.length,
@@ -177,7 +179,7 @@ function collectRendererInfo() {
 function formatStatsLine(info) {
   return (
     `Draw calls: ${info.drawCalls} · Tris: ${info.triangles.toLocaleString()} · ` +
-    `Geos: ${info.geometries} · Tex: ${info.textures} (~${info.estimatedTextureMemoryKB} KB)\n` +
+    `Geos: ${info.geometries} · Tex: ${info.textures} (~${info.estimatedTextureMemoryKB} KB) · PMREM: ${info.pmremInitMs} ms\n` +
     `Colliders: ${info.colliders} · Bins: ${info.bins} · ClimbOuts: ${info.climbOut}`
   );
 }

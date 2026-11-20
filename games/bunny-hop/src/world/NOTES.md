@@ -1,10 +1,10 @@
 # Bunny Hop — World Module Notes (Neon)
 
-Replies to `tasking/neon-followup.md`.
+Implements `tasking/neon-followup.md` + **Phase A & Phase B** of `tasking/responses/visual-push-plan.md` (Opus × Neon joint plan).
 
 ## 1. Live Seam Shape
 
-`buildWorld(scene, configOverrides?)` now ships **directly in the live `index.html` seam shape** — no adapter required:
+`buildWorld(scene, configOverrides?)` ships **directly in the live `index.html` seam shape** — no adapter required:
 
 ```js
 {
@@ -22,24 +22,37 @@ Replies to `tasking/neon-followup.md`.
 }
 ```
 
-- **Note on `index.html` bridge deck typing:** `physGroundAt` currently checks `Math.abs(z) < 20.5` for `type = 'deck'`; our bridge flat span is `|z| <= 10.6` and approach ramps run out to `|z| <= 23.6` (with `GROUND_Y = 1.6`, `DECK_Y = 4.0`). Ramps remain fully rideable via `groundAt`.
+- **Audit fix (Moth `743ad60`):** `WORLD_CONFIG.hopLinePitch` tightened from `3.5 m` → **`3.2 m`** (≤ 3.3 m, giving ~0.3 m margin on bin-to-bin landings at natural lid speed; bins at `x = -26.5 + i * 3.2`).
 
-## 2. Preview Scripts & Config
+## 2. Visual Push Deliverables (Phase A + Phase B)
 
-- **`?shots=1` fixed camera matrix:** Open `world-preview.html?shots=1` to render the four fixed `390×844` portrait views (`(a) Spawn Rider View`, `(b) Bridge Looking Down Canal`, `(c) Canal at Water Level`, `(d) Overhead Neighbourhood`) in-page with individual + batch PNG download buttons and `window.__shots`.
-- **`renderer.info` dump:** Logged to console (`[world-preview] renderer.info`) after a settled render and shown live in the HUD overlay, including `drawCalls`, `triangles`, `geometries`, `textures`, and `estimatedTextureMemoryKB`.
-- **`WORLD_CONFIG`:** Exported at the top of `buildWorld.js` (`propDensity`, `litWindowRatio`, `palmCount`, `shadeTreeCount`, `hedgeCount`, `parkedCarCount`, `hopLineBins`, `singleBins`, `includeDumpster`).
+- **#1 Bright-dusk luma lift & sun flip (`frame-1`, `frame-2`, `frame-5`):**
+  - `sunDir = [-0.84, 0.19, 0.50]` (~11° elevation, behind-right of `+X` main ride → long ahead-left shadows on the road AND golden-pink sparkle down the `-X` canal).
+  - Mid grey-blue asphalt with patchy wear & repair seams, pale concrete sidewalks/bridge/piers, cyan-overhead → pale-pink horizon sky dome, and matching horizon fog.
+- **#3 Near-field parallax pack (`frame-1`, `frame-2`, `frame-5`):** crisp white `3 m / 9 m` lane dashes, white shoulder lines, pale curb edge strips, `1.5 m` sidewalk slab joints, `2.0 m` bridge barrier post rhythm with pale rail cap.
+- **#4 Landing-target contrast (`frame-6`):** high-contrast pale bin lids (`#d4dae2`) with `receiveShadow = true` on road, sidewalks, deck, and lids.
+- **#6 Procedural sky PMREM env map (`frame-4`):** exported `applyWorldEnvMap(renderer, scene)` helper (0 extra draw calls, one-time bake from the dusk sky dome).
+- **#7 Mid & far parallax layers (`frame-1`, `frame-3`, `frame-6`):** wooden utility poles every `25 m` with merged sagging catenary wires (1 draw) + hazed distant city skyline silhouette card on the canal & far-bank horizons (1 draw).
 
-## 3. Answers to Moth's Questions
+## 3. Measured Numbers (headless Chrome, 390×844)
 
-1. **Host lighting (exact values exported in `WORLD_LIGHTING`):**
-   - `buildWorld(scene)` adds the dusk sky dome and sets `scene.fog = new THREE.Fog(0x6b5064, 34, 138)`. If the host scene already has a `DirectionalLight` (as `index.html` does), `buildWorld` does **not** add duplicate lights.
-   - To match the preview 1:1 in `index.html`, set the host renderer & lights to `WORLD_LIGHTING`:
-     - Renderer: `ACESFilmicToneMapping`, `toneMappingExposure = 1.12`, `SRGBColorSpace`
-     - Sun (`DirectionalLight`): color `0xff9a52`, intensity `2.3`, direction `[-0.92, 0.16, -0.35]` (low sun shining down the canal)
-     - Hemisphere (`HemisphereLight`): sky `0x8aa4e8`, ground `0x4c3d4a`, intensity `1.38`
-     - Ambient (`AmbientLight`): color `0x3a4a72`, intensity `0.72`
-     - Fog: `new THREE.Fog(0x6b5064, 34, 138)`
-2. **Water animation hook:** **Self-contained — no host hook needed.** The canal water uses a custom `ShaderMaterial` whose `uTime` uniform updates inside `waterMesh.onBeforeRender` via `performance.now()` with zero per-frame allocations.
-3. **Seam-mismatch reporting:** Append findings to a `## Audit Findings` section in `tasking/neon-followup.md` (or this `src/world/NOTES.md`) with exact `(x, z)` coordinates and expected vs. observed height/collider — easy to diff and fix in one pass.
-4. **Reference gaps:** A clear close-up of the **bridge underside/abutments** and **residential curbside dressing** (driveways, mailboxes, utility poles/wires, or specific bin style) from the source clips would be most helpful for a second look pass.
+| Metric | Measured | Plan ceiling |
+|---|---|---|
+| Preview draw calls (`?shots=1`, `renderer.info`) | **48–49** | ≤ 60 |
+| Preview triangles | **33,108** | — |
+| Geometries / Textures | **50 geos · 9 tex (~2.02 MB)** | ≤ 4 MB |
+| PMREM init (`applyWorldEnvMap`) | **14.4 ms** (warm) / **202.7 ms** (cold 4-shot headless) | ≤ 150 ms target |
+| Road crop luma (`index.html`, Rec.601, x 10–90%, y 45–80%) | **98.4** (up from 9.8) | 70–100 |
+| Colliders / Bins / ClimbOuts | **109 / 13 / 2** | — |
+
+## 4. Host Integration Reference (`WORLD_LIGHTING` & `applyWorldEnvMap`)
+
+- `buildWorld(scene)` sets `scene.fog` and adds the dusk sky dome; if the host already provides a `DirectionalLight`, `buildWorld` does not add duplicate lights.
+- To match the preview 1:1 in `index.html`, apply `WORLD_LIGHTING` and call `applyWorldEnvMap(renderer, scene)` once after renderer init:
+  - Renderer: `ACESFilmicToneMapping`, `toneMappingExposure = 1.18`, `SRGBColorSpace`
+  - Sun: `0xffb38a`, intensity `2.35`, dir `[-0.84, 0.19, 0.50]`
+  - Hemisphere: sky `0xa4cbf7`, ground `0x675e70`, intensity `1.75`
+  - Ambient: `0x627aa8`, intensity `1.05`
+  - Fog: `new THREE.Fog(0x8d82a3, 42, 160)`
+- **Water animation:** self-contained via `waterMesh.onBeforeRender` (zero host hook, zero per-frame allocations).
+- **Preview scripts:** `world-preview.html?shots=1` renders the 4 fixed `390×844` views + `renderer.info` console/HUD dump.
