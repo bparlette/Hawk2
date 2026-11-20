@@ -541,9 +541,12 @@ export function buildVehicle(row) {
   addBucket(lightGeos, VEHICLE_MATS.head);
   // headlight lenses: the shared warm material by default; a row with a
   // beamColor gets its own tinted lens (Brad yellow, Brian/Rigg blue).
+  // FRONT boost (Cherie, Nov 20): from the front the beam colours read ~2x
+  // stronger — lens emissive doubled (1.7 -> 3.4) and the lens face kept
+  // near-full saturation (white lerp 0.45 -> 0.2). Rear is untouched.
   const headMat = row.beamColor !== undefined
-    ? new THREE.MeshStandardMaterial({ color: new THREE.Color(row.beamColor).lerp(new THREE.Color(0xffffff), 0.45),
-        emissive: row.beamColor, emissiveIntensity: 1.7 })
+    ? new THREE.MeshStandardMaterial({ color: new THREE.Color(row.beamColor).lerp(new THREE.Color(0xffffff), 0.2),
+        emissive: row.beamColor, emissiveIntensity: 3.4 })
     : VEHICLE_MATS.head;
   addBucket(headGeos, headMat);
   addBucket(tailGeos, VEHICLE_MATS.tail);
@@ -585,12 +588,17 @@ export function buildVehicle(row) {
   // headlights throw on the road ahead. Additive, depth-write off, cheap.
   if (row.lights !== false) {
     const gt = glowTexture();
-    // halo cards + the road pool follow the row's beam colour when it has one
+    // halo cards + the road pool follow the row's beam colour when it has one.
+    // FRONT boost (Cherie, Nov 20): front halo ~2x stronger and near-full
+    // saturation (opacity 0.55 -> 0.95, white lerp 0.3 -> 0.1). The road
+    // pool below is shared front/back and stays exactly as it was.
     let headGlowMat = GLOW_MATS.head, poolMat = GLOW_MATS.pool;
     if (row.beamColor !== undefined) {
       const bc = new THREE.Color(row.beamColor);
-      headGlowMat = new THREE.MeshBasicMaterial({ color: bc.clone().lerp(new THREE.Color(0xffffff), 0.3), map: gt,
-        transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+      headGlowMat = new THREE.MeshBasicMaterial({ color: bc.clone().lerp(new THREE.Color(0xffffff), 0.1), map: gt,
+        transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.FrontSide, fog: false });
+      // FrontSide only: at 0.95 the boosted halo would otherwise peek past
+      // the body from behind — the rear view stays exactly as approved.
       poolMat = new THREE.MeshBasicMaterial({ color: bc, map: gt,
         transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
     }
@@ -619,8 +627,11 @@ export function buildVehicle(row) {
     updateWheels(speed, steer, dt) {
       this._spin += (speed * dt) / R;
       for (const k of ['fl', 'fr', 'rl', 'rr']) wheels[k].spin.rotation.x = this._spin;
-      wheels.fl.pivot.rotation.y = steer || 0;
-      wheels.fr.pivot.rotation.y = steer || 0;
+      // steer arrives driver-convention (+ = right turn); a right turn is
+      // NEGATIVE three.js yaw, so negate or the front wheels point the
+      // opposite way to the turn.
+      wheels.fl.pivot.rotation.y = -(steer || 0);
+      wheels.fr.pivot.rotation.y = -(steer || 0);
     },
   };
   return veh;
