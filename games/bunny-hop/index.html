@@ -236,7 +236,13 @@ let btnA = false, btnB = false;
    for air pitch ONLY, while airborne, when it can't accelerate the bike. */
 let touchMode = false;
 const AUTO_PEDAL = 0.6;
-const input = { steer:0, throttle:0, stickY:0, brake:false, hopHeld:false, action:false };
+/* Latch touchMode on the FIRST touch-origin interaction of ANY kind, not just
+   the joystick/buttons' own pointerdown handlers: a first tap that lands on
+   the canvas or anywhere else must also engage the auto-pedal cruise. */
+const latchTouch = ()=>{ touchMode = true; };
+window.addEventListener('touchstart', latchTouch, { passive:true });
+window.addEventListener('pointerdown', e=>{ if (e.pointerType === 'touch' || e.pointerType === 'pen') latchTouch(); }, { passive:true });
+const input = { steer:0, throttle:0, stickY:0, pitchKey:0, brake:false, hopHeld:false, action:false };
 window.addEventListener('keydown', e=>{
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
   keys[e.code] = true;
@@ -249,21 +255,21 @@ zone.addEventListener('pointerdown', e=>{
   sBase.style.display = sKnob.style.display = 'block';
   sBase.style.left = joyOX+'px'; sBase.style.top = joyOY+'px';
   sKnob.style.left = joyOX+'px'; sKnob.style.top = joyOY+'px';
-  zone.setPointerCapture(e.pointerId);
+  try { zone.setPointerCapture(e.pointerId); } catch(_){}
 });
 zone.addEventListener('pointermove', e=>{
   if (!joyActive || e.pointerId !== joyId) return;
   let dx = e.clientX - joyOX, dy = e.clientY - joyOY;
   const len = Math.hypot(dx,dy), max = 52;
   if (len > max){ dx *= max/len; dy *= max/len; }
-  joyX = dx/max; joyY = dy/max;
+  joyX = dx/max; joyY = dy/max; latchTouch();
   sKnob.style.left = (joyOX+dx)+'px'; sKnob.style.top = (joyOY+dy)+'px';
 });
 function joyEnd(e){ if (e.pointerId === joyId){ joyActive=false; joyX=0; joyY=0; sBase.style.display = sKnob.style.display = 'none'; } }
 zone.addEventListener('pointerup', joyEnd); zone.addEventListener('pointercancel', joyEnd);
 function bindBtn(id, set){
   const el = document.getElementById(id);
-  el.addEventListener('pointerdown', e=>{ e.preventDefault(); touchMode = true; set(true); el.classList.add('on'); el.setPointerCapture(e.pointerId); });
+  el.addEventListener('pointerdown', e=>{ e.preventDefault(); touchMode = true; set(true); el.classList.add('on'); try { el.setPointerCapture(e.pointerId); } catch(_){} });
   const off = e=>{ set(false); el.classList.remove('on'); };
   el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off);
 }
@@ -280,6 +286,9 @@ function pollInput(){
   if (joyActive){ steer += joyX; } // stick X steers; stick Y is NOT throttle (see AUTO_PEDAL)
   input.steer = THREE.MathUtils.clamp(steer, -1, 1);
   input.throttle = THREE.MathUtils.clamp(throttle, -1, 1);
+  /* Deliberate pitch keys only (W/S + arrows), kept separate from throttle so
+     the auto-pedal / throttle value can never leak into airPitch. */
+  input.pitchKey = ((keys['KeyS'] || keys['ArrowDown']) ? 1 : 0) + ((keys['KeyW'] || keys['ArrowUp']) ? -1 : 0);
   input.stickY = joyActive ? joyY : 0; // raw stick vertical (up = -1); air pitch only
   input.brake = btnB || !!keys['ShiftLeft'];
   input.hopHeld = btnA || !!keys['Space'];
@@ -298,6 +307,7 @@ const camPos = new THREE.Vector3(S.x - 6, 4, S.z);
    until reset), so swimming, climb-out and remount are driven here, as in v1. */
 let mode = 'ride';           // ride | swim | bail
 let hostTime = 0, pedalPhase = 0, prevHopHeld = false, lastModInput = null;
+let pitchArm = false; // liftoff gate: pitch input counts only after controls pass near-neutral IN AIR
 let swimPos = { x: 0, z: 0 }, swimHeading = 0, swimSpeed = 0, canClimb = false;
 let bailT = 0, bailY = 0;
 const floatBike = { x: world.spawn.x, z: world.spawn.z, heading: world.spawn.heading };
@@ -342,10 +352,19 @@ function animate(now){
              throttle wins; with neither, a touch player gets AUTO_PEDAL cruise
              (the stick never throttles — steering can't surge the bike forward).
              (Module: pedal<0 brakes while rolling, reverses from standstill.)
-     airPitch — +1 pulls the nose up, so W (throttle +1) maps to -1 and S to +1.
-             On touch, stick vertical joins in ONLY while airborne: stick up
-             (stickY -1) = nose down like W, stick down = nose up like S.
+     airPitch — +1 pulls the nose up. Sources are DELIBERATE pitch inputs only:
+             W/S (pitchKey) and, on touch, stick vertical while airborne. The
+             throttle / auto-pedal value NEVER feeds airPitch. On top of that, a
+             liftoff arm-gate: a pitch control already held when the wheels
+             leave the ground (stick pushed up to ride, W held to pedal) reads
+             as 0 for that whole flight — pitch only engages after the control
+             passes near-neutral in the air and is pushed again. Without this,
+             a held-forward stick/W became full nose-down torque at pop and
+             flipped the bike onto its front tire.
      hopReleased — an edge; the module applies it once, on the frame it appears. */
+  const rawPitch = THREE.MathUtils.clamp(input.pitchKey + (!S.grounded ? input.stickY : 0), -1, 1);
+  if (S.grounded) pitchArm = false;
+  else if (Math.abs(rawPitch) <= 0.25) pitchArm = true;
   const modInput = {
     pedal: input.brake ? -1
       : input.throttle !== 0 ? input.throttle
@@ -353,7 +372,7 @@ function animate(now){
     steer: input.steer,
     hopHeld: input.hopHeld,
     hopReleased: prevHopHeld && !input.hopHeld,
-    airPitch: THREE.MathUtils.clamp(-input.throttle + (!S.grounded ? input.stickY : 0), -1, 1),
+    airPitch: (!S.grounded && pitchArm) ? rawPitch : 0,
   };
   lastModInput = modInput;
   prevHopHeld = input.hopHeld;
