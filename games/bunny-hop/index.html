@@ -788,7 +788,7 @@ function animate(now){
     ? { x: swimPos.x, z: swimPos.z, h: swimHeading, y: WATER_Y + 0.48 - swimDepth + 0.30 }
     : { x: S.x, z: S.z, h: S.heading, y: S.y + 0.9 };
   const bx = Math.sin(tgt.h), bz = Math.cos(tgt.h);
-  const dist = mode === 'swim' ? 3.8 : 5.7, hgt = mode === 'swim' ? THREE.MathUtils.lerp(1.9, -0.15, dBlend) : 2.4;
+  const dist = mode === 'swim' ? 3.8 : 5.7, hgt = mode === 'swim' ? THREE.MathUtils.lerp(-0.40, -0.15, dBlend) : 2.4; // surface swim: camera sits at the waterline (frame-7 feel); underwater: just above the swimmer
   camPos.x += ((tgt.x - bx*dist) - camPos.x) * Math.min(1, dt*4.5);
   camPos.z += ((tgt.z - bz*dist) - camPos.z) * Math.min(1, dt*4.5);
   camPos.y += ((tgt.y + hgt) - camPos.y) * Math.min(1, dt*4.5);
