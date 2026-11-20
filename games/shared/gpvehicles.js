@@ -315,21 +315,54 @@ function wheelGeometry(R, kind) {
 }
 const WHEEL_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.55, envMapIntensity: 0.9 });
 
+// Length-wise paint fade: vertex colours from the car's longitudinal axis —
+// `front` hex holds from the nose back to zWhite, blends to `rear` by zFull,
+// `rear` holds to the tail. (Brad's Camaro: white ahead of the windshield,
+// fading to maroon behind it — Cherie, Nov 20.)
+function applyLengthFade(geo, fade) {
+  const pos = geo.attributes.position, n = pos.count;
+  const col = new Float32Array(n * 3);
+  const cF = new THREE.Color(fade.front), cR = new THREE.Color(fade.rear), tmp = new THREE.Color();
+  const span = (fade.zWhite - fade.zFull) || 1;
+  for (let i = 0; i < n; i++) {
+    let t = (pos.getZ(i) - fade.zFull) / span;
+    t = Math.min(1, Math.max(0, t)); t = t * t * (3 - 2 * t);
+    tmp.copy(cR).lerp(cF, t);
+    col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+}
+
 // ---------------------------------------------------------------- factory
 // Row: { style, paint, paint2, twoTone: 'band'|'cladding', glassTint,
 //        lightBar, hoodLouvers, underglow, fogLamps, spoiler, burnt,
-//        wheels: 'alloy'|'steel'|'wire' }
+//        wheels: 'alloy'|'steel'|'wire',
+//        beamColor: hex — this car's headlight beam colour (lens, halo and
+//          road pool all follow it; veh.beamColor exposes it, resolved
+//          against the warm default, so hosts can tint their spotlight),
+//        paintFade: { front, rear, zWhite, zFull } — paint colour varies
+//          along the car's length: `front` from the nose back to zWhite,
+//          fading to `rear` by zFull, `rear` from there to the tail
+//          (vertex colours on the paint; overrides the flat paint colour) }
 // Returns { group, wheels: {fl, fr, rl, rr}, dims: {len, wid, wheelR},
-//           updateWheels(speed, steer, dt), spin (current wheel angle) }
+//           beamColor, updateWheels(speed, steer, dt), spin (wheel angle) }
 export function buildVehicle(row) {
   const st = VEHICLE_STYLES[row.style] || VEHICLE_STYLES.sedan;
   const L = st.len, W = st.wid, R = st.wheelR;
   const group = new THREE.Group();
+  const fade = row.paintFade || null;
   const paint = paintMat(row.paint, row.burnt ? 0.85 : 0.3, row.burnt ? 0 : 0.75);
   const paint2 = row.paint2 !== undefined ? paintMat(row.paint2, 0.4) : null;
+  if (fade) { // length-wise fade rides in vertex colours (applyLengthFade)
+    paint.color.set(0xffffff); paint.vertexColors = true;
+    if (paint2) { paint2.color.set(0xffffff); paint2.vertexColors = true; }
+  }
 
   // body (paint extrusion)
-  const body = new THREE.Mesh(profileGeo(st.body, W), paint);
+  const bodyGeo = profileGeo(st.body, W);
+  if (fade) applyLengthFade(bodyGeo, fade);
+  const body = new THREE.Mesh(bodyGeo, paint);
   body.castShadow = true; body.receiveShadow = true;
   group.add(body);
 
@@ -342,16 +375,20 @@ export function buildVehicle(row) {
     const prof = [];
     prof.push([st.body[0][0], st.body[0][1]]);
     for (const [z, y] of st.body) prof.push([z, Math.min(y, yTop)]);
-    const bandMesh = new THREE.Mesh(profileGeo(prof, W + 0.025, 0.03), paint2);
+    const bandGeo = profileGeo(prof, W + 0.025, 0.03);
+    if (fade) applyLengthFade(bandGeo, fade);
+    const bandMesh = new THREE.Mesh(bandGeo, paint2);
     bandMesh.castShadow = true;
     group.add(bandMesh);
   }
 
   // glasshouse
-  const glassGeos = [], trimGeos = [], darkGeos = [], lightGeos = [], tailGeos = [], paintGeos = [], seatGeos = [], dashGeos = [];
+  const glassGeos = [], trimGeos = [], darkGeos = [], lightGeos = [], headGeos = [], tailGeos = [], paintGeos = [], seatGeos = [], dashGeos = [];
   if (st.cabin && !st.van) {
     const cabW = W * (st.cabinW || 0.87);
-    const cabin = new THREE.Mesh(profileGeo(st.cabin, cabW), paint);
+    const cabinGeo = profileGeo(st.cabin, cabW);
+    if (fade) applyLengthFade(cabinGeo, fade);
+    const cabin = new THREE.Mesh(cabinGeo, paint);
     cabin.castShadow = true;
     group.add(cabin);
     if (st.vinylRoof) {
@@ -433,19 +470,19 @@ export function buildVehicle(row) {
 
   // lights: headlights + amber corners front, full-width-ish tails rear
   const hw = W / 2 - 0.34;
-  box(lightGeos, 0.36, 0.11, 0.04, -hw, st.headY, L / 2 + 0.005);
-  box(lightGeos, 0.36, 0.11, 0.04, hw, st.headY, L / 2 + 0.005);
+  box(headGeos, 0.36, 0.11, 0.04, -hw, st.headY, L / 2 + 0.005);
+  box(headGeos, 0.36, 0.11, 0.04, hw, st.headY, L / 2 + 0.005);
   box(tailGeos, 0.42, 0.10, 0.04, -hw, st.tailY, -L / 2 - 0.005);
   box(tailGeos, 0.42, 0.10, 0.04, hw, st.tailY, -L / 2 - 0.005);
   if (row.fogLamps) {
-    box(lightGeos, 0.13, 0.13, 0.04, -W / 2 + 0.42, 0.34, L / 2 + 0.01);
-    box(lightGeos, 0.13, 0.13, 0.04, W / 2 - 0.42, 0.34, L / 2 + 0.01);
+    box(headGeos, 0.13, 0.13, 0.04, -W / 2 + 0.42, 0.34, L / 2 + 0.01);
+    box(headGeos, 0.13, 0.13, 0.04, W / 2 - 0.42, 0.34, L / 2 + 0.01);
   }
   if (row.popups) { // raised pop-up headlight pods on the nose
     box(paintGeos, 0.36, 0.07, 0.34, -W / 2 + 0.36, st.headY + 0.13, L / 2 - 0.38);
     box(paintGeos, 0.36, 0.07, 0.34, W / 2 - 0.36, st.headY + 0.13, L / 2 - 0.38);
-    box(lightGeos, 0.30, 0.06, 0.03, -W / 2 + 0.36, st.headY + 0.10, L / 2 - 0.20);
-    box(lightGeos, 0.30, 0.06, 0.03, W / 2 - 0.36, st.headY + 0.10, L / 2 - 0.20);
+    box(headGeos, 0.30, 0.06, 0.03, -W / 2 + 0.36, st.headY + 0.10, L / 2 - 0.20);
+    box(headGeos, 0.30, 0.06, 0.03, W / 2 - 0.36, st.headY + 0.10, L / 2 - 0.20);
   }
   // grille + bumpers + trim
   if (st.chromeBumpers) {
@@ -496,11 +533,19 @@ export function buildVehicle(row) {
     const geo = mergeGeos(list); if (!geo) return null;
     const m = new THREE.Mesh(geo, mat); m.castShadow = true; group.add(m); return m;
   };
-  addBucket(paintGeos, paint);
+  const paintMesh = addBucket(paintGeos, paint);
+  if (fade && paintMesh) applyLengthFade(paintMesh.geometry, fade);
   addBucket(glassGeos, VEHICLE_MATS.glass);
   addBucket(trimGeos, VEHICLE_MATS.trim);
   addBucket(darkGeos, VEHICLE_MATS.dark);
   addBucket(lightGeos, VEHICLE_MATS.head);
+  // headlight lenses: the shared warm material by default; a row with a
+  // beamColor gets its own tinted lens (Brad yellow, Brian/Rigg blue).
+  const headMat = row.beamColor !== undefined
+    ? new THREE.MeshStandardMaterial({ color: new THREE.Color(row.beamColor).lerp(new THREE.Color(0xffffff), 0.45),
+        emissive: row.beamColor, emissiveIntensity: 1.7 })
+    : VEHICLE_MATS.head;
+  addBucket(headGeos, headMat);
   addBucket(tailGeos, VEHICLE_MATS.tail);
   addBucket(seatGeos, VEHICLE_MATS.seat);
   addBucket(dashGeos, VEHICLE_MATS.dash);
@@ -509,7 +554,8 @@ export function buildVehicle(row) {
   const mir = [];
   box(mir, 0.16, 0.09, 0.05, -W / 2 - 0.06, (st.glass?.band?.y || 1.1) + 0.05, (st.glass?.band?.z1 || 0.3) + 0.12);
   box(mir, 0.16, 0.09, 0.05, W / 2 + 0.06, (st.glass?.band?.y || 1.1) + 0.05, (st.glass?.band?.z1 || 0.3) + 0.12);
-  addBucket(mir, paint);
+  const mirMesh = addBucket(mir, paint);
+  if (fade && mirMesh) applyLengthFade(mirMesh.geometry, fade);
 
   // wheels — separate pivots so they roll (and the fronts steer); geometry
   // is the shared cached spoked wheel (see wheelGeometry above).
@@ -539,18 +585,27 @@ export function buildVehicle(row) {
   // headlights throw on the road ahead. Additive, depth-write off, cheap.
   if (row.lights !== false) {
     const gt = glowTexture();
+    // halo cards + the road pool follow the row's beam colour when it has one
+    let headGlowMat = GLOW_MATS.head, poolMat = GLOW_MATS.pool;
+    if (row.beamColor !== undefined) {
+      const bc = new THREE.Color(row.beamColor);
+      headGlowMat = new THREE.MeshBasicMaterial({ color: bc.clone().lerp(new THREE.Color(0xffffff), 0.3), map: gt,
+        transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+      poolMat = new THREE.MeshBasicMaterial({ color: bc, map: gt,
+        transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+    }
     const mkGlow = (mat, w, h, x, y, z, ry) => {
       if (!mat.map) { mat.map = gt; mat.needsUpdate = true; }
       const m = new THREE.Mesh(_glowPlane, mat);
       m.position.set(x, y, z); m.rotation.y = ry; m.scale.set(w, h, 1); m.renderOrder = 3;
       group.add(m);
     };
-    mkGlow(GLOW_MATS.head, 0.6, 0.36, -hw, st.headY, L / 2 + 0.10, 0);
-    mkGlow(GLOW_MATS.head, 0.6, 0.36, hw, st.headY, L / 2 + 0.10, 0);
+    mkGlow(headGlowMat, 0.6, 0.36, -hw, st.headY, L / 2 + 0.10, 0);
+    mkGlow(headGlowMat, 0.6, 0.36, hw, st.headY, L / 2 + 0.10, 0);
     mkGlow(GLOW_MATS.tail, 0.62, 0.3, -hw, st.tailY, -L / 2 - 0.10, Math.PI);
     mkGlow(GLOW_MATS.tail, 0.62, 0.3, hw, st.tailY, -L / 2 - 0.10, Math.PI);
-    const pool = new THREE.Mesh(_glowPlane, GLOW_MATS.pool);
-    if (!GLOW_MATS.pool.map) { GLOW_MATS.pool.map = gt; GLOW_MATS.pool.needsUpdate = true; }
+    const pool = new THREE.Mesh(_glowPlane, poolMat);
+    if (!poolMat.map) { poolMat.map = gt; poolMat.needsUpdate = true; }
     pool.rotation.x = -Math.PI / 2; pool.position.set(0, 0.09, L / 2 + 2.7);
     pool.scale.set(W * 1.6, 6.0, 1); pool.renderOrder = 2;
     group.add(pool);
@@ -558,6 +613,7 @@ export function buildVehicle(row) {
 
   const veh = {
     group, wheels, row, driverAnchor, driverScale,
+    beamColor: row.beamColor !== undefined ? row.beamColor : 0xffd9a8,
     dims: { len: L, wid: W, wheelR: R },
     _spin: 0,
     updateWheels(speed, steer, dt) {

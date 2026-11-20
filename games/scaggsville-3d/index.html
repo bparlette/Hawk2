@@ -229,7 +229,8 @@ function startGame(stopId){
   scene.add(playerVeh.group);
   // headlight beam — the module throws the pool decal on the road; this is
   // the actual light that lifts the wet asphalt ahead of the car at dusk.
-  const beam = new THREE.SpotLight(0xffd9a8, 200, 55, 0.62, 0.55, 1.1);
+  // Its colour comes from the picked car's row (Brad yellow, Brian blue).
+  const beam = new THREE.SpotLight(playerVeh.beamColor ?? 0xffd9a8, 200, 55, 0.62, 0.55, 1.1);
   beam.position.set(0, 0.72, playerVeh.dims.len / 2 - 0.2);
   beam.target.position.set(0, 0, playerVeh.dims.len / 2 + 18);
   playerVeh.group.add(beam); playerVeh.group.add(beam.target);

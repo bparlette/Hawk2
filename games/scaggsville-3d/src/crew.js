@@ -13,8 +13,14 @@
 //   (celica87 style, pop-ups up); the photo looks mis-filed. All 11 fleet
 //   cars from the asset page are rowed here, incl. the Black Cavalier.
 
+// Beam canon (Cherie, Nov 20): Brad's headlights are YELLOW, Brian Rigg's
+// are BLUE (beamColor rows below); everyone else runs the warm default.
+// Brad's two-tone is a LENGTH fade — white ahead of the windshield, fading
+// to maroon behind it — not a top/bottom split (paintFade row below).
 export const CREW_VEHICLES = {
-  brad:    { style: 'camaro3',     paint: 0xf2f0ea, paint2: 0x6e1f2a, twoTone: 'band', hoodLouvers: true, tTop: true, wheels: 'alloy',
+  brad:    { style: 'camaro3',     paint: 0xf2f0ea, hoodLouvers: true, tTop: true, wheels: 'alloy',
+             beamColor: 0xffcc33,
+             paintFade: { front: 0xf5f1e8, rear: 0x6e1f2a, zWhite: 0.3, zFull: -1.4 },
              name: "Brad's '87 Camaro" },
   clayton: { style: 'camaro3',     paint: 0x2e6b34, hoodLouvers: true, tTop: true, wheels: 'alloy',
              name: "Clayton's Camaro" },
@@ -26,7 +32,7 @@ export const CREW_VEHICLES = {
              name: "The Black Cavalier" },
   jason:   { style: 'camryV20',    paint: 0xf4f4f2, wheels: 'steel',
              name: "Jason's '89 Camry" },
-  rigg:    { style: 'celica87',    paint: 0x2a66b0, popups: true, wheels: 'alloy',
+  rigg:    { style: 'celica87',    paint: 0x2a66b0, popups: true, wheels: 'alloy', beamColor: 0x3a86ff,
              name: "Rigg's '87 Celica GT" },
   grant:   { style: 'brougham',    paint: 0x5e1f24, paint2: 0xb9bcbe, twoTone: 'cladding', wheels: 'wire',
              name: "Grant's Brougham 'USS Mino'" },
