@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scaggsville 3D — World Preview</title>
+<style>
+  html,body{margin:0;padding:0;background:#191426;color:#fff;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;}
+  #hud{position:fixed;top:10px;left:10px;z-index:10;background:rgba(8,10,20,.78);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.55;max-width:92vw;}
+  #hud b{color:#ffd9a0;}
+  .vbtn{pointer-events:auto;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;
+    padding:5px 10px;margin:2px;font-size:12px;font-weight:700;cursor:pointer;}
+  .shotWrap{margin:0 auto 18px;width:390px;}
+  .shotWrap h3{margin:8px 0 4px;font-size:13px;letter-spacing:.08em;color:#ffd9a0;}
+  .shotWrap canvas{width:390px;height:844px;display:block;background:#232038;}
+  #live canvas{display:block;}
+</style>
+</head>
+<body>
+<div id="hud">loading…</div>
+<div id="live"></div>
+<div id="shots"></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld, applyWorldEnvMap, WORLD_LIGHTING } from './buildWorld.js';
+
+const L=WORLD_LIGHTING;
+const params=new URLSearchParams(location.search);
+const shotsMode=params.get('shots')==='1';
+
+const renderer=new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(1);
+renderer.setSize(390,844);
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=L.renderer.exposure;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.getElementById('live').appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(60, 390/844, 0.1, 7000);
+const world=buildWorld(scene);
+applyWorldEnvMap(renderer, scene);
+const sunDir=new THREE.Vector3(...L.sun.dir).normalize();
+const sun=new THREE.DirectionalLight(L.sun.color, L.sun.intensity);
+sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-90; sun.shadow.camera.right=90; sun.shadow.camera.top=90; sun.shadow.camera.bottom=-90;
+sun.shadow.camera.near=10; sun.shadow.camera.far=700; sun.shadow.bias=-0.0006; sun.shadow.normalBias=0.6;
+scene.add(sun); scene.add(sun.target);
+scene.add(new THREE.HemisphereLight(L.hemi.sky, L.hemi.ground, L.hemi.intensity));
+scene.add(new THREE.AmbientLight(L.ambient.color, L.ambient.intensity));
+const dome=scene.getObjectByName('skyDome');
+
+const stops={}; for(const s of world.stops) stops[s.id]=s;
+const route=world.route;
+function routePt(frac){ return route[Math.min(route.length-1, Math.floor(route.length*frac))]; }
+const mid=routePt(0.42), midNext=routePt(0.44);
+const VIEWS={
+  spawn:    { name:'(a) Spawn — Brad, Stansfield Road', pos:[stops.brad.sx-Math.sin(stops.brad.heading)*8, 2.6, stops.brad.sz-Math.cos(stops.brad.heading)*8],
+              look:[stops.brad.hx, 2.2, stops.brad.hz], sunAt:[stops.brad.sx, stops.brad.sz] },
+  routeMid: { name:'(b) Route mid — real corridor roads', pos:[mid[0]-6, 2.6, mid[1]-8], look:[midNext[0], 1.4, midNext[1]], sunAt:mid },
+  atholton: { name:'(c) Atholton HS arrival', pos:[stops.atholton.sx-16, 3.2, stops.atholton.sz+30],
+              look:[stops.atholton.hx, 4, stops.atholton.hz], sunAt:[stops.atholton.sx, stops.atholton.sz] },
+  overhead: { name:'(d) Overhead — Brad neighbourhood (real street plan)', pos:[stops.brad.sx, 330, stops.brad.sz+50],
+              look:[stops.brad.sx, 0, stops.brad.sz], sunAt:[stops.brad.sx, stops.brad.sz], fov:55 },
+};
+function applyView(v){
+  camera.position.set(...v.pos); camera.up.set(0,1,0); camera.lookAt(...v.look);
+  camera.fov=v.fov||60; camera.updateProjectionMatrix();
+  sun.position.set(v.sunAt[0]+sunDir.x*300, sunDir.y*300+40, v.sunAt[1]+sunDir.z*300);
+  sun.target.position.set(v.sunAt[0],0,v.sunAt[1]); sun.target.updateMatrixWorld();
+  if(dome) dome.position.set(v.sunAt[0],0,v.sunAt[1]);
+}
+function stats(){
+  const r=renderer.info.render, m=renderer.info.memory;
+  return { calls:r.calls, triangles:r.triangles, geometries:m.geometries, textures:m.textures,
+           colliders: world.colliders.length, stops: world.stops.length };
+}
+const hud=document.getElementById('hud');
+function showStats(extra){
+  const s=stats();
+  hud.innerHTML=`<b>SCAGGSVILLE 3D — WORLD PREVIEW</b><br>draw calls <b>${s.calls}</b> · triangles <b>${s.triangles.toLocaleString()}</b><br>`+
+    `geometries ${s.geometries} · textures ${s.textures} · colliders ${s.colliders} · stops ${s.stops}<br>`+(extra||'')+
+    Object.values(VIEWS).map(v=>`<button class="vbtn" data-v="${v.name}">${v.name.split('—')[0]}</button>`).join('');
+  hud.querySelectorAll('.vbtn').forEach(b=>b.addEventListener('click', ()=>{
+    const v=Object.values(VIEWS).find(x=>x.name===b.dataset.v); applyView(v); renderer.render(scene,camera); showStats('view: <b>'+v.name+'</b><br>');
+  }));
+}
+window.__preview={ getStats:stats, setView(name){ const v=VIEWS[name]; if(v){ applyView(v); renderer.render(scene,camera);} }, views:Object.keys(VIEWS) };
+
+if(shotsMode){
+  document.getElementById('live').style.display='none';
+  const wrap=document.getElementById('shots');
+  const results={};
+  for(const [key,v] of Object.entries(VIEWS)){
+    applyView(v);
+    renderer.render(scene,camera); renderer.render(scene,camera); // settle shadows/env
+    const div=document.createElement('div'); div.className='shotWrap';
+    div.innerHTML=`<h3>${v.name}</h3>`;
+    const c=document.createElement('canvas'); c.width=390; c.height=844;
+    c.getContext('2d').drawImage(renderer.domElement,0,0);
+    div.appendChild(c); wrap.appendChild(div);
+    results[key]=stats();
+  }
+  const s=results.spawn;
+  hud.innerHTML=`<b>SHOTS MODE</b> — 4 fixed views @390×844<br>draw calls <b>${s.calls}</b> · triangles <b>${s.triangles.toLocaleString()}</b> · colliders ${s.colliders}`;
+  console.log('renderer.info', JSON.stringify(results));
+  window.__shots={ done:true, results };
+} else {
+  applyView(VIEWS.spawn);
+  renderer.render(scene,camera); renderer.render(scene,camera);
+  showStats('view: <b>'+VIEWS.spawn.name+'</b><br>');
+  window.__shots={ done:true, results:{ spawn:stats() } };
+}
+</script>
+</body>
+</html>

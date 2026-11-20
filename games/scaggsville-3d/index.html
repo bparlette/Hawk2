@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Scaggsville 3D — Rally the Crew</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#232038;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
+  #game{position:fixed;inset:0;}
+  canvas{display:block;}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:1100;}
+  #speed{position:absolute;top:calc(10px + env(safe-area-inset-top));left:14px;color:#fff;
+    font-size:15px;font-weight:700;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #speed b{font-size:30px;font-weight:800;}
+  #rally{position:absolute;top:calc(48px + env(safe-area-inset-top));left:14px;color:#ffd9a0;
+    font-size:13px;font-weight:800;letter-spacing:.1em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #title{position:absolute;top:calc(10px + env(safe-area-inset-top));right:14px;color:#fff;opacity:.85;
+    font-size:13px;font-weight:800;letter-spacing:.22em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #nav{position:absolute;top:calc(44px + env(safe-area-inset-top));right:16px;width:64px;text-align:center;color:#fff;}
+  #arrow{display:inline-block;font-size:34px;color:#ffd23f;text-shadow:0 2px 8px rgba(0,0,0,.6);transition:transform .12s linear;}
+  #navdist{font-size:12px;font-weight:800;letter-spacing:.05em;text-shadow:0 1px 4px rgba(0,0,0,.8);}
+  #target{position:absolute;left:50%;top:15%;transform:translateX(-50%);color:#fff;text-align:center;width:94%;
+    font-size:15px;font-weight:700;text-shadow:0 1px 5px rgba(0,0,0,.9);pointer-events:none;}
+  #target span{background:rgba(10,14,26,.55);border-radius:8px;padding:3px 10px;}
+  #banner{position:absolute;left:50%;top:34%;transform:translateX(-50%) scale(.9);color:#fff;text-align:center;
+    font-size:26px;font-weight:900;letter-spacing:.03em;text-shadow:0 3px 14px rgba(0,0,0,.75);opacity:0;
+    transition:opacity .25s ease, transform .25s ease;pointer-events:none;width:94%;}
+  #banner.show{opacity:1;transform:translateX(-50%) scale(1);}
+  #banner small{display:block;font-size:14px;font-weight:700;color:#ffd9a0;margin-top:4px;}
+  /* ---- gptouch: floating joystick (left half) + round buttons (bottom-right) ---- */
+  #stickZone{position:fixed;left:0;bottom:0;width:50%;height:62%;z-index:1150;touch-action:none;}
+  #stickBase{position:fixed;width:112px;height:112px;border-radius:50%;border:2px solid rgba(255,255,255,.4);
+    background:rgba(16,20,36,.32);display:none;z-index:1151;pointer-events:none;transform:translate(-50%,-50%);}
+  #stickKnob{position:fixed;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.75);
+    display:none;z-index:1152;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 2px 8px rgba(0,0,0,.4);}
+  .btn{position:fixed;border-radius:50%;border:3px solid rgba(255,255,255,.55);color:#fff;font-weight:900;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:1200;touch-action:none;
+    text-shadow:0 1px 3px rgba(0,0,0,.5);box-shadow:0 4px 14px rgba(0,0,0,.4);}
+  .btn small{font-size:9px;letter-spacing:.12em;font-weight:700;opacity:.9;}
+  #btnA{right:26px;bottom:calc(30px + env(safe-area-inset-bottom));width:92px;height:92px;font-size:21px;background:rgba(46,160,80,.8);}
+  #btnB{right:132px;bottom:calc(22px + env(safe-area-inset-bottom));width:66px;height:66px;font-size:14px;background:rgba(220,50,50,.65);}
+  .btn.on{filter:brightness(1.5);transform:scale(.94);}
+  /* ---- pick your player ---- */
+  #pick{position:fixed;inset:0;z-index:1300;background:linear-gradient(180deg, rgba(16,14,34,.88), rgba(30,20,44,.92));
+    display:flex;flex-direction:column;align-items:center;padding:calc(18px + env(safe-area-inset-top)) 14px 20px;overflow-y:auto;}
+  #pick h1{color:#fff;font-size:26px;letter-spacing:.14em;margin:2px 0 0;font-weight:900;text-align:center;}
+  #pick h2{color:#ffd9a0;font-size:13px;letter-spacing:.2em;margin:4px 0 12px;font-weight:700;text-align:center;}
+  #pick .sub{color:#cfd6ea;font-size:13px;text-align:center;max-width:520px;line-height:1.45;margin-bottom:14px;}
+  .card{pointer-events:auto;width:min(520px,94vw);background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.16);
+    border-radius:14px;padding:10px 14px;margin:5px 0;color:#fff;display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+  .card:active{border-color:#ffd23f;background:rgba(255,210,63,.12);}
+  .card .nm{font-size:18px;font-weight:900;}
+  .card .st{font-size:12px;color:#ffd9a0;font-weight:700;letter-spacing:.06em;}
+  .card .car{font-size:12px;color:#cfd6ea;text-align:right;line-height:1.35;}
+  #pick .foot{color:#8f97ad;font-size:11px;margin-top:12px;text-align:center;line-height:1.5;}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+  <div id="speed"><b>0</b> km/h</div>
+  <div id="rally">RALLY 0/7</div>
+  <div id="title">SCAGGSVILLE 3D</div>
+  <div id="nav"><div id="arrow">⬆</div><div id="navdist"></div></div>
+  <div id="target"><span></span></div>
+  <div id="banner"></div>
+</div>
+<div id="stickZone"></div>
+<div id="stickBase"></div><div id="stickKnob"></div>
+<div class="btn" id="btnB">B<small>BRAKE</small></div>
+<div class="btn" id="btnA">A<small>GAS</small></div>
+<div id="pick"></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld, applyWorldEnvMap, WORLD_LIGHTING } from './src/world/buildWorld.js';
+import { buildVehicle } from '../shared/gpvehicles.js';
+import { buildPerson, poseIdle, poseWave, poseWalk } from '../shared/people.js';
+import { makeParkedFleet } from './src/fleet.js';
+import { CREW_VEHICLES, CREW_PEOPLE } from './src/crew.js';
+import { createCar, stepCar, collide, pursue } from './src/drive.js';
+import { WORLD_DATA } from './src/data.js';
+
+/* ============================== RENDERER / SCENE ============================== */
+const L = WORLD_LIGHTING;
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = L.renderer.exposure;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.getElementById('game').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 7000);
+
+const world = buildWorld(scene);
+applyWorldEnvMap(renderer, scene);
+
+const sunDir = new THREE.Vector3(...L.sun.dir).normalize();
+const sun = new THREE.DirectionalLight(L.sun.color, L.sun.intensity);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left=-80; sun.shadow.camera.right=80; sun.shadow.camera.top=80; sun.shadow.camera.bottom=-80;
+sun.shadow.camera.near=10; sun.shadow.camera.far=700; sun.shadow.bias=-0.0006; sun.shadow.normalBias=0.6;
+scene.add(sun); scene.add(sun.target);
+scene.add(new THREE.HemisphereLight(L.hemi.sky, L.hemi.ground, L.hemi.intensity));
+scene.add(new THREE.AmbientLight(L.ambient.color, L.ambient.intensity));
+const dome = scene.getObjectByName('skyDome');
+
+/* ============================== GAME STATE ============================== */
+const HOUSEHOLDS = [
+  { stop:'brad',    label:'Brad',                 cars:['brad'] },
+  { stop:'clayton', label:'The Floyds',           cars:['clayton','zack'] },
+  { stop:'jason',   label:'Jason',                cars:['jason'] },
+  { stop:'grant',   label:'Grant',                cars:['grant'] },
+  { stop:'jimmy',   label:'Jimmy + Billy — Lazaris', cars:['jimmy','billy'] },
+  { stop:'rigg',    label:'Rigg',                 cars:['rigg'] },
+  { stop:'kosack',  label:'Kosack',               cars:['kosack'] },
+];
+const stopById = {}; for(const s of WORLD_DATA.stops) stopById[s.id]=s;
+
+let started=false, finished=false, startTime=0, elapsed=0;
+let playerStop='brad';
+let targets=[];           // household stop ids still to visit, in order
+let collected=new Set();
+let player=null, playerVeh=null;
+const followers=[];       // {state, mesh, name}
+const parkedVehs={};      // carId -> vehicle (crew cars waiting at houses)
+const people=[];          // {p, stopId, carId, mode, tx, tz, phase} crew figures
+const trail=[];           // breadcrumb {x,z,d} player path, oldest first
+let trailDist=0, lastTrailPt=null;
+
+// Lamar's burning Mustang at Atholton (finale set piece)
+const ath=stopById['atholton'];
+const lamarVeh = buildVehicle(CREW_VEHICLES.lamar);
+lamarVeh.group.position.set(ath.hx+16, 0, ath.hz+14); lamarVeh.group.rotation.y=0.7; scene.add(lamarVeh.group);
+const fireLight = new THREE.PointLight(0xff6a22, 60, 26, 1.8);
+fireLight.position.set(ath.hx+16, 1.6, ath.hz+14); scene.add(fireLight);
+
+// ambient parked cars near the crew streets (merged fleet, 3 draws)
+{
+  const placements=[]; const palette=[0x8a8f96,0x5d6a7a,0x7a4a3a,0x4a5d48,0x9a958a,0x3f4a63,0x6e6258,0xa8a49a];
+  let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+  for(const s of WORLD_DATA.stops){
+    if(s.id==='atholton') continue;
+    for(let i=0;i<4;i++){
+      const a=rnd()*Math.PI*2, r=14+rnd()*36;
+      const x=s.sx+Math.cos(a)*r, z=s.sz+Math.sin(a)*r;
+      if(world.surfaceAt(x,z)==='grass') continue;
+      placements.push({ x, z, ry:rnd()*Math.PI, paint:palette[Math.floor(rnd()*palette.length)] });
+    }
+  }
+  for(let i=0;i<10;i++){ const a=rnd()*Math.PI*2, r=10+rnd()*46;
+    placements.push({ x:ath.hx+Math.cos(a)*r, z:ath.hz+Math.sin(a)*r*0.7, ry:rnd()*0.6-0.3, paint:palette[Math.floor(rnd()*palette.length)] }); }
+  scene.add(makeParkedFleet(placements));
+}
+
+function spawnCrewCar(carId, x, z, heading){
+  const veh=buildVehicle(CREW_VEHICLES[carId]);
+  veh.group.position.set(x,0,z); veh.group.rotation.y=heading;
+  scene.add(veh.group); return veh;
+}
+function spawnFigure(carId, stopId, x, z, faceX, faceZ){
+  if(!CREW_PEOPLE[carId]) return;
+  const p=buildPerson(CREW_PEOPLE[carId]);
+  p.group.position.set(x,0,z);
+  p.group.rotation.y=Math.atan2(faceX-x, faceZ-z);
+  scene.add(p.group);
+  people.push({ p, stopId, carId, mode:'idle', tx:x, tz:z, phase:Math.random()*6 });
+}
+function parkCrewCars(){
+  for(const hh of HOUSEHOLDS){
+    if(hh.stop===playerStop) continue;
+    const s=stopById[hh.stop];
+    hh.cars.forEach((carId, i)=>{
+      const px = s.hx + (s.sx-s.hx)*0.45 + (i? 3.4:0), pz = s.hz + (s.sz-s.hz)*0.45 + (i? 1.5:0);
+      const hd = Math.atan2(s.sx-px, s.sz-pz);
+      parkedVehs[carId]=spawnCrewCar(carId, px, pz, hd);
+      spawnFigure(carId, hh.stop, s.hx + (s.sx-s.hx)*0.30 + (i? 1.6 : -0.6), s.hz + (s.sz-s.hz)*0.30 + (i? 0.8 : 0), s.sx, s.sz);
+    });
+  }
+  // the 11th fleet car: the Black Cavalier, parked up at Kosack's (static —
+  // it isn't a crew car and never joins the convoy)
+  if(playerStop!=='kosack'){
+    const s=stopById['kosack'];
+    const px=s.hx+(s.sx-s.hx)*0.45-3.6, pz=s.hz+(s.sz-s.hz)*0.45+2.2;
+    parkedVehs['cavalierBlack']=spawnCrewCar('cavalierBlack', px, pz, Math.atan2(s.sx-px, s.sz-pz));
+  }
+}
+
+/* ============================== PICK YOUR PLAYER ============================== */
+const pickEl=document.getElementById('pick');
+{
+  let html='<h1>SCAGGSVILLE 3D</h1><h2>PICK YOUR PLAYER</h2>'+
+    '<div class="sub">Golden hour in Fulton, MD — the real streets, the real houses. '+
+    'Start at your house, rally the whole crew, and roll into Atholton High. Lamar\'s Mustang is already on fire.</div>';
+  for(const hh of HOUSEHOLDS){
+    const s=stopById[hh.stop];
+    const carNames=hh.cars.map(c=>CREW_VEHICLES[c].name).join(' · ');
+    html+=`<div class="card" data-stop="${hh.stop}"><div><div class="nm">${hh.label}</div><div class="st">${s.street.toUpperCase()}</div></div><div class="car">${carNames}</div></div>`;
+  }
+  html+='<div class="foot">Left stick / WASD steers · A = gas · B = brake &amp; reverse<br>Built on the real Laurel/Fulton map (OpenStreetMap via the original Scaggsville data).</div>';
+  pickEl.innerHTML=html;
+  pickEl.querySelectorAll('.card').forEach(c=>c.addEventListener('pointerdown', e=>{ e.preventDefault(); startGame(c.dataset.stop); }));
+}
+
+function startGame(stopId){
+  playerStop=stopId;
+  pickEl.style.display='none';
+  const s=stopById[stopId];
+  player=createCar(s.sx, s.sz, s.heading);
+  const myCar = HOUSEHOLDS.find(h=>h.stop===stopId).cars[0];
+  playerVeh=buildVehicle(CREW_VEHICLES[myCar]);
+  scene.add(playerVeh.group);
+  spawnFigure(myCar, stopId, s.sx+2.6, s.sz+2.0, s.sx, s.sz);
+  const pf=people[people.length-1];
+  if(pf){ pf.mode='walk'; pf.tx=s.sx+Math.cos(s.heading)*1.8; pf.tz=s.sz-Math.sin(s.heading)*1.8; } // to the driver's door, then in
+  parkCrewCars();
+  targets = HOUSEHOLDS.map(h=>h.stop).filter(id=>id!==stopId);
+  world.target.setStop(stopById[targets[0]]);
+  started=true; startTime=performance.now();
+  showBanner('RALLY THE CREW', 'First stop: '+householdLabel(targets[0])+' — '+stopById[targets[0]].street);
+  updateTargetHud();
+}
+function householdLabel(stopId){ const hh=HOUSEHOLDS.find(h=>h.stop===stopId); return hh? hh.label : 'Atholton High School'; }
+
+/* ============================== INPUT (gptouch standard) ============================== */
+const keys={}; let joyActive=false, joyId=null, joyOX=0, joyOY=0, joyX=0, joyY=0, btnA=false, btnB=false, touchMode=false;
+function latchTouch(){ touchMode=true; }
+window.addEventListener('touchstart', latchTouch, { passive:true });
+window.addEventListener('pointerdown', e=>{ if(e.pointerType==='touch'||e.pointerType==='pen') latchTouch(); }, { passive:true });
+window.addEventListener('keydown', e=>{ keys[e.code]=true; if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault(); });
+window.addEventListener('keyup', e=>{ keys[e.code]=false; });
+const zone=document.getElementById('stickZone'), sBase=document.getElementById('stickBase'), sKnob=document.getElementById('stickKnob');
+zone.addEventListener('pointerdown', e=>{
+  touchMode=true; joyActive=true; joyId=e.pointerId; joyOX=e.clientX; joyOY=e.clientY; joyX=0; joyY=0;
+  sBase.style.display=sKnob.style.display='block';
+  sBase.style.left=joyOX+'px'; sBase.style.top=joyOY+'px'; sKnob.style.left=joyOX+'px'; sKnob.style.top=joyOY+'px';
+  try{ zone.setPointerCapture(e.pointerId); }catch(_){}
+});
+zone.addEventListener('pointermove', e=>{
+  if(!joyActive||e.pointerId!==joyId) return;
+  let dx=e.clientX-joyOX, dy=e.clientY-joyOY;
+  const len=Math.hypot(dx,dy), max=52;
+  if(len>max){ dx*=max/len; dy*=max/len; }
+  joyX=dx/max; joyY=dy/max; latchTouch();
+  sKnob.style.left=(joyOX+dx)+'px'; sKnob.style.top=(joyOY+dy)+'px';
+});
+function joyEnd(e){ if(e.pointerId===joyId){ joyActive=false; joyX=0; joyY=0; sBase.style.display=sKnob.style.display='none'; } }
+zone.addEventListener('pointerup', joyEnd); zone.addEventListener('pointercancel', joyEnd);
+function bindBtn(id, set){
+  const el=document.getElementById(id);
+  el.addEventListener('pointerdown', e=>{ e.preventDefault(); touchMode=true; set(true); el.classList.add('on'); try{ el.setPointerCapture(e.pointerId); }catch(_){} });
+  const off=()=>{ set(false); el.classList.remove('on'); };
+  el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off);
+}
+bindBtn('btnA', v=>{ btnA=v; }); bindBtn('btnB', v=>{ btnB=v; });
+document.addEventListener('gesturestart', e=>e.preventDefault());
+document.addEventListener('dblclick', e=>e.preventDefault());
+document.addEventListener('contextmenu', e=>e.preventDefault());
+
+function pollInput(){
+  let steer=0, throttle=0, brake=false;
+  if(keys['KeyA']||keys['ArrowLeft']) steer-=1;
+  if(keys['KeyD']||keys['ArrowRight']) steer+=1;
+  if(keys['KeyW']||keys['ArrowUp']) throttle+=1;
+  if(keys['KeyS']||keys['ArrowDown']) brake=true;
+  if(joyActive) steer+=joyX;
+  if(btnA) throttle=1;
+  if(btnB) brake=true;
+  return { steer:THREE.MathUtils.clamp(steer,-1,1), throttle, brake };
+}
+
+/* ============================== HUD ============================== */
+const speedEl=document.querySelector('#speed b'), rallyEl=document.getElementById('rally'),
+      targetEl=document.querySelector('#target span'), bannerEl=document.getElementById('banner'),
+      arrowEl=document.getElementById('arrow'), navdistEl=document.getElementById('navdist');
+let bannerTimer=null;
+function showBanner(main, sub, hold=2600){
+  bannerEl.innerHTML=main+(sub? `<small>${sub}</small>`:'');
+  bannerEl.classList.add('show');
+  clearTimeout(bannerTimer); bannerTimer=setTimeout(()=>bannerEl.classList.remove('show'), hold);
+}
+function currentTargetStop(){
+  if(targets.length) return stopById[targets[0]];
+  return stopById['atholton'];
+}
+function updateTargetHud(){
+  const t=currentTargetStop();
+  const name = targets.length? householdLabel(targets[0]) : 'Atholton High School — the finale';
+  targetEl.textContent = 'NEXT: '+name+' · '+t.street;
+  rallyEl.textContent = 'RALLY '+collected.size+'/7';
+}
+
+/* ============================== MISSION ============================== */
+function checkArrivals(){
+  if(!started || finished) return;
+  const t=currentTargetStop();
+  const d=Math.hypot(player.x-t.sx, player.z-t.sz);
+  if(d>17) return;
+  if(targets.length){
+    const stopId=targets.shift(); collected.add(stopId);
+    const hh=HOUSEHOLDS.find(h=>h.stop===stopId);
+    for(const carId of hh.cars){
+      const pm=parkedVehs[carId];
+      if(pm){ scene.remove(pm.group); delete parkedVehs[carId]; }
+      const st=createCar(t.sx+(followers.length%3)*2.5, t.sz+(followers.length%2)*3, player.heading);
+      const veh=spawnCrewCar(carId, st.x, st.z, st.heading);
+      followers.push({ state:st, veh, name:CREW_VEHICLES[carId].name });
+      for(const person of people) if(person.carId===carId && person.mode!=='gone'){ person.mode='walk'; person.tx=st.x+1.8; person.tz=st.z+0.6; }
+    }
+    showBanner(hh.label.toUpperCase()+' JOINED THE CONVOY', targets.length? 'Next: '+householdLabel(targets[0]) : 'Everyone\'s in — ATHOLTON HIGH!');
+    if(targets.length) world.target.setStop(stopById[targets[0]]); else world.target.setStop(stopById['atholton']);
+    updateTargetHud();
+  } else {
+    finished=true; elapsed=(performance.now()-startTime)/1000;
+    const mm=Math.floor(elapsed/60), ss=(elapsed%60).toFixed(1).padStart(4,'0');
+    showBanner('🏁 RALLY COMPLETE — CREW ASSEMBLED', `Full crew at Atholton in ${mm}:${ss} · Lamar's Mustang is still burning`, 8000);
+    targetEl.textContent='CREW ASSEMBLED AT ATHOLTON — free cruise';
+    rallyEl.textContent='RALLY 7/7 🏁';
+  }
+}
+
+/* ============================== CAMERA (Bunny Hop settlement) ============================== */
+let camYaw=null, camPos=new THREE.Vector3(), fovCur=60, overheadMode=false;
+function updateCamera(dt){
+  if(overheadMode){
+    camera.position.set(player.x, 300, player.z+40);
+    camera.up.set(0,1,0); camera.lookAt(player.x, 0, player.z);
+    if(camera.fov!==55){ camera.fov=55; camera.updateProjectionMatrix(); }
+    return;
+  }
+  if(camYaw===null){ camYaw=player.heading; camPos.set(player.x-Math.sin(camYaw)*7.4, 2.6, player.z-Math.cos(camYaw)*7.4); }
+  let dh=player.heading-camYaw;
+  while(dh>Math.PI) dh-=2*Math.PI; while(dh<-Math.PI) dh+=2*Math.PI;
+  camYaw += dh * Math.min(1, dt*3.2);                       // lazy yaw
+  const dist=8.6, height=2.7;
+  const tx=player.x-Math.sin(camYaw)*dist, tz=player.z-Math.cos(camYaw)*dist;
+  const k=Math.min(1, dt*7);
+  camPos.x+=(tx-camPos.x)*k; camPos.z+=(tz-camPos.z)*k; camPos.y+=(height-camPos.y)*Math.min(1,dt*5);
+  camera.position.copy(camPos);
+  const look=new THREE.Vector3(player.x+Math.sin(player.heading)*6.5, 1.12, player.z+Math.cos(player.heading)*6.5);
+  camera.up.set(0,1,0);                                     // roll inheritance 0: horizon stays level
+  camera.lookAt(look);
+  const targetFov=60+Math.min(1, Math.abs(player.speed)/41)*7;
+  fovCur+=(targetFov-fovCur)*Math.min(1,dt*3);
+  if(Math.abs(fovCur-camera.fov)>0.05){ camera.fov=fovCur; camera.updateProjectionMatrix(); }
+}
+
+/* ============================== MAIN LOOP ============================== */
+const clock=new THREE.Clock();
+let physAcc=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(), 0.06);
+  if(started && player){
+    physAcc+=dt;
+    const input=pollInput();
+    while(physAcc>=1/60){
+      stepCar(player, input, 1/60, world.surfaceAt(player.x, player.z));
+      collide(player, world.colliders);
+      physAcc-=1/60;
+    }
+    // breadcrumb trail for the convoy
+    if(!lastTrailPt || Math.hypot(player.x-lastTrailPt.x, player.z-lastTrailPt.z)>1.4){
+      if(lastTrailPt) trailDist+=Math.hypot(player.x-lastTrailPt.x, player.z-lastTrailPt.z);
+      lastTrailPt={x:player.x, z:player.z, d:trailDist};
+      trail.push(lastTrailPt);
+      if(trail.length>4000) trail.splice(0, trail.length-4000);
+    }
+    // convoy followers retrace the trail
+    followers.forEach((f, i)=>{
+      const back=(i+1)*13.5, want=trailDist-back;
+      let tp=trail[0];
+      for(let j=trail.length-1;j>=0;j--){ if(trail[j].d<=want){ tp=trail[j]; break; } }
+      const gap=Math.hypot(f.state.x-player.x, f.state.z-player.z);
+      const dist=pursue(f.state, tp.x, tp.z, dt, world.surfaceAt(f.state.x, f.state.z), { arriveDist:26 });
+      if(dist<2.2 && Math.abs(player.speed)<0.4) f.state.speed*=0.8;
+      collide(f.state, world.colliders);
+      f.veh.group.position.set(f.state.x, 0, f.state.z);
+      f.veh.group.rotation.y=f.state.heading;
+      f.veh.updateWheels(f.state.speed, f.state.steerVis, dt);
+    });
+    // crew figures: idle at their houses, wave when you're headed their way,
+    // walk to their car when they join, player figure gets in at first throttle
+    const tNow=performance.now()/1000;
+    for(const person of people){
+      if(person.mode==='gone') continue;
+      const P=person.p.group;
+      if(person.mode==='walk'){
+        const dx=person.tx-P.position.x, dz=person.tz-P.position.z, dd=Math.hypot(dx,dz);
+        if(dd<0.7){ person.mode='gone'; scene.remove(P); continue; }
+        P.rotation.y=Math.atan2(dx,dz);
+        const step=Math.min(dd, 1.6*dt);
+        P.position.x+=dx/dd*step; P.position.z+=dz/dd*step;
+        person.phase+=dt*7.5; poseWalk(person.p, person.phase);
+      } else if(!finished && targets.length && person.stopId===targets[0]){
+        poseWave(person.p, tNow);
+      } else {
+        poseIdle(person.p, tNow);
+      }
+    }
+    playerVeh.group.position.set(player.x, 0, player.z);
+    playerVeh.group.rotation.y=player.heading;
+    playerVeh.updateWheels(player.speed, player.steerVis, dt);
+    checkArrivals();
+    updateCamera(dt);
+    // HUD
+    speedEl.textContent=Math.round(Math.abs(player.speed)*3.6);
+    const t=currentTargetStop();
+    const d=Math.hypot(player.x-t.sx, player.z-t.sz);
+    navdistEl.textContent = d>=1000? (d/1000).toFixed(2)+' km' : Math.round(d)+' m';
+    const bearing=Math.atan2(t.sx-player.x, t.sz-player.z);
+    let rel=bearing-camYaw; arrowEl.style.transform=`rotate(${rel}rad)`;
+    // sun shadow follows the player; sky dome too
+    sun.position.set(player.x+sunDir.x*300, sunDir.y*300+40, player.z+sunDir.z*300);
+    sun.target.position.set(player.x, 0, player.z); sun.target.updateMatrixWorld();
+    if(dome){ dome.position.set(player.x, 0, player.z); }
+    fireLight.intensity=52+Math.sin(performance.now()*0.021)*10+Math.sin(performance.now()*0.047)*7;
+  }
+  renderer.render(scene, camera);
+}
+animate();
+
+addEventListener('resize', ()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ============================== PROOF HOOKS ============================== */
+window.__dbg={ get ready(){ return started; },
+  get state(){ return player? { x:player.x, z:player.z, heading:player.heading, speed:player.speed,
+    collected:[...collected], targets:[...targets], followers:followers.length, finished } : null; } };
+window.__proof={
+  start(id){ startGame(id||'brad'); },
+  teleport(x,z,heading){ if(player){ player.x=x; player.z=z; if(heading!==undefined) player.heading=heading; player.speed=0;
+    trail.length=0; trailDist=0; lastTrailPt=null; camYaw=null; } },
+  overhead(on){ overheadMode=!!on; if(!on){ camera.fov=60; camera.updateProjectionMatrix(); } },
+  routePt(f){ const r=world.route; const i=Math.min(r.length-5, Math.floor(r.length*f)); const p=r[i], q=r[i+4];
+    return { x:p[0], z:p[1], heading:Math.atan2(q[0]-p[0], q[1]-p[1]) }; },
+  stopPt(id){ const s=stopById[id]; return s? { x:s.sx, z:s.sz, hx:s.hx, hz:s.hz, heading:s.heading } : null; },
+  stats(){ return renderer.info.render; },
+};
+</script>
+</body>
+</html>
