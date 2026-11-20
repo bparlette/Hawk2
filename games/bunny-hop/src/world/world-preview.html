@@ -9,36 +9,81 @@
     margin: 0; padding: 0; width: 100%; height: 100%;
     overflow: hidden; background: #171c30;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #f3ede4;
   }
   canvas { display: block; }
   #hud {
     position: fixed; top: 12px; left: 12px; z-index: 10;
-    color: #f3ede4; background: rgba(14, 18, 32, 0.72);
+    background: rgba(14, 18, 32, 0.78);
     border: 1px solid rgba(255, 196, 128, 0.28);
     border-radius: 10px; padding: 10px 14px;
     font-size: 12px; line-height: 1.5;
     backdrop-filter: blur(6px);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
-    user-select: none;
+    user-select: text;
+    max-width: 92vw;
   }
   #hud h1 {
     margin: 0 0 4px 0; font-size: 13px; letter-spacing: 0.14em;
     color: #ffbe76; font-weight: 800;
   }
-  #stats { color: #cfd8ea; font-variant-numeric: tabular-nums; }
+  #stats { color: #cfd8ea; font-variant-numeric: tabular-nums; white-space: pre-wrap; }
   #views {
     position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
     z-index: 10; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
   }
-  #views button {
-    background: rgba(14, 18, 32, 0.74); color: #f4eee6;
+  #views button, #views a {
+    background: rgba(14, 18, 32, 0.78); color: #f4eee6;
     border: 1px solid rgba(255, 196, 128, 0.35);
     border-radius: 999px; padding: 7px 14px;
     font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
-    cursor: pointer; backdrop-filter: blur(6px);
+    cursor: pointer; backdrop-filter: blur(6px); text-decoration: none;
   }
   #views button.active {
     background: rgba(232, 118, 66, 0.88); color: #fff; border-color: #ffd399;
+  }
+  /* ?shots=1 fixed 4-view 390x844 matrix layout */
+  body.shots-mode {
+    overflow: auto; padding: 18px; box-sizing: border-box; height: auto;
+  }
+  #shotsPanel {
+    display: none; max-width: 1680px; margin: 0 auto;
+  }
+  body.shots-mode #shotsPanel { display: block; }
+  body.shots-mode #hud, body.shots-mode #views { display: none; }
+  .shots-head {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 14px; padding: 12px 16px;
+    background: rgba(14, 18, 32, 0.82); border: 1px solid rgba(255, 196, 128, 0.28);
+    border-radius: 10px;
+  }
+  .shots-head h1 { margin: 0; font-size: 15px; letter-spacing: 0.14em; color: #ffbe76; }
+  .shots-meta { font-size: 12px; color: #cfd8ea; font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .shots-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .shots-actions button, .shots-actions a {
+    background: rgba(232, 118, 66, 0.88); color: #fff;
+    border: 1px solid #ffd399; border-radius: 999px;
+    padding: 8px 16px; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: none;
+  }
+  .shots-actions a.secondary { background: rgba(24, 30, 50, 0.9); border-color: rgba(255,196,128,0.35); }
+  .shots-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(390px, 1fr));
+    gap: 16px; justify-items: center;
+  }
+  .shot-card {
+    background: rgba(14, 18, 32, 0.82); border: 1px solid rgba(255, 196, 128, 0.25);
+    border-radius: 12px; padding: 10px; width: 390px; box-sizing: content-box;
+  }
+  .shot-card img {
+    display: block; width: 390px; height: 844px; border-radius: 8px;
+    background: #101424;
+  }
+  .shot-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 8px; font-size: 12px; color: #dce4f5;
+  }
+  .shot-foot a {
+    color: #ffbe76; font-weight: 700; text-decoration: none;
   }
 </style>
 </head>
@@ -52,6 +97,20 @@
   <button id="btnBridge">Bridge · Canal Dusk</button>
   <button id="btnBins">Bin Hop Line</button>
   <button id="btnUnder">Bridge Underside &amp; Climb-Out</button>
+  <a href="?shots=1">4-Shot Matrix (390×844)</a>
+</div>
+<div id="shotsPanel">
+  <div class="shots-head">
+    <div>
+      <h1>BUNNY HOP · FIXED CAMERA MATRIX (390×844)</h1>
+      <div class="shots-meta" id="shotsMeta">Rendering fixed views…</div>
+    </div>
+    <div class="shots-actions">
+      <button id="btnDownloadAll">Download All 4 PNGs</button>
+      <a class="secondary" href="./world-preview.html">Back to Interactive Orbit</a>
+    </div>
+  </div>
+  <div class="shots-grid" id="shotsGrid"></div>
 </div>
 
 <script type="importmap">
@@ -59,148 +118,277 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { buildWorld } from './buildWorld.js';
+import { buildWorld, WORLD_LIGHTING } from './buildWorld.js';
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+const params = new URLSearchParams(window.location.search);
+const shotsMode = params.get('shots') === '1';
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: 'high-performance',
+  preserveDrawingBuffer: true,
+});
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
-document.body.appendChild(renderer.domElement);
+renderer.toneMappingExposure = WORLD_LIGHTING.renderer.exposure;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.15, 450);
-
 const world = buildWorld(scene);
 
-// Camera controller (slow auto-orbit + mouse/touch drag & wheel + preset views)
-let mode = 'orbit';
-let orbitAngle = 0.55;
-let orbitPitch = 0.24;
-let orbitDist = 36;
-const orbitTarget = new THREE.Vector3(0, 3.2, 0);
-
-const PRESETS = {
-  bridge: { pos: new THREE.Vector3(14.5, 6.4, 10.2), look: new THREE.Vector3(-42, 2.4, -1.5) },
-  bins:   { pos: new THREE.Vector3(-33.5, 4.3, 27.6), look: new THREE.Vector3(-12.0, 2.2, 22.0) },
-  under:  { pos: new THREE.Vector3(24.5, 2.5, 11.8), look: new THREE.Vector3(-2.0, 2.0, 1.5) },
-};
-
-const buttons = {
-  orbit: document.getElementById('btnOrbit'),
-  bridge: document.getElementById('btnBridge'),
-  bins: document.getElementById('btnBins'),
-  under: document.getElementById('btnUnder'),
-};
-
-function setView(name) {
-  mode = name;
-  for (const [k, btn] of Object.entries(buttons)) {
-    btn.classList.toggle('active', k === name);
+// Estimate GPU texture memory from unique textures attached to scene materials (RGBA * 4B * 1.33 mipmaps)
+function estimateTextureMemoryBytes(root) {
+  const seen = new Set();
+  const addTex = (t) => { if (t && t.isTexture) seen.add(t); };
+  root.traverse((obj) => {
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (const m of mats) {
+      if (!m) continue;
+      addTex(m.map); addTex(m.normalMap); addTex(m.roughnessMap);
+      addTex(m.metalnessMap); addTex(m.emissiveMap); addTex(m.alphaMap);
+    }
+  });
+  let bytes = 0;
+  for (const t of seen) {
+    const img = t.image;
+    const w = img?.width || 0;
+    const h = img?.height || 0;
+    bytes += Math.round(w * h * 4 * 1.333);
   }
-  if (PRESETS[name]) {
-    camera.position.copy(PRESETS[name].pos);
-    camera.lookAt(PRESETS[name].look);
-  }
+  return { uniqueTextures: seen.size, bytes, kb: +(bytes / 1024).toFixed(1), mb: +(bytes / (1024 * 1024)).toFixed(2) };
 }
 
-buttons.orbit.onclick = () => setView('orbit');
-buttons.bridge.onclick = () => setView('bridge');
-buttons.bins.onclick = () => setView('bins');
-buttons.under.onclick = () => setView('under');
+function collectRendererInfo() {
+  const texMem = estimateTextureMemoryBytes(scene);
+  return {
+    drawCalls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles,
+    geometries: renderer.info.memory.geometries,
+    textures: renderer.info.memory.textures,
+    estimatedTextureMemoryKB: texMem.kb,
+    estimatedTextureMemoryMB: texMem.mb,
+    colliders: world.colliders.length,
+    bins: world.bins.length,
+    climbOut: world.climbOut.length,
+  };
+}
 
-const initialView = new URLSearchParams(window.location.search).get('view');
-if (initialView && buttons[initialView]) setView(initialView);
+function formatStatsLine(info) {
+  return (
+    `Draw calls: ${info.drawCalls} · Tris: ${info.triangles.toLocaleString()} · ` +
+    `Geos: ${info.geometries} · Tex: ${info.textures} (~${info.estimatedTextureMemoryKB} KB)\n` +
+    `Colliders: ${info.colliders} · Bins: ${info.bins} · ClimbOuts: ${info.climbOut}`
+  );
+}
 
-// Pointer drag / wheel for manual inspection
-let dragging = false, lastX = 0, lastY = 0;
-renderer.domElement.addEventListener('pointerdown', (e) => {
-  dragging = true; lastX = e.clientX; lastY = e.clientY;
-  if (mode !== 'orbit') setView('orbit');
-});
-window.addEventListener('pointerup', () => { dragging = false; });
-window.addEventListener('pointermove', (e) => {
-  if (!dragging) return;
-  orbitAngle -= (e.clientX - lastX) * 0.005;
-  orbitPitch = THREE.MathUtils.clamp(orbitPitch + (e.clientY - lastY) * 0.004, 0.05, 1.25);
-  lastX = e.clientX; lastY = e.clientY;
-});
-renderer.domElement.addEventListener('wheel', (e) => {
-  if (mode !== 'orbit') setView('orbit');
-  orbitDist = THREE.MathUtils.clamp(orbitDist + e.deltaY * 0.03, 10, 95);
-}, { passive: true });
+// Fixed pixel-comparable 4-shot matrix (390x844 portrait)
+const SHOT_SPECS = [
+  {
+    id: 'a-spawn-rider',
+    label: '(a) Spawn Rider View',
+    fov: 62,
+    pos: [world.spawn.x - 5.7, world.groundAt(world.spawn.x, world.spawn.z) + 3.3, world.spawn.z],
+    look: [world.spawn.x + 12.0, world.groundAt(world.spawn.x, world.spawn.z) + 1.2, world.spawn.z - 2.2],
+  },
+  {
+    id: 'b-bridge-canal',
+    label: '(b) Bridge Looking Down Canal',
+    fov: 58,
+    pos: [14.5, 6.4, 10.2],
+    look: [-42.0, 2.4, -1.5],
+  },
+  {
+    id: 'c-canal-water',
+    label: '(c) Canal at Water Level',
+    fov: 60,
+    pos: [22.0, 1.15, 2.6],
+    look: [-8.0, 1.9, -0.5],
+  },
+  {
+    id: 'd-overhead',
+    label: '(d) Overhead Neighbourhood',
+    fov: 56,
+    pos: [0.0, 82.0, 42.0],
+    look: [0.0, 1.6, 2.0],
+  },
+];
 
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+if (shotsMode) {
+  document.body.classList.add('shots-mode');
+  const W = 390, H = 844;
+  renderer.setPixelRatio(1);
+  renderer.setSize(W, H, false);
+  const cam = new THREE.PerspectiveCamera(60, W / H, 0.15, 450);
+
+  const grid = document.getElementById('shotsGrid');
+  const metaEl = document.getElementById('shotsMeta');
+  const captured = [];
+  let settledInfo = null;
+
+  for (const spec of SHOT_SPECS) {
+    cam.fov = spec.fov;
+    cam.updateProjectionMatrix();
+    cam.position.set(...spec.pos);
+    cam.lookAt(...spec.look);
+    // Render twice so shadow map & shader uniforms are settled
+    renderer.render(scene, cam);
+    renderer.render(scene, cam);
+    const info = collectRendererInfo();
+    if (!settledInfo || info.drawCalls > settledInfo.drawCalls) settledInfo = info;
+    const dataUrl = renderer.domElement.toDataURL('image/png');
+    captured.push({ id: spec.id, label: spec.label, dataUrl, info });
+
+    const card = document.createElement('div');
+    card.className = 'shot-card';
+    card.innerHTML =
+      `<img src="${dataUrl}" alt="${spec.label}" width="${W}" height="${H}">` +
+      `<div class="shot-foot"><span>${spec.label} · ${info.drawCalls} calls</span>` +
+      `<a download="bunny-hop-${spec.id}.png" href="${dataUrl}">Download PNG</a></div>`;
+    grid.appendChild(card);
+  }
+
+  console.log('[world-preview] renderer.info (shots=1)', settledInfo);
+  metaEl.textContent = formatStatsLine(settledInfo).replace('\n', ' · ');
+
+  document.getElementById('btnDownloadAll').onclick = () => {
+    for (const s of captured) {
+      const a = document.createElement('a');
+      a.download = `bunny-hop-${s.id}.png`;
+      a.href = s.dataUrl;
+      a.click();
+    }
+  };
+
+  window.__shots = captured;
+  window.__preview = { world, scene, renderer, getStats: () => settledInfo, shots: captured };
+} else {
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  document.body.appendChild(renderer.domElement);
 
-const statsEl = document.getElementById('stats');
-let lastT = performance.now();
-let lastHudUpdate = -1000;
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.15, 450);
 
-function animate(now) {
+  let mode = 'orbit';
+  let orbitAngle = 0.55;
+  let orbitPitch = 0.24;
+  let orbitDist = 36;
+  const orbitTarget = new THREE.Vector3(0, 3.2, 0);
+
+  const PRESETS = {
+    bridge: { pos: new THREE.Vector3(14.5, 6.4, 10.2), look: new THREE.Vector3(-42, 2.4, -1.5) },
+    bins:   { pos: new THREE.Vector3(-33.5, 4.3, 27.6), look: new THREE.Vector3(-12.0, 2.2, 22.0) },
+    under:  { pos: new THREE.Vector3(24.5, 2.5, 11.8), look: new THREE.Vector3(-2.0, 2.0, 1.5) },
+  };
+
+  const buttons = {
+    orbit: document.getElementById('btnOrbit'),
+    bridge: document.getElementById('btnBridge'),
+    bins: document.getElementById('btnBins'),
+    under: document.getElementById('btnUnder'),
+  };
+
+  function setView(name) {
+    mode = name;
+    for (const [k, btn] of Object.entries(buttons)) {
+      btn.classList.toggle('active', k === name);
+    }
+    if (PRESETS[name]) {
+      camera.position.copy(PRESETS[name].pos);
+      camera.lookAt(PRESETS[name].look);
+    }
+  }
+
+  buttons.orbit.onclick = () => setView('orbit');
+  buttons.bridge.onclick = () => setView('bridge');
+  buttons.bins.onclick = () => setView('bins');
+  buttons.under.onclick = () => setView('under');
+
+  const initialView = params.get('view');
+  if (initialView && buttons[initialView]) setView(initialView);
+
+  let dragging = false, lastX = 0, lastY = 0;
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    if (mode !== 'orbit') setView('orbit');
+  });
+  window.addEventListener('pointerup', () => { dragging = false; });
+  window.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    orbitAngle -= (e.clientX - lastX) * 0.005;
+    orbitPitch = THREE.MathUtils.clamp(orbitPitch + (e.clientY - lastY) * 0.004, 0.05, 1.25);
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  renderer.domElement.addEventListener('wheel', (e) => {
+    if (mode !== 'orbit') setView('orbit');
+    orbitDist = THREE.MathUtils.clamp(orbitDist + e.deltaY * 0.03, 10, 95);
+  }, { passive: true });
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  const statsEl = document.getElementById('stats');
+  let lastT = performance.now();
+  let lastHudUpdate = -1000;
+  let frameCount = 0;
+
+  function animate(now) {
+    requestAnimationFrame(animate);
+    const dt = Math.min(0.05, (now - lastT) * 0.001);
+    lastT = now;
+    frameCount++;
+
+    if (mode === 'orbit') {
+      if (!dragging) orbitAngle += dt * 0.14;
+      const h = Math.sin(orbitPitch) * orbitDist;
+      const r = Math.cos(orbitPitch) * orbitDist;
+      camera.position.set(
+        orbitTarget.x + Math.cos(orbitAngle) * r,
+        orbitTarget.y + h,
+        orbitTarget.z + Math.sin(orbitAngle) * r
+      );
+      camera.lookAt(orbitTarget);
+    }
+
+    renderer.render(scene, camera);
+
+    if (frameCount === 5) {
+      console.log('[world-preview] renderer.info', collectRendererInfo());
+    }
+
+    if (now - lastHudUpdate > 250) {
+      lastHudUpdate = now;
+      statsEl.textContent = formatStatsLine(collectRendererInfo());
+    }
+  }
   requestAnimationFrame(animate);
-  const dt = Math.min(0.05, (now - lastT) * 0.001);
-  lastT = now;
 
-  if (mode === 'orbit') {
-    if (!dragging) orbitAngle += dt * 0.14;
-    const h = Math.sin(orbitPitch) * orbitDist;
-    const r = Math.cos(orbitPitch) * orbitDist;
-    camera.position.set(
-      orbitTarget.x + Math.cos(orbitAngle) * r,
-      orbitTarget.y + h,
-      orbitTarget.z + Math.sin(orbitAngle) * r
-    );
-    camera.lookAt(orbitTarget);
-  }
-
-  renderer.render(scene, camera);
-
-  if (now - lastHudUpdate > 250) {
-    lastHudUpdate = now;
-    statsEl.textContent =
-      `Draw calls: ${renderer.info.render.calls} · ` +
-      `Tris: ${renderer.info.render.triangles.toLocaleString()} · ` +
-      `Colliders: ${world.colliders.length} · ` +
-      `Surfaces: ${world.surfaces.length} · ` +
-      `ClimbOuts: ${world.climbOut.length}`;
-  }
+  window.__preview = {
+    world,
+    scene,
+    camera,
+    renderer,
+    setView,
+    setCamera(px, py, pz, lx, ly, lz) {
+      mode = 'custom';
+      camera.position.set(px, py, pz);
+      camera.lookAt(lx, ly, lz);
+      renderer.render(scene, camera);
+    },
+    getStats() {
+      renderer.render(scene, camera);
+      return {
+        ...collectRendererInfo(),
+        water: world.water,
+        spawn: world.spawn,
+        lighting: world.lighting,
+      };
+    },
+  };
 }
-requestAnimationFrame(animate);
-
-window.__preview = {
-  world,
-  scene,
-  camera,
-  renderer,
-  setView,
-  setCamera(px, py, pz, lx, ly, lz) {
-    mode = 'custom';
-    camera.position.set(px, py, pz);
-    camera.lookAt(lx, ly, lz);
-    renderer.render(scene, camera);
-  },
-  getStats() {
-    renderer.render(scene, camera);
-    return {
-      drawCalls: renderer.info.render.calls,
-      triangles: renderer.info.render.triangles,
-      geometries: renderer.info.memory.geometries,
-      textures: renderer.info.memory.textures,
-      colliders: world.colliders.length,
-      surfaces: world.surfaces.length,
-      climbOut: world.climbOut,
-      water: world.water,
-      spawn: world.spawn,
-    };
-  },
-};
 </script>
 </body>
 </html>
