@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bunny Hop — World Preview</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: #171c30;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 12px; left: 12px; z-index: 10;
+    color: #f3ede4; background: rgba(14, 18, 32, 0.72);
+    border: 1px solid rgba(255, 196, 128, 0.28);
+    border-radius: 10px; padding: 10px 14px;
+    font-size: 12px; line-height: 1.5;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    user-select: none;
+  }
+  #hud h1 {
+    margin: 0 0 4px 0; font-size: 13px; letter-spacing: 0.14em;
+    color: #ffbe76; font-weight: 800;
+  }
+  #stats { color: #cfd8ea; font-variant-numeric: tabular-nums; }
+  #views {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 10; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  }
+  #views button {
+    background: rgba(14, 18, 32, 0.74); color: #f4eee6;
+    border: 1px solid rgba(255, 196, 128, 0.35);
+    border-radius: 999px; padding: 7px 14px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+    cursor: pointer; backdrop-filter: blur(6px);
+  }
+  #views button.active {
+    background: rgba(232, 118, 66, 0.88); color: #fff; border-color: #ffd399;
+  }
+</style>
+</head>
+<body>
+<div id="hud">
+  <h1>BUNNY HOP · WORLD PREVIEW</h1>
+  <div id="stats">Loading…</div>
+</div>
+<div id="views">
+  <button id="btnOrbit" class="active">Free Orbit</button>
+  <button id="btnBridge">Bridge · Canal Dusk</button>
+  <button id="btnBins">Bin Hop Line</button>
+  <button id="btnUnder">Bridge Underside &amp; Climb-Out</button>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from './buildWorld.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.15, 450);
+
+const world = buildWorld(scene);
+
+// Camera controller (slow auto-orbit + mouse/touch drag & wheel + preset views)
+let mode = 'orbit';
+let orbitAngle = 0.55;
+let orbitPitch = 0.24;
+let orbitDist = 36;
+const orbitTarget = new THREE.Vector3(0, 3.2, 0);
+
+const PRESETS = {
+  bridge: { pos: new THREE.Vector3(14.5, 6.4, 10.2), look: new THREE.Vector3(-42, 2.4, -1.5) },
+  bins:   { pos: new THREE.Vector3(-33.5, 4.3, 27.6), look: new THREE.Vector3(-12.0, 2.2, 22.0) },
+  under:  { pos: new THREE.Vector3(24.5, 2.5, 11.8), look: new THREE.Vector3(-2.0, 2.0, 1.5) },
+};
+
+const buttons = {
+  orbit: document.getElementById('btnOrbit'),
+  bridge: document.getElementById('btnBridge'),
+  bins: document.getElementById('btnBins'),
+  under: document.getElementById('btnUnder'),
+};
+
+function setView(name) {
+  mode = name;
+  for (const [k, btn] of Object.entries(buttons)) {
+    btn.classList.toggle('active', k === name);
+  }
+  if (PRESETS[name]) {
+    camera.position.copy(PRESETS[name].pos);
+    camera.lookAt(PRESETS[name].look);
+  }
+}
+
+buttons.orbit.onclick = () => setView('orbit');
+buttons.bridge.onclick = () => setView('bridge');
+buttons.bins.onclick = () => setView('bins');
+buttons.under.onclick = () => setView('under');
+
+const initialView = new URLSearchParams(window.location.search).get('view');
+if (initialView && buttons[initialView]) setView(initialView);
+
+// Pointer drag / wheel for manual inspection
+let dragging = false, lastX = 0, lastY = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  if (mode !== 'orbit') setView('orbit');
+});
+window.addEventListener('pointerup', () => { dragging = false; });
+window.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  orbitAngle -= (e.clientX - lastX) * 0.005;
+  orbitPitch = THREE.MathUtils.clamp(orbitPitch + (e.clientY - lastY) * 0.004, 0.05, 1.25);
+  lastX = e.clientX; lastY = e.clientY;
+});
+renderer.domElement.addEventListener('wheel', (e) => {
+  if (mode !== 'orbit') setView('orbit');
+  orbitDist = THREE.MathUtils.clamp(orbitDist + e.deltaY * 0.03, 10, 95);
+}, { passive: true });
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const statsEl = document.getElementById('stats');
+let lastT = performance.now();
+let lastHudUpdate = -1000;
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, (now - lastT) * 0.001);
+  lastT = now;
+
+  if (mode === 'orbit') {
+    if (!dragging) orbitAngle += dt * 0.14;
+    const h = Math.sin(orbitPitch) * orbitDist;
+    const r = Math.cos(orbitPitch) * orbitDist;
+    camera.position.set(
+      orbitTarget.x + Math.cos(orbitAngle) * r,
+      orbitTarget.y + h,
+      orbitTarget.z + Math.sin(orbitAngle) * r
+    );
+    camera.lookAt(orbitTarget);
+  }
+
+  renderer.render(scene, camera);
+
+  if (now - lastHudUpdate > 250) {
+    lastHudUpdate = now;
+    statsEl.textContent =
+      `Draw calls: ${renderer.info.render.calls} · ` +
+      `Tris: ${renderer.info.render.triangles.toLocaleString()} · ` +
+      `Colliders: ${world.colliders.length} · ` +
+      `Surfaces: ${world.surfaces.length} · ` +
+      `ClimbOuts: ${world.climbOut.length}`;
+  }
+}
+requestAnimationFrame(animate);
+
+window.__preview = {
+  world,
+  scene,
+  camera,
+  renderer,
+  setView,
+  setCamera(px, py, pz, lx, ly, lz) {
+    mode = 'custom';
+    camera.position.set(px, py, pz);
+    camera.lookAt(lx, ly, lz);
+    renderer.render(scene, camera);
+  },
+  getStats() {
+    renderer.render(scene, camera);
+    return {
+      drawCalls: renderer.info.render.calls,
+      triangles: renderer.info.render.triangles,
+      geometries: renderer.info.memory.geometries,
+      textures: renderer.info.memory.textures,
+      colliders: world.colliders.length,
+      surfaces: world.surfaces.length,
+      climbOut: world.climbOut,
+      water: world.water,
+      spawn: world.spawn,
+    };
+  },
+};
+</script>
+</body>
+</html>
