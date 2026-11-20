@@ -32,7 +32,7 @@
 </style>
 </head>
 <body>
-<div id="hud"><b>NEON BAKE-OFF #2 · BRAD'S '87 CAMARO (SUBD HYBRID)</b><div id="stats">Loading…</div></div>
+<div id="hud"><b>NEON BAKE-OFF #2 · BRAD'S '87 CAMARO</b><div id="stats">Loading…</div></div>
 <div id="views">
   <button id="bOrbit" class="active">Orbit</button>
   <button id="b1">1 · High 3/4 (Split)</button>
@@ -182,8 +182,9 @@ scene.add(ground);
   }
 }
 
-// Add Brad's 1987 Camaro — Hybrid: Blender Catmull-Clark SubD GLB body + Procedural wheels/glass/lights/interior
-const useProcOnly = params.get('mode') === 'proc';
+// Add Brad's 1987 Camaro — the pure procedural build is the DEFAULT (Cherie's pick,
+// Nov 20); the Blender SubD hybrid is one toggle (or ?mode=subd) away.
+const useProcOnly = params.get('mode') !== 'subd';
 const camaroProc = buildCamaro(false);
 const camaroHybrid = buildCamaro(true); // procedural wheels, glass, yellow lights, taillights, trim, interior
 camaroProc.visible = useProcOnly;

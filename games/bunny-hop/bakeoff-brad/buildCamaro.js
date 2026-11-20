@@ -75,6 +75,7 @@ function createCamaroSide(side) {
 
   // Low wedge beltline (side.jpg): rises gently toward rear haunch, drops sharply to low wedge nose
   function beltY(z) {
+    if (z > 1.76) return 0.7247 - (z - 1.76) * 0.145; // ahead of the front arch the fender crown dives with the hood into the nose tip (side.jpg)
     if (z > 0.45) return 0.84 - (z - 0.45) * 0.088; // sleek downward wedge toward nose (0.84 -> 0.665)
     if (z > -1.35) return 0.84 + Math.sin(((0.45 - z) / 1.8) * Math.PI * 0.65) * 0.042;
     return 0.878 - (-1.35 - z) * 0.015;
@@ -82,9 +83,9 @@ function createCamaroSide(side) {
 
   function halfW(z) {
     let w = 0.91;
-    if (z > 1.55) {
-      const t = (z - 1.55) / 0.89;
-      w -= t * t * 0.135; // sharp tapered third-gen nose (front34.jpg)
+    if (z > 1.70) {
+      const t = (z - 1.70) / 0.74;
+      w -= t * t * 0.105; // tapered third-gen nose (front34.jpg) — kept wide enough to meet the bumper wrap
     } else if (z < -1.65) {
       const t = (-1.65 - z) / 0.79;
       w -= t * t * 0.085;
@@ -153,14 +154,17 @@ function createCamaroHood() {
     for (const x0 of xs) {
       const x = x0 * taper;
       const ax = Math.abs(x0);
-      // Real '87 Camaro V-sweep: centerline extends ~12 cm further forward than fender corners!
-      const vSweep = -ax * ax * 0.175 * (tFront * tFront);
+      // Real '87 Camaro V-sweep: centerline extends ~9 cm further forward than fender corners
+      const vSweep = -ax * ax * 0.13 * (tFront * tFront);
       const z = z0 + vSweep;
-      const baseY = 0.84 - (z0 - 0.44) * 0.092 - (z0 > 2.34 ? (z0 - 2.34) * 0.85 : 0);
-      // Sleek racing crown + sculpted twin center power-dome crease
+      // One continuous shallow descent — the last half metre rolls over smoothly
+      // into the tip instead of dropping off a cliff (side.jpg nose profile)
+      const tipRoll = z0 > 1.90 ? Math.pow((z0 - 1.90) / 0.56, 2) * 0.085 : 0;
+      const baseY = 0.84 - (z0 - 0.44) * 0.092 - tipRoll;
+      // Sleek racing crown + faint center crease (real IROC hood is near-flat, front.jpg)
       let y = baseY + Math.cos((ax / 0.86) * Math.PI * 0.5) * 0.048;
       if (ax < 0.34 && z0 < 2.28) {
-        y += Math.cos((ax / 0.34) * Math.PI * 0.5) * 0.022;
+        y += Math.cos((ax / 0.34) * Math.PI * 0.5) * 0.012;
       }
       ring.push([x, y, z]);
     }
@@ -172,15 +176,17 @@ function createCamaroHood() {
 // Sculpted V-swept racing front nose cone + wraparound bumper + flared chin air dam (front.jpg, front34.jpg)
 function createFrontNoseFascia() {
   // Continuous loft from below headlight pockets down to the flared racing chin spoiler lip
-  // Profile rows from top (y=0.455 under headlight buckets) down to flared chin lip (y=0.165)
+  // Profile rows restacked to the real face (front.jpg): bumper ridge is the foremost
+  // plane, grille band recessed, air dam deep and near-vertical with its lip tucked
+  // just BEHIND the bumper plane — no forward chin kick.
   const profile = [
-    [0.455, 2.40, 0.99],  // crisp bumper crease under headlight buckets
-    [0.420, 2.47, 1.00],  // protruding rounded front bumper ridge
-    [0.355, 2.45, 0.99],  // recessed lower fog/grille fascia band
-    [0.275, 2.44, 0.98],  // black+silver stripe level
-    [0.215, 2.47, 1.01],  // outward-flaring racing chin spoiler kick
-    [0.165, 2.50, 1.02],  // low aerodynamic chin lip (front34.jpg!)
-    [0.155, 2.36, 0.96],  // underside tuck
+    [0.470, 2.42, 0.99],  // top edge tucking under the headlight pockets
+    [0.430, 2.48, 1.00],  // protruding rounded front bumper ridge — foremost plane of the face
+    [0.360, 2.455, 0.99], // recessed lower grille band
+    [0.280, 2.44, 0.985], // black+silver rub stripe level
+    [0.200, 2.45, 0.99],  // deep near-vertical IROC-Z air dam face
+    [0.130, 2.44, 0.99],  // low chin lip, behind the bumper plane (front34.jpg)
+    [0.120, 2.33, 0.95],  // underside tuck
   ];
   const cols = 16;
   const rings = [];
@@ -189,9 +195,9 @@ function createFrontNoseFascia() {
     for (let c = 0; c <= cols; c++) {
       const u = (c / cols) * 2 - 1; // -1 .. +1
       const au = Math.abs(u);
-      const x = u * 0.845 * wScale;
-      // Smooth aerodynamic V-sweep + wraparound corner curve into front fenders
-      const z = zCenter - au * au * 0.165 - Math.pow(au, 4) * 0.12;
+      const x = u * 0.83 * wScale;
+      // Modest plan-view point: corners sit ~16 cm behind the center (front.jpg)
+      const z = zCenter - au * au * 0.105 - Math.pow(au, 4) * 0.055;
       ring.push([x, y, z]);
     }
     rings.push(ring);
@@ -218,7 +224,10 @@ function createCenterNoseBridge() {
     }
     rings.push(ring);
   }
-  return applyBradFade(buildLoft(rings, false, true));
+  // Winding NOT flipped: with flip=true this sheet's normals point -z (into the car),
+  // so the FrontSide paint material backface-culls it from the front and the nose
+  // center renders see-through to the maroon rear fascia. Verified by raycast probe.
+  return applyBradFade(buildLoft(rings, false, false));
 }
 
 // Smooth curved rear bumper fascia wrapping cleanly into rear quarters (rear.jpg, rear34.jpg)
@@ -549,7 +558,9 @@ export function buildCamaro(skipBody = false) {
   // Twin dark hood louvers (front34.jpg)
   for (const s of [-1, 1]) {
     const louver = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.018, 0.44), mats.darkTrim);
-    louver.position.set(s * 0.32, 0.805, 1.05);
+    // Procedural hood surface at this spot is ~0.825 — seat the insert ON it (it was
+    // buried ~2 cm under the surface and invisible); the SubD shell keeps its seat.
+    louver.position.set(s * 0.32, skipBody ? 0.805 : 0.829, 1.05);
     louver.rotation.x = 0.095;
     car.add(louver);
   }
@@ -567,29 +578,36 @@ export function buildCamaro(skipBody = false) {
       car.add(centerBridge);
     }
 
-    // Lower front recessed intake grille (front.jpg)
-    const lowerGrille = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.135, 0.10), mats.darkTrim);
-    lowerGrille.position.set(0, 0.355, 2.41);
+    // Center black grille slot in the lower band (front.jpg) — fog lamps live INSIDE
+    // it at each end, plate in the middle; it is a slot in the fascia, not a slab on it
+    const lowerGrille = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.15, 0.08), mats.darkTrim);
+    lowerGrille.position.set(0, 0.345, 2.395);
     car.add(lowerGrille);
 
-    // Deeply recessed black quad rectangular headlight buckets + YELLOW lamps tucked cleanly behind V-swept nose
+    // Black headlight pockets spanning nearly the full face width (front.jpg):
+    // inner edge ~±0.24, outer ~±0.84, band ~0.17 tall, lamp faces set just inside
+    // the pocket mouth (~3 mm) instead of buried 20 cm behind the nose.
     for (const s of [-1, 1]) {
-      const bucket = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.145, 0.18), mats.darkTrim);
-      bucket.position.set(s * 0.51, 0.545, 2.14);
-      bucket.rotation.y = -s * 0.20; // matches V-sweep angle
-      car.add(bucket);
-      for (const hxOff of [-0.095, 0.095]) {
-        const lx = s * 0.51 + hxOff;
-        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.155, 0.096, 0.035), mats.yellowHeadlight);
-        lamp.position.set(lx, 0.545, 2.25 - Math.abs(lx) * 0.18);
-        lamp.rotation.y = -s * 0.20;
-        car.add(lamp);
+      const pocket = new THREE.Group();
+      pocket.position.set(s * 0.54, 0.555, 2.335);
+      pocket.rotation.y = -s * 0.16; // follows the wraparound corner curve
+      const bucket = new THREE.Mesh(new THREE.BoxGeometry(0.60, 0.17, 0.16), mats.darkTrim);
+      pocket.add(bucket);
+      for (const hxOff of [-0.148, 0.148]) {
+        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.235, 0.125, 0.03), mats.yellowHeadlight);
+        lamp.position.set(hxOff, 0, 0.062);
+        pocket.add(lamp);
       }
-      // Recessed lower fog/turn lamps
-      const fog = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.080, 0.04), mats.yellowHeadlight);
-      fog.position.set(s * 0.55, 0.352, 2.34);
-      fog.rotation.y = -s * 0.20;
+      car.add(pocket);
+      // Fog lamp inside the grille slot (front.jpg)
+      const fog = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.085, 0.025), mats.tailWhite);
+      fog.position.set(s * 0.27, 0.345, 2.42);
       car.add(fog);
+      // Outboard turn-signal / park lamp rectangle in the bumper face (front.jpg)
+      const sig = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.085, 0.03), mats.amberSignal);
+      sig.position.set(s * 0.635, 0.36, 2.375);
+      sig.rotation.y = -s * 0.16;
+      car.add(sig);
       // Front amber side marker (side.jpg, detail-wheel.jpg)
       const fMarker = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.042, 0.15), mats.amberSignal);
       fMarker.position.set(s * 0.87, 0.47, 2.02);
@@ -786,9 +804,9 @@ export function buildCamaro(skipBody = false) {
     });
     for (const s of [-1, 1]) {
       const halo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), haloMat);
-      halo.position.set(s * 0.51, 0.545, 2.32);
-      halo.rotation.y = -s * 0.20;
-      halo.scale.set(0.6, 0.36, 1);
+      halo.position.set(s * 0.54, 0.555, 2.46);
+      halo.rotation.y = -s * 0.16;
+      halo.scale.set(0.8, 0.4, 1);
       halo.renderOrder = 3;
       car.add(halo);
     }
