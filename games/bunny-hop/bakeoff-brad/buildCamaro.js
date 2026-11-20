@@ -8,6 +8,8 @@ import * as THREE from 'three';
 
 const WHITE_COL = new THREE.Color(0xf2f4f8);
 const MAROON_COL = new THREE.Color(0x6c111b); // rich deep metallic maroon matching brad-real photos
+// Brad's fleet beam colour — deep saturated amber-yellow (games/shared/gpvehicles.js, 425d2878)
+const BEAM_COLOR = 0xffb800;
 
 // Apply Brad's exact front-to-back lengthwise paint fade to any BufferGeometry in car-local space:
 // z >= 0.44 (windshield base forward) -> pure WHITE; z <= -0.02 (roof & rear) -> DEEP MAROON
@@ -492,9 +494,12 @@ export function buildCamaro(skipBody = false) {
       side: THREE.DoubleSide,
     }),
     interior: new THREE.MeshStandardMaterial({ color: 0x20222a, roughness: 0.88 }),
-    // LOCKED CANON: Brad's YELLOW headlights!
+    // LOCKED CANON: Brad's YELLOW headlights — the fleet beam treatment shipped in
+    // games/shared/gpvehicles.js (425d2878): beam 0xffb800, lens face = beam colour
+    // lerped 0.2 toward white, emissive = beam colour at intensity 3.4.
     yellowHeadlight: new THREE.MeshStandardMaterial({
-      color: 0xfff066, emissive: 0xffd824, emissiveIntensity: 4.2, roughness: 0.12,
+      color: new THREE.Color(BEAM_COLOR).lerp(new THREE.Color(0xffffff), 0.2),
+      emissive: BEAM_COLOR, emissiveIntensity: 3.4, roughness: 0.12,
     }),
     amberSignal: new THREE.MeshStandardMaterial({
       color: 0xff9820, emissive: 0xff7a10, emissiveIntensity: 2.0, roughness: 0.25,
@@ -752,7 +757,54 @@ export function buildCamaro(skipBody = false) {
   }
 
   // ---- 8. LOCKED CANON: Brad's YELLOW Headlight Beam & Road Pool ----
+  // The fleet beam treatment from games/shared/gpvehicles.js (425d2878), applied
+  // verbatim: a white radial glow texture tinted by the material colour; front
+  // halo cards at the lamp clusters (beam colour lerped 0.1 toward white,
+  // opacity 0.95, FrontSide-only so nothing bleeds through from behind); the
+  // road pool tinted with the pure beam colour at opacity 0.34.
   {
+    // White radial glow sprite (same stops as gpvehicles glowTexture())
+    const gt = (() => {
+      const gc = document.createElement('canvas'); gc.width = gc.height = 128;
+      const gg = gc.getContext('2d');
+      const ggr = gg.createRadialGradient(64, 64, 2, 64, 64, 64);
+      ggr.addColorStop(0, 'rgba(255,255,255,1)');
+      ggr.addColorStop(0.35, 'rgba(255,255,255,0.45)');
+      ggr.addColorStop(1, 'rgba(255,255,255,0)');
+      gg.fillStyle = ggr; gg.fillRect(0, 0, 128, 128);
+      return new THREE.CanvasTexture(gc);
+    })();
+
+    const beam = new THREE.Color(BEAM_COLOR);
+
+    // Front halo cards at the quad lamp clusters, angled with the V-swept nose
+    // — FrontSide only, so the rear view keeps exactly the presentation it had.
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: beam.clone().lerp(new THREE.Color(0xffffff), 0.1), map: gt,
+      transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending,
+      depthWrite: false, side: THREE.FrontSide, fog: false,
+    });
+    for (const s of [-1, 1]) {
+      const halo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), haloMat);
+      halo.position.set(s * 0.51, 0.545, 2.32);
+      halo.rotation.y = -s * 0.20;
+      halo.scale.set(0.6, 0.36, 1);
+      halo.renderOrder = 3;
+      car.add(halo);
+    }
+
+    // Long forward road pool tinted with the beam colour (matches fleet.json
+    // light overlay extending well ahead of the nose)
+    const beamPool = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.8, 7.6),
+      new THREE.MeshBasicMaterial({ color: beam, map: gt, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
+    );
+    beamPool.rotation.x = -Math.PI / 2;
+    beamPool.position.set(0, 0.016, 5.6);
+    beamPool.renderOrder = 2;
+    car.add(beamPool);
+
+    // Yellow radial texture for the rear glow below (unchanged)
     const c = document.createElement('canvas');
     c.width = 128; c.height = 128;
     const g = c.getContext('2d');
@@ -763,24 +815,6 @@ export function buildCamaro(skipBody = false) {
     g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
     const yellowTex = new THREE.CanvasTexture(c);
     yellowTex.colorSpace = THREE.SRGBColorSpace;
-
-    // Long forward yellow road pool (matches fleet.json light overlay extending well ahead of the nose)
-    const beamPool = new THREE.Mesh(
-      new THREE.PlaneGeometry(3.8, 7.6),
-      new THREE.MeshBasicMaterial({ map: yellowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
-    );
-    beamPool.rotation.x = -Math.PI / 2;
-    beamPool.position.set(0, 0.016, 5.6);
-    car.add(beamPool);
-
-    // Close nose yellow glow
-    const noseGlow = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.4, 2.2),
-      new THREE.MeshBasicMaterial({ map: yellowTex, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending })
-    );
-    noseGlow.rotation.x = -Math.PI / 2;
-    noseGlow.position.set(0, 0.018, 2.9);
-    car.add(noseGlow);
 
     // Subtle red rear taillight ground glow
     const tailPool = new THREE.Mesh(
