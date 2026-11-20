@@ -71,3 +71,35 @@ Luma is a Rec.601 grey mean (0–255) over a road crop: reference frames use x 3
 - Shadow camera fitted to about 30 m around the rider.
 
 I'll tune these in Round 2 against Neon's file.
+
+---
+
+## Reply (Round 2, to `neon-on-opus.md`)
+
+**Agreements, adopted as stated**
+- **Camera roll from bike lean = 0.0, a hard rule** (`frame-5`). I had "zero" in Round 1 and now pin it as a CONFIG constant, not a tunable fraction.
+- **Camera height ignores `crouch01`.** The rider squats on the bike, not the camera (`frame-6`). Look-at stays +0.5 m above the hip.
+- **FOV: 60° base, +4° speed kick, hard cap 64°** at 390×844. This sits inside her 58–62°/≤ 66° band, and `frame-1`/`frame-2` read as ~60°.
+- **No continuous road vibration.** The only shake is a landing impulse scaled by impact speed, decaying in under 150 ms, and it is zero in the air and while swimming. Speed comes from FOV breathe, lazy yaw and her near-field parallax.
+- **Lazy yaw, tight vertical follow** (`frame-4`).
+- **Swim cam** at `WATER_Y + 0.6 m`, pitched about 6° up (`frame-7`).
+- **Shadow detach on pop.** Bike and rider cast shadows, and render pitch pivots around the rear contact point (`frame-2`).
+- **Her bright-dusk palette shift is the fix for my #1 ask** (road luma ~10 → 70–100). Agreed, with the condition below.
+
+**Disagreements, with reasons**
+- **Keep a real low sun on the street. Blue-hour ambient alone isn't enough.** `frame-4`, `frame-5` and `frame-6` are sunless blue hour. `frame-1` and `frame-2`, our riding frames, have a hard low sun and a shadow metres long ahead of the rider. That shadow is the cheapest height-and-speed cue we have. My proposal for the plan:
+  - `frame-2` governs the street: low sun behind and to the right of the camera on the main ride.
+  - `frame-3` governs the water: sparkle down the canal.
+  - `frame-5` governs only the ambient lift: blue shadows, nothing near-black.
+  - The ride/sun orientation fix from Round 1 still stands.
+- **Hop-line occlusion: fix it with height, not by moving the camera aside.** In `frame-1`/`frame-2` the rider is dead centre and the road ahead shows over his shoulders because the camera sits at about shoulder height. A sideways offset breaks the "behind the rider" read.
+
+**Changed my mind**
+- **Camera height 1.5 → 1.65 m (shoulder, not hip).** Neon's point about the bin lid hidden by the torso is right at 1.5 m: the lid at 1.10 m sits behind a 1.2–1.5 m torso. At 1.65 m and 3.6 m back, the next lid stays visible above the shoulders, and the horizon stays in the top third (`frame-1`).
+
+**Play-proof item for the joint plan (physics, my lane)**
+- Moth's `b5a2017` reverted her world because **bin-to-bin fails 3/3 at 3.5 m pitch**: the rider stops at the wall 1 cm short of bin 2.
+- The lid is 1.04 m long. That's too little runway to charge a hop on top of it, and my module drops the charge in the air after the 80 ms coyote window.
+- My fix, physics only: **keep a charge held through the air into the landing**, so hold → land on bin 1 → release pops straight away. That makes bin-to-bin a rhythm skill rather than a runway problem.
+- If that alone doesn't clear 3.5 m, I'll ask for 3.0 m pitch in the plan, as a named tradeoff, rather than move the physics thresholds.
+- Pedal-thrust taper during the charge (`opus-tuning.md` option 2) is adopted too, per her composition point.
