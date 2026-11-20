@@ -27,10 +27,16 @@ export function buildWorld(scene) {
   const bins = [];
   const colliders = [];
 
-  /* grass */
+  /* grass — two slabs that STOP at the canal quay walls (outer face z=±10.65).
+     A single full-size plane used to run straight over the canal at y=0 and
+     hide the water (y=-0.55) beneath it: the canal rendered as dark lawn. */
   {
-    const g = new THREE.Mesh(new THREE.PlaneGeometry(280, 280), mat(0x39543a, 1));
-    g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
+    const grassMat = mat(0x39543a, 1);
+    for (const s of [1, -1]) {
+      const g = new THREE.Mesh(new THREE.PlaneGeometry(280, 129.35), grassMat);
+      g.rotation.x = -Math.PI / 2; g.position.z = s * 75.325;
+      g.receiveShadow = true; scene.add(g);
+    }
   }
   /* roads + sidewalks */
   const roadMat = mat(0x2b2f36, 0.95), walkMat = mat(0x8b8f96, 0.95), lineMat = mat(0xd8c95a, 0.8);
@@ -47,17 +53,27 @@ export function buildWorld(scene) {
   /* canal: bed, quay walls, shallows, water */
   let waterMat;
   {
-    box(280, 0.1, 20.4, mat(0x1d3038, 1), 0, -1.6, 0, scene, false);
+    /* bed kept LIGHT blue-teal: seen through the translucent surface it is
+       what makes the strip read as water instead of a dark trench */
+    box(280, 0.1, 20.4, mat(0x3d7a8c, 1), 0, -1.6, 0, scene, false);
     box(280, 1.8, 0.7, mat(0x5d6066, 1), 0, -0.75, 10.3, scene, false);
     box(280, 1.8, 0.7, mat(0x5d6066, 1), 0, -0.75, -10.3, scene, false);
-    const shelfMat = mat(0x4a4640, 1);
+    const shelfMat = mat(0x51707a, 1);
     for (const s of [1, -1]) {
       const sh = box(280, 0.18, 2.0, shelfMat, 0, -1.06, s * 9.1, scene, false);
       sh.rotation.x = s * 0.42;
     }
-    waterMat = new THREE.MeshStandardMaterial({ color: 0x2f7fb8, transparent: true, opacity: 0.82, roughness: 0.25, metalness: 0.1, emissive: 0x155e7d, emissiveIntensity: 1.5 });
+    waterMat = new THREE.MeshStandardMaterial({ color: 0x2f7fb8, transparent: true, opacity: 0.78, roughness: 0.12, metalness: 0.1, emissive: 0x155e7d, emissiveIntensity: 1.3 });
     const w = new THREE.Mesh(new THREE.PlaneGeometry(280, 20.2), waterMat);
     w.rotation.x = -Math.PI / 2; w.position.y = WATER_Y; scene.add(w);
+    /* static light streaks floating a hair above the surface — fake the
+       dusk glints streetlights/sun would throw, without any animation */
+    const streakMat = new THREE.MeshBasicMaterial({ color: 0x9fd4e8, transparent: true, opacity: 0.13, depthWrite: false });
+    const streaks = [[-88, -3.5, 46, 1.1], [-52, 4.2, 30, 0.7], [-18, -5.8, 38, 0.9], [16, 5.2, 34, 0.8], [48, -4.4, 42, 1.2], [86, 3.4, 36, 0.7], [112, -2.8, 26, 0.9], [-118, 4.8, 30, 0.8]];
+    for (const [sx, sz, sl, sw] of streaks) {
+      const st = new THREE.Mesh(new THREE.PlaneGeometry(sl, sw), streakMat);
+      st.rotation.x = -Math.PI / 2; st.position.set(sx, WATER_Y + 0.02, sz); scene.add(st);
+    }
   }
   /* bridge: deck, ramps, rails, pillars */
   const deckMat = mat(0x3a3f47, 0.95), railMat = mat(0xb8452e, 0.7, 0.25);
