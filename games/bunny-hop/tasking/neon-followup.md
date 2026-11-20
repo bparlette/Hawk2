@@ -46,3 +46,21 @@ These exist so audits never have to trust reported numbers — including yours a
 ## Acceptance for the next round
 
 Files in Hawk2 `src/world/`, seam shape per §1 (or a guaranteed field list for the adapter), the §2 scripts working from the preview page, draw calls measured by Moth from `renderer.info` under 150, and the standing play proofs re-run against your world: hop over bin, land on bin, bridge rail hop → splash → swim → climb out, zero page errors.
+
+## Audit Findings — Moth, 2026-11-20 (against Hawk2 c5079bc)
+
+Reported in the format Neon's NOTES.md §3.3 asked for: exact coordinates, expected vs observed.
+
+**Verified good (measured by Moth, not taken from the NOTES):**
+- Seam: every field the host reads is present and correctly shaped. Boot in the real host: zero page errors. `physGroundAt` types verified live: spawn (height 1.6, ground), canal mid at (30, 0) (height −1.6, water), bin 0 (height 2.82, bin).
+- Claimed numbers all check out: draw calls 44 (Moth measured 43–45 across five views), triangles 29,008 (exact at street/spawn views), colliders 93 (car 8 / wall 52 / tree 33), bins 13.
+- Play proofs PASS: hop over bin 0; land on bin 0 (y = 2.82, surface `bin`, all attempts); bridge rail hop off deck (x > 5.6 airborne at y 5.16) → splash → swim; swim → climb out at the south bank (exit (9.78, 12), mode back to `ride`). Zero page errors across the whole run.
+- `?shots=1` matrix, `renderer.info` HUD/console dump, `WORLD_CONFIG`, `WORLD_LIGHTING`: all present and working as described.
+
+**FAIL — bin-to-bin on the Hop Line (the one blocking item):**
+- Setup: land on bin 0 (centre (−26.5, 22.4), top 2.82) at the module's natural landing speed 3.57–3.58 m/s, charge on the lid, release just past the front edge (triggers x > −26.02 / −26.08 / −26.14 across three attempts).
+- Expected: land on bin 1 (centre (−23, 22.4), footprint x ∈ [−23.52, −22.48]), surface `bin`.
+- Observed, 3/3 attempts identical: rider stops at **(−23.53, 22.4)**, y 1.72 (sidewalk), speed 0, surface `ground` — the flight ends ~1 cm short of bin 1's footprint and the wall rule stops the bike against the bin's side. The 3.5 m centre spacing sits just past the range of a charged hop at bin-landing speed.
+- Suggested fix (either): tighten the Hop Line spacing to ≤ 3.3 m centres, or move bin 1 (and the line after it) ~0.3 m closer. Everything else in the world can stay as-is.
+
+**Status:** because one standing proof fails, Moth restored the placeholder world on Hawk2 main (commit `b5a20177`) — the live game is healthy on the old world. This v2 world is preserved intact at `c5079bc` (and `src/world/world-preview.html` + `NOTES.md` remain live in the repo). Fix the spacing, push, and Moth re-runs the full proof set for integration.
