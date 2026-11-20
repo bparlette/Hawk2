@@ -372,6 +372,7 @@ function createCanalWater(sunDir, fogColor, fogNear, fogFar) {
   };
   const mat = new THREE.ShaderMaterial({
     transparent: true,
+    side: THREE.DoubleSide, // the surface must also render seen from BELOW (diving)
     uniforms,
     vertexShader: /* glsl */ `
       varying vec3 vWorldPos;
@@ -409,10 +410,32 @@ function createCanalWater(sunDir, fogColor, fogNear, fogFar) {
         ));
 
         vec3 V = normalize(cameraPosition - vWorldPos);
+
+        /* ---- the surface seen from BELOW (diving): a bright refractive
+           ceiling — cyan brightening toward overhead, a warm sun glow, and
+           ripple sparkle. No fog: this IS the boundary the fog sits under. */
+        if (!gl_FrontFacing) {
+          float up = pow(max(dot(V, vec3(0.0, 1.0, 0.0)), 0.0), 1.5);
+          float sun = pow(max(dot(V, uSunDir), 0.0), 5.0);
+          float sparkle = 0.5 + 0.5 * sin(p.x * 6.0 + t * 2.0 + w3 * 4.0) * sin(p.y * 5.0 - t * 1.7);
+          vec3 colB = mix(vec3(0.16, 0.42, 0.58), vec3(0.55, 0.82, 0.92), up);
+          colB += vec3(1.0, 0.85, 0.66) * sun * 0.9;
+          colB += vec3(0.5, 0.75, 0.85) * sparkle * 0.12;
+          gl_FragColor = vec4(colB, 0.97);
+          return;
+        }
+
         float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.8);
 
         // frame-3 / frame-7 bright dusk blue-teal water reflecting cyan-pink sky
+        // (the reflection gradient is sampled from the same sky the PMREM
+        // environment is generated from, so shader water and env-lit
+        // materials agree)
         vec3 deepCol = vec3(0.09, 0.26, 0.44);
+        /* depth-based colour: the bed shelves up toward the quay walls, so
+           |z| is a depth proxy — shallow edges go lighter teal */
+        float shallow = smoothstep(3.5, 6.9, abs(p.y));
+        deepCol = mix(deepCol, vec3(0.17, 0.46, 0.58), shallow * 0.65);
         vec3 skyRefl = mix(vec3(0.36, 0.56, 0.82), vec3(0.96, 0.70, 0.66), pow(max(dot(reflect(-V, N), uSunDir), 0.0), 2.4));
         vec3 col = mix(deepCol, skyRefl, clamp(0.28 + fresnel * 0.68, 0.0, 0.92));
 
@@ -421,6 +444,11 @@ function createCanalWater(sunDir, fogColor, fogNear, fogFar) {
         float broadSpec = pow(max(dot(N, H), 0.0), 14.0);
         col += vec3(1.0, 0.88, 0.72) * spec * 1.55;
         col += vec3(0.98, 0.68, 0.58) * broadSpec * 0.30;
+        /* sun glitter: fine view-dependent sparkle that twinkles as the
+           camera moves (frame-3 canal sparkle) */
+        float glit = pow(max(dot(N, H), 0.0), 240.0)
+          * (1.5 + 1.5 * sin(p.x * 23.0 + t * 3.0) * sin(p.y * 19.0 - t * 2.2));
+        col += vec3(1.0, 0.9, 0.74) * glit * 2.2;
 
         float streak = smoothstep(0.52, 0.95, sin(p.x * 0.7 + t * 1.1 + w2 * 1.6) * 0.5 + 0.5);
         col += vec3(0.28, 0.44, 0.60) * streak * 0.12;
@@ -430,11 +458,14 @@ function createCanalWater(sunDir, fogColor, fogNear, fogFar) {
 
         float edge = smoothstep(6.25, 7.05, abs(p.y));
         col = mix(col, vec3(0.76, 0.82, 0.88), edge * (0.25 + 0.12 * sin(p.x * 1.8 + t * 1.7)));
+        /* soft foam where the water meets the quay walls */
+        float foam = smoothstep(6.55, 6.95, abs(p.y)) * (0.35 + 0.30 * sin(p.x * 2.6 + t * 2.3 + w2 * 2.0));
+        col = mix(col, vec3(0.85, 0.92, 0.95), clamp(foam, 0.0, 0.55));
 
         float fogFactor = smoothstep(uFogNear, uFogFar, vFogDepth);
         col = mix(col, uFogColor, fogFactor);
 
-        gl_FragColor = vec4(col, 0.94);
+        gl_FragColor = vec4(col, mix(0.94, 0.88, shallow));
       }
     `,
   });
@@ -489,6 +520,7 @@ export function buildWorld(scene, configOverrides = null) {
   const colliders = []; // [{ minX, maxX, minZ, maxZ, top, type }]
   const bins = [];      // [{ x, z, top }] (landable bin footprints)
   const binBoxes = [];  // exact AABBs for groundAt(x, z) including dumpster
+  const binProps = [];  // [{ x, z, top, baseY, mesh }] individual bin meshes — the host tips these over on prop hits
   const climbOut = [];  // [{ x, z, side }]
 
   function addCollider(minX, maxX, minZ, maxZ, top, type = 'wall') {
@@ -658,6 +690,45 @@ export function buildWorld(scene, configOverrides = null) {
   const { mesh: waterMesh, mat: waterMat } = createCanalWater(sunDir, fog.color, fog.near, fog.far);
   scene.add(waterMesh);
 
+  /* Caustic light dancing on the canal bed (1 additive draw): two moving
+     interference layers, strongest mid-channel. Reads from below while
+     diving and faintly through the surface at grazing angles. */
+  {
+    const cGeo = new THREE.PlaneGeometry(MAP_HALF_X * 2, 10.4, 1, 1);
+    cGeo.rotateX(-Math.PI / 2);
+    const cUniforms = { uTime: { value: 0 } };
+    const cMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: cUniforms,
+      vertexShader: /* glsl */ `
+        varying vec3 vWorldPos;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldPos = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform float uTime;
+        varying vec3 vWorldPos;
+        void main() {
+          vec2 p = vWorldPos.xz;
+          float t = uTime;
+          float c1 = sin(p.x * 1.9 + t * 0.9) * sin(p.y * 2.3 - t * 0.7);
+          float c2 = sin(p.x * 3.7 - t * 1.3 + p.y * 1.2) * sin(p.y * 4.1 + t * 1.1);
+          float ca = pow(max(c1 * c2, 0.0), 1.6) * 1.9;
+          float fade = 1.0 - smoothstep(3.6, 5.2, abs(p.y));
+          gl_FragColor = vec4(vec3(0.30, 0.55, 0.66) * ca * fade * 0.5, 1.0);
+        }
+      `,
+    });
+    const caustics = new THREE.Mesh(cGeo, cMat);
+    caustics.position.y = WATER_Y - 1.40;
+    caustics.renderOrder = 2;
+    caustics.onBeforeRender = () => { cUniforms.uTime.value = performance.now() * 0.001; };
+    scene.add(caustics);
+  }
+
   // =========================================================================
   // 2. TWO CLIMB-OUT SPOTS (Steps + Yellow Steel Ladders into the Water)
   // =========================================================================
@@ -808,21 +879,65 @@ export function buildWorld(scene, configOverrides = null) {
   // =========================================================================
   // 5. TRASH BINS (Hop Line + Singles + Dumpster — ~1.1 m tall)
   // =========================================================================
+  // Bins are individual meshes (one merged vertex-coloured geometry each) so
+  // the host can tip them over on a prop hit; everything else stays bucketed.
+  const binMeshMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.52, metalness: 0.14 });
+  function colouredPart(geo, hex, x, y, z, rz = 0) {
+    if (rz) geo.rotateZ(rz);
+    geo.translate(x, y, z);
+    const g = geo.index ? geo.toNonIndexed() : geo;
+    const n = g.attributes.position.count;
+    const col = new Float32Array(n * 3);
+    const c = new THREE.Color(hex);
+    for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return g;
+  }
+  function mergeColoured(parts) {
+    let total = 0;
+    for (const g of parts) total += g.attributes.position.count;
+    const pos = new Float32Array(total * 3), norm = new Float32Array(total * 3),
+      uv = new Float32Array(total * 2), col = new Float32Array(total * 3);
+    let o = 0;
+    for (const g of parts) {
+      const n = g.attributes.position.count;
+      pos.set(g.attributes.position.array, o * 3);
+      norm.set(g.attributes.normal.array, o * 3);
+      if (g.attributes.uv) uv.set(g.attributes.uv.array, o * 2);
+      col.set(g.attributes.color.array, o * 3);
+      o += n;
+      g.dispose();
+    }
+    const m = new THREE.BufferGeometry();
+    m.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    m.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+    m.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    m.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return m;
+  }
   function addTrashBin(x, z, baseY, blue = false, yaw = 0) {
     const w = 0.92;
     const d = 0.88;
     const h = 1.1;
     const top = +(baseY + h).toFixed(3);
-    const bodyMat = blue ? 'binBlue' : 'binGreen';
+    const bodyCol = blue ? 0x34649c : 0x3b764e;
 
-    addBox(bodyMat, w * 0.88, h * 0.55, d * 0.88, x, baseY + h * 0.275, z, 0, yaw);
-    addBox(bodyMat, w, h * 0.38, d, x, baseY + h * 0.72, z, 0, yaw);
-    addBox('binLid', w * 1.05, 0.11, d * 1.05, x, baseY + h - 0.055, z, 0, yaw);
-    const hx = x + Math.sin(yaw) * (d * 0.52);
-    const hz = z + Math.cos(yaw) * (d * 0.52);
-    addBox('binLid', 0.62, 0.05, 0.06, hx, baseY + h - 0.16, hz, 0, yaw);
-    addCyl('carTire', 0.11, 0.11, 0.08, x - 0.38, baseY + 0.11, z - 0.36, 0, 0, Math.PI / 2);
-    addCyl('carTire', 0.11, 0.11, 0.08, x + 0.38, baseY + 0.11, z - 0.36, 0, 0, Math.PI / 2);
+    const geo = mergeColoured([
+      colouredPart(new THREE.BoxGeometry(w * 0.88, h * 0.55, d * 0.88), bodyCol, 0, h * 0.275, 0),
+      colouredPart(new THREE.BoxGeometry(w, h * 0.38, d), bodyCol, 0, h * 0.72, 0),
+      colouredPart(new THREE.BoxGeometry(w * 1.05, 0.11, d * 1.05), 0xd4dae2, 0, h - 0.055, 0),
+      colouredPart(new THREE.BoxGeometry(0.62, 0.05, 0.06), 0xd4dae2, 0, h - 0.16, d * 0.52),
+      colouredPart(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 12), 0x17181c, -0.38, 0.11, -0.36, Math.PI / 2),
+      colouredPart(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 12), 0x17181c, 0.38, 0.11, -0.36, Math.PI / 2),
+    ]);
+    const mesh = new THREE.Mesh(geo, binMeshMat);
+    mesh.position.set(x, baseY, z);
+    mesh.rotation.y = yaw;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.name = 'world_bin';
+    scene.add(mesh);
+    binProps.push({ x, z, top, baseY, mesh });
 
     bins.push({ x, z, top });
     binBoxes.push({ minX: x - 0.52, maxX: x + 0.52, minZ: z - 0.52, maxZ: z + 0.52, top });
@@ -1450,6 +1565,7 @@ export function buildWorld(scene, configOverrides = null) {
     surfaces: { groundAt, bins },
     colliders,
     bins,
+    binProps,
     water,
     climbOutAt,
     climbOut: climbOut.map(({ x, z }) => ({ x, z })),

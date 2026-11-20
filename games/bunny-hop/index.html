@@ -9,6 +9,7 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
   #game{position:fixed;inset:0;}
+  #uwtint{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 42%, rgba(16,90,120,.16), rgba(6,48,74,.40));opacity:0;pointer-events:none;z-index:500;}
   canvas{display:block;}
   #hud{position:fixed;inset:0;pointer-events:none;z-index:1100;}
   #speed{position:absolute;top:calc(10px + env(safe-area-inset-top));left:14px;color:#fff;
@@ -42,12 +43,13 @@
 </head>
 <body>
 <div id="game"></div>
+<div id="uwtint"></div>
 <div id="hud">
   <div id="speed"><b>0</b> km/h</div>
   <div id="mode"></div>
   <div id="title">BUNNY HOP</div>
   <div id="prompt"></div>
-  <div id="hint"><span>Left stick steers — the bike pedals itself &nbsp;·&nbsp; WASD on keyboard &nbsp;·&nbsp; HOLD <b>A</b> or <b>SPACE</b> to crouch, RELEASE to bunny hop &nbsp;·&nbsp; <b>B</b> brake &nbsp;·&nbsp; In air: stick up/down or W/S pitch &nbsp;·&nbsp; Hop the bridge rail and swim!</span></div>
+  <div id="hint"><span>Left stick steers — the bike pedals itself &nbsp;·&nbsp; WASD on keyboard &nbsp;·&nbsp; HOLD <b>A</b> or <b>SPACE</b> to crouch, RELEASE to bunny hop &nbsp;·&nbsp; <b>B</b> brake &nbsp;·&nbsp; In air: stick up/down or W/S pitch &nbsp;·&nbsp; Hop the bridge rail and swim — in water hold <b>B</b>/<b>S</b> to dive, <b>A</b> to surface!</span></div>
 </div>
 <div id="stickZone"></div>
 <div id="stickBase"></div><div id="stickKnob"></div>
@@ -99,6 +101,51 @@ scene.add(new THREE.AmbientLight(WORLD_LIGHTING.ambient.color, WORLD_LIGHTING.am
 /* ============================================================ WORLD + PHYSICS (standalone modules) */
 const world = buildWorld(scene);
 const WATER_Y = world.water.y;
+/* ---- Prop response (host-side, additive — the physics module is untouched):
+   bins are loose props. A side hit at speed knocks the bin over (it becomes
+   ground clutter: physGroundAt presents the base ground, the mesh tips), the
+   rider deflects and keeps ~80% speed. A slow touch steers the rider around;
+   sustained contact tips the bin anyway, so a stuck state cannot persist.
+   Landing on an upright bin's lid is untouched (detection requires the
+   rider's feet to be well below the lid). */
+const binProps = world.binProps || [];
+for (const bp of binProps){
+  bp.baseHeight = Math.min(world.groundAt(bp.x + 1.15, bp.z), world.groundAt(bp.x, bp.z + 1.15));
+  bp.knocked = false; bp.contact = 0; bp.anim = null;
+}
+function knockBin(bp, fx, fz){
+  bp.knocked = true;
+  const pivot = new THREE.Group();
+  pivot.position.set(bp.x + fx * 0.48, bp.baseY, bp.z + fz * 0.48);
+  scene.add(pivot);
+  pivot.attach(bp.mesh);
+  bp.anim = { pivot, t: 0, axis: new THREE.Vector3(fz, 0, -fx).normalize() };
+}
+function propResponse(dt){
+  const fx = Math.sin(S.heading), fz = Math.cos(S.heading);
+  for (const bp of binProps){
+    if (bp.knocked) continue;
+    const dx = bp.x - S.x, dz = bp.z - S.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist > 1.02){ bp.contact = 0; continue; }
+    const toward = dist > 0.01 ? (dx * fx + dz * fz) / dist : 0;
+    const spd = Math.abs(S.speed);
+    const rel = Math.atan2(Math.sin(Math.atan2(dx, dz) - S.heading), Math.cos(Math.atan2(dx, dz) - S.heading));
+    if (S.grounded && spd >= 2.2 && toward > 0.2 && S.y < bp.top - 0.25){
+      knockBin(bp, fx, fz);
+      S.heading -= THREE.MathUtils.clamp(rel * 0.55, -0.35, 0.35);
+      S.speed *= 0.8;
+    } else if (!S.grounded && spd >= 2.2 && toward > 0.2 && S.y < bp.top - 0.45 && S.vy < -0.5){
+      knockBin(bp, fx, fz); // falling short into the bin's face: tip it, keep flying
+      S.heading -= THREE.MathUtils.clamp(rel * 0.55, -0.35, 0.35);
+      S.speed *= 0.85;
+    } else if (S.grounded && spd < 2.2 && dist < 0.9 && S.y < bp.top - 0.25){
+      S.heading -= THREE.MathUtils.clamp(rel * 1.15 * dt, -0.06, 0.06); // soft slide around it
+      bp.contact += dt;
+      if (bp.contact > 0.7 && spd < 0.6){ knockBin(bp, fx, fz); S.speed = Math.max(S.speed, 1.2); bp.contact = 0; }
+    } else bp.contact = 0;
+  }
+}
 /* Physics seam (Opus module v2): env.groundAt must return { height, type }.
    - bin footprints: landable tops, type 'bin' (buildWorld.groundAt already returns the lid height there).
    - canal: type 'water', height = canal bed (below WATER_Y), so the module fires splash on entry.
@@ -109,6 +156,7 @@ const WATER_Y = world.water.y;
 function physGroundAt(x, z){
   let height = world.groundAt(x, z), type = 'ground';
   for (const b of world.bins) if (Math.abs(x - b.x) < 0.52 && Math.abs(z - b.z) < 0.52) { type = 'bin'; break; }
+  for (const bp of binProps) if (bp.knocked && Math.abs(x - bp.x) < 0.56 && Math.abs(z - bp.z) < 0.56) { if (height > bp.baseHeight) height = bp.baseHeight; if (type === 'bin') type = 'ground'; }
   if (type === 'ground' && world.water.contains(x, z)) type = 'water';
   if (type === 'ground' && Math.abs(x) <= 5.2 && Math.abs(z) < 20.5 && height > 0.02) type = 'deck';
   for (const c of world.colliders) if (x > c.minX && x < c.maxX && z > c.minZ && z < c.maxZ && c.top > height) { height = c.top; type = 'ground'; }
@@ -136,78 +184,289 @@ function tube(a, b, r, material, parent){
 const V3 = (x,y,z)=>new THREE.Vector3(x,y,z);
 const frameMat = mat(0xd8434f, 0.35, 0.6), chromeMat = mat(0xb9c0c9, 0.3, 0.85), tyreMat = mat(0x17181c, 0.95),
       skinMat = mat(0xc98a5e, 0.8), shirtMat = mat(0xffd23f, 0.85), pantsMat = mat(0x2b4d8f, 0.9),
-      shoeMat = mat(0xf2f2f2, 0.7), capMat = mat(0x22242c, 0.8);
+      shoeMat = mat(0xf2f2f2, 0.7), capMat = mat(0x24304f, 0.85),
+      darkSteelMat = mat(0x2a2c30, 0.55, 0.7), rubberMat = mat(0x141416, 0.95),
+      teeMat = mat(0xf3efe6, 0.92), shortsMat = mat(0xb09a72, 0.95), shortsDarkMat = mat(0x8a764f, 0.95),
+      hairMat = mat(0x2a1c12, 0.9), eyeMat = mat(0xf8f8f5, 0.3), soleMat = mat(0x3a3a3e, 0.9);
+/* --- geometry helpers for the modelled bike + Figure-Factory-style rider --- */
+function xform(geo, px,py,pz, rx=0,ry=0,rz=0, sx=1,sy=1,sz=1){
+  const g = geo.clone();
+  g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(px,py,pz),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(rx,ry,rz)), new THREE.Vector3(sx,sy,sz)));
+  return g;
+}
+function tubeGeo(a, b, r, seg=10){
+  const d = new THREE.Vector3().subVectors(b,a); const len = d.length();
+  const g = new THREE.CylinderGeometry(r, r, len, seg);
+  g.applyMatrix4(new THREE.Matrix4().compose(a.clone().addScaledVector(d,0.5),
+    new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), d.normalize()), new THREE.Vector3(1,1,1)));
+  return g;
+}
+function mergeGeos(list){
+  const parts = list.map(g => g.index ? g.toNonIndexed() : g);
+  let total = 0; for (const g of parts) total += g.attributes.position.count;
+  const pos = new Float32Array(total*3), nor = new Float32Array(total*3), uv = new Float32Array(total*2);
+  let o3 = 0, o2 = 0;
+  for (const g of parts){
+    pos.set(g.attributes.position.array, o3); nor.set(g.attributes.normal.array, o3);
+    if (g.attributes.uv) uv.set(g.attributes.uv.array, o2);
+    o3 += g.attributes.position.count*3; o2 += g.attributes.position.count*2;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor,3));
+  out.setAttribute('uv', new THREE.BufferAttribute(uv,2));
+  return out;
+}
+function mergedMesh(list, material, parent){
+  const m = new THREE.Mesh(mergeGeos(list), material);
+  m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+}
+/* capsule limb segment hanging from its pivot (origin at joint, extends -Y) */
+function limbGeo(r, len){ const g = new THREE.CapsuleGeometry(r, len, 3, 10); g.translate(0, -(len/2 + r*0.4), 0); return g; }
+function limbMesh(r, len, material, parent){ const m = new THREE.Mesh(limbGeo(r, len), material); m.castShadow = true; parent.add(m); return m; }
+function pivot(parent, x, y, z){ const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); return g; }
+function spokeTexture(){
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'); g.clearRect(0,0,256,256);
+  g.strokeStyle = 'rgba(196,204,216,0.95)'; g.lineWidth = 3;
+  for (let i=0;i<20;i++){ const a = i/20*Math.PI*2;
+    g.beginPath(); g.moveTo(128,128); g.lineTo(128 + Math.cos(a)*118, 128 + Math.sin(a)*118); g.stroke(); }
+  g.strokeStyle = 'rgba(150,158,170,1)'; g.lineWidth = 7;
+  g.beginPath(); g.arc(128,128,118,0,Math.PI*2); g.stroke();
+  g.fillStyle = 'rgba(170,178,190,1)';
+  g.beginPath(); g.arc(128,128,17,0,Math.PI*2); g.fill();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const spokeMat = new THREE.MeshStandardMaterial({ map: spokeTexture(), transparent: true, alphaTest: 0.35,
+  side: THREE.DoubleSide, roughness: 0.4, metalness: 0.7 });
+/* --- Figure parts, rigkit/Ryu-grade: shaped geometry, clothing as geometry.
+   Head = cranium + jaw + ears + nose (skin, merged), eyes/pupils/brows/mouth/
+   hair (dark, merged), cap = dome + brim + button (merged). Limbs are tapered
+   segments with joint spheres; the tee has sleeves + cuffs + collar + hem, the
+   shorts have a waistband and flared leg openings over skin thighs. --- */
+function tapered(rTop, rBot, len, seg = 12){ const g = new THREE.CylinderGeometry(rTop, rBot, len, seg); g.translate(0, -len/2, 0); return g; }
+function buildHead(parent, y0){
+  mergedMesh([
+    xform(new THREE.SphereGeometry(0.112, 18, 14), 0, y0 + 0.115, 0, 0, 0, 0, 0.95, 1.06, 1.02),
+    xform(new THREE.CylinderGeometry(0.082, 0.064, 0.08, 14), 0, y0 + 0.045, 0.014, 0, 0, 0, 1.0, 1.0, 1.08),
+    xform(new THREE.SphereGeometry(0.02, 8, 8), -0.104, y0 + 0.10, -0.004, 0, 0, 0, 0.45, 0.98, 0.72),
+    xform(new THREE.SphereGeometry(0.02, 8, 8), 0.104, y0 + 0.10, -0.004, 0, 0, 0, 0.45, 0.98, 0.72),
+    xform(new THREE.ConeGeometry(0.02, 0.05, 8), 0, y0 + 0.082, 0.108, 1.25),
+  ], skinMat, parent);
+  mergedMesh([
+    xform(new THREE.SphereGeometry(0.0095, 8, 8), -0.041, y0 + 0.115, 0.107),
+    xform(new THREE.SphereGeometry(0.0095, 8, 8), 0.041, y0 + 0.115, 0.107),
+    xform(new THREE.BoxGeometry(0.042, 0.011, 0.014), -0.042, y0 + 0.148, 0.10),
+    xform(new THREE.BoxGeometry(0.042, 0.011, 0.014), 0.042, y0 + 0.148, 0.10),
+    xform(new THREE.BoxGeometry(0.05, 0.013, 0.012), 0, y0 + 0.036, 0.096),
+    xform(new THREE.CylinderGeometry(0.114, 0.117, 0.085, 14, 1, true, Math.PI*0.30, Math.PI*1.40), 0, y0 + 0.062, -0.004, 0, 0, 0, 0.97, 1, 1.03),
+  ], hairMat, parent);
+  mergedMesh([
+    xform(new THREE.SphereGeometry(0.0165, 10, 8), -0.041, y0 + 0.115, 0.096, 0, 0, 0, 1, 1.15, 0.55),
+    xform(new THREE.SphereGeometry(0.0165, 10, 8), 0.041, y0 + 0.115, 0.096, 0, 0, 0, 1, 1.15, 0.55),
+  ], eyeMat, parent);
+  mergedMesh([
+    xform(new THREE.SphereGeometry(0.121, 18, 10, 0, Math.PI*2, 0, 1.35), 0, y0 + 0.118, 0),
+    xform(new THREE.BoxGeometry(0.17, 0.018, 0.115), 0, y0 + 0.126, 0.118, -0.10),
+    xform(new THREE.CylinderGeometry(0.02, 0.02, 0.014, 10), 0, y0 + 0.238, 0),
+  ], capMat, parent);
+}
+function buildArmParts(sh, el, side){
+  mergedMesh([
+    xform(new THREE.SphereGeometry(0.06, 12, 10), 0, 0, 0),
+    tapered(0.053, 0.047, 0.20),
+    xform(new THREE.CylinderGeometry(0.050, 0.053, 0.05, 12), 0, -0.20, 0),
+  ], teeMat, sh);
+  mergedMesh([
+    xform(new THREE.SphereGeometry(0.041, 10, 8), 0, 0, 0),
+    tapered(0.040, 0.032, 0.24),
+    xform(new THREE.SphereGeometry(0.045, 10, 8), 0, -0.285, 0.015, 0, 0, 0, 0.8, 1.1, 1.3),
+    xform(new THREE.CapsuleGeometry(0.014, 0.045, 3, 8), -side*0.032, -0.265, 0.035, 0.4, 0, side*0.6),
+  ], skinMat, el);
+}
+function buildLegParts(hip, knee, ank){
+  mergedMesh([
+    xform(new THREE.SphereGeometry(0.066, 12, 10), 0, 0, 0),
+    tapered(0.070, 0.060, 0.21),
+    xform(new THREE.CylinderGeometry(0.062, 0.068, 0.055, 12), 0, -0.225, 0),
+  ], shortsMat, hip);
+  const thighSkin = new THREE.Mesh(new THREE.CapsuleGeometry(0.047, 0.15, 3, 10), skinMat);
+  thighSkin.geometry.translate(0, 0, 0); thighSkin.position.y = -0.315; thighSkin.castShadow = true; hip.add(thighSkin);
+  mergedMesh([
+    xform(new THREE.SphereGeometry(0.044, 10, 8), 0, 0, 0),
+    tapered(0.040, 0.030, 0.34),
+  ], skinMat, knee);
+  mergedMesh([
+    xform(new THREE.BoxGeometry(0.088, 0.052, 0.175), 0, -0.028, 0.028),
+    xform(new THREE.SphereGeometry(0.048, 10, 8), 0, -0.034, 0.115, 0, 0, 0, 1.0, 0.55, 1.1),
+  ], shoeMat, ank);
+  mergedMesh([
+    xform(new THREE.BoxGeometry(0.094, 0.024, 0.245), 0, -0.054, 0.04),
+  ], soleMat, ank);
+}
 const bikeGroup = new THREE.Group(); scene.add(bikeGroup);
 const leanGroup = new THREE.Group(); bikeGroup.add(leanGroup);
 const pitchGroup = new THREE.Group(); leanGroup.add(pitchGroup);
-let wheelF, wheelR, crank, legL, legR, shinL, shinR, riderRig;
+let wheelF, wheelR, crank, riderRig;
+let spineJ, neckJ, shL, shR, elbL, elbR, hipJL, hipJR, kneeJL, kneeJR, ankJL, ankJR;
+let airBlend = 0;
+const BB = { y: 0.37, z: -0.04 }, CRANK_R = 0.17, LEG_L1 = 0.42, LEG_L2 = 0.42;
 {
-  const wheelGeo = new THREE.CylinderGeometry(0.34,0.34,0.07,20); wheelGeo.rotateZ(Math.PI/2);
-  const hubGeo = new THREE.CylinderGeometry(0.05,0.05,0.1,8); hubGeo.rotateZ(Math.PI/2);
+  /* ---- BMX, modelled: stations first (bike space: +Z forward, ground y=0) ---- */
+  const Ar = V3(0, 0.34, -0.52), Af = V3(0, 0.34, 0.52);            // axles
+  const Bb = V3(0, BB.y, BB.z);                                     // bottom bracket
+  const Sc = V3(0, 0.95, -0.215);                                   // seat cluster
+  const Ht = V3(0, 1.00, 0.385), Hb = V3(0, 0.90, 0.425);           // head tube top/bottom
+  const hubGeo = new THREE.CylinderGeometry(0.032, 0.032, 0.11, 10); hubGeo.rotateZ(Math.PI/2);
   function wheel(z){
     const g = new THREE.Group(); g.position.set(0, 0.34, z); pitchGroup.add(g);
-    const t = new THREE.Mesh(wheelGeo, tyreMat); t.castShadow = true; g.add(t);
-    g.add(new THREE.Mesh(hubGeo, chromeMat));
-    for (let i=0;i<3;i++){ const s = box(0.02, 0.6, 0.03, chromeMat, 0, 0, 0, g); s.rotation.x = i*Math.PI/3; s.castShadow=false; }
+    const tire = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.04, 10, 30), tyreMat);
+    tire.rotation.y = Math.PI/2; tire.castShadow = true; g.add(tire);
+    const spokes = new THREE.Mesh(new THREE.CircleGeometry(0.298, 30), spokeMat);
+    spokes.rotation.y = Math.PI/2; g.add(spokes);
+    const hub = new THREE.Mesh(hubGeo, chromeMat); hub.castShadow = true; g.add(hub);
     return g;
   }
   wheelF = wheel(0.52); wheelR = wheel(-0.52);
-  tube(V3(0,0.36,-0.5), V3(0,0.62,0.18), 0.032, frameMat, pitchGroup);
-  tube(V3(0,0.62,0.18), V3(0,0.98,-0.18), 0.034, frameMat, pitchGroup);
-  tube(V3(0,0.62,0.18), V3(0,0.92,0.44), 0.034, frameMat, pitchGroup);
-  tube(V3(0,0.98,-0.18), V3(0,0.95,0.42), 0.03, frameMat, pitchGroup);
-  tube(V3(0,0.92,0.44), V3(0,0.34,0.52), 0.026, chromeMat, pitchGroup);
-  tube(V3(0,0.98,-0.18), V3(0,0.36,-0.5), 0.024, frameMat, pitchGroup);
-  box(0.07, 0.05, 0.3, mat(0x1c1c20,0.8), 0, 1.0, -0.2, pitchGroup);
-  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.52,8), chromeMat);
-  bar.rotation.z = Math.PI/2; bar.position.set(0, 1.06, 0.46); bar.castShadow = true; pitchGroup.add(bar);
-  tube(V3(0,0.95,0.42), V3(0,1.06,0.46), 0.024, chromeMat, pitchGroup);
-  crank = new THREE.Group(); crank.position.set(0, 0.38, 0.16); pitchGroup.add(crank);
-  const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.03,14), chromeMat);
-  disc.rotation.z = Math.PI/2; crank.add(disc);
-  box(0.03, 0.3, 0.03, chromeMat, 0, 0, 0, crank).rotation.x = 0.6;
+  /* frame: one merged mesh (down/top/seat tubes, stays, fork blades, head tube) */
+  const frameParts = [
+    tubeGeo(Hb, Bb, 0.031),                                  // down tube
+    tubeGeo(Ht, Sc, 0.029),                                  // top tube
+    tubeGeo(Bb, V3(0, 0.97, -0.225), 0.028),                 // seat tube
+    tubeGeo(Ht, Hb, 0.036),                                  // head tube
+    tubeGeo(Sc, V3(0, 0.99, -0.235), 0.02),                  // seat post
+  ];
+  for (const s of [-1, 1]){
+    frameParts.push(tubeGeo(V3(s*0.045, 0.90, -0.205), V3(s*0.045, 0.35, -0.515), 0.013)); // seat stays
+    frameParts.push(tubeGeo(V3(s*0.05, BB.y, BB.z), V3(s*0.05, 0.35, -0.515), 0.014));     // chain stays
+    frameParts.push(tubeGeo(V3(s*0.042, 0.915, 0.415), V3(s*0.042, 0.35, 0.515), 0.015));  // fork blades
+  }
+  mergedMesh(frameParts, frameMat, pitchGroup);
+  /* chrome: stem + handlebar (slight rise, straight crossbar) */
+  mergedMesh([
+    tubeGeo(Ht, V3(0, 1.075, 0.355), 0.021),
+    tubeGeo(V3(-0.27, 1.075, 0.355), V3(0.27, 1.075, 0.355), 0.02),
+    tubeGeo(V3(-0.27, 1.075, 0.355), V3(-0.20, 1.06, 0.375), 0.019),
+    tubeGeo(V3(0.27, 1.075, 0.355), V3(0.20, 1.06, 0.375), 0.019),
+  ], chromeMat, pitchGroup);
+  /* dark: saddle, grips, chain runs + rear cog */
+  mergedMesh([
+    xform(new THREE.BoxGeometry(0.075, 0.05, 0.28), 0, 1.005, -0.25, 0.06),
+    tubeGeo(V3(-0.315, 1.072, 0.35), V3(-0.265, 1.075, 0.356), 0.026),
+    tubeGeo(V3(0.315, 1.072, 0.35), V3(0.265, 1.075, 0.356), 0.026),
+    tubeGeo(V3(0.062, BB.y + 0.088, BB.z), V3(0.062, 0.385, -0.515), 0.008),
+    tubeGeo(V3(0.062, BB.y - 0.088, BB.z), V3(0.062, 0.295, -0.515), 0.008),
+    xform(new THREE.CylinderGeometry(0.048, 0.048, 0.016, 16), 0.058, 0.34, -0.52, 0, 0, Math.PI/2),
+  ], darkSteelMat, pitchGroup);
+  /* crankset (rotates with pedalPhase): chainring + arms + pedals */
+  crank = new THREE.Group(); crank.position.set(0, BB.y, BB.z); pitchGroup.add(crank);
+  {
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.092, 0.014, 24), chromeMat);
+    ring.rotation.z = Math.PI/2; ring.position.x = 0.055; ring.castShadow = true; crank.add(ring);
+    mergedMesh([
+      xform(new THREE.BoxGeometry(0.024, 0.034, 0.185), 0.105, 0, 0.078),
+      xform(new THREE.BoxGeometry(0.024, 0.034, 0.185), -0.105, 0, -0.078),
+      xform(new THREE.BoxGeometry(0.15, 0.022, 0.075), 0.145, 0, CRANK_R),
+      xform(new THREE.BoxGeometry(0.15, 0.022, 0.075), -0.145, 0, -CRANK_R),
+    ], darkSteelMat, crank);
+  }
+  /* ---- RIDER: Figure-Factory pattern — named pivot joints, shaped parts,
+         pose as data (POSE table + pedal IK below, driven per-frame) ---- */
   riderRig = new THREE.Group(); pitchGroup.add(riderRig);
-  box(0.3, 0.16, 0.2, pantsMat, 0, 0.98, -0.14, riderRig);
-  const torso = box(0.34, 0.52, 0.19, shirtMat, 0, 1.28, -0.02, riderRig); torso.rotation.x = 0.36;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 14, 12), skinMat);
-  head.position.set(0, 1.6, 0.1); head.castShadow = true; riderRig.add(head);
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 8, 0, Math.PI*2, 0, 1.25), capMat);
-  cap.position.set(0, 1.63, 0.1); riderRig.add(cap);
-  box(0.2, 0.03, 0.12, capMat, 0, 1.6, 0.22, riderRig);
-  function arm(side){
-    const g = new THREE.Group(); g.position.set(side*0.21, 1.44, 0.02); riderRig.add(g);
-    tube(V3(0,0,0), V3(side*0.03,-0.24,0.16), 0.042, shirtMat, g);
-    tube(V3(side*0.03,-0.24,0.16), V3(side*-0.02,-0.42,0.42), 0.036, skinMat, g);
-    return g;
+  mergedMesh([
+    xform(new THREE.SphereGeometry(0.145, 16, 12), 0, 1.03, -0.19, 0, 0, 0, 1.05, 0.68, 1.18),
+  ], shortsMat, riderRig);
+  mergedMesh([
+    xform(new THREE.CylinderGeometry(0.150, 0.156, 0.055, 14), 0, 1.115, -0.19, 0, 0, 0, 1.05, 1, 0.8),
+  ], shortsDarkMat, riderRig);
+  spineJ = pivot(riderRig, 0, 1.05, -0.19);
+  {
+    const pts = [[0.001, 0], [0.148, 0.0], [0.152, 0.04], [0.140, 0.16], [0.150, 0.30], [0.156, 0.36], [0.138, 0.42], [0.072, 0.465], [0.070, 0.48]]
+      .map(p => new THREE.Vector2(p[0], p[1]));
+    mergedMesh([
+      xform(new THREE.LatheGeometry(pts, 18), 0, 0, 0, 0, 0, 0, 1.12, 1, 0.74),
+      xform(new THREE.TorusGeometry(0.072, 0.015, 8, 18), 0, 0.465, 0, Math.PI/2),
+      xform(new THREE.CylinderGeometry(0.150, 0.154, 0.04, 14), 0, 0.02, 0, 0, 0, 0, 1.12, 1, 0.74),
+    ], teeMat, spineJ);
   }
-  arm(-1); arm(1);
-  function leg(side){
-    const hip = new THREE.Group(); hip.position.set(side*0.11, 0.95, -0.08); riderRig.add(hip);
-    box(0.095, 0.44, 0.095, pantsMat, 0, -0.22, 0, hip);
-    const shin = new THREE.Group(); shin.position.set(0, -0.44, 0); hip.add(shin);
-    box(0.08, 0.42, 0.08, pantsMat, 0, -0.21, 0, shin);
-    box(0.09, 0.05, 0.22, shoeMat, 0, -0.43, 0.05, shin);
-    return { hip, shin };
+  neckJ = pivot(spineJ, 0, 0.47, 0.02);
+  buildHead(neckJ, 0);
+  function buildArm(side){
+    const sh = pivot(spineJ, side*0.205, 0.40, 0.01);
+    const el = pivot(sh, 0, -0.30, 0);
+    buildArmParts(sh, el, side);
+    return { sh, el };
   }
-  const lL = leg(-1), lR = leg(1); legL = lL.hip; legR = lR.hip; shinL = lL.shin; shinR = lR.shin;
+  const aL = buildArm(-1), aR = buildArm(1);
+  shL = aL.sh; elbL = aL.el; shR = aR.sh; elbR = aR.el;
+  function buildLeg(side){
+    const hip = pivot(riderRig, side*0.10, 1.04, -0.18);
+    const knee = pivot(hip, 0, -LEG_L1, 0);
+    const ank = pivot(knee, 0, -LEG_L2, 0);
+    buildLegParts(hip, knee, ank);
+    return { hip, knee, ank };
+  }
+  const lL = buildLeg(-1), lR = buildLeg(1);
+  hipJL = lL.hip; kneeJL = lL.knee; ankJL = lL.ank;
+  hipJR = lR.hip; kneeJR = lR.knee; ankJR = lR.ank;
 }
-/* ---- swimmer (same rider, prone) — visible in swim / bail */
+/* rider pose data (Figure-Factory style): joint -> [rx, ry, rz] targets */
+const RIDER_POSE = {
+  spine:  { ride: [0.50, 0, 0], crouchAdd: 0.30, airAdd: -0.16 },
+  neck:   { ride: [-0.28, 0, 0] },
+  shoulder: { ride: [-1.04, 0, 0], crouchAdd: -0.16, airAdd: 0.04 },
+  elbow:  { ride: [-0.60, 0, 0], crouchAdd: -0.10 },
+  legAir: { hip: -0.34, knee: 0.26 },
+};
+/* pedal-locked 2-bone IK in the sagittal plane: feet stay ON the pedals */
+function solveLeg(hipJ, kneeJ, ankJ, side, ph, rigY){
+  const a = side > 0 ? ph : ph + Math.PI;
+  const ty = BB.y + Math.sin(a) * CRANK_R, tz = BB.z + Math.cos(a) * CRANK_R;
+  const hy = 1.04 + rigY, hz = -0.18;
+  let dy = ty - hy, dz = tz - hz;
+  let d = Math.hypot(dy, dz);
+  const maxD = LEG_L1 + LEG_L2 - 0.02;
+  if (d > maxD){ dy *= maxD/d; dz *= maxD/d; d = maxD; }
+  const phi = Math.atan2(dz, -dy);
+  const alpha = Math.acos(Math.max(-1, Math.min(1, (LEG_L1*LEG_L1 + d*d - LEG_L2*LEG_L2) / (2*LEG_L1*d))));
+  const beta = Math.acos(Math.max(-1, Math.min(1, (LEG_L1*LEG_L1 + LEG_L2*LEG_L2 - d*d) / (2*LEG_L1*LEG_L2))));
+  hipJ.rotation.x = -(phi + alpha);
+  kneeJ.rotation.x = Math.PI - beta;
+  ankJ.rotation.x = -(hipJ.rotation.x + kneeJ.rotation.x);
+}
+/* ---- swimmer: same articulated figure, prone swim pose — visible in swim / bail */
 const swimmer = new THREE.Group(); swimmer.visible = false; scene.add(swimmer);
-let swimArmL, swimArmR, swimLegL, swimLegR, swimFoam;
+let swimArmL, swimArmR, swimElbL, swimElbR, swimLegL, swimLegR, swimShinL, swimShinR, swimFoam;
 {
   swimFoam = new THREE.Mesh(new THREE.CircleGeometry(0.88, 20),
     new THREE.MeshBasicMaterial({ color:0xdff2ff, transparent:true, opacity:0.55, depthWrite:false }));
   swimFoam.rotation.x = -Math.PI/2; swimFoam.position.y = -0.4; swimmer.add(swimFoam);
-  box(0.34, 0.18, 0.55, shirtMat, 0, 0, -0.05, swimmer);
-  box(0.3, 0.15, 0.22, pantsMat, 0, -0.01, -0.42, swimmer);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 14, 12), skinMat);
-  head.position.set(0, 0.06, 0.32); head.castShadow = true; swimmer.add(head);
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 8, 0, Math.PI*2, 0, 1.25), capMat);
-  cap.position.set(0, 0.09, 0.32); swimmer.add(cap);
-  function sArm(side){ const g = new THREE.Group(); g.position.set(side*0.22, 0.02, 0.18); swimmer.add(g); box(0.08, 0.08, 0.46, skinMat, 0, 0, 0.23, g); return g; }
-  swimArmL = sArm(-1); swimArmR = sArm(1);
-  function sLeg(side){ const g = new THREE.Group(); g.position.set(side*0.1, 0, -0.52); swimmer.add(g); box(0.09, 0.09, 0.5, pantsMat, 0, 0, -0.25, g); return g; }
-  swimLegL = sLeg(-1); swimLegR = sLeg(1);
+  const sTorso = new THREE.Mesh(new THREE.CapsuleGeometry(0.145, 0.34, 4, 12), teeMat);
+  sTorso.rotation.x = Math.PI/2; sTorso.scale.set(1.12, 1, 0.72);
+  sTorso.position.set(0, 0, -0.02); sTorso.castShadow = true; swimmer.add(sTorso);
+  mergedMesh([
+    xform(new THREE.SphereGeometry(0.14, 14, 10), 0, -0.01, -0.30, 0, 0, 0, 1.05, 0.7, 1.15),
+  ], shortsMat, swimmer);
+  const sHeadP = pivot(swimmer, 0, -0.055, 0.315); sHeadP.rotation.x = 0.38;
+  buildHead(sHeadP, 0);
+  function sArm(side){
+    const sh = pivot(swimmer, side*0.205, 0.02, 0.15);
+    const el = pivot(sh, 0, -0.30, 0);
+    buildArmParts(sh, el, side);
+    return { sh, el };
+  }
+  const saL = sArm(-1), saR = sArm(1);
+  swimArmL = saL.sh; swimElbL = saL.el; swimArmR = saR.sh; swimElbR = saR.el;
+  function sLeg(side){
+    const hip = pivot(swimmer, side*0.10, -0.01, -0.36);
+    const knee = pivot(hip, 0, -0.40, 0);
+    const ank = pivot(knee, 0, -0.40, 0);
+    buildLegParts(hip, knee, ank);
+    return { hip, knee };
+  }
+  const slL = sLeg(-1), slR = sLeg(1);
+  swimLegL = slL.hip; swimShinL = slL.knee; swimLegR = slR.hip; swimShinR = slR.knee;
 }
 /* ---- splash rings (pooled) */
 const splashes = [];
@@ -310,12 +569,27 @@ let mode = 'ride';           // ride | swim | bail
 let hostTime = 0, pedalPhase = 0, prevHopHeld = false, lastModInput = null;
 let pitchArm = false; // liftoff gate: pitch input counts only after controls pass near-neutral IN AIR
 let swimPos = { x: 0, z: 0 }, swimHeading = 0, swimSpeed = 0, canClimb = false;
+let swimDepth = 0, swimDivePitch = 0; // dive: 0 = surface, 1.15 = near the canal bed
+const SURF_FOG = { color: scene.fog.color.clone(), near: scene.fog.near, far: scene.fog.far };
+const SURF_BG = scene.background && scene.background.isColor ? scene.background.clone() : new THREE.Color(0x8d82a3);
+const UW_FOG = { color: new THREE.Color(0x0d4258), near: 0.5, far: 26 };
+const uwTint = document.getElementById('uwtint');
+/* bubble trail while submerged (1 draw, recycled particles) */
+const BUB_N = 42;
+const bubGeo = new THREE.BufferGeometry();
+const bubPos = new Float32Array(BUB_N * 3);
+const bubDat = [];
+for (let i = 0; i < BUB_N; i++){ bubDat.push({ life: Math.random() * 2, vy: 0.35 + Math.random() * 0.3 }); bubPos[i*3+1] = -99; }
+bubGeo.setAttribute('position', new THREE.BufferAttribute(bubPos, 3));
+const bubbles = new THREE.Points(bubGeo, new THREE.PointsMaterial({ color: 0xd8f4ff, size: 0.06, transparent: true, opacity: 0.75, depthWrite: false }));
+bubbles.visible = false; bubbles.frustumCulled = false; scene.add(bubbles);
 let bailT = 0, bailY = 0;
 const floatBike = { x: world.spawn.x, z: world.spawn.z, heading: world.spawn.heading };
 function enterSwim(){
   mode = 'swim';
   swimPos = { x: S.x, z: S.z };
   swimHeading = S.heading; swimSpeed = 0; canClimb = false;
+  swimDepth = 0.2; swimDivePitch = 0; // a little plunge on entry, buoyancy brings him back up
   floatBike.x = S.x + Math.cos(S.heading) * 1.2;
   floatBike.z = S.z - Math.sin(S.heading) * 1.2;
   floatBike.heading = S.heading;
@@ -328,13 +602,23 @@ function stepSwim(dt){
   swimHeading -= input.steer * dt * 1.9;
   const fx = Math.sin(swimHeading), fz = Math.cos(swimHeading);
   const fwd = Math.max(input.throttle, touchMode ? AUTO_PEDAL : 0); // touch swims itself at cruise
-  const spd = fwd > 0.05 ? fwd * 3.1 : 0;
+  const spd = fwd > 0.05 ? fwd * (swimDepth > 0.25 ? 2.6 : 3.1) : 0;
   swimPos.x = THREE.MathUtils.clamp(swimPos.x + fx * spd * dt, world.water.bounds.minX, world.water.bounds.maxX);
   swimPos.z = THREE.MathUtils.clamp(swimPos.z + fz * spd * dt, world.water.bounds.minZ, world.water.bounds.maxZ);
   swimSpeed = spd;
+  /* Dive / surface (host-only, additive): B / Shift / S / stick-down descends,
+     A / E / stick-up rises, gentle buoyancy otherwise. Climb-out keeps priority:
+     action at an exit only exits once he's at the surface. */
   const exit = world.climbOutAt(swimPos.x, swimPos.z);
-  canClimb = !!exit;
-  if (exit && input.action){
+  canClimb = !!exit && swimDepth <= 0.2;
+  const diveIn = (input.brake || input.pitchKey > 0 || input.stickY > 0.55) ? 1 : 0;
+  const riseIn = (input.stickY < -0.55 || (input.action && !canClimb)) ? 1 : 0;
+  let dv = 0;
+  if (diveIn) dv = 0.85; else if (riseIn) dv = -1.05; else dv = swimDepth > 0 ? -0.22 : 0;
+  swimDepth = THREE.MathUtils.clamp(swimDepth + dv * dt, 0, 1.15);
+  const pitchRoom = dv > 0 ? THREE.MathUtils.clamp((1.15 - swimDepth) / 0.35, 0, 1) : 1; // level out at the bed
+  swimDivePitch += (THREE.MathUtils.clamp(dv * 0.55, -0.55, 0.5) * pitchRoom - swimDivePitch) * Math.min(1, dt * 6);
+  if (exit && input.action && swimDepth <= 0.2){
     bike.reset({ x: exit.x, z: exit.z, heading: exit.heading }, env); // reset with env: grounded at once
     mode = 'ride';
   }
@@ -378,6 +662,7 @@ function animate(now){
   lastModInput = modInput;
   prevHopHeld = input.hopHeld;
   if (mode === 'ride'){
+    propResponse(dt);
     const events = bike.step(dt, modInput, env);
     for (const ev of events){
       if (ev.type === 'splash') enterSwim();
@@ -393,39 +678,93 @@ function animate(now){
     }
   }
   /* prompts */
-  if (mode === 'swim') showPrompt(canClimb ? 'Tap A or E — climb out' : null);
+  if (mode === 'swim') showPrompt(canClimb ? 'Tap A or E — climb out' : (swimDepth > 0.15 ? 'A / E — surface · B — dive deeper' : 'Hold B or S — dive'));
   else if (mode === 'bail') showPrompt(bailT > 0.8 ? 'Tap A or E — get back on' : null);
   else showPrompt(null);
   /* visuals by mode */
   riderRig.visible = mode === 'ride';
   swimmer.visible = mode !== 'ride';
+  for (const bp of binProps){ // knocked-bin tip animation: fast fall, one clatter rebound, rest on its side
+    if (!bp.anim) continue;
+    const a = bp.anim; a.t += dt;
+    let th;
+    if (a.t < 0.45){ const u = a.t / 0.45; th = (Math.PI / 2) * (1 - Math.pow(1 - u, 3)); }
+    else th = Math.PI / 2 - 0.10 * Math.sin((a.t - 0.45) * 18) * Math.exp(-(a.t - 0.45) * 7);
+    a.pivot.quaternion.setFromAxisAngle(a.axis, th);
+    if (a.t > 1.4) bp.anim = null;
+  }
+  if (mode !== 'swim') bubbles.visible = false;
+  const dBlend = mode === 'swim' ? THREE.MathUtils.smoothstep(swimDepth, 0.35, 0.95) : 0;
   if (mode === 'ride'){
     bikeGroup.position.set(S.x, S.y, S.z);
     bikeGroup.rotation.y = S.heading;
     leanGroup.rotation.z = S.lean + (S.wobbling ? Math.sin(hostTime*34) * 0.06 : 0);
     leanGroup.position.y = -S.crouch01 * 0.07;
     pitchGroup.rotation.x = -S.pitch; // module pitch: positive = nose up; rotation.x positive = nose down
-    riderRig.position.y = -S.crouch01 * 0.17;
-    riderRig.rotation.x = S.crouch01 * 0.22;
+    airBlend += ((S.grounded ? 0 : 1) - airBlend) * Math.min(1, dt * 7);
+    riderRig.position.y = -S.crouch01 * 0.17 + airBlend * 0.05;
+    riderRig.position.z = airBlend * 0.03;
     const spin = S.grounded ? S.speed / 0.34 : 9;
     wheelF.rotation.x += spin * dt; wheelR.rotation.x += spin * dt;
-    if (modInput.pedal > 0 && S.speed > 0.2) pedalPhase += dt * (2 + S.speed * 1.6);
-    else if (S.speed > 0.5) pedalPhase += dt * S.speed * 0.9;
+    if (S.grounded){
+      if (modInput.pedal > 0 && S.speed > 0.2) pedalPhase += dt * (2 + S.speed * 1.6);
+      else if (S.speed > 0.5) pedalPhase += dt * S.speed * 0.9;
+    } else { /* level the cranks mid-air, BMX style */
+      const lvl = Math.round(pedalPhase / Math.PI) * Math.PI;
+      pedalPhase += (lvl - pedalPhase) * Math.min(1, dt * 5);
+    }
     crank.rotation.x = -pedalPhase;
-    const ph = pedalPhase;
-    legL.rotation.x = -0.55 + Math.sin(ph) * 0.5;        legR.rotation.x = -0.55 + Math.sin(ph + Math.PI) * 0.5;
-    shinL.rotation.x = 0.75 + Math.cos(ph) * 0.38;       shinR.rotation.x = 0.75 + Math.cos(ph + Math.PI) * 0.38;
+    const ph = pedalPhase, ab = airBlend;
+    solveLeg(hipJL, kneeJL, ankJL, -1, ph, riderRig.position.y);
+    solveLeg(hipJR, kneeJR, ankJR, 1, ph, riderRig.position.y);
+    if (ab > 0.001){ /* blend toward the extended air pose */
+      for (const [h, k] of [[hipJL, kneeJL], [hipJR, kneeJR]]){
+        h.rotation.x += (RIDER_POSE.legAir.hip - h.rotation.x) * ab;
+        k.rotation.x += (RIDER_POSE.legAir.knee - k.rotation.x) * ab;
+      }
+      ankJL.rotation.x = -(hipJL.rotation.x + kneeJL.rotation.x);
+      ankJR.rotation.x = -(hipJR.rotation.x + kneeJR.rotation.x);
+    }
+    spineJ.rotation.x = RIDER_POSE.spine.ride[0] + S.crouch01 * RIDER_POSE.spine.crouchAdd + ab * RIDER_POSE.spine.airAdd;
+    spineJ.rotation.z = -S.lean * 0.30;
+    neckJ.rotation.x = RIDER_POSE.neck.ride[0] - S.crouch01 * 0.12;
+    neckJ.rotation.z = -S.lean * 0.25;
+    shL.rotation.x = shR.rotation.x = RIDER_POSE.shoulder.ride[0] + S.crouch01 * RIDER_POSE.shoulder.crouchAdd + ab * RIDER_POSE.shoulder.airAdd;
+    shL.rotation.z = 0.10; shR.rotation.z = -0.10;
+    elbL.rotation.x = elbR.rotation.x = RIDER_POSE.elbow.ride[0] + S.crouch01 * RIDER_POSE.elbow.crouchAdd;
   } else if (mode === 'swim'){
     const t = hostTime;
-    swimFoam.visible = true;
-    swimmer.position.set(swimPos.x, WATER_Y + 0.48 + Math.sin(t*2.2)*0.045, swimPos.z);
+    swimFoam.visible = swimDepth < 0.15;
+    swimmer.position.set(swimPos.x, WATER_Y + 0.48 - swimDepth + Math.sin(t*2.2)*0.045*(1 - dBlend), swimPos.z);
     swimmer.scale.setScalar(1.18);
-    swimmer.rotation.set(0.12 + Math.sin(t*2.2)*0.03, swimHeading, 0);
+    swimmer.rotation.set(0.12 + Math.sin(t*2.2)*0.03*(1 - dBlend) + swimDivePitch, swimHeading, 0);
+    /* bubbles stream from the swimmer while submerged */
+    bubbles.visible = swimDepth > 0.2;
+    if (bubbles.visible){
+      for (let i = 0; i < BUB_N; i++){
+        const d = bubDat[i]; d.life -= dt;
+        const y = bubPos[i*3+1] + d.vy * dt;
+        if (d.life <= 0 || y > WATER_Y - 0.04){
+          d.life = 1 + Math.random() * 2;
+          bubPos[i*3]   = swimPos.x + Math.sin(swimHeading) * 0.55 + (Math.random() - 0.5) * 0.3;
+          bubPos[i*3+1] = (WATER_Y + 0.42 - swimDepth) + (Math.random() - 0.5) * 0.15;
+          bubPos[i*3+2] = swimPos.z + Math.cos(swimHeading) * 0.55 + (Math.random() - 0.5) * 0.3;
+        } else {
+          bubPos[i*3] += Math.sin(t * 3 + i) * 0.0006;
+          bubPos[i*3+1] = y;
+        }
+      }
+      bubGeo.attributes.position.needsUpdate = true;
+    }
     const stroke = swimSpeed > 0.1 ? t * 5.2 : t * 1.4;
-    swimArmL.rotation.x = -Math.sin(stroke) * 0.95 - 0.3;
-    swimArmR.rotation.x = -Math.sin(stroke + Math.PI) * 0.95 - 0.3;
-    swimLegL.rotation.x = Math.sin(stroke*1.35) * 0.3;
-    swimLegR.rotation.x = Math.sin(stroke*1.35 + Math.PI) * 0.3;
+    swimArmL.rotation.x = -1.45 - Math.sin(stroke) * 1.05;
+    swimArmR.rotation.x = -1.45 - Math.sin(stroke + Math.PI) * 1.05;
+    swimElbL.rotation.x = -0.30 - 0.50 * Math.max(0, Math.sin(stroke - 0.7));
+    swimElbR.rotation.x = -0.30 - 0.50 * Math.max(0, Math.sin(stroke + Math.PI - 0.7));
+    swimLegL.rotation.x = Math.PI/2 + Math.sin(stroke*1.35) * 0.30;
+    swimLegR.rotation.x = Math.PI/2 + Math.sin(stroke*1.35 + Math.PI) * 0.30;
+    swimShinL.rotation.x = -Math.max(0, Math.sin(stroke*1.35 + 0.6)) * 0.45;
+    swimShinR.rotation.x = -Math.max(0, Math.sin(stroke*1.35 + Math.PI + 0.6)) * 0.45;
     bikeGroup.position.set(floatBike.x, WATER_Y + 0.1 + Math.sin(t*1.7)*0.05, floatBike.z);
     bikeGroup.rotation.y = floatBike.heading;
     leanGroup.rotation.z = 1.25;
@@ -446,18 +785,26 @@ function animate(now){
   }
   /* camera */
   const tgt = mode === 'swim'
-    ? { x: swimPos.x, z: swimPos.z, h: swimHeading, y: WATER_Y + 0.4 }
+    ? { x: swimPos.x, z: swimPos.z, h: swimHeading, y: WATER_Y + 0.48 - swimDepth + 0.30 }
     : { x: S.x, z: S.z, h: S.heading, y: S.y + 0.9 };
   const bx = Math.sin(tgt.h), bz = Math.cos(tgt.h);
-  const dist = mode === 'swim' ? 3.8 : 5.7, hgt = mode === 'swim' ? 1.9 : 2.4;
+  const dist = mode === 'swim' ? 3.8 : 5.7, hgt = mode === 'swim' ? THREE.MathUtils.lerp(1.9, -0.15, dBlend) : 2.4;
   camPos.x += ((tgt.x - bx*dist) - camPos.x) * Math.min(1, dt*4.5);
   camPos.z += ((tgt.z - bz*dist) - camPos.z) * Math.min(1, dt*4.5);
   camPos.y += ((tgt.y + hgt) - camPos.y) * Math.min(1, dt*4.5);
   camera.position.copy(camPos);
   camera.lookAt(tgt.x + bx*2.2, tgt.y + 0.35, tgt.z + bz*2.2);
   sun.position.set(tgt.x + SUN_OFF.x, SUN_OFF.y, tgt.z + SUN_OFF.z); sun.target.position.set(tgt.x, 0, tgt.z);
+  /* underwater ambience: as the camera slips below the surface, fog closes in
+     blue-green, the background follows, and a tint veil fades up */
+  const uw = mode === 'swim' ? THREE.MathUtils.clamp((0.06 - camera.position.y) / 0.35, 0, 1) : 0;
+  scene.fog.color.lerpColors(SURF_FOG.color, UW_FOG.color, uw);
+  scene.fog.near = THREE.MathUtils.lerp(SURF_FOG.near, UW_FOG.near, uw);
+  scene.fog.far = THREE.MathUtils.lerp(SURF_FOG.far, UW_FOG.far, uw);
+  if (scene.background && scene.background.isColor) scene.background.lerpColors(SURF_BG, UW_FOG.color, uw);
+  uwTint.style.opacity = (uw * 0.9).toFixed(3);
   speedEl.textContent = Math.round(Math.abs(mode === 'swim' ? swimSpeed : S.speed) * 3.6);
-  modeEl.textContent = mode === 'swim' ? '🏊 SWIMMING' : (mode === 'bail' ? '💥 BAILED' : (!S.grounded ? '🕊 AIRBORNE' : (S.crouch01 > 0.02 ? '🦘 CROUCH…' : '')));
+  modeEl.textContent = mode === 'swim' ? (swimDepth > 0.55 ? '🤿 UNDERWATER' : '🏊 SWIMMING') : (mode === 'bail' ? '💥 BAILED' : (!S.grounded ? '🕊 AIRBORNE' : (S.crouch01 > 0.02 ? '🦘 CROUCH…' : '')));
   renderer.render(scene, camera);
   workSamples.push(performance.now() - w0);
 }
@@ -474,7 +821,8 @@ window.__dbg = {
   get mode(){ return mode; },
   get touchMode(){ return touchMode; },
   get lastInput(){ return lastModInput; },
-  get swim(){ return { x: swimPos.x, z: swimPos.z, heading: swimHeading, canClimb }; },
+  get swim(){ return { x: swimPos.x, z: swimPos.z, heading: swimHeading, canClimb, depth: swimDepth }; },
+  bins(){ return binProps.map(b => ({ x: b.x, z: b.z, knocked: b.knocked })); },
   groundAt: world.groundAt,
   physGroundAt,
   teleport(x, z, heading = 0){
