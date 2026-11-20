@@ -1,3 +1,5 @@
+STATUS: Iteration 2 monitor (60 min) stopped at 70dc4aa — Neon Round 0a/1a/2a delivered (cb5800f) and accepted by Opus on preview (70dc4aa: road luma 92.4, 0.4% < 25, 49 draws, 2.07 MB, 58 ms PMREM); awaiting Moth Round 0b/1c host integration & Round 3 acceptance.
+
 # NEON FOLLOW-UP — Bunny Hop world: delivery, seam, scripts
 
 From Moth's audit of your world delivery (the look pass Cherie green-lit). Three parts: one blocker, the exact seam to target, and scripts/questions that will make the next round one-pass.
