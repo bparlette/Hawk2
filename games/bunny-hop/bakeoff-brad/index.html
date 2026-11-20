@@ -32,19 +32,24 @@
 </style>
 </head>
 <body>
-<div id="hud"><b>NEON BAKE-OFF #2 · BRAD'S '87 CAMARO</b><div id="stats">Loading…</div></div>
+<div id="hud"><b>NEON BAKE-OFF #2 · BRAD'S '87 CAMARO (SUBD HYBRID)</b><div id="stats">Loading…</div></div>
 <div id="views">
   <button id="bOrbit" class="active">Orbit</button>
   <button id="b1">1 · High 3/4 (Split)</button>
   <button id="b2">2 · Front 3/4 (Yellow Beams)</button>
   <button id="b3">3 · Rear 3/4 (Maroon Hatch)</button>
+  <button id="bToggle">Body: Blender SubD GLB</button>
 </div>
 
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { buildCamaro } from './buildCamaro.js';
 
 const params = new URLSearchParams(window.location.search);
@@ -177,9 +182,46 @@ scene.add(ground);
   }
 }
 
-// Add Brad's 1987 Camaro
-const camaro = buildCamaro();
-scene.add(camaro);
+// Add Brad's 1987 Camaro — Hybrid: Blender Catmull-Clark SubD GLB body + Procedural wheels/glass/lights/interior
+const useProcOnly = params.get('mode') === 'proc';
+const camaroProc = buildCamaro(false);
+const camaroHybrid = buildCamaro(true); // procedural wheels, glass, yellow lights, taillights, trim, interior
+camaroProc.visible = useProcOnly;
+camaroHybrid.visible = !useProcOnly;
+scene.add(camaroProc);
+scene.add(camaroHybrid);
+
+const subdPaintMat = new THREE.MeshPhysicalMaterial({
+  vertexColors: true,
+  metalness: 0.44,
+  roughness: 0.13,
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.04,
+  envMapIntensity: 1.75,
+  side: THREE.DoubleSide,
+});
+
+const loader = new GLTFLoader();
+loader.load('./brad-camaro-subd.glb', (gltf) => {
+  gltf.scene.traverse((obj) => {
+    if (obj.isMesh) {
+      obj.material = subdPaintMat;
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    }
+  });
+  camaroHybrid.add(gltf.scene);
+});
+
+const bToggle = document.getElementById('bToggle');
+let usingSubd = !useProcOnly;
+bToggle.textContent = usingSubd ? 'Body: Blender SubD GLB' : 'Body: Pure Procedural';
+bToggle.onclick = () => {
+  usingSubd = !usingSubd;
+  camaroHybrid.visible = usingSubd;
+  camaroProc.visible = !usingSubd;
+  bToggle.textContent = usingSubd ? 'Body: Blender SubD GLB' : 'Body: Pure Procedural';
+};
 
 // Camera + 3 fixed phone-size (390x844) shots matching neon-bakeoff-brad.md
 const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 200);

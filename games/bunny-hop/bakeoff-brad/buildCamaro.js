@@ -139,28 +139,135 @@ function createCamaroSide(side) {
   return applyBradFade(buildLoft(rings, false, side > 0));
 }
 
-// Long low sloping third-gen Camaro hood (front34.jpg, side.jpg)
+// Long low sloping third-gen Camaro hood with V-swept racing leading edge (front.jpg, front34.jpg)
 function createCamaroHood() {
-  const zs = [0.44, 0.78, 1.16, 1.56, 1.94, 2.24, 2.40, 2.45];
-  const xs = [-0.80, -0.58, -0.34, -0.14, 0.0, 0.14, 0.34, 0.58, 0.80];
+  const zs = [0.44, 0.78, 1.16, 1.56, 1.94, 2.22, 2.38, 2.46];
+  const xs = [-0.82, -0.64, -0.44, -0.26, -0.10, 0.0, 0.10, 0.26, 0.44, 0.64, 0.82];
   const rings = [];
-  for (const z of zs) {
-    const taper = 1.0 - Math.max(0, (z - 1.55) / 0.90) ** 2 * 0.14;
-    const baseY = 0.84 - (z - 0.44) * 0.090 - (z > 2.34 ? (z - 2.34) * 0.95 : 0);
+  for (const z0 of zs) {
+    const tFront = Math.max(0, (z0 - 1.50) / (2.46 - 1.50));
+    const taper = 1.0 - tFront * tFront * 0.13;
     const ring = [];
     for (const x0 of xs) {
       const x = x0 * taper;
       const ax = Math.abs(x0);
-      // Sleek crown + subtle twin power-dome ribs
-      let y = baseY + Math.cos((ax / 0.84) * Math.PI * 0.5) * 0.045;
-      if (ax < 0.36 && z < 2.25) {
-        y += Math.cos((ax / 0.36) * Math.PI * 0.5) * 0.024;
+      // Real '87 Camaro V-sweep: centerline extends ~12 cm further forward than fender corners!
+      const vSweep = -ax * ax * 0.175 * (tFront * tFront);
+      const z = z0 + vSweep;
+      const baseY = 0.84 - (z0 - 0.44) * 0.092 - (z0 > 2.34 ? (z0 - 2.34) * 0.85 : 0);
+      // Sleek racing crown + sculpted twin center power-dome crease
+      let y = baseY + Math.cos((ax / 0.86) * Math.PI * 0.5) * 0.048;
+      if (ax < 0.34 && z0 < 2.28) {
+        y += Math.cos((ax / 0.34) * Math.PI * 0.5) * 0.022;
       }
       ring.push([x, y, z]);
     }
     rings.push(ring);
   }
   return applyBradFade(buildLoft(rings, false, false));
+}
+
+// Sculpted V-swept racing front nose cone + wraparound bumper + flared chin air dam (front.jpg, front34.jpg)
+function createFrontNoseFascia() {
+  // Continuous loft from below headlight pockets down to the flared racing chin spoiler lip
+  // Profile rows from top (y=0.455 under headlight buckets) down to flared chin lip (y=0.165)
+  const profile = [
+    [0.455, 2.40, 0.99],  // crisp bumper crease under headlight buckets
+    [0.420, 2.47, 1.00],  // protruding rounded front bumper ridge
+    [0.355, 2.45, 0.99],  // recessed lower fog/grille fascia band
+    [0.275, 2.44, 0.98],  // black+silver stripe level
+    [0.215, 2.47, 1.01],  // outward-flaring racing chin spoiler kick
+    [0.165, 2.50, 1.02],  // low aerodynamic chin lip (front34.jpg!)
+    [0.155, 2.36, 0.96],  // underside tuck
+  ];
+  const cols = 16;
+  const rings = [];
+  for (const [y, zCenter, wScale] of profile) {
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = (c / cols) * 2 - 1; // -1 .. +1
+      const au = Math.abs(u);
+      const x = u * 0.845 * wScale;
+      // Smooth aerodynamic V-sweep + wraparound corner curve into front fenders
+      const z = zCenter - au * au * 0.165 - Math.pow(au, 4) * 0.12;
+      ring.push([x, y, z]);
+    }
+    rings.push(ring);
+  }
+  return applyBradFade(buildLoft(rings, false, true));
+}
+
+// Sloped pointed center nose bridge between the two recessed headlight buckets (front.jpg)
+function createCenterNoseBridge() {
+  const profile = [
+    [0.648, 2.44, 0.25],  // meets V-swept hood leading edge
+    [0.575, 2.47, 0.27],  // forward-canting pointed bridge face
+    [0.455, 2.43, 0.30],  // blends seamlessly into bumper ridge
+  ];
+  const cols = 8;
+  const rings = [];
+  for (const [y, zCenter, halfW] of profile) {
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = (c / cols) * 2 - 1;
+      const x = u * halfW;
+      const z = zCenter - u * u * 0.032; // crisp center point
+      ring.push([x, y, z]);
+    }
+    rings.push(ring);
+  }
+  return applyBradFade(buildLoft(rings, false, true));
+}
+
+// Smooth curved rear bumper fascia wrapping cleanly into rear quarters (rear.jpg, rear34.jpg)
+function createRearBumperFascia() {
+  const profile = [
+    [0.615, -2.41, 0.99],  // just below taillight cluster
+    [0.565, -2.47, 1.00],  // rounded horizontal rear bumper ridge (rear.jpg)
+    [0.470, -2.45, 0.99],  // mid rear fascia
+    [0.375, -2.42, 0.98],  // tucked lower rear valance
+    [0.305, -2.32, 0.95],  // underside tuck
+  ];
+  const cols = 14;
+  const rings = [];
+  for (const [y, zCenter, wScale] of profile) {
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = (c / cols) * 2 - 1;
+      const au = Math.abs(u);
+      const x = u * 0.84 * wScale;
+      const z = zCenter + Math.pow(au, 3) * 0.14; // wraps forward into rear quarter panels
+      ring.push([x, y, z]);
+    }
+    rings.push(ring);
+  }
+  return applyBradFade(buildLoft(rings, false, false));
+}
+
+// Smooth integrated wraparound third-gen ducktail spoiler (rear.jpg, rear34.jpg, side.jpg)
+function createDucktailSpoiler() {
+  const profile = [
+    [0.865, -2.14, 0.84],  // flush base meeting rear hatch deck
+    [0.910, -2.26, 0.845], // upward ducktail sweep
+    [0.942, -2.39, 0.835], // crisp trailing spoiler lip
+    [0.892, -2.41, 0.835], // vertical rear lip face above taillights
+    [0.835, -2.37, 0.835], // underside lip return
+  ];
+  const cols = 14;
+  const rings = [];
+  for (const [y, zCenter, halfW] of profile) {
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = (c / cols) * 2 - 1;
+      const au = Math.abs(u);
+      const x = u * halfW;
+      const z = zCenter + Math.pow(au, 3) * 0.10;
+      const yCurve = y - au * au * 0.015;
+      ring.push([x, yCurve, z]);
+    }
+    rings.push(ring);
+  }
+  return applyBradFade(buildLoft(rings, false, true));
 }
 
 // Curved flush windshield matching A-pillar tumblehome & gentle forward bow (zero overhang)
@@ -342,7 +449,7 @@ function createIrocWheel(mats) {
   return g;
 }
 
-export function buildCamaro() {
+export function buildCamaro(skipBody = false) {
   const car = new THREE.Group();
   car.name = 'Brad87Camaro';
 
@@ -420,19 +527,19 @@ export function buildCamaro() {
     return m;
   }
 
-  // ---- 1. Sculpted Left & Right Side Body Panels (with white->maroon fade & wheel arches) ----
-  for (const s of [-1, 1]) {
-    const panel = new THREE.Mesh(createCamaroSide(s), mats.paint);
-    panel.castShadow = true;
-    panel.receiveShadow = true;
-    car.add(panel);
+  // ---- 1 & 2. Sculpted Flanks + Hood (skipped when Blender SubD GLB supplies the body shell) ----
+  if (!skipBody) {
+    for (const s of [-1, 1]) {
+      const panel = new THREE.Mesh(createCamaroSide(s), mats.paint);
+      panel.castShadow = true;
+      panel.receiveShadow = true;
+      car.add(panel);
+    }
+    const hood = new THREE.Mesh(createCamaroHood(), mats.paint);
+    hood.castShadow = true;
+    hood.receiveShadow = true;
+    car.add(hood);
   }
-
-  // ---- 2. Long Sloping Third-Gen Wedge Hood + Twin IROC-Z Louvers ----
-  const hood = new THREE.Mesh(createCamaroHood(), mats.paint);
-  hood.castShadow = true;
-  hood.receiveShadow = true;
-  car.add(hood);
 
   // Twin dark hood louvers (front34.jpg)
   for (const s of [-1, 1]) {
@@ -442,33 +549,41 @@ export function buildCamaro() {
     car.add(louver);
   }
 
-  // ---- 3. Signature Third-Gen Wedge Nose, Recessed Quad Headlight Buckets (YELLOW!), Air Dam ----
+  // ---- 3. Sculpted V-Swept Racing Front Nose, Recessed Quad Headlight Buckets (YELLOW!), Flared Chin Air Dam ----
   {
-    // Sloped pointed center nose bridge between the recessed headlight buckets (front34.jpg)
-    addPaintedBox(0.56, 0.24, 0.48, 0, 0.56, 2.24, 0.22);
-    // Lower front chin spoiler / ground-effects air dam (front34.jpg, side.jpg)
-    addPaintedBox(1.66, 0.22, 0.34, 0, 0.30, 2.28, -0.14);
-    addPaintedBox(1.58, 0.11, 0.24, 0, 0.19, 2.34, -0.05);
+    if (!skipBody) {
+      const noseFascia = new THREE.Mesh(createFrontNoseFascia(), mats.paint);
+      noseFascia.castShadow = true;
+      noseFascia.receiveShadow = true;
+      car.add(noseFascia);
 
-    // Lower front grille recess + fog/turn pockets
-    const lowerGrille = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.15, 0.12), mats.darkTrim);
-    lowerGrille.position.set(0, 0.35, 2.39);
+      const centerBridge = new THREE.Mesh(createCenterNoseBridge(), mats.paint);
+      centerBridge.castShadow = true;
+      car.add(centerBridge);
+    }
+
+    // Lower front recessed intake grille (front.jpg)
+    const lowerGrille = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.135, 0.10), mats.darkTrim);
+    lowerGrille.position.set(0, 0.355, 2.41);
     car.add(lowerGrille);
 
-    // Deeply recessed black quad rectangular headlight buckets + YELLOW lamps (front34.jpg + Brad canon!)
+    // Deeply recessed black quad rectangular headlight buckets + YELLOW lamps tucked cleanly behind V-swept nose
     for (const s of [-1, 1]) {
-      const bucket = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.18, 0.24), mats.darkTrim);
-      bucket.position.set(s * 0.54, 0.56, 2.26);
+      const bucket = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.145, 0.18), mats.darkTrim);
+      bucket.position.set(s * 0.51, 0.545, 2.14);
+      bucket.rotation.y = -s * 0.20; // matches V-sweep angle
       car.add(bucket);
-      // Outer + inner rectangular yellow headlights inside each pocket
-      for (const hxOff of [-0.10, 0.10]) {
-        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.105, 0.04), mats.yellowHeadlight);
-        lamp.position.set(s * 0.54 + hxOff, 0.56, 2.34);
+      for (const hxOff of [-0.095, 0.095]) {
+        const lx = s * 0.51 + hxOff;
+        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.155, 0.096, 0.035), mats.yellowHeadlight);
+        lamp.position.set(lx, 0.545, 2.25 - Math.abs(lx) * 0.18);
+        lamp.rotation.y = -s * 0.20;
         car.add(lamp);
       }
-      // Lower corner parking/fog lamps
-      const fog = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.09, 0.04), mats.yellowHeadlight);
-      fog.position.set(s * 0.56, 0.35, 2.40);
+      // Recessed lower fog/turn lamps
+      const fog = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.080, 0.04), mats.yellowHeadlight);
+      fog.position.set(s * 0.55, 0.352, 2.34);
+      fog.rotation.y = -s * 0.20;
       car.add(fog);
       // Front amber side marker (side.jpg, detail-wheel.jpg)
       const fMarker = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.042, 0.15), mats.amberSignal);
@@ -476,34 +591,28 @@ export function buildCamaro() {
       car.add(fMarker);
     }
 
-    // Signature black + silver perimeter lower stripe along skirts & front air dam (front34.jpg, side.jpg)
-    const fStripeB = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.028, 0.03), mats.darkTrim);
-    fStripeB.position.set(0, 0.28, 2.45);
-    car.add(fStripeB);
-    const fStripeS = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.012, 0.032), mats.silverPin);
-    fStripeS.position.set(0, 0.295, 2.45);
-    car.add(fStripeS);
+    // Perimeter black + silver ground-effects stripe following the side skirts (side.jpg)
     for (const s of [-1, 1]) {
-      const sStripeB = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.032, 4.42), mats.darkTrim);
-      sStripeB.position.set(s * 0.918, 0.30, 0.0);
+      const sStripeB = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.032, 4.30), mats.darkTrim);
+      sStripeB.position.set(s * 0.916, 0.30, -0.02);
       car.add(sStripeB);
-      const sStripeS = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.012, 4.42), mats.silverPin);
-      sStripeS.position.set(s * 0.919, 0.318, 0.0);
+      const sStripeS = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.012, 4.30), mats.silverPin);
+      sStripeS.position.set(s * 0.917, 0.318, -0.02);
       car.add(sStripeS);
-      // Subtle body-side rubbing strip
       const rub = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.022, 2.05), mats.darkTrim);
-      rub.position.set(s * 0.932, 0.56, 0.05);
+      rub.position.set(s * 0.930, 0.56, 0.05);
       car.add(rub);
     }
   }
 
   // ---- 4. Smooth Crowned Roof, Seamless B-Pillars, Flush Windshield & Dark-Tinted Glass Hatch ----
   {
-    // Smooth lofted maroon roof panel + slim T-top center bar
-    const roofMesh = new THREE.Mesh(createRoofGeo(), mats.paint);
-    roofMesh.castShadow = true;
-    roofMesh.receiveShadow = true;
-    car.add(roofMesh);
+    if (!skipBody) {
+      const roofMesh = new THREE.Mesh(createRoofGeo(), mats.paint);
+      roofMesh.castShadow = true;
+      roofMesh.receiveShadow = true;
+      car.add(roofMesh);
+    }
 
     const tCenter = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.014, 0.68), mats.darkTrim);
     tCenter.position.set(0, 1.278, -0.20);
@@ -521,11 +630,12 @@ export function buildCamaro() {
       applyBradFade(aGeo);
       car.add(new THREE.Mesh(aGeo, mats.paint));
 
-      // Smooth curved B-pillar hoop flowing seamlessly into rear quarter shoulder
-      const bPillar = new THREE.Mesh(createBPillarGeo(s), mats.paint);
-      bPillar.castShadow = true;
-      bPillar.receiveShadow = true;
-      car.add(bPillar);
+      if (!skipBody) {
+        const bPillar = new THREE.Mesh(createBPillarGeo(s), mats.paint);
+        bPillar.castShadow = true;
+        bPillar.receiveShadow = true;
+        car.add(bPillar);
+      }
 
       // Sport aero side mirror (front34.jpg, side.jpg) + black door handle
       addPaintedBox(0.11, 0.068, 0.13, s * 0.88, 0.865, 0.32);
@@ -544,57 +654,47 @@ export function buildCamaro() {
     car.add(new THREE.Mesh(createRearHatchGlass(), mats.glassRear));
   }
 
-  // ---- 5. Rear Deck, Integrated Ducktail Spoiler & Multi-Grid Taillights (rear34.jpg!) ----
+  // ---- 5. Smooth Curved Rear Bumper, Wraparound Ducktail Spoiler & Multi-Grid Taillights (rear.jpg!) ----
   {
-    // Rear deck & bumper fascia (deep maroon)
-    addPaintedBox(1.66, 0.14, 0.42, 0, 0.84, -2.22);
-    addPaintedBox(1.70, 0.36, 0.16, 0, 0.46, -2.38);
+    if (!skipBody) {
+      const rearBumper = new THREE.Mesh(createRearBumperFascia(), mats.paint);
+      rearBumper.castShadow = true;
+      rearBumper.receiveShadow = true;
+      car.add(rearBumper);
 
-    // Signature integrated third-gen ducktail rear spoiler (side.jpg, rear34.jpg)
-    addPaintedBox(1.66, 0.10, 0.24, 0, 0.935, -2.30, -0.18);
-    for (const s of [-1, 1]) {
-      addPaintedBox(0.08, 0.12, 0.36, s * 0.80, 0.91, -2.24);
+      const spoiler = new THREE.Mesh(createDucktailSpoiler(), mats.paint);
+      spoiler.castShadow = true;
+      spoiler.receiveShadow = true;
+      car.add(spoiler);
     }
+
     // High-mount 3rd brake light strip under spoiler lip
-    const chmsl = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.028, 0.03), mats.tailRed);
-    chmsl.position.set(0, 0.945, -2.42);
+    const chmsl = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.026, 0.03), mats.tailRed);
+    chmsl.position.set(0, 0.925, -2.41);
     car.add(chmsl);
 
-    // Iconic multi-grid third-gen taillight cluster (red outer + amber turn + white reverse + black grid, rear34.jpg)
-    const tailBg = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.22, 0.06), mats.darkTrim);
-    tailBg.position.set(0, 0.72, -2.41);
+    // Iconic multi-grid third-gen taillight cluster (red outer + amber turn + white reverse + black grid, rear.jpg)
+    const tailBg = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.21, 0.06), mats.darkTrim);
+    tailBg.position.set(0, 0.72, -2.38);
     car.add(tailBg);
 
     for (const s of [-1, 1]) {
-      // Outer red brake block
-      const redOut = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.17, 0.03), mats.tailRed);
-      redOut.position.set(s * 0.59, 0.72, -2.44);
+      const redOut = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.165, 0.03), mats.tailRed);
+      redOut.position.set(s * 0.58, 0.72, -2.41);
       car.add(redOut);
-      // Inner amber turn square
-      const amb = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.17, 0.03), mats.amberSignal);
-      amb.position.set(s * 0.34, 0.72, -2.44);
+      const amb = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.165, 0.03), mats.amberSignal);
+      amb.position.set(s * 0.33, 0.72, -2.41);
       car.add(amb);
-      // Innermost white reverse square
-      const rev = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.17, 0.03), mats.tailWhite);
-      rev.position.set(s * 0.20, 0.72, -2.44);
+      const rev = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.165, 0.03), mats.tailWhite);
+      rev.position.set(s * 0.19, 0.72, -2.41);
       car.add(rev);
-      // Black horizontal & vertical grid dividers across taillight lenses
       const hBar = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.015, 0.036), mats.darkTrim);
-      hBar.position.set(s * 0.45, 0.72, -2.445);
+      hBar.position.set(s * 0.44, 0.72, -2.415);
       car.add(hBar);
     }
-    // Recessed center rear license plate
     const plate = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.15, 0.03), mats.plate);
-    plate.position.set(0, 0.71, -2.43);
+    plate.position.set(0, 0.71, -2.405);
     car.add(plate);
-
-    // Rear bumper perimeter black+silver stripe
-    const rStripeB = new THREE.Mesh(new THREE.BoxGeometry(1.70, 0.028, 0.03), mats.darkTrim);
-    rStripeB.position.set(0, 0.42, -2.465);
-    car.add(rStripeB);
-    const rStripeS = new THREE.Mesh(new THREE.BoxGeometry(1.70, 0.012, 0.032), mats.silverPin);
-    rStripeS.position.set(0, 0.438, -2.465);
-    car.add(rStripeS);
   }
 
   // ---- 6. Underbody, Cabin Interior & Seated Driver (Brad) ----
