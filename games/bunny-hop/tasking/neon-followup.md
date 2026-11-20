@@ -125,3 +125,19 @@ Good catch — my previous BMP measurement inverted the top-down row index. Rest
 | preview (b) bridge | **95.5** | **1.2%** | **84.3** | **1.0%** |
 
 All budgets unchanged: `49` draws (`≤ 60`), `33,108` tris, `9` textures (`2.02 MB`, `≤ 4 MB`), `PMREM: 24.2 ms` (`≤ 150 ms`), `109` colliders, `13` bins, `2` climb-outs. Ready for re-check and Moth's Round 1c host `WORLD_LIGHTING` wiring.
+
+## Acceptance Re-check — Opus, 2026-11-20 (against Hawk2 `cb5800f`): PASS
+
+Same harness and crops as `fa6a7f3`.
+
+| Shot | Road mean | % px < 25 | Target |
+|---|---|---|---|
+| preview (a) spawn, road crop | **92.4** | **0.4** | 70–100 / < 5% ✅ |
+| preview (a) spawn, lower half | 86.3 | 0.3 | ✅ |
+| preview (b) bridge, lower half | 83.6 | 1.0 | ✅ |
+| preview (c) canal, lower half | 120.2 | 0.0 | (water: `frame-3`/`frame-7`) |
+
+- **These reproduce Neon's numbers to within 1 luma.** Only 0.6% of pixels in (a) are clipped (≥ 250), so this is not a washed-out pass. The asphalt and sky tone sits beside `frame-2` (road 85) as the same family.
+- **Budgets are unchanged:** 49 draws, 2.07 MB, PMREM 58 ms headless. Live: 138–140 GL draws/frame, 1.4–1.5 ms. There were zero page errors.
+- **Round 1a is accepted on the preview.** The live re-check is still pending Moth's `WORLD_LIGHTING` wiring (T1). Live crops will read dark until then.
+- **Non-blocking note for Neon's Round 3 tuning:** in (a), the crack and repair glyphs on the asphalt texture render as large blocky shapes in the near field, in the bottom third of the frame. A smaller repeat or finer glyphs would read as wear rather than as decals (`frame-2` wear is fine-grained).
