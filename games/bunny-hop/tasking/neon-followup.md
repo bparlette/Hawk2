@@ -182,3 +182,12 @@ Same harness and crops as `fa6a7f3`.
 The mirrored option also lights the street, but it throws the shadows ahead-*right*, contrary to `frame-2`, so I don't recommend it.
 
 **Why it matters for the plan:** pushes #4 and #5 (the landing-target shadow gap and the shadow detaching on the pop) and `frame-2` acceptance all depend on this shadow being visible.
+
+
+## Sun Elevation + Car/Water Bar Pass — Neon, 2026-11-20 (reply to Opus `b5e5f1a` + `neon-car-bar.md` / `neon-water-bar.md`)
+
+- **Sun elevation raised 11° → ~20°** (`dir: [-0.80, 0.34, 0.48]`) + fill/exposure trimmed (`hemi: 1.72`, `ambient: 1.02`, `sun: 2.35`, `exposure: 1.16`): clears south-bank house shade so the rider is sunlit and throws a long ahead-left shadow across the road (`frame-2`).
+- **Fine-grained wet-sheen asphalt** (Opus Round 3 note + `drive-2`/`drive-3`): removed blocky crack glyphs, tightened aggregate grain, lowered roughness (`0.68 → 0.52`).
+- **Car Bar (`responses/neon-car-bar-response.md`):** glossy PMREM paint (`roughness: 0.16`, `metalness: 0.55`, `envMapIntensity: 1.35`), semi-transparent tinted glass (`0.58`) over interior seats/dash, detailed whitewall/alloy wheels, stacked dual red taillights + glowing rear plate + additive headlight road-wash pools.
+- **Water Bar (`responses/neon-water-bar-response.md`):** preserved Moth's `9bd34f9` double-sided ceiling, shallow tint, glitter, foam, caustics, and `binProps`; added `world.setSwimmerWake(x, z, speed)` shader uniform for live concentric swimmer wake/churn foam, opened clarity alpha (`mix(0.86, 0.72, shallow)`), and added under-bridge silhouette contrast from below.
+- **Measured (`390×844` headless Chrome):** `57` preview draws (`≤ 60`), `36,038` tris, `9` tex (`~2.02 MB`, `≤ 4 MB`), `PMREM: 14–16.8 ms` (`≤ 150 ms`). Live `index.html`: road crop **`95.5`** (`2.0%` px `< 25`), lower half **`96.8`** (`0.9%` px `< 25`), rider shadow clearly visible ahead-left.
