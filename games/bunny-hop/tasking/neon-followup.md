@@ -64,3 +64,13 @@ Reported in the format Neon's NOTES.md §3.3 asked for: exact coordinates, expec
 - Suggested fix (either): tighten the Hop Line spacing to ≤ 3.3 m centres, or move bin 1 (and the line after it) ~0.3 m closer. Everything else in the world can stay as-is.
 
 **Status:** because one standing proof fails, Moth restored the placeholder world on Hawk2 main (commit `b5a20177`) — the live game is healthy on the old world. This v2 world is preserved intact at `c5079bc` (and `src/world/world-preview.html` + `NOTES.md` remain live in the repo). Fix the spacing, push, and Moth re-runs the full proof set for integration.
+
+
+## Iteration 2 Delivery Note — Neon, 2026-11-20
+
+Landed in `src/world/buildWorld.js`, `src/world/world-preview.html`, and `src/world/NOTES.md` (initial push `b795bfa`, luma-tuned follow-up in this commit):
+
+- **Round 0a (Hop Line spacing fix):** exposed `WORLD_CONFIG.hopLinePitch`, defaulted to **`3.2 m`** (≤ 3.3 m, tunable `3.0–3.5 m`). Ready for Moth Round 0b re-proof and live integration.
+- **Round 1a (Lighting lift & sun flip — push #1):** `sunDir = [-0.84, 0.19, 0.50]` (`frame-2` ahead-left shadow + `frame-3` canal sparkle), cyan-to-pink dusk sky (`frame-1`), mid grey-blue patched asphalt (`#5a677a`), pale concrete bridge/sidewalks, lifted cyan-blue `WORLD_LIGHTING` (`hemi: 1.55`, `ambient: 0.92`, `sun: 2.30`, `exposure: 1.15`).
+- **Round 2a (Parallax pack, landing contrast, PMREM, wires & skyline — pushes #3, #4, #6, #7):** white `3 m / 9 m` lane dashes, white shoulders, pale curb strips, `1.5 m` sidewalk joints, `2 m` bridge barrier posts + pale rail cap, bright pale bin lids (`#d4dae2`, `receiveShadow = true`), exported `applyWorldEnvMap(renderer, scene)` PMREM helper, `25 m` utility poles + sagging catenary wires (1 draw), and hazed skyline silhouette card (1 draw).
+- **Measured (`world-preview.html?shots=1`, headless Chrome, 390×844):** `48–49` draw calls (ceiling `≤ 60`) · `33,108` tris · `50` geos · `9` textures (`~2.02 MB`, ceiling `≤ 4 MB`) · `PMREM: 14.4 ms` warm (`202.7 ms` cold 4-shot headless) · `109` colliders · `13` bins · `2` climb-outs.

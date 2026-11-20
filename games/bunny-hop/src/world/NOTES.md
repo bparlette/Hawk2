@@ -49,10 +49,10 @@ Implements `tasking/neon-followup.md` + **Phase A & Phase B** of `tasking/respon
 
 - `buildWorld(scene)` sets `scene.fog` and adds the dusk sky dome; if the host already provides a `DirectionalLight`, `buildWorld` does not add duplicate lights.
 - To match the preview 1:1 in `index.html`, apply `WORLD_LIGHTING` and call `applyWorldEnvMap(renderer, scene)` once after renderer init:
-  - Renderer: `ACESFilmicToneMapping`, `toneMappingExposure = 1.18`, `SRGBColorSpace`
-  - Sun: `0xffb38a`, intensity `2.35`, dir `[-0.84, 0.19, 0.50]`
-  - Hemisphere: sky `0xa4cbf7`, ground `0x675e70`, intensity `1.75`
-  - Ambient: `0x627aa8`, intensity `1.05`
+  - Renderer: `ACESFilmicToneMapping`, `toneMappingExposure = 1.15`, `SRGBColorSpace`
+  - Sun: `0xffb38a`, intensity `2.30`, dir `[-0.84, 0.19, 0.50]`
+  - Hemisphere: sky `0xa0c8f6`, ground `0x60586c`, intensity `1.55`
+  - Ambient: `0x5c74a2`, intensity `0.92`
   - Fog: `new THREE.Fog(0x8d82a3, 42, 160)`
 - **Water animation:** self-contained via `waterMesh.onBeforeRender` (zero host hook, zero per-frame allocations).
 - **Preview scripts:** `world-preview.html?shots=1` renders the 4 fixed `390×844` views + `renderer.info` console/HUD dump.
