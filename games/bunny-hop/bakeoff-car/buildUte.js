@@ -151,6 +151,89 @@ function createHoodGeo() {
   return buildLoft(rings, false, false);
 }
 
+// Smooth crowned lofted roof panel for the ute seamlessly meeting A-pillars & sail panels
+function createUteRoofGeo() {
+  const zs = [0.38, 0.18, -0.02, -0.22, -0.40];
+  const cols = 8;
+  const rings = [];
+  for (const z of zs) {
+    const t = (0.38 - z) / (0.38 - (-0.40));
+    const halfW = 0.715 + Math.sin(t * Math.PI) * 0.015;
+    const yEdge = 1.38 + Math.sin(t * Math.PI) * 0.012;
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = (c / cols) * 2 - 1;
+      const x = u * halfW;
+      const crown = (1 - u * u) * 0.032;
+      ring.push([x, yEdge + crown, z]);
+    }
+    rings.push(ring);
+  }
+  return buildLoft(rings, false, true);
+}
+
+// Curved flush windshield matching ute A-pillar tumblehome (zero overhang)
+function createUteWindshieldGeo() {
+  const rows = 5, cols = 8;
+  const rings = [];
+  for (let r = 0; r <= rows; r++) {
+    const t = r / rows;
+    const zBase = 0.72 - t * 0.34;
+    const yBase = 0.905 + t * 0.475;
+    const halfW = 0.82 - t * 0.11;
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = (c / cols) * 2 - 1;
+      const x = u * halfW;
+      const bowZ = (1 - u * u) * (0.045 - t * 0.012);
+      const crownY = (1 - u * u) * 0.020;
+      ring.push([x, yBase + crownY, zBase + bowZ]);
+    }
+    rings.push(ring);
+  }
+  return buildLoft(rings, false, false);
+}
+
+// Exact-fit trapezoidal side door window for the ute (follows A-pillar rake & tumblehome, zero overlap)
+function createUteSideWindowGeo(side) {
+  const rows = 4, cols = 4;
+  const rings = [];
+  for (let r = 0; r <= rows; r++) {
+    const t = r / rows;
+    const y = 0.905 + t * 0.470;
+    const zFront = 0.70 - t * 0.32;
+    const zBack = -0.36 + t * 0.01;
+    const x = side * (0.835 - t * 0.120);
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = c / cols;
+      const z = zFront + u * (zBack - zFront);
+      ring.push([x, y, z]);
+    }
+    rings.push(ring);
+  }
+  return buildLoft(rings, false, side > 0);
+}
+
+// Exact-fit tapered rear cab window tucked inside the sweeping sail panels
+function createUteRearWindowGeo() {
+  const rows = 4, cols = 6;
+  const rings = [];
+  for (let r = 0; r <= rows; r++) {
+    const t = r / rows;
+    const y = 0.94 + t * 0.44;
+    const z = -0.42 + t * 0.03;
+    const halfW = 0.76 - t * 0.08;
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = (c / cols) * 2 - 1;
+      ring.push([u * halfW, y, z]);
+    }
+    rings.push(ring);
+  }
+  return buildLoft(rings, false, true);
+}
+
 // Sweeping curved fastback sail-panel / C-pillar buttress (the signature El Camino / Ranchero line!)
 function createSailPanel(side) {
   // Flows smoothly from roof rear corner down onto the bed rail
@@ -301,13 +384,25 @@ export function buildUte() {
     tire: new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.88 }),
     whitewall: new THREE.MeshStandardMaterial({ color: 0xeef1f5, roughness: 0.65 }),
     glass: new THREE.MeshPhysicalMaterial({
-      color: 0x1d344e,
-      metalness: 0.15,
-      roughness: 0.05,
+      color: 0x0c1828,
+      metalness: 0.22,
+      roughness: 0.04,
       transparent: true,
-      opacity: 0.36,
+      opacity: 0.56,
       clearcoat: 1.0,
-      envMapIntensity: 1.8,
+      clearcoatRoughness: 0.03,
+      envMapIntensity: 2.0,
+      side: THREE.DoubleSide,
+    }),
+    glassRear: new THREE.MeshPhysicalMaterial({
+      color: 0x060b14,
+      metalness: 0.28,
+      roughness: 0.04,
+      transparent: true,
+      opacity: 0.84,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.03,
+      envMapIntensity: 2.2,
       side: THREE.DoubleSide,
     }),
     interior: new THREE.MeshStandardMaterial({ color: 0x22252d, roughness: 0.88 }),
@@ -342,18 +437,12 @@ export function buildUte() {
   hood.receiveShadow = true;
   car.add(hood);
 
-  // ---- 3. Roof Cap + Raked A-Pillars + Sweeping El Camino Sail Panels ----
+  // ---- 3. Smooth Crowned Roof + Raked A-Pillars + Sweeping El Camino Sail Panels ----
   {
-    const roofGeo = new THREE.BoxGeometry(1.42, 0.065, 0.84);
-    const roof = new THREE.Mesh(roofGeo, mats.paint);
-    roof.position.set(0, 1.385, -0.02);
+    const roof = new THREE.Mesh(createUteRoofGeo(), mats.paint);
     roof.castShadow = true;
+    roof.receiveShadow = true;
     car.add(roof);
-
-    // Subtle roof crown pad
-    const crown = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.03, 0.74), mats.paint);
-    crown.position.set(0, 1.42, -0.02);
-    car.add(crown);
 
     // Exact point-to-point raked A-pillars connecting cowl (z=0.72) to roof front corner (z=0.38)
     for (const s of [-1, 1]) {
@@ -533,22 +622,11 @@ export function buildUte() {
     // Seated driver clearly visible through the side glass
     car.add(createSeatedDriver(mats));
 
-    // Raked windshield (tilted back from cowl z=0.72 to roof z=0.38) + rear cab window + clear side windows
-    const ws = new THREE.Mesh(new THREE.PlaneGeometry(1.46, 0.60), mats.glass);
-    ws.position.set(0, 1.14, 0.55);
-    ws.rotation.x = -0.62;
-    car.add(ws);
-
-    const rw = new THREE.Mesh(new THREE.PlaneGeometry(1.36, 0.42), mats.glass);
-    rw.position.set(0, 1.16, -0.40);
-    rw.rotation.x = 0.12;
-    car.add(rw);
-
+    // Curved flush windshield + exact-fit trapezoidal side windows + darker rear cab window
+    car.add(new THREE.Mesh(createUteWindshieldGeo(), mats.glass));
+    car.add(new THREE.Mesh(createUteRearWindowGeo(), mats.glassRear));
     for (const s of [-1, 1]) {
-      const sw = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.40), mats.glass);
-      sw.position.set(s * 0.78, 1.14, 0.02);
-      sw.rotation.y = s * Math.PI / 2;
-      car.add(sw);
+      car.add(new THREE.Mesh(createUteSideWindowGeo(s), mats.glass));
     }
   }
 

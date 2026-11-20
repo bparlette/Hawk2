@@ -163,21 +163,109 @@ function createCamaroHood() {
   return applyBradFade(buildLoft(rings, false, false));
 }
 
-// Giant curved wraparound rear glass hatchback (side.jpg, rear34.jpg)
+// Curved flush windshield matching A-pillar tumblehome & gentle forward bow (zero overhang)
+function createWindshieldGeo() {
+  const rows = 6, cols = 8;
+  const rings = [];
+  for (let r = 0; r <= rows; r++) {
+    const t = r / rows; // 0 = cowl bottom (z=0.56, y=0.845), 1 = roof header (z=0.14, y=1.245)
+    const zBase = 0.56 - t * 0.42;
+    const yBase = 0.845 + t * 0.400;
+    const halfW = 0.77 - t * 0.145;
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = (c / cols) * 2 - 1; // -1 .. +1
+      const x = u * halfW;
+      const bowZ = (1 - u * u) * (0.065 - t * 0.02);
+      const crownY = (1 - u * u) * 0.022;
+      ring.push([x, yBase + crownY, zBase + bowZ]);
+    }
+    rings.push(ring);
+  }
+  return buildLoft(rings, false, false);
+}
+
+// Exact-fit trapezoidal side door window following cabin tumblehome (never overlaps A/B pillars or body)
+function createSideWindowGeo(side) {
+  // 4 corners strictly inside A-pillar, roof rail, B-pillar leading edge, and door beltline
+  const rows = 4, cols = 4;
+  const rings = [];
+  for (let r = 0; r <= rows; r++) {
+    const t = r / rows; // 0 = beltline (y=0.845), 1 = roof rail (y=1.235)
+    const y = 0.845 + t * 0.390;
+    const zFront = 0.54 - t * 0.39;   // matches A-pillar rake exactly
+    const zBack = -0.52 + t * 0.04;   // matches B-pillar forward cant
+    const x = side * (0.785 - t * 0.155); // follows inward tumblehome
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = c / cols;
+      const z = zFront + u * (zBack - zFront);
+      const bulge = Math.sin(u * Math.PI) * Math.sin(t * Math.PI) * 0.014;
+      ring.push([x + side * bulge, y, z]);
+    }
+    rings.push(ring);
+  }
+  return buildLoft(rings, false, side > 0);
+}
+
+// Smooth crowned lofted roof panel (z = +0.14 .. -0.54) seamlessly meeting windshield & rear hatch
+function createRoofGeo() {
+  const zs = [0.14, -0.02, -0.20, -0.38, -0.54];
+  const cols = 8;
+  const rings = [];
+  for (const z of zs) {
+    const t = (0.14 - z) / (0.14 - (-0.54));
+    const halfW = 0.625 + Math.sin(t * Math.PI) * 0.018;
+    const yEdge = 1.242 + Math.sin(t * Math.PI) * 0.012;
+    const ring = [];
+    for (let c = 0; c <= cols; c++) {
+      const u = (c / cols) * 2 - 1;
+      const x = u * halfW;
+      const crown = (1 - u * u) * 0.032;
+      ring.push([x, yEdge + crown, z]);
+    }
+    rings.push(ring);
+  }
+  return applyBradFade(buildLoft(rings, false, true));
+}
+
+// Smooth curved B-pillar / sail hoop blending seamlessly from roof corner into rear quarter shoulder (rear34.jpg)
+function createBPillarGeo(side) {
+  const steps = 8;
+  const rings = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps; // 0 = beltline shoulder (y=0.855), 1 = roof corner (y=1.245)
+    const y = 0.855 + t * 0.390;
+    const xOut = side * (0.835 - (3 * t * t - 2 * t * t * t) * 0.210);
+    const xIn = side * (0.765 - (3 * t * t - 2 * t * t * t) * 0.175);
+    // Wider curved base flowing into the quarter panel, tapering smoothly up to the roof rail
+    const zLead = -0.52 + t * 0.04;
+    const zTrail = -0.82 + Math.pow(t, 0.72) * 0.28;
+    rings.push([
+      [xOut, y, zLead],
+      [xOut, y, zTrail],
+      [xIn, y, zTrail],
+      [xIn, y, zLead],
+    ]);
+  }
+  return applyBradFade(buildLoft(rings, true, side < 0));
+}
+
+// Giant curved wraparound rear glass hatchback tucked cleanly inside B-pillars & rear quarters (side.jpg, rear34.jpg)
 function createRearHatchGlass() {
-  // Sweeps smoothly from roof rear (z = -0.52, y = 1.24) down to rear deck (z = -2.14, y = 0.89)
-  const steps = 10;
+  const steps = 12;
   const rings = [];
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    const z = -0.52 - t * 1.62;
-    const yCenter = 1.242 - Math.pow(t, 1.08) * 0.352;
-    const halfW = 0.61 + t * 0.14;
+    const z = -0.53 - t * 1.62;
+    const yCenter = 1.258 - Math.pow(t, 1.06) * 0.375;
+    // Matches roof width at top (0.61) and flares smoothly to sit flush inside rear quarters (0.76)
+    const halfW = 0.605 + Math.sin(t * Math.PI * 0.65) * 0.165;
     const ring = [];
-    for (let j = 0; j <= 8; j++) {
-      const u = (j / 8) * 2 - 1; // -1 .. +1
+    for (let j = 0; j <= 10; j++) {
+      const u = (j / 10) * 2 - 1;
       const x = u * halfW;
-      const drop = u * u * (0.045 + (1 - t) * 0.035);
+      const drop = u * u * (0.042 + (1 - t) * 0.048);
       ring.push([x, yCenter - drop, z]);
     }
     rings.push(ring);
@@ -274,13 +362,26 @@ export function buildCamaro() {
     wheelAccent: new THREE.MeshStandardMaterial({ color: 0x3b404a, metalness: 0.55, roughness: 0.42 }),
     tire: new THREE.MeshStandardMaterial({ color: 0x16181c, roughness: 0.88 }),
     glass: new THREE.MeshPhysicalMaterial({
-      color: 0x152232,
-      metalness: 0.15,
-      roughness: 0.05,
+      color: 0x0b1420,
+      metalness: 0.22,
+      roughness: 0.04,
       transparent: true,
-      opacity: 0.40,
+      opacity: 0.58,
       clearcoat: 1.0,
-      envMapIntensity: 1.85,
+      clearcoatRoughness: 0.03,
+      envMapIntensity: 2.0,
+      side: THREE.DoubleSide,
+    }),
+    // Darker tinted rear hatch glass so the glass silhouette & car shape read clearly
+    glassRear: new THREE.MeshPhysicalMaterial({
+      color: 0x060a12,
+      metalness: 0.28,
+      roughness: 0.04,
+      transparent: true,
+      opacity: 0.84,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.03,
+      envMapIntensity: 2.2,
       side: THREE.DoubleSide,
     }),
     interior: new THREE.MeshStandardMaterial({ color: 0x20222a, roughness: 0.88 }),
@@ -396,60 +497,51 @@ export function buildCamaro() {
     }
   }
 
-  // ---- 4. Low Roof, Black T-Top Trim, Steep Windshield, B-Pillars & Giant Glass Hatch ----
+  // ---- 4. Smooth Crowned Roof, Seamless B-Pillars, Flush Windshield & Dark-Tinted Glass Hatch ----
   {
-    // Roof panel (behind windshield -> deep maroon!) + subtle T-top center & edge trim
-    addPaintedBox(1.24, 0.058, 0.74, 0, 1.248, -0.18);
-    const tCenter = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.74), mats.darkTrim);
-    tCenter.position.set(0, 1.275, -0.18);
-    car.add(tCenter);
-    for (const s of [-1, 1]) {
-      const tEdge = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.022, 0.74), mats.darkTrim);
-      tEdge.position.set(s * 0.62, 1.268, -0.18);
-      car.add(tEdge);
-    }
+    // Smooth lofted maroon roof panel + slim T-top center bar
+    const roofMesh = new THREE.Mesh(createRoofGeo(), mats.paint);
+    roofMesh.castShadow = true;
+    roofMesh.receiveShadow = true;
+    car.add(roofMesh);
 
-    // Steeply raked A-pillars (z = +0.52 -> +0.16) & sculpted B-pillars (z = -0.52)
+    const tCenter = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.014, 0.68), mats.darkTrim);
+    tCenter.position.set(0, 1.278, -0.20);
+    car.add(tCenter);
+
+    // Steeply raked A-pillars & smooth curved B-pillar hoops
     for (const s of [-1, 1]) {
-      const pA = new THREE.Vector3(s * 0.78, 0.84, 0.56);
-      const pB = new THREE.Vector3(s * 0.63, 1.245, 0.14);
+      const pA = new THREE.Vector3(s * 0.785, 0.845, 0.56);
+      const pB = new THREE.Vector3(s * 0.625, 1.245, 0.14);
       const dir = new THREE.Vector3().subVectors(pB, pA);
-      const aGeo = new THREE.CylinderGeometry(0.024, 0.028, dir.length(), 8);
-      aGeo.rotateX(0);
+      const aGeo = new THREE.CylinderGeometry(0.022, 0.028, dir.length(), 8);
       const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
       aGeo.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(q));
       aGeo.translate((pA.x + pB.x) * 0.5, (pA.y + pB.y) * 0.5, (pA.z + pB.z) * 0.5);
       applyBradFade(aGeo);
       car.add(new THREE.Mesh(aGeo, mats.paint));
 
-      // Wide angled B-pillar behind door glass (side.jpg, rear34.jpg)
-      addPaintedBox(0.11, 0.42, 0.24, s * 0.72, 1.04, -0.58, 0.22, 0, s * 0.34);
+      // Smooth curved B-pillar hoop flowing seamlessly into rear quarter shoulder
+      const bPillar = new THREE.Mesh(createBPillarGeo(s), mats.paint);
+      bPillar.castShadow = true;
+      bPillar.receiveShadow = true;
+      car.add(bPillar);
 
       // Sport aero side mirror (front34.jpg, side.jpg) + black door handle
-      addPaintedBox(0.12, 0.075, 0.14, s * 0.90, 0.87, 0.32);
-      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.032, 0.14), mats.darkTrim);
-      handle.position.set(s * 0.92, 0.77, -0.44);
+      addPaintedBox(0.11, 0.068, 0.13, s * 0.88, 0.865, 0.32);
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.028, 0.13), mats.darkTrim);
+      handle.position.set(s * 0.915, 0.77, -0.44);
       car.add(handle);
+
+      // Exact-fit trapezoidal side door window (zero overhang!)
+      car.add(new THREE.Mesh(createSideWindowGeo(s), mats.glass));
     }
 
-    // Steeply raked front windshield (61 deg!)
-    const ws = new THREE.Mesh(new THREE.PlaneGeometry(1.36, 0.64), mats.glass);
-    ws.position.set(0, 1.045, 0.35);
-    ws.rotation.x = -0.78;
-    car.add(ws);
+    // Curved flush windshield matching A-pillars & roof header
+    car.add(new THREE.Mesh(createWindshieldGeo(), mats.glass));
 
-    // Clear side door windows
-    for (const s of [-1, 1]) {
-      const sw = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.38), mats.glass);
-      sw.position.set(s * 0.74, 1.03, -0.10);
-      sw.rotation.y = s * Math.PI / 2;
-      sw.rotation.z = s * 0.05;
-      car.add(sw);
-    }
-
-    // Giant wraparound curved glass hatchback (side.jpg, rear34.jpg!)
-    const hatch = new THREE.Mesh(createRearHatchGlass(), mats.glass);
-    car.add(hatch);
+    // Giant wraparound curved glass hatchback (darker tinted so shape reads clearly!)
+    car.add(new THREE.Mesh(createRearHatchGlass(), mats.glassRear));
   }
 
   // ---- 5. Rear Deck, Integrated Ducktail Spoiler & Multi-Grid Taillights (rear34.jpg!) ----
