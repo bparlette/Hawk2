@@ -39,6 +39,17 @@
     transition:opacity .25s ease, transform .25s ease;pointer-events:none;width:94%;}
   #banner.show{opacity:1;transform:translateX(-50%) scale(1);}
   #banner small{display:block;font-size:14px;font-weight:700;color:#ffd9a0;margin-top:4px;}
+  #legHud{position:absolute;top:calc(72px + env(safe-area-inset-top));right:12px;text-align:right;color:#ffd9a0;
+    font-size:11.5px;font-weight:800;letter-spacing:.06em;text-shadow:0 1px 4px rgba(0,0,0,.85);}
+  #results{position:absolute;left:50%;top:16%;transform:translateX(-50%);width:min(430px,92vw);display:none;
+    background:rgba(10,14,26,.88);border:2px solid rgba(255,210,63,.55);border-radius:16px;color:#fff;
+    padding:16px 18px 12px;pointer-events:auto;text-align:left;box-shadow:0 10px 34px rgba(0,0,0,.55);}
+  #results h3{margin:0 0 8px;font-size:19px;font-weight:900;letter-spacing:.05em;text-align:center;}
+  #results .rrow{display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:2.5px 0;color:#cfd6ea;}
+  #results .rrow b{color:#fff;font-weight:900;}
+  #results .rtot{border-top:1px solid rgba(255,255,255,.25);margin-top:7px;padding-top:7px;font-size:14.5px;color:#fff;}
+  #results .rtot b{color:#ffd23f;}
+  #results .rclose{text-align:center;color:#8f97ad;font-size:11px;margin-top:9px;letter-spacing:.08em;}
   /* ---- gptouch: floating joystick (left half) + round buttons (bottom-right) ---- */
   #stickZone{position:fixed;left:0;bottom:0;width:50%;height:62%;z-index:1150;touch-action:none;}
   #stickBase{position:fixed;width:112px;height:112px;border-radius:50%;border:2px solid rgba(255,255,255,.4);
@@ -86,6 +97,8 @@
   <div id="target"><span></span></div>
   <div id="street"><span></span></div>
   <div id="banner"></div>
+  <div id="legHud"></div>
+  <div id="results"></div>
 </div>
 <div id="stickZone"></div>
 <div id="stickBase"></div><div id="stickKnob"></div>
@@ -211,6 +224,7 @@ const trail=[];           // breadcrumb {x,z,d} player path, oldest first
 let trailDist=0, lastTrailPt=null;
 let missions=null;   // Lane D (src/missions.js): fake-cop + night party
 let score=0, combo=0, comboTimer=0, comboLabel='', driftScoreAcc=0, shakeAmt=0;
+let legStart=0, legTimes=[];   // rally stakes: per-leg split timer (leg 1 starts at startGame)
 let camMode=0;       // 0 = Close GTA, 1 = Wide, 2 = Hood
 
 // Lamar's burning Mustang at Atholton (finale set piece)
@@ -332,6 +346,7 @@ function startGame(stopId, custom){
   targets = HOUSEHOLDS.map(h=>h.stop).filter(id=>id!==stopId);
   world.target.setStop(stopById[targets[0]]);
   started=true; startTime=performance.now();
+  legStart=startTime; legTimes=[];
   cine.depart();   // Lane E: depart sweep -> settle -> rise to the above view
   showBanner('RALLY THE CREW', 'First stop: '+householdLabel(targets[0])+' — '+stopById[targets[0]].street);
   updateTargetHud();
@@ -432,7 +447,7 @@ const speedEl=document.querySelector('#speed b'), rallyEl=document.getElementByI
       streetEl=document.getElementById('street'), streetSpan=document.querySelector('#street span'),
       turboRingEl=document.getElementById('turboRing'),
       wantedEl=document.getElementById('wanted'), scoreValEl=document.getElementById('scoreVal'),
-      comboPillEl=document.getElementById('comboPill');
+      comboPillEl=document.getElementById('comboPill'), legHudEl=document.getElementById('legHud');
 const TURBO_RING_C = 2*Math.PI*36; // svg ring circumference (r=36)
 if(turboRingEl){ turboRingEl.style.strokeDasharray=TURBO_RING_C; turboRingEl.style.strokeDashoffset=0; }
 function addScore(pts, label=''){
@@ -512,6 +527,20 @@ function toggleOnFoot(){
     return false;
   }
 }
+function fmtTime(s){ const mm=Math.floor(s/60), ss=(s%60).toFixed(1).padStart(4,'0'); return mm+':'+ss; }
+function showResults(totalSec){
+  const el=document.getElementById('results'); if(!el) return;
+  const order=[...collected];
+  const best=legTimes.length? Math.min(...legTimes) : 0;
+  let rows=legTimes.map((t,i)=>`<div class="rrow"><span>LEG ${i+1} — ${householdLabel(order[i]||'')}</span><b>${fmtTime(t)}</b></div>`).join('');
+  el.innerHTML=`<h3>🏁 RALLY RESULTS</h3>${rows}`+
+    `<div class="rrow rtot"><span>BEST LEG</span><b>${fmtTime(best)}</b></div>`+
+    `<div class="rrow rtot"><span>TOTAL TIME</span><b>${fmtTime(totalSec)}</b></div>`+
+    `<div class="rrow rtot"><span>SCORE</span><b>$${score.toLocaleString()}</b></div>`+
+    `<div class="rclose">TAP TO CLOSE — FREE CRUISE</div>`;
+  el.style.display='block';
+  el.onclick=()=>{ el.style.display='none'; };
+}
 let bannerTimer=null;
 function showBanner(main, sub, hold=2600){
   bannerEl.innerHTML=main+(sub? `<small>${sub}</small>`:'');
@@ -565,6 +594,7 @@ function checkArrivals(){
   if(d>17) return;
   if(targets.length){
     const stopId=targets.shift(); collected.add(stopId);
+    legTimes.push((performance.now()-legStart)/1000); legStart=performance.now();
     const hh=HOUSEHOLDS.find(h=>h.stop===stopId);
     cineArriveFor(stopId, hh.cars);   // Lane E: BEFORE the parked cars are removed below
     for(const carId of hh.cars){
@@ -584,6 +614,7 @@ function checkArrivals(){
     finished=true; elapsed=(performance.now()-startTime)/1000;
     const mm=Math.floor(elapsed/60), ss=(elapsed%60).toFixed(1).padStart(4,'0');
     showBanner('🏁 RALLY COMPLETE — CREW ASSEMBLED', `Full crew at Atholton in ${mm}:${ss} · Lamar's Mustang is still burning`, 8000);
+    showResults(elapsed);
     gameAudio.finale();
     targetEl.textContent='CREW ASSEMBLED AT ATHOLTON — free cruise';
     rallyEl.textContent='RALLY 7/7 🏁';
@@ -661,7 +692,7 @@ let rallyProgress=0, streetT=0, lastStreet='', lastRingCharge=-1; // Lane A loop
 let approachLatch=false; // Lane E: approachEnd fires once per approach
 let _btnHidden=false;    // Lane B polish: driving-button visibility latch
 let prevRL=null, prevRR=null, smokeAcc=0, turboAcc=0;
-let lastStars=-1, lastScore=-1, lastComboText='', lastFootText='', lastFootBg='', lastFootOp='';
+let lastStars=-1, lastScore=-1, lastComboText='', lastFootText='', lastFootBg='', lastFootOp='', lastLegText='';
 function animate(){
   requestAnimationFrame(animate);
   const dt=Math.min(clock.getDelta(), 0.06);
@@ -863,6 +894,8 @@ function animate(){
     }
     speedEl.textContent=Math.round(Math.abs(player.speed)*3.6);
     if(score !== lastScore){ lastScore=score; scoreValEl.textContent='$'+score.toLocaleString(); }
+    const legTxt = finished? '' : `LEG ${Math.min(7, collected.size+1)}/7 · ${fmtTime((performance.now()-legStart)/1000)}`;
+    if(legTxt !== lastLegText){ lastLegText=legTxt; if(legHudEl) legHudEl.textContent=legTxt; }
     const cText = combo > 1 ? `×${combo} ${comboLabel}` : (combo === 1 && comboTimer > 0 && comboLabel ? comboLabel : '');
     if(cText !== lastComboText){
       lastComboText = cText;
@@ -958,7 +991,9 @@ window.__dbg={ get ready(){ return started; },
     driverSeated: !!(playerVeh && playerVeh._driver),
     phase: daynight.phase, phaseName: daynight.phaseName, timeLocked: daynight.locked,
     street: lastStreet, boosting: !!player.boosting, charge: player.charge,
-    stars: wanted.state.stars, score, combo, onFoot: onfoot.state.active,
+    stars: wanted.state.stars, heat: Math.round(wanted.state.heat), score, combo, onFoot: onfoot.state.active,
+    leg: Math.min(7, collected.size+1), legTime: +(((performance.now()-legStart)/1000).toFixed(1)),
+    legTimes: legTimes.map(t=>+t.toFixed(1)), totalTime: +(((performance.now()-startTime)/1000).toFixed(1)),
     drifting: !!player.drifting, slip: player.slip,
     trafficCount: traffic.cars.filter(c=>c.active).length,
     propsBroken: props.stats().broken, camMode,
