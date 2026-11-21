@@ -2,7 +2,7 @@
   "meta": {
     "name": "Jimmy's 2000 Chevrolet Astro LS (Gen 2)",
     "year": 2000,
-    "notes": "Gen-2 Astro SWB. Canon paint SILVER overall (photos are white-over-silver; shape only). Photo wheels are aftermarket - factory-style 5-spoke fitted. Blue underglow is a game-layer accessory, not baked in. Passenger van: rear side glass split by cPillarZ into two windows per side. Dutch doors: full-width rear glass is correct; barnDoors seam NOT used (would cross the liftglass)."
+    "notes": "Gen-2 Astro SWB. Canon paint SILVER overall (photos are white-over-silver; shape only). Photo wheels are aftermarket - factory-style 5-spoke fitted. Blue underglow is a game-layer accessory, not baked in. Passenger van: rear side glass split by cPillarZ into two windows per side. Dutch doors: full-width rear glass is correct; barnDoors seam NOT used (would cross the liftglass). MERGED Nov 20 (Cherie-approved): this Lane D base + Neon's roof rack (greenhouse.roofRack) and Neon's wheel treatment; paint, glass and fascias remain the Lane D fit."
   },
   "dims": {
     "length": 4.5,
@@ -130,6 +130,7 @@
     "yFrontBase": 1.04,
     "wFrontBase": 0.9,
     "roofCrown": 0.02,
+    "roofRack": true,
     "bPillarZ": 0.35,
     "windshieldColor": 1054239,
     "windshieldOpacity": 0.75,
@@ -246,9 +247,9 @@
   "wheels": {
     "spokeCount": 5,
     "spokeStyle": "blade",
-    "rimColor": 13225686,
+    "rimColor": 14146526,
     "tireColor": 1447707,
-    "hubRadius": 0.075,
-    "rimRatio": 0.58
+    "hubRadius": 0.085,
+    "rimRatio": 0.62
   }
 }

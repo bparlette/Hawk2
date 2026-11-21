@@ -2,7 +2,7 @@
   "meta": {
     "name": "Billy's 1990 Chevrolet Astro (Gen 1)",
     "year": 1990,
-    "notes": "Gen-1 Astro SWB: flat nose, sealed beams, barn doors. Canon paint TEAL-BLUE overall (photos are faded two-tone blue; shape only). Steel rally-style wheels. Barn doors: barnDoors center seam + vertical corner lamps. Rear glass remains one pane (template limit) - the seam crossing it reads as the door split."
+    "notes": "Gen-1 Astro SWB: flat nose, sealed beams, barn doors. Canon paint TEAL-BLUE overall (photos are faded two-tone blue; shape only). Steel rally-style wheels. Barn doors: barnDoors center seam + vertical corner lamps. Rear glass remains one pane (template limit) - the seam crossing it reads as the door split. MERGED Nov 20 (Cherie-approved): this Lane D base + Neon's roof rack (greenhouse.roofRack) and Neon's wheel treatment; paint, glass and fascias remain the Lane D fit."
   },
   "dims": {
     "length": 4.5,
@@ -130,6 +130,7 @@
     "yFrontBase": 1.0,
     "wFrontBase": 0.9,
     "roofCrown": 0.015,
+    "roofRack": true,
     "bPillarZ": 0.5,
     "windshieldColor": 1713718,
     "windshieldOpacity": 0.62,
@@ -241,11 +242,11 @@
     }
   },
   "wheels": {
-    "spokeCount": 5,
-    "spokeStyle": "twin",
-    "rimColor": 12172738,
+    "spokeCount": 8,
+    "spokeStyle": "blade",
+    "rimColor": 13423572,
     "tireColor": 1447707,
-    "hubRadius": 0.07,
-    "rimRatio": 0.55
+    "hubRadius": 0.095,
+    "rimRatio": 0.6
   }
 }

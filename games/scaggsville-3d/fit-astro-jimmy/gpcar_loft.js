@@ -493,24 +493,66 @@ function buildGreenhouse(spec, mats) {
     return [side * w, y, z];
   }
 
-  // 1. Sculpted body-colored roof panel (smoothly crowned across width)
-  const roofSteps = 8;
+  // Unified greenhouse upper-profile evaluator (handles BOTH angular 80s roofs AND rounded 90s aero domes,
+  // and guarantees bPillarZ / cPillarZ ALWAYS land 100% flush on the exact roof or sloped glass surface!)
+  const isRounded = Boolean(gh.rounded);
+  const archBoost = isRounded ? (gh.roofArch ?? 0.055) : 0;
+
+  function evalUpper(z) {
+    if (z <= gh.zRearRoof) {
+      // Rear glass / fastback ramp from zRearBase -> zRearRoof
+      const u = clamp((z - gh.zRearBase) / Math.max(1e-4, gh.zRearRoof - gh.zRearBase), 0, 1);
+      // When rounded: convex Bezier-like arch that curves smoothly into the roof instead of a sharp kink!
+      const uCurve = isRounded ? Math.pow(u, 0.72) : u;
+      const dome = isRounded ? Math.sin(u * Math.PI) * archBoost * 0.68 : 0;
+      return {
+        y: lerp(gh.yRearBase, gh.yRearRoof, uCurve) + dome,
+        w: lerp(gh.wRearBase, gh.wRearRoof, uCurve),
+      };
+    } else if (z <= gh.zFrontRoof) {
+      // Roof span from zRearRoof -> zFrontRoof
+      const u = clamp((z - gh.zRearRoof) / Math.max(1e-4, gh.zFrontRoof - gh.zRearRoof), 0, 1);
+      const dome = isRounded ? Math.sin(u * Math.PI) * archBoost : 0;
+      return {
+        y: lerp(gh.yRearRoof, gh.yFrontRoof, u) + dome,
+        w: lerp(gh.wRearRoof, gh.wFrontRoof, u),
+      };
+    } else {
+      // Windshield ramp from zFrontRoof -> zFrontBase
+      const u = clamp((z - gh.zFrontRoof) / Math.max(1e-4, gh.zFrontBase - gh.zFrontRoof), 0, 1);
+      const dome = isRounded ? Math.sin(u * Math.PI) * archBoost * 0.45 : 0;
+      return {
+        y: lerp(gh.yFrontRoof, gh.yFrontBase, u) + dome,
+        w: lerp(gh.wFrontRoof, gh.wFrontBase, u),
+      };
+    }
+  }
+
+  function evalBase(z) {
+    const u = clamp((z - gh.zRearBase) / Math.max(1e-4, gh.zFrontBase - gh.zRearBase), 0, 1);
+    return {
+      y: lerp(gh.yRearBase, gh.yFrontBase, u),
+      w: lerp(gh.wRearBase, gh.wFrontBase, u),
+    };
+  }
+
+  // 1. Sculpted body-colored roof panel (smoothly crowned across width + optional rounded longitudinal dome)
+  const roofSteps = isRounded ? 14 : 8;
   const roofRings = [];
   for (let i = 0; i <= roofSteps; i++) {
     const u = i / roofSteps;
     const z = lerp(gh.zRearRoof, gh.zFrontRoof, u);
-    const y = lerp(gh.yRearRoof, gh.yFrontRoof, u);
-    const w = lerp(gh.wRearRoof, gh.wFrontRoof, u);
+    const up = evalUpper(z);
     const c = gh.roofCrown * Math.sin(lerp(0.15, Math.PI - 0.15, u));
     const thick = 0.022;
     roofRings.push([
-      [-w, y - thick, z],
-      [-w, y, z],
-      [-w * 0.55, y + c * 0.78, z],
-      [0, y + c, z],
-      [w * 0.55, y + c * 0.78, z],
-      [w, y, z],
-      [w, y - thick, z],
+      [-up.w, up.y - thick, z],
+      [-up.w, up.y, z],
+      [-up.w * 0.55, up.y + c * 0.78, z],
+      [0, up.y + c, z],
+      [up.w * 0.55, up.y + c * 0.78, z],
+      [up.w, up.y, z],
+      [up.w, up.y - thick, z],
     ]);
   }
   const roofGeo = buildLoftGeo(roofRings, true, true);
@@ -519,6 +561,29 @@ function buildGreenhouse(spec, mats) {
   roofMesh.castShadow = true;
   roofMesh.receiveShadow = true;
   group.add(roofMesh);
+
+  // Optional Roof Luggage Rack Rails (iconic Chevy Astro van / wagon / SUV detail!)
+  if (gh.roofRack) {
+    const rLen = (gh.zFrontRoof - gh.zRearRoof) * 0.80;
+    const rZ = (gh.zFrontRoof + gh.zRearRoof) * 0.5 - 0.08;
+    const rW = (gh.wFrontRoof + gh.wRearRoof) * 0.44;
+    const rY = (gh.yFrontRoof + gh.yRearRoof) * 0.5 + gh.roofCrown + 0.032;
+    for (const s of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.024, rLen), mats.trimBlack);
+      rail.position.set(s * rW, rY, rZ);
+      group.add(rail);
+      for (const kz of [-0.42, 0.42]) {
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.038, 0.06), mats.trimBlack);
+        foot.position.set(s * rW, rY - 0.018, rZ + kz * rLen);
+        group.add(foot);
+      }
+    }
+    for (const kz of [-0.26, 0.26]) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(rW * 2.0, 0.018, 0.032), mats.trimBlack);
+      bar.position.set(0, rY - 0.002, rZ + kz * rLen);
+      group.add(bar);
+    }
+  }
 
   // Optional T-Top smoked glass roof panels (e.g. 3rd-gen Camaro T-tops!)
   if (gh.tTops) {
@@ -534,81 +599,80 @@ function buildGreenhouse(spec, mats) {
       panel.position.set(s * (wAvg * 0.46), yTop, zMid);
       group.add(panel);
     }
-    // Center T-bar divider
     const tBar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.020, len + 0.04), mats.trimBlack);
     tBar.position.set(0, yTop + 0.002, zMid);
     group.add(tBar);
   }
 
-  // 2. Continuous Flush Windshield (curves smoothly in X with subtle crown)
+  // 2. Continuous Flush Windshield (curves smoothly in X + optional multi-row dome curve)
   const wsCols = 10;
-  const wsBot = [], wsTop = [];
-  for (let i = 0; i <= wsCols; i++) {
-    const t = i / wsCols;
-    const sx = lerp(-1, 1, t);
-    const curveZ = (1 - sx * sx) * 0.055; // gentle wrap-around windshield curve!
-    const curveY = (1 - sx * sx) * gh.roofCrown * 0.7;
-    wsBot.push([sx * (gh.wFrontBase - 0.015), gh.yFrontBase - 0.01, gh.zFrontBase + curveZ]);
-    wsTop.push([sx * (gh.wFrontRoof - 0.015), gh.yFrontRoof + curveY - 0.01, gh.zFrontRoof + curveZ * 0.5]);
+  const wsRows = isRounded ? 4 : 1;
+  for (let r = 0; r < wsRows; r++) {
+    const v0 = r / wsRows, v1 = (r + 1) / wsRows;
+    const z0 = lerp(gh.zFrontBase, gh.zFrontRoof, v0);
+    const z1 = lerp(gh.zFrontBase, gh.zFrontRoof, v1);
+    const u0 = evalUpper(z0), u1 = evalUpper(z1);
+    const rowA = [], rowB = [];
+    for (let i = 0; i <= wsCols; i++) {
+      const sx = lerp(-1, 1, i / wsCols);
+      const cz0 = (1 - sx * sx) * lerp(0.065, 0.032, v0);
+      const cz1 = (1 - sx * sx) * lerp(0.065, 0.032, v1);
+      const cy = (1 - sx * sx) * gh.roofCrown * 0.72;
+      rowA.push([sx * (u0.w - 0.014), u0.y + cy * v0 - 0.01, z0 + cz0]);
+      rowB.push([sx * (u1.w - 0.014), u1.y + cy * v1 - 0.01, z1 + cz1]);
+    }
+    group.add(new THREE.Mesh(buildStripGeo(rowA, rowB, false), mats.windshield));
   }
-  const wsMesh = new THREE.Mesh(buildStripGeo(wsBot, wsTop, false), mats.windshield);
-  group.add(wsMesh);
 
-  // 3. Continuous Flush Rear Hatch / Back Glass (dark tinted, smoothly sloped to deck!)
+  // 3. Continuous Flush Rear Hatch / Back Glass (multi-row curved dome when rounded = true!)
   const rwCols = 10;
-  const rwTop = [], rwBot = [];
-  for (let i = 0; i <= rwCols; i++) {
-    const t = i / rwCols;
-    const sx = lerp(-1, 1, t);
-    const curveZ = -(1 - sx * sx) * 0.065; // curved liftback hatch glass
-    const curveY = (1 - sx * sx) * gh.roofCrown * 0.65;
-    rwTop.push([sx * (gh.wRearRoof - 0.015), gh.yRearRoof + curveY - 0.01, gh.zRearRoof + curveZ * 0.45]);
-    rwBot.push([sx * (gh.wRearBase - 0.015), gh.yRearBase + 0.005, gh.zRearBase + curveZ]);
+  const rwRows = isRounded ? 6 : 1;
+  for (let r = 0; r < rwRows; r++) {
+    const v0 = r / rwRows, v1 = (r + 1) / rwRows;
+    const z0 = lerp(gh.zRearRoof, gh.zRearBase, v0);
+    const z1 = lerp(gh.zRearRoof, gh.zRearBase, v1);
+    const u0 = evalUpper(z0), u1 = evalUpper(z1);
+    const rowA = [], rowB = [];
+    for (let i = 0; i <= rwCols; i++) {
+      const sx = lerp(-1, 1, i / rwCols);
+      const cz0 = -(1 - sx * sx) * lerp(0.035, 0.075, v0);
+      const cz1 = -(1 - sx * sx) * lerp(0.035, 0.075, v1);
+      const cy = (1 - sx * sx) * gh.roofCrown * 0.70;
+      rowA.push([sx * (u0.w - 0.014), u0.y + cy * (1 - v0 * 0.7) - 0.008, z0 + cz0]);
+      rowB.push([sx * (u1.w - 0.014), u1.y + cy * (1 - v1 * 0.7) - 0.008, z1 + cz1]);
+    }
+    group.add(new THREE.Mesh(buildStripGeo(rowA, rowB, false), mats.rearGlass));
   }
-  const rwMesh = new THREE.Mesh(buildStripGeo(rwTop, rwBot, false), mats.rearGlass);
-  group.add(rwMesh);
 
-  // 4. Flush Side Door Glass + Rear Quarter Glass (following exact tumblehome!)
-  // Split cleanly at bPillarZ: forward = lighter door glass, aft = darkly tinted quarter glass
+  // 4. Flush Side Door Glass + Rear Quarter Glass (following exact curved upper arch & tumblehome!)
   for (const side of [-1, 1]) {
     const bZ = gh.bPillarZ;
-    // Compute exact roof/base points at bPillarZ
-    const uRoofB = clamp((bZ - gh.zRearRoof) / Math.max(1e-4, gh.zFrontRoof - gh.zRearRoof), 0, 1);
-    const yRoofB = lerp(gh.yRearRoof, gh.yFrontRoof, uRoofB);
-    const wRoofB = lerp(gh.wRearRoof, gh.wFrontRoof, uRoofB);
+    const upB = evalUpper(bZ);
+    const baseB = evalBase(bZ);
 
-    const uBaseB = clamp((bZ - gh.zRearBase) / Math.max(1e-4, gh.zFrontBase - gh.zRearBase), 0, 1);
-    const yBaseB = lerp(gh.yRearBase, gh.yFrontBase, uBaseB);
-    const wBaseB = lerp(gh.wRearBase, gh.wFrontBase, uBaseB);
-
-    // Door window (from bPillarZ forward to A-pillar base)
-    const doorTop = [
-      [side * (wRoofB - 0.012), yRoofB - 0.015, bZ],
-      [side * (gh.wFrontRoof - 0.012), gh.yFrontRoof - 0.015, gh.zFrontRoof],
-      [side * (gh.wFrontBase - 0.012), gh.yFrontBase, gh.zFrontBase],
-    ];
-    const doorBot = [
-      [side * (wBaseB - 0.012), yBaseB - 0.01, bZ],
-      [side * (lerp(wBaseB, gh.wFrontBase, 0.5) - 0.012), lerp(yBaseB, gh.yFrontBase, 0.5) - 0.01, lerp(bZ, gh.zFrontBase, 0.5)],
-      [side * (gh.wFrontBase - 0.012), gh.yFrontBase - 0.01, gh.zFrontBase],
-    ];
+    // Sample smooth multi-point upper & lower rails for door window (bPillarZ -> zFrontBase)
+    const doorSteps = isRounded ? 8 : 3;
+    const doorTop = [], doorBot = [];
+    for (let i = 0; i <= doorSteps; i++) {
+      const z = lerp(bZ, gh.zFrontBase, i / doorSteps);
+      const up = evalUpper(z);
+      const bs = evalBase(z);
+      doorTop.push([side * (up.w - 0.012), up.y - 0.012, z]);
+      doorBot.push([side * (bs.w - 0.012), bs.y - 0.01, z]);
+    }
     group.add(new THREE.Mesh(buildStripGeo(doorTop, doorBot, side < 0), mats.sideGlass));
 
     // Rear quarter glass OR sculpted body-colored B-pillar sail (e.g., 3rd-gen Camaro!)
     if (gh.sailPillar && gh.sailPillar.enabled) {
       const sailRearZ = gh.sailPillar.zRear ?? lerp(bZ, gh.zRearBase, 0.42);
-      const uRearS = clamp((sailRearZ - gh.zRearBase) / Math.max(1e-4, gh.zFrontBase - gh.zRearBase), 0, 1);
-      const yBaseS = lerp(gh.yRearBase, gh.yFrontBase, uRearS);
-      const wBaseS = lerp(gh.wRearBase, gh.wFrontBase, uRearS);
-      const uRoofS = clamp((sailRearZ - gh.zRearBase) / Math.max(1e-4, gh.zRearRoof - gh.zRearBase), 0, 1);
-      // Thick sloped painted sail panel connecting roof edge smoothly down to rear quarter deck
+      const baseS = evalBase(sailRearZ);
       const sailTop = [
         [side * (gh.wRearRoof + 0.002), gh.yRearRoof - 0.008, gh.zRearRoof],
-        [side * (wRoofB + 0.002), yRoofB - 0.008, bZ],
+        [side * (upB.w + 0.002), upB.y - 0.008, bZ],
       ];
       const sailBot = [
-        [side * (wBaseS + 0.002), yBaseS - 0.01, sailRearZ],
-        [side * (wBaseB + 0.002), yBaseB - 0.01, bZ],
+        [side * (baseS.w + 0.002), baseS.y - 0.01, sailRearZ],
+        [side * (baseB.w + 0.002), baseB.y - 0.01, bZ],
       ];
       const sailGeo = buildStripGeo(sailTop, sailBot, side < 0);
       applySplitPaintVertexColors(sailGeo, spec.paint);
@@ -616,28 +680,26 @@ function buildGreenhouse(spec, mats) {
       sailMesh.castShadow = true;
       group.add(sailMesh);
 
-      // Wrap-around frameless rear hatch side glass behind the sail!
       const hatchSideTop = [
         [side * (gh.wRearBase - 0.010), gh.yRearBase + 0.005, gh.zRearBase],
         [side * (gh.wRearRoof - 0.010), gh.yRearRoof - 0.014, gh.zRearRoof],
       ];
       const hatchSideBot = [
         [side * (gh.wRearBase - 0.010), gh.yRearBase - 0.01, gh.zRearBase],
-        [side * (wBaseS - 0.010), yBaseS - 0.01, sailRearZ],
+        [side * (baseS.w - 0.010), baseS.y - 0.01, sailRearZ],
       ];
       group.add(new THREE.Mesh(buildStripGeo(hatchSideTop, hatchSideBot, side < 0), mats.rearGlass));
     } else {
-      const qtrTop = [
-        [side * (gh.wRearBase - 0.012), gh.yRearBase + 0.005, gh.zRearBase],
-        [side * (gh.wRearRoof - 0.012), gh.yRearRoof - 0.015, gh.zRearRoof],
-        [side * (wRoofB - 0.012), yRoofB - 0.015, bZ],
-      ];
-      const qtrBot = [
-        [side * (gh.wRearBase - 0.012), gh.yRearBase - 0.01, gh.zRearBase],
-        [side * (lerp(gh.wRearBase, wBaseB, 0.5) - 0.012), lerp(gh.yRearBase, yBaseB, 0.5) - 0.01, lerp(gh.zRearBase, bZ, 0.5)],
-        [side * (wBaseB - 0.012), yBaseB - 0.01, bZ],
-      ];
-      // Support solid metal cargo-van rear flanks (e.g., Astro cargo van) OR tinted rear/quarter glass
+      // Sample smooth multi-point upper & lower rails for quarter window (zRearBase -> bPillarZ)
+      const qtrSteps = isRounded ? 8 : 3;
+      const qtrTop = [], qtrBot = [];
+      for (let i = 0; i <= qtrSteps; i++) {
+        const z = lerp(gh.zRearBase, bZ, i / qtrSteps);
+        const up = evalUpper(z);
+        const bs = evalBase(z);
+        qtrTop.push([side * (up.w - 0.012), up.y - 0.012, z]);
+        qtrBot.push([side * (bs.w - 0.012), bs.y - 0.01, z]);
+      }
       const qtrGeo = buildStripGeo(qtrTop, qtrBot, side < 0);
       if (gh.cargoSide) {
         applySplitPaintVertexColors(qtrGeo, spec.paint);
@@ -649,17 +711,13 @@ function buildGreenhouse(spec, mats) {
       }
     }
 
-    // Optional C-pillar (for 4-door sedans like Camry/Brougham/Cavalier & passenger vans like Astro!)
+    // Optional C-pillar — FIXED: uses evalUpper(cZ) so it ALWAYS stays 100% flush on the glass/roof surface!
     if (typeof gh.cPillarZ === 'number') {
-      const cZ = gh.cPillarZ;
-      const uRoofC = clamp((cZ - gh.zRearRoof) / Math.max(1e-4, gh.zFrontRoof - gh.zRearRoof), 0, 1);
-      const yRoofC = lerp(gh.yRearRoof, gh.yFrontRoof, uRoofC);
-      const wRoofC = lerp(gh.wRearRoof, gh.wFrontRoof, uRoofC);
-      const uBaseC = clamp((cZ - gh.zRearBase) / Math.max(1e-4, gh.zFrontBase - gh.zRearBase), 0, 1);
-      const yBaseC = lerp(gh.yRearBase, gh.yFrontBase, uBaseC);
-      const wBaseC = lerp(gh.wRearBase, gh.wFrontBase, uBaseC);
-      const p1 = new THREE.Vector3(side * (wBaseC - 0.004), yBaseC, cZ);
-      const p2 = new THREE.Vector3(side * (wRoofC - 0.004), yRoofC - 0.006, cZ);
+      const cZ = clamp(gh.cPillarZ, gh.zRearBase + 0.04, gh.zFrontRoof - 0.04);
+      const upC = evalUpper(cZ);
+      const baseC = evalBase(cZ);
+      const p1 = new THREE.Vector3(side * (baseC.w - 0.004), baseC.y, cZ);
+      const p2 = new THREE.Vector3(side * (upC.w - 0.004), upC.y - 0.006, cZ);
       const dc = new THREE.Vector3().subVectors(p2, p1);
       const cm = new THREE.Mesh(
         new THREE.CylinderGeometry(0.026, 0.026, dc.length(), 8),
@@ -683,18 +741,34 @@ function buildGreenhouse(spec, mats) {
       group.add(m);
     }
 
-    // Body-colored A-pillar outer frame + dark inner trim
-    addPillar([side * gh.wFrontBase, gh.yFrontBase, gh.zFrontBase], [side * gh.wFrontRoof, gh.yFrontRoof - 0.005, gh.zFrontRoof], 0.022, mats.paintFront);
-    // Matte-black B-pillar (characteristic T160 blacked-out center pillar!)
-    addPillar([side * (wBaseB - 0.006), yBaseB, bZ], [side * (wRoofB - 0.006), yRoofB - 0.008, bZ], 0.024, mats.trimBlack);
-    // Sleek blacked-out C-pillar / hatch rail (omitted on frameless bubble-hatch cars with sailPillar!)
-    if (!gh.sailPillar || !gh.sailPillar.enabled) {
-      addPillar([side * gh.wRearBase, gh.yRearBase, gh.zRearBase], [side * gh.wRearRoof, gh.yRearRoof - 0.008, gh.zRearRoof], 0.020, mats.trimBlack);
+    // Body-colored A-pillar outer frame (segmented smoothly along evalUpper when rounded)
+    if (isRounded) {
+      const aSteps = 4;
+      for (let i = 0; i < aSteps; i++) {
+        const za = lerp(gh.zFrontBase, gh.zFrontRoof, i / aSteps);
+        const zb = lerp(gh.zFrontBase, gh.zFrontRoof, (i + 1) / aSteps);
+        const ua = evalUpper(za), ub = evalUpper(zb);
+        addPillar([side * ua.w, ua.y - 0.004, za], [side * ub.w, ub.y - 0.004, zb], 0.022, mats.paintFront);
+      }
+      // Curved body-colored roof-to-hatch side arch (iconic 90s rounded Cavalier/Camry roofline!)
+      const rSteps = 10;
+      for (let i = 0; i < rSteps; i++) {
+        const za = lerp(gh.zRearBase, gh.zFrontRoof, i / rSteps);
+        const zb = lerp(gh.zRearBase, gh.zFrontRoof, (i + 1) / rSteps);
+        const ua = evalUpper(za), ub = evalUpper(zb);
+        addPillar([side * ua.w, ua.y - 0.005, za], [side * ub.w, ub.y - 0.005, zb], 0.020, mats.paintRear);
+      }
+    } else {
+      addPillar([side * gh.wFrontBase, gh.yFrontBase, gh.zFrontBase], [side * gh.wFrontRoof, gh.yFrontRoof - 0.005, gh.zFrontRoof], 0.022, mats.paintFront);
+      if (!gh.sailPillar || !gh.sailPillar.enabled) {
+        addPillar([side * gh.wRearBase, gh.yRearBase, gh.zRearBase], [side * gh.wRearRoof, gh.yRearRoof - 0.008, gh.zRearRoof], 0.020, mats.trimBlack);
+      }
+      addPillar([side * gh.wRearRoof, gh.yRearRoof - 0.008, gh.zRearRoof], [side * gh.wFrontRoof, gh.yFrontRoof - 0.008, gh.zFrontRoof], 0.014, mats.trimBlack);
     }
+    // Matte-black B-pillar seated cleanly on evalBase -> evalUpper
+    addPillar([side * (baseB.w - 0.006), baseB.y, bZ], [side * (upB.w - 0.006), upB.y - 0.008, bZ], 0.024, mats.trimBlack);
     // Window sill black rubber trim along beltline
     addPillar([side * gh.wRearBase, gh.yRearBase - 0.002, gh.zRearBase], [side * gh.wFrontBase, gh.yFrontBase - 0.002, gh.zFrontBase], 0.014, mats.trimBlack);
-    // Upper roof-rail black weatherstrip
-    addPillar([side * gh.wRearRoof, gh.yRearRoof - 0.008, gh.zRearRoof], [side * gh.wFrontRoof, gh.yFrontRoof - 0.008, gh.zFrontRoof], 0.014, mats.trimBlack);
 
     // Side Mirror mounted at front corner of door glass
     if (gh.mirrors) {
@@ -805,6 +879,51 @@ function buildWrapBeamGeo(halfW, h, depth, wrapZ, cornerR = 0.12, segs = 6) {
   return geo;
 }
 
+// Helper: beveled rounded-oval lens (for 90s oval taillights & bumper turn signals)
+function buildOvalLensGeo(w, h, depth = 0.04) {
+  const shape = new THREE.Shape();
+  const rx = w * 0.5, ry = h * 0.5;
+  shape.absellipse(0, 0, rx, ry, 0, Math.PI * 2, false, 0);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    bevelEnabled: true,
+    bevelThickness: Math.min(0.012, depth * 0.4),
+    bevelSize: Math.min(0.010, ry * 0.2),
+    bevelSegments: 2,
+    curveSegments: 16,
+  });
+  geo.translate(0, 0, -depth * 0.5);
+  return geo;
+}
+
+// Helper: tapered teardrop/almond lens (for 90s aero headlights like '96 Cavalier!)
+// Tapered toward +X (outer edge) when side = +1, mirrored when side = -1.
+function buildTeardropLensGeo(w, h, depth = 0.045, side = 1) {
+  const shape = new THREE.Shape();
+  const hw = w * 0.5, hh = h * 0.5;
+  if (side > 0) {
+    shape.moveTo(-hw, -hh * 0.65);
+    shape.quadraticCurveTo(-hw * 0.9, hh * 0.95, 0, hh);
+    shape.quadraticCurveTo(hw * 0.72, hh * 0.85, hw, -hh * 0.15);
+    shape.quadraticCurveTo(hw * 0.65, -hh * 0.85, -hw, -hh * 0.65);
+  } else {
+    shape.moveTo(hw, -hh * 0.65);
+    shape.quadraticCurveTo(hw * 0.9, hh * 0.95, 0, hh);
+    shape.quadraticCurveTo(-hw * 0.72, hh * 0.85, -hw, -hh * 0.15);
+    shape.quadraticCurveTo(-hw * 0.65, -hh * 0.85, hw, -hh * 0.65);
+  }
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    bevelEnabled: true,
+    bevelThickness: 0.012,
+    bevelSize: 0.008,
+    bevelSegments: 2,
+    curveSegments: 14,
+  });
+  geo.translate(0, 0, -depth * 0.5);
+  return geo;
+}
+
 // ---------------------------------------------------------------------------
 // Stacked Front Fascia (Bumper, Rub Strip, Slatted Grille, Corner Lamps, Chin Dam, Pop-ups)
 // ---------------------------------------------------------------------------
@@ -816,11 +935,16 @@ function buildFrontFascia(spec, mats) {
   const wFront = stFront.wBelt;
   const group = new THREE.Group();
 
-  // 1. Smooth Wrap-Around Front Bumper Bar (body-colored OR chrome for vans/trucks/classics!)
-  const bumpW = Math.min(stPrev.wBelt + 0.015, wFront + 0.065);
+  // 1. Smooth Wrap-Around Front Bumper Bar (painted | chrome | unpainted gray plastic)
+  const bumpW = Math.min(stPrev.wBelt + 0.025, wFront + 0.095);
+  const frontBumperMat = ff.bumpers === 'unpainted'
+    ? mats.unpaintedBumper
+    : (ff.chromeBumper || ff.bumpers === 'chrome' ? mats.chrome : mats.paintFront);
+  const frontCornerR = ff.bumperCornerR ?? 0.14;
+  const frontWrapZ = ff.bumpers === 'unpainted' ? 0.42 : 0.28;
   const bumper = new THREE.Mesh(
-    buildWrapBeamGeo(bumpW, ff.bumperH, ff.bumperProtrusion + 0.06, 0.28, 0.14),
-    ff.chromeBumper ? mats.chrome : mats.paintFront
+    buildWrapBeamGeo(bumpW, ff.bumperH, ff.bumperProtrusion + 0.06, frontWrapZ, frontCornerR),
+    frontBumperMat
   );
   bumper.position.set(0, ff.bumperY, zFront - 0.04);
   bumper.castShadow = true;
@@ -829,7 +953,7 @@ function buildFrontFascia(spec, mats) {
   // Continuous matte-black wrap-around bumper rub strip (optional)
   if (ff.rubStripH > 0) {
     const rubFront = new THREE.Mesh(
-      buildWrapBeamGeo(bumpW + 0.008, ff.rubStripH, ff.bumperProtrusion + 0.068, 0.29, 0.14),
+      buildWrapBeamGeo(bumpW + 0.008, ff.rubStripH, ff.bumperProtrusion + 0.068, 0.29, frontCornerR),
       mats.trimBlack
     );
     rubFront.position.set(0, ff.rubStripY, zFront - 0.04);
@@ -903,6 +1027,56 @@ function buildFrontFascia(spec, mats) {
       pool.rotation.x = -Math.PI / 2;
       pool.position.set(s * xOff * 1.05, 0.018, zFront + 2.45);
       group.add(pool);
+    }
+  } else if (ff.lampStyle === 'teardrop') {
+    // 2C. 90s AERO TEARDROP WRAPAROUND HEADLIGHTS + IN-BUMPER OVAL SLATTED GRILLE (e.g., '96 Cavalier!)
+    const cl = ff.cornerLamps;
+    const gr = ff.grille;
+    const clearW = cl.innerSmokedW ?? 0.34;
+    const ambW = cl.outerAmberW ?? 0.14;
+    const lampH = cl.h ?? 0.115;
+
+    for (const s of [-1, 1]) {
+      // Swept clear teardrop main headlight resting cleanly atop the curved aero bumper
+      const mainX = s * (wFront * 0.56);
+      const mainGeo = buildTeardropLensGeo(clearW, lampH, 0.055, s);
+      const mainLens = new THREE.Mesh(mainGeo, mats.clearHeadLens);
+      mainLens.position.set(mainX, cl.y, zFront + 0.022);
+      mainLens.rotation.y = s * -0.26;
+      mainLens.rotation.x = -0.24;
+      group.add(mainLens);
+
+      // Swept amber outer corner tip wrapping around the front fender corner
+      const tipGeo = buildTeardropLensGeo(ambW, lampH * 0.72, 0.048, s);
+      const tipLens = new THREE.Mesh(tipGeo, mats.amberLens);
+      tipLens.position.set(s * (wFront * 0.94), cl.y - 0.008, zFront - 0.065);
+      tipLens.rotation.y = s * -0.68;
+      tipLens.rotation.x = -0.14;
+      group.add(tipLens);
+
+      // Oval amber bumper turn signal tucked cleanly on the front face of the gray bumper
+      if (gr.inBumper) {
+        const sigGeo = buildOvalLensGeo(0.14, 0.058, 0.032);
+        const sig = new THREE.Mesh(sigGeo, mats.amberLens);
+        sig.position.set(s * (bumpW * 0.72), ff.bumperY - 0.015, zFront + ff.bumperProtrusion + 0.016);
+        sig.rotation.y = s * -0.32;
+        group.add(sig);
+      }
+    }
+
+    // Oval slatted grille opening recessed cleanly INSIDE the front bumper!
+    if (gr.inBumper) {
+      const zB = zFront + ff.bumperProtrusion + 0.015;
+      const ovalBack = new THREE.Mesh(buildOvalLensGeo(gr.w, gr.h, 0.028), mats.dark);
+      ovalBack.position.set(0, gr.y, zB);
+      group.add(ovalBack);
+      for (let i = 0; i < (gr.slats || 4); i++) {
+        const u = (i + 0.5) / (gr.slats || 4) - 0.5;
+        const slatW = gr.w * Math.sqrt(Math.max(0.15, 1 - (u * 2) * (u * 2)));
+        const slat = new THREE.Mesh(new THREE.BoxGeometry(slatW * 0.92, 0.010, 0.026), frontBumperMat);
+        slat.position.set(0, gr.y + u * gr.h * 0.85, zB + 0.014);
+        group.add(slat);
+      }
     }
   } else {
     // 2B. Recessed Black Slatted Center Grille Panel + Flanking Smoked/Amber Corner Lamps
@@ -978,17 +1152,19 @@ function buildFrontFascia(spec, mats) {
     }
   }
 
-  // 4. Lower Recessed Intake Slot with vertical dividers (auto-seated on front valance surface!)
+  // 4. Lower Recessed Intake Slot with vertical dividers (skipped if grille.inBumper already drew it!)
   const li = ff.lowerIntake;
-  const intakeZ = ff.fixedLamps && ff.fixedLamps.enabled ? zFront + 0.036 : zFront + 0.004;
-  const intakeBack = new THREE.Mesh(new THREE.BoxGeometry(li.w, li.h, 0.05), mats.dark);
-  intakeBack.position.set(0, li.y, intakeZ);
-  group.add(intakeBack);
-  for (let i = 1; i <= (li.dividers || 3); i++) {
-    const x = lerp(-li.w * 0.45, li.w * 0.45, i / ((li.dividers || 3) + 1));
-    const div = new THREE.Mesh(new THREE.BoxGeometry(0.022, li.h, 0.055), mats.paintFront);
-    div.position.set(x, li.y, intakeZ + 0.004);
-    group.add(div);
+  if (!(ff.grille && ff.grille.inBumper)) {
+    const intakeZ = ff.fixedLamps && ff.fixedLamps.enabled ? zFront + 0.036 : zFront + 0.004;
+    const intakeBack = new THREE.Mesh(new THREE.BoxGeometry(li.w, li.h, 0.05), mats.dark);
+    intakeBack.position.set(0, li.y, intakeZ);
+    group.add(intakeBack);
+    for (let i = 1; i <= (li.dividers || 3); i++) {
+      const x = lerp(-li.w * 0.45, li.w * 0.45, i / ((li.dividers || 3) + 1));
+      const div = new THREE.Mesh(new THREE.BoxGeometry(0.022, li.h, 0.055), mats.paintFront);
+      div.position.set(x, li.y, intakeZ + 0.004);
+      group.add(div);
+    }
   }
 
   // 5. Smooth Wrap-Around Lower Chin Air Dam / Lip Spoiler
@@ -1122,11 +1298,16 @@ function buildRearFascia(spec, mats) {
   const wRear = stRear.wBelt;
   const group = new THREE.Group();
 
-  // 1. Smooth Wrap-Around Rear Bumper + Continuous Black Rub Strip + Lower Valance
-  const bumpW = Math.min(stNext.wBelt + 0.012, wRear + 0.055);
+  // 1. Smooth Wrap-Around Rear Bumper (painted | chrome | unpainted gray plastic)
+  const bumpW = Math.min(stNext.wBelt + 0.022, wRear + 0.085);
+  const rearBumperMat = rf.bumpers === 'unpainted'
+    ? mats.unpaintedBumper
+    : (rf.chromeBumper || rf.bumpers === 'chrome' ? mats.chrome : mats.paintRear);
+  const rearCornerR = rf.bumperCornerR ?? 0.13;
+  const rearWrapZ = rf.bumpers === 'unpainted' ? 0.40 : 0.28;
   const bumper = new THREE.Mesh(
-    buildWrapBeamGeo(bumpW, rf.bumperH, rf.bumperProtrusion + 0.055, 0.28, 0.13),
-    rf.chromeBumper ? mats.chrome : mats.paintRear
+    buildWrapBeamGeo(bumpW, rf.bumperH, rf.bumperProtrusion + 0.055, rearWrapZ, rearCornerR),
+    rearBumperMat
   );
   bumper.rotation.y = Math.PI;
   bumper.position.set(0, rf.bumperY, zRear + 0.04);
@@ -1135,7 +1316,7 @@ function buildRearFascia(spec, mats) {
 
   if (rf.rubStripH > 0) {
     const rubRear = new THREE.Mesh(
-      buildWrapBeamGeo(bumpW + 0.008, rf.rubStripH, rf.bumperProtrusion + 0.062, 0.29, 0.13),
+      buildWrapBeamGeo(bumpW + 0.008, rf.rubStripH, rf.bumperProtrusion + 0.062, 0.29, rearCornerR),
       mats.trimBlack
     );
     rubRear.rotation.y = Math.PI;
@@ -1143,13 +1324,15 @@ function buildRearFascia(spec, mats) {
     group.add(rubRear);
   }
 
-  const lowerVal = new THREE.Mesh(
-    buildWrapBeamGeo(bumpW - 0.025, 0.082, 0.05, 0.24, 0.12),
-    rf.paintedLowerValance ? mats.paintRear : mats.trimBlack
-  );
-  lowerVal.rotation.y = Math.PI;
-  lowerVal.position.set(0, rf.bumperY - rf.bumperH * 0.68, zRear + 0.05);
-  group.add(lowerVal);
+  if (rf.bumpers !== 'unpainted') {
+    const lowerVal = new THREE.Mesh(
+      buildWrapBeamGeo(bumpW - 0.025, 0.082, 0.05, 0.24, 0.12),
+      rf.paintedLowerValance ? mats.paintRear : mats.trimBlack
+    );
+    lowerVal.rotation.y = Math.PI;
+    lowerVal.position.set(0, rf.bumperY - rf.bumperH * 0.68, zRear + 0.05);
+    group.add(lowerVal);
+  }
 
   // Optional vertical center barn-door seam (for Chevy Astro vans / cargo vans!)
   if (rf.barnDoors) {
@@ -1161,7 +1344,8 @@ function buildRearFascia(spec, mats) {
 
   // 2. Recessed Black Center License Panel + Wrap-Around Multi-Section Tail Lamps
   const tp = rf.tailPanel;
-  if (tp.style !== 'vertical') {
+  const noCenterBox = tp.style === 'vertical' || tp.style === 'oval';
+  if (!noCenterBox) {
     const centerPanel = new THREE.Mesh(new THREE.BoxGeometry(tp.centerW, tp.h, 0.036), mats.dark);
     centerPanel.position.set(0, tp.y, zRear - 0.008);
     group.add(centerPanel);
@@ -1169,21 +1353,35 @@ function buildRearFascia(spec, mats) {
     plate.position.set(0, tp.y - 0.005, zRear - 0.024);
     group.add(plate);
   } else {
-    // On trucks/vans with vertical corner tails, place license plate neatly on the bumper/lower door
+    // On trucks/vans (vertical) and 90s aero coupes (oval), plate sits cleanly in the rear bumper!
     const plate = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.016), mats.trimGrey);
-    plate.position.set(0, rf.bumperY + 0.01, zRear - rf.bumperProtrusion - 0.02);
+    plate.position.set(0, rf.bumperY + 0.005, zRear - rf.bumperProtrusion - 0.022);
     group.add(plate);
   }
 
   for (const s of [-1, 1]) {
     const xLamp = s * (tp.centerW / 2 + tp.lampW / 2 + 0.02);
-    if (tp.style !== 'vertical') {
+    if (!noCenterBox) {
       const bezel = new THREE.Mesh(new THREE.BoxGeometry(tp.lampW + 0.025, tp.h + 0.022, 0.035), mats.trimBlack);
       bezel.position.set(xLamp, tp.y, zRear - 0.004);
       group.add(bezel);
     }
 
-    if (tp.style === 'vertical') {
+    if (tp.style === 'oval') {
+      // 90s rounded oval ruby-red taillight with white inner reverse strip (e.g., '96 Cavalier!)
+      const ovX = s * (wRear * 0.64);
+      const ovRed = new THREE.Mesh(buildOvalLensGeo(tp.lampW, tp.h, 0.048), mats.tailLens);
+      ovRed.position.set(ovX, tp.y, zRear - 0.006);
+      ovRed.rotation.y = s * 0.24;
+      group.add(ovRed);
+      const ovRev = new THREE.Mesh(
+        buildOvalLensGeo(tp.reverseW ?? 0.13, tp.h * 0.34, 0.052),
+        mats.reverseLens
+      );
+      ovRev.position.set(s * (wRear * 0.64 - tp.lampW * 0.20), tp.y - tp.h * 0.14, zRear - 0.014);
+      ovRev.rotation.y = s * 0.22;
+      group.add(ovRev);
+    } else if (tp.style === 'vertical') {
       // Classic vertical corner tail lamps (Chevy Astro van, Cadillac Brougham, pickup trucks!)
       const vx = s * (wRear - tp.lampW * 0.52);
       const vBezel = new THREE.Mesh(new THREE.BoxGeometry(tp.lampW + 0.02, tp.h + 0.02, 0.042), mats.trimBlack);
@@ -1613,6 +1811,15 @@ export function buildLoftedCar(userSpec = {}) {
       envMapIntensity: 1.5,
     }),
     trimBlack: new THREE.MeshStandardMaterial({ color: 0x181a1e, roughness: 0.82, metalness: 0.08 }),
+    unpaintedBumper: new THREE.MeshStandardMaterial({ color: 0x3e4248, roughness: 0.78, metalness: 0.04 }),
+    clearHeadLens: new THREE.MeshPhysicalMaterial({
+      color: 0xe6ecf4,
+      emissive: 0x445060,
+      emissiveIntensity: 0.22,
+      roughness: 0.12,
+      metalness: 0.12,
+      clearcoat: 1.0,
+    }),
     trimGrey: new THREE.MeshStandardMaterial({ color: 0x454a52, roughness: 0.55, metalness: 0.35 }),
     dark: new THREE.MeshStandardMaterial({ color: 0x101216, roughness: 0.95 }),
     smokedLens: new THREE.MeshPhysicalMaterial({ color: 0x262930, roughness: 0.18, clearcoat: 0.85 }),
