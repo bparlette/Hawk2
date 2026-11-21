@@ -1,0 +1,255 @@
+// Billy's 1990 Chevrolet Astro (Gen 1) — teal-blue, MERGED FIT (fit-astro-billy/car-spec.json, Hawk2 7d722f35): Lane D base (paint/glass/bumpers) + Neon's roof rack and wheels, per Cherie's merge approval.
+// Spec used verbatim from the compare-gated fit — see ../AI-RECIPE.md.
+export const SPEC = {
+ "meta": {
+  "name": "Billy's 1990 Chevrolet Astro (Gen 1)",
+  "year": 1990,
+  "notes": "Gen-1 Astro SWB: flat nose, sealed beams, barn doors. Canon paint TEAL-BLUE overall (photos are faded two-tone blue; shape only). Steel rally-style wheels. Barn doors: barnDoors center seam + vertical corner lamps. Rear glass remains one pane (template limit) - the seam crossing it reads as the door split. MERGED Nov 20 (Cherie-approved): this Lane D base + Neon's roof rack (greenhouse.roofRack) and Neon's wheel treatment; paint, glass and fascias remain the Lane D fit."
+ },
+ "dims": {
+  "length": 4.5,
+  "width": 1.96,
+  "height": 1.9,
+  "wheelbase": 2.82,
+  "wheelZFront": 1.4,
+  "wheelZRear": -1.42,
+  "wheelRadius": 0.35,
+  "wheelWidth": 0.215,
+  "trackHalfFront": 0.8,
+  "trackHalfRear": 0.79,
+  "archGap": 0.035
+ },
+ "paint": {
+  "color": 941936,
+  "roughness": 0.34,
+  "metalness": 0.35,
+  "clearcoat": 0.6,
+  "clearcoatRoughness": 0.25
+ },
+ "bodyStations": [
+  {
+   "z": -2.25,
+   "yBot": 0.34,
+   "yBelt": 0.78,
+   "yDeck": 1.0,
+   "wBot": 0.88,
+   "wBelt": 0.95,
+   "wDeck": 0.93,
+   "crown": 0.008
+  },
+  {
+   "z": -2.05,
+   "yBot": 0.27,
+   "yBelt": 0.77,
+   "yDeck": 1.0,
+   "wBot": 0.92,
+   "wBelt": 0.97,
+   "wDeck": 0.95,
+   "crown": 0.01
+  },
+  {
+   "z": -1.41,
+   "yBot": 0.25,
+   "yBelt": 0.76,
+   "yDeck": 1.0,
+   "wBot": 0.93,
+   "wBelt": 0.97,
+   "wDeck": 0.95,
+   "crown": 0.01
+  },
+  {
+   "z": -0.4,
+   "yBot": 0.24,
+   "yBelt": 0.76,
+   "yDeck": 1.0,
+   "wBot": 0.93,
+   "wBelt": 0.97,
+   "wDeck": 0.95,
+   "crown": 0.01
+  },
+  {
+   "z": 0.6,
+   "yBot": 0.24,
+   "yBelt": 0.76,
+   "yDeck": 1.0,
+   "wBot": 0.93,
+   "wBelt": 0.97,
+   "wDeck": 0.95,
+   "crown": 0.01
+  },
+  {
+   "z": 1.41,
+   "yBot": 0.25,
+   "yBelt": 0.75,
+   "yDeck": 1.0,
+   "wBot": 0.92,
+   "wBelt": 0.97,
+   "wDeck": 0.95,
+   "crown": 0.012
+  },
+  {
+   "z": 1.8,
+   "yBot": 0.26,
+   "yBelt": 0.72,
+   "yDeck": 0.99,
+   "wBot": 0.91,
+   "wBelt": 0.96,
+   "wDeck": 0.93,
+   "crown": 0.012
+  },
+  {
+   "z": 2.08,
+   "yBot": 0.28,
+   "yBelt": 0.68,
+   "yDeck": 0.97,
+   "wBot": 0.89,
+   "wBelt": 0.94,
+   "wDeck": 0.9,
+   "crown": 0.01
+  },
+  {
+   "z": 2.25,
+   "yBot": 0.32,
+   "yBelt": 0.64,
+   "yDeck": 0.94,
+   "wBot": 0.86,
+   "wBelt": 0.92,
+   "wDeck": 0.87,
+   "crown": 0.008
+  }
+ ],
+ "greenhouse": {
+  "zRearBase": -2.2,
+  "yRearBase": 1.0,
+  "wRearBase": 0.9,
+  "zRearRoof": -2.08,
+  "yRearRoof": 1.88,
+  "wRearRoof": 0.86,
+  "zFrontRoof": 1.16,
+  "yFrontRoof": 1.88,
+  "wFrontRoof": 0.86,
+  "zFrontBase": 1.44,
+  "yFrontBase": 1.0,
+  "wFrontBase": 0.9,
+  "roofCrown": 0.015,
+  "roofRack": true,
+  "bPillarZ": 0.5,
+  "windshieldColor": 1713718,
+  "windshieldOpacity": 0.62,
+  "sideGlassColor": 1054239,
+  "sideGlassOpacity": 0.78,
+  "rearGlassColor": 659222,
+  "rearGlassOpacity": 0.88,
+  "rearWiper": false,
+  "mirrors": {
+   "z": 1.38,
+   "y": 1.1,
+   "w": 0.18,
+   "h": 0.12,
+   "d": 0.09
+  },
+  "cPillarZ": -0.45,
+  "cPillarPaint": false
+ },
+ "frontFascia": {
+  "bumperY": 0.52,
+  "bumperH": 0.17,
+  "bumperProtrusion": 0.05,
+  "rubStripY": 0.545,
+  "rubStripH": 0.03,
+  "grille": {
+   "y": 0.86,
+   "h": 0.24,
+   "w": 0.82,
+   "slats": 6,
+   "topBarText": false
+  },
+  "cornerLamps": {
+   "y": 0.86,
+   "h": 0.24,
+   "innerSmokedW": 0.27,
+   "outerAmberW": 0.1,
+   "wrapZ": 0.16
+  },
+  "lowerIntake": {
+   "y": 0.395,
+   "h": 0.055,
+   "w": 0.9,
+   "dividers": 0
+  },
+  "chinSpoiler": {
+   "enabled": false
+  },
+  "popups": {
+   "enabled": false
+  },
+  "fixedLamps": {
+   "enabled": false
+  }
+ },
+ "rearFascia": {
+  "bumperY": 0.38,
+  "bumperH": 0.15,
+  "bumperProtrusion": 0.07,
+  "rubStripY": 0.46,
+  "rubStripH": 0.04,
+  "paintedLowerValance": true,
+  "tailPanel": {
+   "style": "vertical",
+   "y": 0.95,
+   "h": 0.36,
+   "centerW": 0.34,
+   "lampW": 0.13,
+   "amberOuterW": 0.03,
+   "reverseW": 0.04,
+   "wrapZ": 0.14
+  },
+  "spoiler": {
+   "style": "none"
+  },
+  "exhaust": {
+   "side": "right",
+   "count": 1,
+   "xOffset": 0.55,
+   "y": 0.23,
+   "r": 0.028
+  },
+  "mudFlaps": false,
+  "fuelDoor": {
+   "z": -1.8,
+   "y": 0.8,
+   "side": 1
+  },
+  "barnDoors": true
+ },
+ "trim": {
+  "sideRubStrip": {
+   "enabled": true,
+   "y": 0.78,
+   "h": 0.04
+  },
+  "rockerSkirt": {
+   "enabled": true,
+   "y": 0.3,
+   "h": 0.06
+  },
+  "doorHandle": {
+   "z": 0.62,
+   "y": 0.96
+  },
+  "frontSideMarker": {
+   "y": 0.58,
+   "w": 0.08,
+   "h": 0.024
+  }
+ },
+ "wheels": {
+  "spokeCount": 8,
+  "spokeStyle": "blade",
+  "rimColor": 13423572,
+  "tireColor": 1447707,
+  "hubRadius": 0.095,
+  "rimRatio": 0.6
+ }
+};
+export default SPEC;

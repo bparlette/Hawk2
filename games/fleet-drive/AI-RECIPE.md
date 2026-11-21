@@ -425,12 +425,15 @@ a game. You see this file, the machine-readable summary embedded in
 3. Open `cars.js`. Import the spec and append ONE entry to the `CARS`
    array: `{ name: '<display name>', spec: <SPEC> }`. That is the whole
    integration — the game builds the car from the spec at load, parks
-   it in the row, and makes it reachable with the SWAP button / Tab key.
+   it in the row with a name label, and the player walks up to it and
+   taps GET IN to drive (SWAP / Tab still cycles cars while driving).
 4. Verify like a player would: load the game, confirm the new car sits
-   in the lot row with its beams on, swap to it, drive it (steering,
-   ground following, bridge crossing), toggle its pop-ups if it has
-   them. `window.__FLEET_DRIVE__.snapshotState()` gives you every car's
-   position/heading/speed to check against what you see.
+   in the lot row with its label and beams on, walk up to it, get in,
+   drive it (steering, ground following, bridge crossing), get back
+   out, toggle its pop-ups if it has them.
+   `window.__FLEET_DRIVE__.snapshotState()` gives you the mode, the
+   person, and every car's position/heading/speed to check against
+   what you see.
 5. Push the two files (`specs/<slug>.js`, `cars.js`) batched to Hawk2
    main, then read them back and compare byte size + a changed string
    before calling it parked — a push is not proof.
