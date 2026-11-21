@@ -72,6 +72,8 @@
   #btnRadio{right:18px;bottom:calc(184px + env(safe-area-inset-bottom));width:44px;height:44px;font-size:18px;background:rgba(16,20,36,.58);}
   #btnCrew{right:70px;bottom:calc(184px + env(safe-area-inset-bottom));height:44px;padding:0 11px;border-radius:22px;
     font-size:10px;letter-spacing:.05em;background:rgba(46,96,190,.78);white-space:nowrap;display:none;}
+  #btnTraffic{right:18px;bottom:calc(238px + env(safe-area-inset-bottom));height:44px;padding:0 11px;border-radius:22px;
+    font-size:10px;letter-spacing:.05em;background:rgba(16,20,36,.62);white-space:nowrap;}
   #btnAct{left:50%;transform:translateX(-50%);bottom:calc(242px + env(safe-area-inset-bottom));height:42px;padding:0 16px;
     border-radius:21px;font-size:12px;letter-spacing:.06em;background:rgba(148,58,225,.9);white-space:nowrap;display:none;}
   .btn.on{filter:brightness(1.5);transform:scale(.94);}
@@ -115,6 +117,7 @@
 <div class="btn" id="btnMute">🔊</div>
 <div class="btn" id="btnRadio">📻</div>
 <div class="btn" id="btnCrew">CREW ⇄</div>
+<div class="btn" id="btnTraffic">TRAFFIC OFF</div>
 <div class="btn" id="btnAct">🏁 RACE</div>
 <div id="pick"></div>
 
@@ -339,7 +342,7 @@ const pickEl=document.getElementById('pick');
 // replaces the card grid. Game HUD + driving buttons stay hidden until
 // the rally starts (the stage owns the screen until then).
 document.getElementById('hud').style.display='none';
-for(const id of ['btnA','btnB','btnT','btnMute','btnCam','btnFoot','btnRadio','btnCrew','btnAct']) document.getElementById(id).style.display='none';
+for(const id of ['btnA','btnB','btnT','btnMute','btnCam','btnFoot','btnRadio','btnCrew','btnAct','btnTraffic']) document.getElementById(id).style.display='none';
 const garage = mountGarage(pickEl, { households: HOUSEHOLDS, stops: stopById, environment: scene.environment,
   onStart: (stopId, custom)=> startGame(stopId, custom) });
 window.__garage = garage;
@@ -351,7 +354,7 @@ function startGame(stopId, custom){
   playerStop=stopId;
   pickEl.style.display='none';
   document.getElementById('hud').style.display='';
-  for(const id of ['btnA','btnB','btnT','btnMute','btnCam','btnFoot','btnRadio']) document.getElementById(id).style.display='';
+  for(const id of ['btnA','btnB','btnT','btnMute','btnCam','btnFoot','btnRadio','btnTraffic']) document.getElementById(id).style.display='';
   const s=stopById[stopId];
   player=createCar(s.sx, s.sz, s.heading);
   const myCar = HOUSEHOLDS.find(h=>h.stop===stopId).cars[0];
@@ -475,6 +478,20 @@ footBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagati
 radioBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); radio.cycle(); });
 crewBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); switchCrew(); });
 actBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); handleHornOrAction(); });
+/* Ambient traffic toggle (Cherie's call): AI traffic defaults OFF — only our
+   cars (player, convoy, parked crew, Kosack's fake cop) belong on the road.
+   ?traffic=1|0 overrides; the tap choice persists in localStorage. */
+const trafficBtn=document.getElementById('btnTraffic');
+let trafficOn=(()=>{ const q=new URLSearchParams(location.search).get('traffic');
+  if(q==='1') return true; if(q==='0') return false;
+  try{ return localStorage.getItem('scaggsville3d.traffic')==='1'; }catch(e){ return false; } })();
+function paintTrafficBtn(){ trafficBtn.textContent=trafficOn? 'TRAFFIC ON' : 'TRAFFIC OFF';
+  trafficBtn.style.background=trafficOn? 'rgba(46,160,80,.78)' : 'rgba(16,20,36,.62)'; }
+traffic.setEnabled(trafficOn); paintTrafficBtn();
+trafficBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation();
+  trafficOn=!trafficOn; traffic.setEnabled(trafficOn);
+  try{ localStorage.setItem('scaggsville3d.traffic', trafficOn? '1' : '0'); }catch(err){}
+  paintTrafficBtn(); });
 document.addEventListener('gesturestart', e=>e.preventDefault());
 document.addEventListener('dblclick', e=>e.preventDefault());
 document.addEventListener('contextmenu', e=>e.preventDefault());
@@ -778,7 +795,7 @@ function animate(){
     down: !!_inp && (!!keys['KeyS'] || !!keys['ArrowDown'] || joyY > 0.55) });
   // Lane B polish: the driving/action buttons, driving HUD & minimap hide while inside a house
   if(interiors.active!==_btnHidden){ _btnHidden=interiors.active; const dsp=_btnHidden? 'none' : '';
-    for(const id of ['btnA','btnB','btnT','btnCam','btnFoot','btnRadio','target','street','nav']) {
+    for(const id of ['btnA','btnB','btnT','btnCam','btnFoot','btnRadio','btnTraffic','target','street','nav']) {
       const el=document.getElementById(id); if(el) el.style.display=dsp;
     }
     const rToast=document.getElementById('radioToast'); if(rToast && _btnHidden) rToast.style.opacity='0';
@@ -1172,6 +1189,9 @@ window.__proof={
   setSignalPhase(i, t){ signals.setPhase(i, t); },
   seedQueue(i=0, n=2){ return traffic.seedQueue(signals.junctions[i|0], n); },
   trafficNear(x, z, r=45){ return traffic.cars.filter(c=>c.active && Math.hypot(c.x-x, c.z-z)<r).map(c=>({ x:+c.x.toFixed(1), z:+c.z.toFixed(1), speed:+c.speed.toFixed(2) })); },
+  trafficCars(){ return traffic.cars.filter(c=>c.active).map(c=>({ x:+c.x.toFixed(1), z:+c.z.toFixed(1), heading:+c.heading.toFixed(3), speed:+c.speed.toFixed(2) })); },
+  trafficOn(){ return traffic.isEnabled(); },
+  setTraffic(on){ trafficOn=!!on; traffic.setEnabled(trafficOn); try{ localStorage.setItem('scaggsville3d.traffic', trafficOn? '1' : '0'); }catch(err){} paintTrafficBtn(); return trafficOn; },
 };
 window.__missions = missions;
 window.__crowd = crowd;   // Lane A seam for the party lane (spawnCrowd/clearCrowd)

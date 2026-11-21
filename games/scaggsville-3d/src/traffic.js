@@ -1,4 +1,11 @@
 // Scaggsville 3D — Live AI Traffic (18 active cars cruising real OSM roads, ~6 InstancedMesh draws total)
+// Ambient traffic is TOGGLEABLE and defaults OFF (Cherie's call: only "our"
+// cars belong on the road — player, convoy, parked crew, Kosack's fake cop).
+// The host wires setEnabled() to a HUD button + localStorage + ?traffic=.
+// Cars drive on their RIGHT of the centreline (US right-hand traffic): the
+// lane offset uses the right vector of the car's own heading, so opposing
+// flows pass on separate sides and the return leg runs on the opposite side
+// of the centreline from the outbound leg.
 import * as THREE from 'three';
 
 const POOL_SIZE = 18;
@@ -34,6 +41,9 @@ function makeMergedBoxGeo(parts) {
 }
 
 export function createTraffic(scene, world, D) {
+  // Ambient traffic toggle — DEFAULT OFF. While off: nothing spawns, update()
+  // is a no-op and every pool instance is zero-scaled (no road presence).
+  let enabled = false;
   // Index drivable road segments >= 18 m long on multi-lane / named roads
   const spawnEdges = [];
   for (const r of D.roads) {
@@ -127,8 +137,10 @@ export function createTraffic(scene, world, D) {
     const [ax, az] = pts[c.segIdx], [bx, bz] = pts[c.segIdx + 1];
     const h = c.dir > 0 ? Math.atan2(bx - ax, bz - az) : Math.atan2(ax - bx, az - bz);
     const laneOff = Math.min(2.2, Math.max(1.2, (edge.road.w || 6.5) * 0.24));
-    c.x = ax + (bx - ax) * c.t + Math.cos(h) * laneOff;
-    c.z = az + (bz - az) * c.t - Math.sin(h) * laneOff;
+    // Right-hand traffic: the right vector of heading h is (-cos h, +sin h)
+    // in this frame (x=east, z=south) — offset to the car's OWN right.
+    c.x = ax + (bx - ax) * c.t - Math.cos(h) * laneOff;
+    c.z = az + (bz - az) * c.t + Math.sin(h) * laneOff;
     if (Math.hypot(c.x - px, c.z - pz) < 38) return false;
     c.heading = h;
     c.targetSpeed = 10 + Math.random() * 7;
@@ -180,6 +192,7 @@ export function createTraffic(scene, world, D) {
   }
 
   function update(dt, playerCar, fx, audio, callbacks = {}, signals = null) {
+    if (!enabled) return;
     const px = playerCar.x, pz = playerCar.z;
     const pSpd = Math.abs(playerCar.speed);
 
@@ -220,8 +233,11 @@ export function createTraffic(scene, world, D) {
           const pullOver = !!(playerCar.sirenActive && dPlayer < 46);
           const laneOff = Math.min(2.2, Math.max(1.2, (c.road.w || 6.5) * 0.24)) + (pullOver ? 1.85 : 0);
           const segH = Math.atan2(b[0] - a[0], b[1] - a[1]);
-          const tx = b[0] + Math.cos(segH) * laneOff;
-          const tz = b[1] - Math.sin(segH) * laneOff;
+          // Steer to a target on the car's OWN right of the centreline
+          // (right vector (-cos segH, +sin segH)); pull-over adds offset
+          // further right, onto the shoulder.
+          const tx = b[0] - Math.cos(segH) * laneOff;
+          const tz = b[1] + Math.sin(segH) * laneOff;
           const dx = tx - c.x, dz = tz - c.z;
           const dEnd = Math.hypot(dx, dz);
           if (dEnd < 3.5) {
@@ -309,7 +325,7 @@ export function createTraffic(scene, world, D) {
   }
 
   function seedQueue(junc, count = 2) {
-    if (!junc) return 0;
+    if (!enabled || !junc) return 0;
     // Find a road segment near junc aligned with junc's Axis A
     let bestEdge = null, bestScore = 1e9;
     for (const e of spawnEdges) {
@@ -344,5 +360,25 @@ export function createTraffic(scene, world, D) {
     return placed;
   }
 
-  return { cars, update, seedQueue };
+  function setEnabled(on) {
+    enabled = !!on;
+    if (!enabled) {
+      // Remove every traffic car immediately. A hijacked slot is left alone:
+      // its built vehicle belongs to the player by then (the pool instance
+      // is already zero-scaled by syncInstance while hijacked).
+      for (let i = 0; i < POOL_SIZE; i++) {
+        const c = cars[i];
+        if (!c.hijacked) { c.active = false; c.speed = 0; c.stun = 0; }
+        syncInstance(c, i);
+      }
+      for (const im of [bodyIM, glassIM, darkIM, headIM, tailIM]) im.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  // Park every instance at zero scale from birth, so the pool is invisible
+  // until the toggle turns it on and update() starts spawning.
+  for (let i = 0; i < POOL_SIZE; i++) syncInstance(cars[i], i);
+  for (const im of [bodyIM, glassIM, darkIM, headIM, tailIM]) im.instanceMatrix.needsUpdate = true;
+
+  return { cars, update, seedQueue, setEnabled, isEnabled: () => enabled };
 }
