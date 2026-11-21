@@ -1,27 +1,24 @@
-# Script this car properly: Rigg's Celica (Neon)
+# The car-fitting script (Neon) — corrected brief
 
-Cherie's verdict on the procedural upgrade of this car, verbatim: "Definetly not neon quality. Is it something neon can script for you" — yes, and this is that ask. You scripted the Camaro body (Blender SubD hybrid) for the bake-off; do the same quality of work for this car.
+Correction from Cherie (Nov 20), verbatim: "No blender. I'm saying can she write a script that takes multiple images of a car and helps other ais create the procedual car the way she does. Or maybe at least lay out a generic procedual car that can be modified to be other cars based on the images"
 
-## The car
+So this is NOT a one-off model of one car. The deliverable is your METHOD, as a tool other AIs can run.
 
-Brian Rigg's 1987 Celica GT liftback (T160). Canon that wins over every photo: **blue paint, blue headlight beams (0x0066ff)**.
+## What to build
 
-## Ground truth (already in this repo)
+1. **A generic procedural car template** — one richly parameterized car builder (three.js, in the gpvehicles idiom) whose parameters cover what actually makes cars differ: station profile (nose height and length, beltline, roof or hatch slope, tail treatment), fascia stacking (lamp pockets, grille, air dam layout), glass shape and tint, trim, wheels, lamps, pop-ups. Every parameter named and documented — settable by an AI looking at photos, not magic numbers buried in code.
 
-- Real photos: `games/scaggsville-3d/reference/car-real/celica-rigg/` — 8 photos, 1920×1280: front 3/4, side, rear 3/4, straight front, straight rear, **pop-ups up and lit**, wheel detail, interior. Read its SOURCES.md: the set car is a 1986 GT-S standing in for the '87 GT — same shell, panels, glass, and pop-ups; the differences are engine/badges/wheels/interior only.
-- Detail audit: same folder's PHOTO-AUDIT.md entry (also at `games/scaggsville-3d/reference/car-real/PHOTO-AUDIT.md` if present) — pop-ups in both states, glass hatch with wiper, black moulding band.
-- The current procedural car lives in `games/shared/gpvehicles.js` (celica style) and the fleet viewer at `games/scaggsville-3d/lineup.html` — look at what you're beating.
+2. **A fitting script + workflow** that takes a folder of car photos (front, front 3/4, side, rear 3/4, rear, details) and walks an AI through turning them into a parameter set for the template: which view yields which measurements, how to estimate proportions from the side profile (wheel diameter as the ruler), and how to verify — render at the photos' angles, side-by-side against them, iterate. Written so Moth or Opus can repeat the process on a new photo set without you.
 
-## Deliverable
+3. **Proof on the Celica** — run your own process on Rigg's Celica photo set (`games/scaggsville-3d/reference/car-real/celica-rigg/`, 8 photos incl. pop-ups up and lit; read its SOURCES.md — the set car is an '86 GT-S standing in for the '87 GT, same shell) and produce the fitted procedural Celica on a bake-off page at `games/scaggsville-3d/bakeoff-celica/`, captured at the photos' angles, pop-ups up AND down. Canon: blue paint, blue beams (0x0066ff). Cherie's verdict on the hand-built procedural Celica: "Definetly not neon quality" — your process has to beat it visibly in the side-by-sides.
 
-- A standalone viewer page at `games/scaggsville-3d/bakeoff-celica/` showing your scripted Celica, with the build script committed alongside it (so Moth can re-run and adjust it — script it, don't hand-place it).
-- Method is yours — your Blender SubD + procedural-hardware hybrid set the quality bar on the Camaro; use whatever gets this car closest to the photos.
-- States: pop-ups UP and lit, and pop-ups DOWN (flush lids) — the photo set has both.
-- Captures at the photos' angles (front 3/4, side, rear 3/4, straight front) at phone-friendly size, in the viewer's scene.
-- Details the photos prove and the procedural car still misses: blunter, taller nose (no low point), flat beltline, longer shallower glass hatch with quarter glass reading as one black glass mass, integrated spoiler lip, full-length black rub strip, rear wiper at the hatch base, 10-spoke GT-S alloys, body-colour bumper (no generic black band).
+## Where it lives
+
+- The template + script + guide: **gamepress** (kit/ or tools/) — it is a reusable house tool, and the other 8 fleet photo sets are waiting to go through it.
+- The Celica proof: Hawk2 `games/scaggsville-3d/bakeoff-celica/`, plus a report in `games/scaggsville-3d/tasking/responses/` with capture paths and how to re-run the script.
 
 ## Rules
 
+- **No Blender — procedural only.**
 - Work in MAIN, commit to main. No branches.
-- Do NOT touch the live game or `games/shared/gpvehicles.js` — Moth integrates your car into the fleet after Cherie's verdict.
-- Report in `games/scaggsville-3d/tasking/responses/` when the bake-off page is up, with capture paths and a note on how the script is re-run.
+- Do NOT touch the live game or `games/shared/gpvehicles.js` — Moth integrates the template and the fitted Celica after Cherie's verdict.
