@@ -1,181 +1,164 @@
-// Jimmy's 2000 Chevrolet Astro LS (Gen 2) — silver, MERGED FIT (fit-astro-jimmy/car-spec.json, Hawk2 7d722f35): Lane D base (paint/glass/bumpers) + Neon's roof rack and wheels, per Cherie's merge approval.
+// Jimmy's 2000 Chevrolet Astro LS (Gen 2) — silver, NEON FIT (fit-astro-jimmy-neon/astro-jimmy-spec.json, Hawk2 main). Parked per Cherie's fleet rule (22:50): Neon's own cars wherever Neon has one.
 // Spec used verbatim from the compare-gated fit — see ../AI-RECIPE.md.
 export const SPEC = {
  "meta": {
-  "name": "Jimmy's 2000 Chevrolet Astro LS (Gen 2)",
+  "name": "Jimmy's '00 Chevrolet Astro LS (Gen 2)",
   "year": 2000,
-  "notes": "Gen-2 Astro SWB. Canon paint SILVER overall (photos are white-over-silver; shape only). Photo wheels are aftermarket - factory-style 5-spoke fitted. Blue underglow is a game-layer accessory, not baked in. Passenger van: rear side glass split by cPillarZ into two windows per side. Dutch doors: full-width rear glass is correct; barnDoors seam NOT used (would cross the liftglass). MERGED Nov 20 (Cherie-approved): this Lane D base + Neon's roof rack (greenhouse.roofRack) and Neon's wheel treatment; paint, glass and fascias remain the Lane D fit."
+  "notes": "Fitted from games/scaggsville-3d/reference/car-real/astro-jimmy/ (4.82m x 1.97m x 1.90m, wb 2.82m). Canon silver paint (0xb8c0ca). Gen-2 longer aero nose, chrome grille bar, wide composite headlamps, 3-bay dark-tinted passenger glass, roof rack, rear Dutch doors + wiper."
  },
  "dims": {
-  "length": 4.5,
-  "width": 1.96,
-  "height": 1.93,
+  "length": 4.82,
+  "width": 1.97,
+  "height": 1.9,
   "wheelbase": 2.82,
-  "wheelZFront": 1.4,
-  "wheelZRear": -1.42,
-  "wheelRadius": 0.35,
-  "wheelWidth": 0.215,
-  "trackHalfFront": 0.8,
-  "trackHalfRear": 0.79,
-  "archGap": 0.045
+  "wheelZFront": 1.48,
+  "wheelZRear": -1.34,
+  "wheelRadius": 0.345,
+  "wheelWidth": 0.235,
+  "trackHalfFront": 0.855,
+  "trackHalfRear": 0.855,
+  "archGap": 0.055
  },
  "paint": {
-  "color": 9410463,
-  "roughness": 0.42,
-  "metalness": 0.65,
-  "clearcoat": 0.5,
-  "clearcoatRoughness": 0.25
+  "color": 12107978,
+  "roughness": 0.22,
+  "metalness": 0.42,
+  "clearcoat": 0.94,
+  "clearcoatRoughness": 0.12
  },
  "bodyStations": [
   {
-   "z": -2.25,
-   "yBot": 0.34,
-   "yBelt": 0.8,
-   "yDeck": 1.04,
-   "wBot": 0.88,
-   "wBelt": 0.95,
-   "wDeck": 0.92,
-   "crown": 0.01
-  },
-  {
-   "z": -2.05,
-   "yBot": 0.27,
-   "yBelt": 0.79,
-   "yDeck": 1.04,
-   "wBot": 0.92,
+   "z": -2.41,
+   "yBot": 0.35,
+   "yBelt": 0.94,
+   "yDeck": 1.24,
+   "wBot": 0.9,
    "wBelt": 0.97,
-   "wDeck": 0.94,
-   "crown": 0.012
-  },
-  {
-   "z": -1.43,
-   "yBot": 0.25,
-   "yBelt": 0.78,
-   "yDeck": 1.04,
-   "wBot": 0.93,
-   "wBelt": 0.97,
-   "wDeck": 0.94,
-   "crown": 0.012
-  },
-  {
-   "z": -0.4,
-   "yBot": 0.24,
-   "yBelt": 0.78,
-   "yDeck": 1.04,
-   "wBot": 0.93,
-   "wBelt": 0.97,
-   "wDeck": 0.94,
-   "crown": 0.012
-  },
-  {
-   "z": 0.6,
-   "yBot": 0.24,
-   "yBelt": 0.78,
-   "yDeck": 1.04,
-   "wBot": 0.93,
-   "wBelt": 0.97,
-   "wDeck": 0.94,
-   "crown": 0.012
-  },
-  {
-   "z": 1.39,
-   "yBot": 0.25,
-   "yBelt": 0.77,
-   "yDeck": 1.05,
-   "wBot": 0.92,
-   "wBelt": 0.97,
-   "wDeck": 0.94,
-   "crown": 0.014
-  },
-  {
-   "z": 1.8,
-   "yBot": 0.26,
-   "yBelt": 0.74,
-   "yDeck": 1.0,
-   "wBot": 0.91,
-   "wBelt": 0.96,
    "wDeck": 0.93,
-   "crown": 0.016
+   "crown": 0.018
   },
   {
-   "z": 2.1,
-   "yBot": 0.28,
-   "yBelt": 0.65,
-   "yDeck": 0.94,
-   "wBot": 0.89,
-   "wBelt": 0.94,
-   "wDeck": 0.9,
-   "crown": 0.016
-  },
-  {
-   "z": 2.25,
+   "z": -2.2,
    "yBot": 0.32,
-   "yBelt": 0.6,
-   "yDeck": 0.88,
-   "wBot": 0.85,
-   "wBelt": 0.91,
-   "wDeck": 0.86,
-   "crown": 0.012
+   "yBelt": 0.96,
+   "yDeck": 1.25,
+   "wBot": 0.92,
+   "wBelt": 0.985,
+   "wDeck": 0.95,
+   "crown": 0.02
+  },
+  {
+   "z": -1.35,
+   "yBot": 0.3,
+   "yBelt": 0.96,
+   "yDeck": 1.25,
+   "wBot": 0.92,
+   "wBelt": 0.985,
+   "wDeck": 0.95,
+   "crown": 0.02
+  },
+  {
+   "z": 0.25,
+   "yBot": 0.3,
+   "yBelt": 0.96,
+   "yDeck": 1.25,
+   "wBot": 0.92,
+   "wBelt": 0.985,
+   "wDeck": 0.95,
+   "crown": 0.02
+  },
+  {
+   "z": 1.45,
+   "yBot": 0.31,
+   "yBelt": 0.95,
+   "yDeck": 1.23,
+   "wBot": 0.91,
+   "wBelt": 0.975,
+   "wDeck": 0.93,
+   "crown": 0.026
+  },
+  {
+   "z": 2.08,
+   "yBot": 0.33,
+   "yBelt": 0.86,
+   "yDeck": 1.07,
+   "wBot": 0.87,
+   "wBelt": 0.93,
+   "wDeck": 0.88,
+   "crown": 0.028
+  },
+  {
+   "z": 2.41,
+   "yBot": 0.36,
+   "yBelt": 0.78,
+   "yDeck": 0.93,
+   "wBot": 0.79,
+   "wBelt": 0.87,
+   "wDeck": 0.8,
+   "crown": 0.022
   }
  ],
  "greenhouse": {
-  "zRearBase": -2.2,
-  "yRearBase": 1.04,
-  "wRearBase": 0.9,
-  "zRearRoof": -2.02,
-  "yRearRoof": 1.9,
-  "wRearRoof": 0.85,
+  "zRearBase": -2.34,
+  "yRearBase": 1.24,
+  "wRearBase": 0.91,
+  "zRearRoof": -2.2,
+  "yRearRoof": 1.88,
+  "wRearRoof": 0.82,
   "zFrontRoof": 0.84,
-  "yFrontRoof": 1.9,
-  "wFrontRoof": 0.85,
-  "zFrontBase": 1.32,
-  "yFrontBase": 1.04,
-  "wFrontBase": 0.9,
-  "roofCrown": 0.02,
+  "yFrontRoof": 1.89,
+  "wFrontRoof": 0.82,
+  "zFrontBase": 1.52,
+  "yFrontBase": 1.22,
+  "wFrontBase": 0.91,
+  "roofCrown": 0.036,
   "roofRack": true,
-  "bPillarZ": 0.35,
-  "windshieldColor": 1054239,
-  "windshieldOpacity": 0.75,
-  "sideGlassColor": 791065,
-  "sideGlassOpacity": 0.88,
-  "rearGlassColor": 593428,
-  "rearGlassOpacity": 0.92,
+  "bPillarZ": 0.24,
+  "cPillarZ": -1.04,
+  "cPillarPaint": false,
+  "windshieldColor": 1713718,
+  "windshieldOpacity": 0.44,
+  "sideGlassColor": 988446,
+  "sideGlassOpacity": 0.68,
+  "rearGlassColor": 725016,
+  "rearGlassOpacity": 0.84,
   "rearWiper": true,
   "mirrors": {
-   "z": 1.18,
-   "y": 1.14,
-   "w": 0.21,
+   "z": 1.12,
+   "y": 1.32,
+   "w": 0.18,
    "h": 0.13,
    "d": 0.1
-  },
-  "cPillarZ": -0.83,
-  "cPillarPaint": false
+  }
  },
  "frontFascia": {
-  "bumperY": 0.47,
-  "bumperH": 0.22,
-  "bumperProtrusion": 0.06,
-  "rubStripY": 0.5,
-  "rubStripH": 0.0,
+  "bumperY": 0.49,
+  "bumperH": 0.24,
+  "bumperProtrusion": 0.085,
+  "bumperCornerR": 0.2,
+  "rubStripY": 0.49,
+  "rubStripH": 0,
   "grille": {
-   "y": 0.86,
-   "h": 0.17,
-   "w": 0.95,
+   "style": "eggcrate",
+   "chromeFrame": true,
+   "vBars": 1,
+   "y": 0.77,
+   "h": 0.25,
+   "w": 1.0,
    "slats": 6,
-   "topBarText": false,
-   "chromeFrame": true
+   "topBarText": false
   },
   "cornerLamps": {
-   "y": 0.86,
-   "h": 0.17,
-   "innerSmokedW": 0.3,
-   "outerAmberW": 0.07,
-   "wrapZ": 0.18
+   "y": 0.77,
+   "h": 0.24,
+   "innerSmokedW": 0.26,
+   "outerAmberW": 0.08,
+   "wrapZ": 0.16
   },
   "lowerIntake": {
-   "y": 0.345,
-   "h": 0.055,
-   "w": 0.85,
+   "y": 0.36,
+   "h": 0.06,
+   "w": 0.88,
    "dividers": 0
   },
   "chinSpoiler": {
@@ -183,27 +166,26 @@ export const SPEC = {
   },
   "popups": {
    "enabled": false
-  },
-  "fixedLamps": {
-   "enabled": false
   }
  },
  "rearFascia": {
-  "bumperY": 0.37,
-  "bumperH": 0.16,
-  "bumperProtrusion": 0.07,
-  "rubStripY": 0.455,
-  "rubStripH": 0.05,
+  "bumperY": 0.48,
+  "bumperH": 0.2,
+  "bumperProtrusion": 0.085,
+  "bumperCornerR": 0.18,
+  "rubStripY": 0.56,
+  "rubStripH": 0.042,
   "paintedLowerValance": true,
+  "barnDoors": true,
   "tailPanel": {
    "style": "vertical",
-   "y": 0.88,
+   "y": 0.89,
    "h": 0.36,
-   "centerW": 0.34,
-   "lampW": 0.13,
+   "centerW": 0.54,
+   "lampW": 0.14,
    "amberOuterW": 0.04,
    "reverseW": 0.05,
-   "wrapZ": 0.14
+   "wrapZ": 0.08
   },
   "spoiler": {
    "style": "none"
@@ -211,38 +193,37 @@ export const SPEC = {
   "exhaust": {
    "side": "right",
    "count": 1,
-   "xOffset": 0.55,
-   "y": 0.24,
-   "r": 0.028
+   "xOffset": 0.58,
+   "y": 0.3,
+   "r": 0.032
   },
   "mudFlaps": false,
   "fuelDoor": {
-   "z": -1.8,
-   "y": 0.78,
+   "z": -0.58,
+   "y": 0.74,
    "side": 1
-  },
-  "barnDoors": false
+  }
  },
  "trim": {
   "sideRubStrip": {
-   "enabled": true,
-   "y": 0.8,
-   "h": 0.032
+   "enabled": false,
+   "y": 0.52,
+   "h": 0.04
   },
   "rockerSkirt": {
-   "enabled": true,
+   "enabled": false,
    "y": 0.3,
-   "h": 0.06
+   "h": 0.05
   },
   "doorHandle": {
-   "z": 0.52,
-   "y": 1.0
+   "z": 0.34,
+   "y": 1.05
   },
   "frontSideMarker": {
-   "z": 2.02,
-   "y": 0.62,
-   "w": 0.11,
-   "h": 0.028,
+   "z": 2.08,
+   "y": 0.5,
+   "w": 0.12,
+   "h": 0.032,
    "color": 15236628
   }
  },
