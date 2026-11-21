@@ -1,4 +1,4 @@
-// Scaggsville 3D — houses on the REAL OSM footprints.
+// Hawk2 shared world3d (first built for Scaggsville 3D) — houses on the REAL OSM footprints.
 // Each footprint -> oriented box (same collider maths as before), then a proper house:
 // foundation, lap siding / brick bays with windows (world-scaled 2.9 m x 3.1 m bay tile), gable or hip
 // roof with eave overhang + soffit + fascia, chimney, and on the side facing the nearest real road:

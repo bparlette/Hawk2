@@ -22,10 +22,14 @@
 //   applyWorldEnvMap(renderer, scene)  // PMREM env from the sky dome, 0 draws
 import * as THREE from 'three';
 import { WORLD_DATA } from '../data.js';
-import { makeTextures } from './textures.js';
-import { buildRoads } from './roads.js';
-import { buildHouses, houseMaterials, buildLitWindows } from './houses.js';
-import { buildVegetation } from './vegetation.js';
+// shared world3d modules (games/shared/world3d/ — reusable by any Hawk2 3D game; see its README)
+import { makeTextures } from '../../../shared/world3d/textures.js';
+import { buildRoads } from '../../../shared/world3d/roads.js';
+import { buildHouses, houseMaterials, buildLitWindows } from '../../../shared/world3d/houses.js';
+import { buildVegetation } from '../../../shared/world3d/vegetation.js';
+import { Buckets } from '../../../shared/world3d/buckets.js';
+import { makeGrassMaterial } from '../../../shared/world3d/ground.js';
+import { GREENS } from './greens.js';
 
 export const WORLD_CONFIG = {
   treeDensity: 1.0,        // multiplier on scattered trees
@@ -72,52 +76,6 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a
 const rand = mulberry32(20261120);
 
 // ---------- merge-by-material batching ----------
-class Buckets {
-  // merge-by-material, split into BUCKET_CHUNK m spatial tiles so frustum + shadow culling can skip
-  // whole districts (one whole-map mesh per material was drawn in full, twice with shadows, every frame)
-  constructor(chunk=900){ this.map=new Map(); this.chunk=chunk; }
-  add(key, geo, matrix, color){
-    const g = geo.index ? geo.toNonIndexed() : geo.clone();
-    g.applyMatrix4(matrix);
-    if(color){
-      const n=g.attributes.position.count, arr=new Float32Array(n*3), c=new THREE.Color(color);
-      for(let i=0;i<n;i++){ arr[i*3]=c.r; arr[i*3+1]=c.g; arr[i*3+2]=c.b; }
-      g.setAttribute('color', new THREE.BufferAttribute(arr,3));
-    }
-    const pa=g.attributes.position.array, C=this.chunk;
-    const tile=Math.floor(pa[0]/C)+','+Math.floor(pa[2]/C);
-    const k=key+'@'+tile;
-    if(!this.map.has(k)) this.map.set(k,{ key, geos:[] });
-    this.map.get(k).geos.push(g);
-  }
-  build(scene, materials, shadows){
-    let meshes=0;
-    for(const [, {key, geos}] of this.map){
-      let total=0; for(const g of geos) total+=g.attributes.position.count;
-      const pos=new Float32Array(total*3), nor=new Float32Array(total*3), uv=new Float32Array(total*2), col=new Float32Array(total*3);
-      let o=0;
-      for(const g of geos){
-        const n=g.attributes.position.count;
-        if(!g.attributes.normal) g.computeVertexNormals();
-        pos.set(g.attributes.position.array, o*3); nor.set(g.attributes.normal.array, o*3);
-        if(g.attributes.uv) uv.set(g.attributes.uv.array, o*2);
-        if(g.attributes.color) col.set(g.attributes.color.array, o*3); else col.fill(1, o*3, (o+n)*3);
-        o+=n; g.dispose();
-      }
-      const merged=new THREE.BufferGeometry();
-      merged.setAttribute('position', new THREE.BufferAttribute(pos,3));
-      merged.setAttribute('normal', new THREE.BufferAttribute(nor,3));
-      merged.setAttribute('uv', new THREE.BufferAttribute(uv,2));
-      merged.setAttribute('color', new THREE.BufferAttribute(col,3));
-      merged.computeBoundingSphere();
-      const mesh=new THREE.Mesh(merged, materials[key]);
-      if(shadows && shadows[key]){ mesh.castShadow=true; mesh.receiveShadow=true; }
-      else mesh.receiveShadow=true;
-      mesh.matrixAutoUpdate=false; mesh.name='world_'+key; scene.add(mesh); meshes++;
-    }
-    return meshes;
-  }
-}
 const M4=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), SV=new THREE.Vector3(1,1,1);
 function mat(x,y,z,ry=0,sx=1,sy=1,sz=1){ E.set(0,ry,0); Q.setFromEuler(E); V.set(x,y,z); SV.set(sx,sy,sz); return new THREE.Matrix4().compose(V,Q,SV); }
 const BOX=new THREE.BoxGeometry(1,1,1);
@@ -267,24 +225,7 @@ export function buildWorld(scene, overrides=null){
     for(let ox=-40;ox<=40;ox+=10) for(let oz=-40;oz<=40;oz+=10) markRoad(cx+ox,cz+oz,'lot'); }
 
   // ---- ground: world-space grass with macro tone variation (no visible tiling at any distance) ----
-  const grassMat=new THREE.MeshStandardMaterial({ map:tex.grass, roughness:1.0, envMapIntensity:0.3 });
-  grassMat.onBeforeCompile=(sh)=>{
-    sh.uniforms.uMacro={ value:tex.macro };
-    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWPos;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWPos=(modelMatrix*vec4(position,1.0)).xyz;');
-    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D uMacro; varying vec3 vWPos;')
-      .replace('#include <map_fragment>',`
-  vec2 wp=vWPos.xz;
-  vec3 g1=texture2D(map, wp/3.2).rgb, g2=texture2D(map, wp/13.7+0.31).rgb;
-  float m1=texture2D(uMacro, wp/420.0).r, m2=texture2D(uMacro, wp/97.0+0.5).r;
-  vec3 g=mix(g1,g2,0.38);
-  vec3 lush=vec3(0.82,0.92,0.70), dry=vec3(1.16,1.02,0.66), dark=vec3(0.68,0.78,0.60);
-  vec3 tone=mix(lush, dry, smoothstep(0.42,0.72,m1));
-  tone=mix(tone, dark, smoothstep(0.55,0.85,m2)*0.6);
-  vec3 gc=g*tone;
-  gc=mix(vec3(dot(gc, vec3(0.299,0.587,0.114))), gc, 0.74);   // late-summer Maryland, not golf-course green
-  diffuseColor.rgb *= gc;`);
-  };
-  grassMat.customProgramCacheKey=()=>'sv3d-grass-v2';
+  const grassMat=makeGrassMaterial(tex);
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(9800,11800), grassMat);
   ground.rotation.x=-Math.PI/2; ground.position.set(-350,0,-2250);
   ground.receiveShadow=true; ground.name='ground';
@@ -385,7 +326,7 @@ export function buildWorld(scene, overrides=null){
   scene.fog=new THREE.Fog(WORLD_LIGHTING.fog.color, WORLD_LIGHTING.fog.near, WORLD_LIGHTING.fog.far);
 
   lap('props'); B.build(scene, mats, { wallSiding:true, wallBrick:true, wallBlank:true, store:true, roof:true, flatRoof:true, trim:true, found:true, chimney:true, door:true, garage:true, pole:true, metal:true, mailbox:true });
-  lap('merge'); const veg=buildVegetation({ scene, roads, colliders, drives:H.drives, D, cfg, T:tex }); lap('vegetation');
+  lap('merge'); const veg=buildVegetation({ scene, roads, colliders, drives:H.drives, D, cfg, T:tex, greens:GREENS }); lap('vegetation');
   const winMesh = buildLitWindows(scene, winQuads);
   // initial lit tint from the active preset (the day/night cycle re-tints
   // this material every frame in-game; static callers keep this look)

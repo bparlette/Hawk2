@@ -1,8 +1,7 @@
-// Scaggsville 3D — vegetation: street / yard trees, foundation shrubs, and the REAL OSM woods.
+// Hawk2 shared world3d — vegetation (first built for Scaggsville 3D): street / yard trees, foundation shrubs, and the REAL OSM woods.
 // Instanced in 300 m chunks (frustum culling per chunk) with a scene.onBeforeRender distance cull, so
 // draw calls stay bounded however much forest the map has. Per-instance colour variation.
 import * as THREE from 'three';
-import { GREENS } from './greens.js';
 
 const CHUNK=400;
 
@@ -122,7 +121,8 @@ export function vegetationMaterial(T){
   return new THREE.MeshStandardMaterial({ map:T.foliage, alphaTest:0.42, side:THREE.DoubleSide, vertexColors:true, roughness:0.9, metalness:0, envMapIntensity:0.45 });
 }
 
-export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T }){
+export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T, greens=[] }){
+  const GREENS=greens;
   const R=mulberry32(4471);
   const models=makeModels(), F=new Forest();
   // occupancy: houses (oriented boxes, padded) via a coarse grid

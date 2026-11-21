@@ -1,0 +1,10 @@
+{
+  "page": "games/laurel-fulton/play.html?player=brad&nointro&pilot&t=0.25",
+  "viewport": [390, 844],
+  "waitFor": "document.querySelector('canvas')",
+  "steps": [
+    {"wait": 14000}, {"shot": "drive-1"}, {"stats": "drive-1"},
+    {"wait": 8000}, {"shot": "drive-2"},
+    {"luma": "drive-2-road", "crop": [0.1, 0.45, 0.9, 0.8]}
+  ]
+}

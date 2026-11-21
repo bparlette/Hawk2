@@ -1,4 +1,4 @@
-// Scaggsville 3D — roads: real OSM polylines rendered with shader-painted markings, curbs, sidewalks,
+// Hawk2 shared world3d (first built for Scaggsville 3D) — roads: real OSM polylines rendered with shader-painted markings, curbs, sidewalks,
 // gravel shoulders, plus the spatial queries the rest of the world builds against.
 //
 // Markings are computed per pixel from (metres across the road, metres along it, metres to the polyline

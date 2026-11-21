@@ -1,4 +1,4 @@
-// Scaggsville 3D — procedural texture set (canvas, no external assets).
+// Hawk2 shared world3d (first built for Scaggsville 3D) — procedural texture set (canvas, no external assets).
 //
 // Facade textures come with a separate greyscale PAINT MASK: the house paint (vertex colour)
 // multiplies only where mask = 1 (siding), so trim stays white, glass stays dark-reflective and brick
