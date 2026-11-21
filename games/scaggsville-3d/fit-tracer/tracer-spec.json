@@ -125,12 +125,13 @@
   "width": 1.7
  },
  "frontFascia": {
+  "bumperCornerR": 0.17,
   "bumperH": 0.23,
-  "bumperProtrusion": 0.07,
+  "bumperProtrusion": 0.1,
   "bumperY": 0.465,
   "chinSpoiler": {
    "enabled": true,
-   "h": 0.05,
+   "h": 0.042,
    "protrusion": 0.01,
    "y": 0.235,
    "zBack": 1.45
@@ -177,27 +178,29 @@
   "rearGlassColor": 725016,
   "rearGlassOpacity": 0.84,
   "rearWiper": false,
-  "roofCrown": 0.022,
+  "roofArch": 0.048,
+  "roofCrown": 0.034,
+  "rounded": true,
   "sideGlassColor": 1450028,
   "sideGlassOpacity": 0.6,
   "wFrontBase": 0.73,
-  "wFrontRoof": 0.615,
+  "wFrontRoof": 0.6,
   "wRearBase": 0.72,
-  "wRearRoof": 0.605,
+  "wRearRoof": 0.585,
   "windshieldColor": 1713718,
   "windshieldOpacity": 0.55,
   "yFrontBase": 0.9,
-  "yFrontRoof": 1.325,
+  "yFrontRoof": 1.298,
   "yRearBase": 0.915,
-  "yRearRoof": 1.315,
+  "yRearRoof": 1.29,
   "zFrontBase": 0.88,
-  "zFrontRoof": 0.18,
+  "zFrontRoof": -0.08,
   "zRearBase": -1.42,
-  "zRearRoof": -0.7
+  "zRearRoof": -0.64
  },
  "meta": {
   "name": "Zack's '97 Mercury Tracer GS Sedan (photo-gen fit)",
-  "notes": "GENERATION FLAG: photo set is the 1997-99 THIRD-generation Tracer (rounded Escort-based sedan, Cincinnati dealer set, 800x600 max res); the fleet entry describes the 1991-96 car. This fit follows THE PHOTOS (gen-3) per instructions, pending Cherie's call on which generation the fleet car should be. Dims factory-anchored for the '97 sedan (L 4.39, WB 2.50, W 1.70, H 1.34; tyre 185/65R14, OD 0.596 m); side.jpg is slightly yawed so overhangs were NOT photo-traced. Wheels in photos are aftermarket \u2014 proportions only; fitted a generic twin-spoke. CANON PAINT: green (photo car is Silver Frost \u2014 shape only). C-pillar: greenhouse.cPillarZ -1.02, cPillarPaint false (a254581 archetype extension). Round 2: cPillar cylinder removed (rendered as a rod above the roofline; the loft rear-glass slope carries the C-pillar read), chin spoiler tucked (h 0.07->0.05, y 0.22->0.235) toward the photo car's subtle lower lip; paint decimal corrected to 0x1E6B45.",
+  "notes": "GENERATION FLAG: photo set is the 1997-99 THIRD-generation Tracer (rounded Escort-based sedan, Cincinnati dealer set, 800x600 max res); the fleet entry describes the 1991-96 car. This fit follows THE PHOTOS (gen-3) per instructions, pending Cherie's call on which generation the fleet car should be. Dims factory-anchored for the '97 sedan (L 4.39, WB 2.50, W 1.70, H 1.34; tyre 185/65R14, OD 0.596 m); side.jpg is slightly yawed so overhangs were NOT photo-traced. Wheels in photos are aftermarket \u2014 proportions only; fitted a generic twin-spoke. CANON PAINT: green (photo car is Silver Frost \u2014 shape only). C-pillar: greenhouse.cPillarZ -1.02, cPillarPaint false (a254581 archetype extension). Round 2: cPillar cylinder removed (rendered as a rod above the roofline; the loft rear-glass slope carries the C-pillar read), chin spoiler tucked (h 0.07->0.05, y 0.22->0.235) toward the photo car's subtle lower lip; paint decimal corrected to 0x1E6B45. REFIT (fixed tool, gamepress 1c763be): greenhouse.rounded=true + roofArch 0.05, roof span shortened (zFrontRoof 0.18->0.02, zRearRoof -0.70->-0.50) so both glass ramps lengthen and the dome curve carries the profile; roof peaks lowered (yFrontRoof 1.298, yRearRoof 1.29), roofCrown 0.034, roof widths narrowed (0.60/0.585). Bumpers: cornerR 0.21/0.20, protrusion 0.07->0.05 for the integrated body-color read. cPillarZ stays REMOVED: in the fixed builder it is still a 0.026r cylinder (a rod, not the car's wide sail); the rounded mode's curved body-color roof-to-hatch arch rail is the C-pillar treatment. Round 2: dome apex shifted rearward (zFrontRoof -0.08, zRearRoof -0.64) \u2014 round 1's apex sat over the front door and the rear glass ran fastback-long; photo car peaks at the B-pillar with a shorter, steeper backlight. Bumpers: protrusion RAISED (0.09/0.085) because buildWrapBeamGeo caps corner radius at depth*0.8 \u2014 the deeper beam is what actually unlocks cornerR (effective ~0.12 front / ~0.11 rear vs ~0.09 capped before), reading as a plump molded cover instead of a flat slab. Round 3: rear bumper band slimmed (H 0.24->0.215, Y 0.485), protrusion 0.095 (corner cap ~0.124), paintedLowerValance=true (photo car's lower rear wraps under in body color; the black valance band was half the stacked-slab read). Front protrusion 0.10 (corner cap ~0.128), chin spoiler h 0.042 toward the photo car's subtle lower lip.",
   "year": 1997
  },
  "paint": {
@@ -208,9 +211,10 @@
   "roughness": 0.26
  },
  "rearFascia": {
-  "bumperH": 0.24,
-  "bumperProtrusion": 0.07,
-  "bumperY": 0.475,
+  "bumperCornerR": 0.16,
+  "bumperH": 0.215,
+  "bumperProtrusion": 0.095,
+  "bumperY": 0.485,
   "exhaust": {
    "count": 1,
    "r": 0.026,
@@ -224,6 +228,7 @@
    "z": -1.8
   },
   "mudFlaps": false,
+  "paintedLowerValance": true,
   "rubStripH": 0.02,
   "rubStripY": 0.5,
   "spoiler": {
