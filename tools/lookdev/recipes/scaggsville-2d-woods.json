@@ -1,0 +1,6 @@
+{
+  "page": "games/laurel-fulton/play.html?cam=13895,15806,0.55&t=0.25",
+  "viewport": [390, 844],
+  "waitFor": "document.querySelector('canvas')",
+  "steps": [ {"wait": 14000}, {"shot": "woods"} ]
+}

@@ -7,6 +7,7 @@
 // Only ground-level (layer 0) roads are painted here; bridge decks are drawn live above (lf_render.js).
 import { mulberry32, fbm, vnoise } from '../../palm-city/src/world.js';
 import { poly } from './lf_areas.js';
+import { paintRoof, paintCanopy } from '../../shared/paint2d.js';
 
 export const CHUNK = 256, PX = 2, CPX = CHUNK * PX;
 const PAL = {
@@ -314,7 +315,9 @@ export class GroundPainter {
     const AR = this.areas;
     if (AR) {                                             // background tier: realistic weathered roofs, crisp cast shadows, parking lot wear
       const r = mulberry32(cx * 7919 + cy * 104729 + 5);
-      for (const i of AR.inChunk('green', cx, cy)) { g.globalAlpha = 0.16; g.fillStyle = '#254224'; poly(g, AR.A.green[i]); g.fill(); }
+      // REAL WOODS as canopy (Opus, Nov 21) — painter shared in games/shared/paint2d.js
+      for (const i of AR.inChunk('green', cx, cy)) paintCanopy(g, AR.A.green[i], { ox, oy, size: CHUNK, sunX: 0.8, sunY: -0.3 });
+      g.globalAlpha = 1;
       for (const i of AR.inChunk('parking', cx, cy)) {
         const pf = AR.A.parking[i];
         g.globalAlpha = 0.90; g.fillStyle = '#404652'; poly(g, pf); g.fill();
@@ -345,37 +348,10 @@ export class GroundPainter {
       yield;
       g.globalAlpha = 1;
       for (const i of AR.inChunk('parking', cx, cy)) { weatherLot(g, AR.A.parking[i], i); yield; }   // GTA6-look: every lot weathered (see weatherLot above)
-      // realistic architectural roof palette (weathered slate, tar-membrane, charcoal shingle, muted cedar/metal)
-      const ROOFS = ['#575e69', '#4a505a', '#636a75', '#6b5950', '#505660', '#73504a', '#5e6773'];
+      // PITCHED ROOFS (Opus, Nov 21) — painter shared in games/shared/paint2d.js (the bake's SUN, lf_render.js)
       for (const i of AR.inChunk('buildings', cx, cy)) {
         if (AR.heroSet.has(i)) continue;                  // heroes are drawn live, bigger and crisp (lf_render.js)
-        const f = AR.A.buildings[i];
-        // deep directional cast shadow + tight contact AO
-        g.globalAlpha = 0.42; g.fillStyle = '#0e131e'; g.save(); g.translate(10, -5); poly(g, f); g.fill(); g.restore();
-        g.globalAlpha = 0.32; g.lineWidth = 3.2; g.strokeStyle = '#0c1018'; poly(g, f); g.stroke();
-        // weathered roof base
-        g.globalAlpha = 0.94; g.fillStyle = ROOFS[i % ROOFS.length]; poly(g, f); g.fill();
-        // subtle roof membrane seams / shingle texture + parapet coping + rooftop vent on larger roofs
-        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-        for (let k = 0; k < f.length; k += 2) { if (f[k] < x0) x0 = f[k]; if (f[k] > x1) x1 = f[k]; if (f[k + 1] < y0) y0 = f[k + 1]; if (f[k + 1] > y1) y1 = f[k + 1]; }
-        const bw = x1 - x0, bh = y1 - y0, mx = (x0 + x1) * 0.5, my = (y0 + y1) * 0.5;
-        g.save(); poly(g, f); g.clip();
-        g.globalAlpha = 0.16; g.strokeStyle = '#1d222c'; g.lineWidth = 0.9; g.beginPath();
-        if (bw >= bh) { for (let x = x0 + 9; x < x1; x += 11) { g.moveTo(x, y0); g.lineTo(x, y1); } }
-        else { for (let y = y0 + 9; y < y1; y += 11) { g.moveTo(x0, y); g.lineTo(x1, y); } }
-        g.stroke();
-        // ridge or sunlit half-slope tint
-        g.globalAlpha = 0.14; g.fillStyle = '#d8e2f0';
-        if (bw >= bh) g.fillRect(x0, y0, bw, bh * 0.5); else g.fillRect(x0, y0, bw * 0.5, bh);
-        // rooftop HVAC / turbine vent on commercial / larger buildings
-        if (bw > 48 && bh > 40) {
-          g.globalAlpha = 0.55; g.fillStyle = '#252a34'; g.fillRect(mx - 6, my - 5, 13, 11);
-          g.globalAlpha = 0.85; g.fillStyle = '#8b939e'; g.fillRect(mx - 7, my - 6, 11, 9);
-          g.globalAlpha = 0.65; g.fillStyle = '#bcc4ce'; g.beginPath(); g.arc(mx - 1.5, my - 1.5, 3, 0, Math.PI * 2); g.fill();
-        }
-        g.restore();
-        // crisp parapet / eave coping highlight
-        g.globalAlpha = 0.45; g.strokeStyle = '#c4cbd4'; g.lineWidth = 1.2; poly(g, f); g.stroke();
+        paintRoof(g, AR.A.buildings[i], i, { sunX: 0.8, sunY: -0.3, rng: r, salt: cx & 3 });
       }
       g.globalAlpha = 1;
       yield;

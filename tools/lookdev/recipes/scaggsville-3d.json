@@ -1,0 +1,15 @@
+{
+  "page": "games/scaggsville-3d/index.html",
+  "viewport": [390, 844],
+  "waitFor": "window.__proof",
+  "steps": [
+    {"eval": "window.__proof.start('brad')"}, {"wait": 2500},
+    {"eval": "window.__proof.setTime('golden')"}, {"wait": 600},
+    {"shot": "spawn-golden"}, {"stats": "spawn-golden"}, {"tris": "spawn-golden", "top": 12},
+    {"eval": "(()=>{const p=window.__proof.routePt(0.33); window.__proof.teleport(p.x,p.z,p.heading);})()"},
+    {"wait": 1500}, {"shot": "route33-golden"}, {"stats": "route33-golden"},
+    {"eval": "window.__proof.setTime('dusk')"}, {"wait": 800}, {"shot": "route33-dusk"},
+    {"eval": "window.__proof.setTime('night')"}, {"wait": 800}, {"shot": "route33-night"},
+    {"pick": [[195, 560], [60, 300], [330, 300]]}
+  ]
+}

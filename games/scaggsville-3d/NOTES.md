@@ -205,3 +205,72 @@ convoy drives the same real roads the player drove.
   vehicles + figures runs higher (~150) — the ≤60 budget was a world-module
   budget and the world holds it; per-vehicle meshes are the cost of shaped,
   wheel-rolling cars.
+
+## World look pass 1 (Opus, Nov 21) — toward GTA V street realism
+
+Same map, same data contract (`groundAt`, `surfaceAt` 12 m grid unchanged, colliders, stops, route, spawn,
+target, lighting; `skyDome` / `litWindows` / `lampGlow` names the day-night cycle drives are unchanged).
+`buildWorld.js` now orchestrates four modules:
+
+| Module | What it adds |
+|---|---|
+| `src/world/textures.js` | Procedural canvas set: world-mapped asphalt, grass, leaf litter, 1.5 m sidewalk slabs, architectural shingles; facade bay tiles (lap siding / brick, 2.9 m x 3.1 m, window with trim, mullions, shutters) with a separate paint mask + roughness map (glass is glossy, trim stays white). |
+| `src/world/roads.js` | One-draw road surface with **shader-painted markings** by OSM class (double yellow + white edges on collectors, yellow/white edges + dashed lanes on one-way carriageways, none on residential), faded near polyline ends; world-space asphalt with macro variation + wheel paths; curbs + 1.6 m sidewalks swept along residential streets (cut wherever they would land on other pavement); gravel shoulders elsewhere. Bitset paved mask + nearest-road index for the other modules. |
+| `src/world/houses.js` | Every real footprint becomes a house: foundation, siding/brick bays with windows, gable or hip roof with eaves/soffits/fascia, chimneys; the side facing the nearest real road gets the front door + stoop + porch hood and (wider fronts) a garage door + driveway to that road + a mailbox. Sheds (< 34 m²) and commercial/school footprints (> 520 m², flat roof + parapet + rooftop units) handled separately. Lit-window quads sit on the painted windows. |
+| `src/world/vegetation.js` + `greens.js` | Street trees, yard trees, foundation shrubs, and the **real OSM woods** (446 polygons, 14.2 km², from `laurel-fulton/data/areas.json` via `tools/extract_greens.py`; frame fitted from 2,027 building matches, median residual 0.00 m): leaf-litter floor + trees banded by distance to road (7.5 m spacing near roads, 26 m at the fog line, none beyond 700 m). Instanced in 400 m chunks with distance cull (760 m) and LOD swap beyond 260 m. |
+
+Merged world meshes are now split into 900 m tiles so frustum + shadow culling can skip districts.
+
+**Measured** (headless Chromium/SwiftShader, 390×844, the same 5 route views, `__proof.stats()`):
+
+| | Before | After |
+|---|---|---|
+| Triangles / frame | 568k – 643k | 654k – 770k |
+| Draw calls (non-convoy views) | 202 – 245 | 224 – 289 |
+| World build time | — | 1.7 s (textures 0.37, roads 0.18, houses 0.35, vegetation 0.59) |
+| Page errors | 0 | 0 |
+
+Rerun the woods extraction with `python3 tools/extract_greens.py`.
+
+## World look pass 2 (Opus, Nov 21)
+
+- **Trees are leaf-card canopies** (alpha-tested clusters on a leaves | bark | needles atlas, crown-centred
+  normals for soft rounded light, branches into the crown, dappled alpha shadows). One material, so a
+  chunk is still one draw — and cheaper than the faceted blob trees they replace.
+- **Grass** desaturated toward late-summer olive with drier macro patches (was golf-course green).
+- **Contact shadows**: a soft dark skirt where every house meets the ground (one transparent draw).
+
+Measured, same harness and views: **527k – 625k triangles** (pass 1: 654k – 770k; original: 568k – 643k),
+221 – 291 calls, world build 1.8 s, 0 page errors.
+
+## Map fidelity fix (Opus, Nov 21): the 3D map now matches the real map the 2D game draws
+
+Measured against `laurel-fulton/data/graph.min.json` (the network the 2D game draws, which matches satellite
+imagery) and `areas.json`:
+
+| Check | Before | After |
+|---|---|---|
+| Road vertex position error vs the real graph | 0.00 m (positions were always exact) | 0.00 m |
+| Real road length inside the map extent that was **missing** | 49–100 % per class (66 % residential, 79 % service, 88 % secondary) | **0.00 %** of 369.3 km |
+| Roads / buildings / lots / cul-de-sacs | 1,165 / 2,027 / 8 / 36 (a corridor around the route) | 4,496 / 9,931 / 114 / 140 (everything in the extent) |
+| House box fit (footprint area / box area, median) | **0.50**: boxes mirrored in z, every non-grid house rotated against its street and ~2× its real footprint | **0.93**: box axis on the real longest edge |
+
+1. **Coverage.** The first extraction kept a corridor around the rally route, so cross streets ended a few metres
+   past intersections and subdivisions were empty grass. `tools/extract_world.py` re-extracts everything inside the
+   same extent with the same fitted frame (2,027 building matches, residual 0.00 m). Stops, route and heroes are
+   byte-identical.
+2. **House orientation.** `ry = -ba + π/2` mapped the box's local +x to a z-mirrored edge direction. Fixed in
+   `games/shared/world3d/houses.js` (`ry = atan2(-cos ba, sin ba)`); colliders share `ry`, so collisions follow the
+   real walls too.
+3. **Scale is real.** The 2D data was compressed ×0.5 on Nov 17 (owner: "every road maybe 1/2 the current length")
+   while `graph.min.json` still says `units_per_m: 10`. 5 units = 1 real metre, so 3D is true size and 2D is a
+   half-scale miniature. Road widths in 2D were not halved, which is why 2D streets look wider than 3D ones.
+
+**Budget for the complete map** (same recipe, 390×844): 581k–618k triangles (corridor build: 525k–662k), 373–450 GL
+draws (326–397), 75.4 MB geometry (58.8 MB, each geometry counted once), world build 5.4 s (1.8 s), 0 page errors.
+To keep it there: road surface, lit windows and contact shadows are tiled at 900 m; houses beyond 700 m from the
+route are lean (walls + roof, `houseFullRadius`); merged normals and colours are int8/uint8; woods are banded
+9/13/20/30 m; shrubs only on full-detail houses.
+
+Verify any future map change with the checks above: `tools/lookdev/` plus the coverage script pattern in
+`tools/extract_world.py`'s docstring.

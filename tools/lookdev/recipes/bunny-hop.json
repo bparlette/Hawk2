@@ -1,0 +1,9 @@
+{
+  "page": "games/bunny-hop/index.html",
+  "viewport": [390, 844],
+  "waitFor": "window.__dbg && window.__dbg.ready",
+  "steps": [
+    {"wait": 2500}, {"keyDown": "KeyW"}, {"wait": 3000}, {"shot": "ride"}, {"stats": "ride"}, {"tris": "ride", "top": 10},
+    {"luma": "ride-road", "crop": [0.1, 0.45, 0.9, 0.8]}, {"keyUp": "KeyW"}
+  ]
+}

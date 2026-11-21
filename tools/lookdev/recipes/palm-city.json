@@ -1,0 +1,6 @@
+{
+  "page": "games/palm-city/index.html?demo&t=0.25",
+  "viewport": [390, 844],
+  "waitFor": "document.querySelector('canvas')",
+  "steps": [ {"wait": 12000}, {"shot": "demo-1"}, {"stats": "demo-1"}, {"wait": 6000}, {"shot": "demo-2"} ]
+}
