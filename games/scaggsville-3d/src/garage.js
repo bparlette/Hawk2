@@ -224,7 +224,7 @@ function createStage(environment) {
     const projHalf = (fitLen / 2) * Math.sin(Math.abs(START_AZ)) + (fitWid / 2) * Math.cos(START_AZ) + 0.35;
     const distH = projHalf / (hTan * 0.94);
     const distV = (fitH / 2 + 0.22) / (vTan * fh);
-    const dist = Math.max(distH, distV) * 1.05;
+    const dist = Math.max(distH, distV) * 1.26; // margin: the whole car stays inside at every spin angle
     const el = 0.30, ty = fitH * 0.44;
     camera.position.set(Math.sin(START_AZ) * Math.cos(el) * dist, ty + Math.sin(el) * dist, Math.cos(START_AZ) * Math.cos(el) * dist);
     camera.lookAt(0, ty, 0);
@@ -238,8 +238,8 @@ function createStage(environment) {
       const d = veh.dims;
       const px = d.wid / 2 + 0.55;
       if (person) {
-        person.group.position.set(px, 0, 0.35);
-        person.group.rotation.y = 0.85;
+        person.group.position.set(-px, 0, 0.35); // camera side at the start azimuth
+        person.group.rotation.y = -0.85;
         table.add(person.group);
       }
       fitLen = d.len; fitWid = d.wid;
