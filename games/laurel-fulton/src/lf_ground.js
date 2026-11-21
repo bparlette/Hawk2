@@ -345,37 +345,84 @@ export class GroundPainter {
       yield;
       g.globalAlpha = 1;
       for (const i of AR.inChunk('parking', cx, cy)) { weatherLot(g, AR.A.parking[i], i); yield; }   // GTA6-look: every lot weathered (see weatherLot above)
-      // realistic architectural roof palette (weathered slate, tar-membrane, charcoal shingle, muted cedar/metal)
-      const ROOFS = ['#575e69', '#4a505a', '#636a75', '#6b5950', '#505660', '#73504a', '#5e6773'];
+      // PITCHED ROOFS (Opus, Nov 21): every real footprint reads as a 3D house from above, the way Palm City's
+      // baked sprites do — ridge along the longest edge, the sun-facing slope lit and the far slope shaded,
+      // shingle courses parallel to the eaves, ridge cap, chimney; near-square footprints get a hip roof;
+      // a swept cast shadow down-sun (the bake's SUN, lf_render.js). Large footprints keep flat membrane roofs.
+      const SHINGLE = ['#4d525a', '#5b5f67', '#6a625a', '#585049', '#41464e', '#6e6a63', '#525e69', '#5d5048', '#62666d'];
+      const SUNX = 0.8, SUNY = -0.3, LX = -SUNX, LY = -SUNY;        // shadows fall along SUN; light comes from -SUN
+      const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => Math.max(0, Math.min(255, Math.round(v * k)))); return `rgb(${c[0]},${c[1]},${c[2]})`; };
       for (const i of AR.inChunk('buildings', cx, cy)) {
         if (AR.heroSet.has(i)) continue;                  // heroes are drawn live, bigger and crisp (lf_render.js)
-        const f = AR.A.buildings[i];
-        // deep directional cast shadow + tight contact AO
-        g.globalAlpha = 0.42; g.fillStyle = '#0e131e'; g.save(); g.translate(10, -5); poly(g, f); g.fill(); g.restore();
-        g.globalAlpha = 0.32; g.lineWidth = 3.2; g.strokeStyle = '#0c1018'; poly(g, f); g.stroke();
-        // weathered roof base
-        g.globalAlpha = 0.94; g.fillStyle = ROOFS[i % ROOFS.length]; poly(g, f); g.fill();
-        // subtle roof membrane seams / shingle texture + parapet coping + rooftop vent on larger roofs
-        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-        for (let k = 0; k < f.length; k += 2) { if (f[k] < x0) x0 = f[k]; if (f[k] > x1) x1 = f[k]; if (f[k + 1] < y0) y0 = f[k + 1]; if (f[k + 1] > y1) y1 = f[k + 1]; }
-        const bw = x1 - x0, bh = y1 - y0, mx = (x0 + x1) * 0.5, my = (y0 + y1) * 0.5;
+        const f = AR.A.buildings[i], n = f.length / 2;
+        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, mx = 0, my = 0, best = 0, ux = 1, uy = 0, area = 0;
+        for (let k = 0; k < n; k++) { const ax = f[k * 2], ay = f[k * 2 + 1], bx = f[((k + 1) % n) * 2], by = f[((k + 1) % n) * 2 + 1];
+          x0 = Math.min(x0, ax); x1 = Math.max(x1, ax); y0 = Math.min(y0, ay); y1 = Math.max(y1, ay); mx += ax; my += ay; area += ax * by - bx * ay;
+          const L = Math.hypot(bx - ax, by - ay); if (L > best) { best = L; ux = (bx - ax) / L; uy = (by - ay) / L; } }
+        mx /= n; my /= n; area = Math.abs(area) / 2;
+        const vx = -uy, vy = ux;                         // across the ridge
+        let u0 = 1e9, u1 = -1e9, v0 = 1e9, v1 = -1e9;
+        for (let k = 0; k < n; k++) { const dx = f[k * 2] - mx, dy = f[k * 2 + 1] - my, uu = dx * ux + dy * uy, vv = dx * vx + dy * vy; u0 = Math.min(u0, uu); u1 = Math.max(u1, uu); v0 = Math.min(v0, vv); v1 = Math.max(v1, vv); }
+        const flat = area > 15000, span = v1 - v0, len = u1 - u0;
+        const hgt = flat ? 34 : 30 + (i % 3) * 4;         // world units (~5 per m): 2-storey eaves + roof
+        // swept cast shadow: the footprint dragged down-sun (soft far end, dense contact)
+        g.fillStyle = '#0c111c';
+        for (let s2 = 4; s2 >= 1; s2--) { g.globalAlpha = 0.10 + (4 - s2) * 0.05; g.save(); g.translate(SUNX * hgt * s2 / 4, SUNY * hgt * s2 / 4); poly(g, f); g.fill(); g.restore(); }
+        g.globalAlpha = 0.34; g.lineWidth = 3.0; g.strokeStyle = '#0c1018'; poly(g, f); g.stroke();
+        const base = flat ? ['#5f646c', '#6a6e74', '#575c64', '#707378'][i % 4] : SHINGLE[(i * 7 + (cx & 3)) % SHINGLE.length];
+        g.globalAlpha = 1; g.fillStyle = base; poly(g, f); g.fill();
         g.save(); poly(g, f); g.clip();
-        g.globalAlpha = 0.16; g.strokeStyle = '#1d222c'; g.lineWidth = 0.9; g.beginPath();
-        if (bw >= bh) { for (let x = x0 + 9; x < x1; x += 11) { g.moveTo(x, y0); g.lineTo(x, y1); } }
-        else { for (let y = y0 + 9; y < y1; y += 11) { g.moveTo(x0, y); g.lineTo(x1, y); } }
-        g.stroke();
-        // ridge or sunlit half-slope tint
-        g.globalAlpha = 0.14; g.fillStyle = '#d8e2f0';
-        if (bw >= bh) g.fillRect(x0, y0, bw, bh * 0.5); else g.fillRect(x0, y0, bw * 0.5, bh);
-        // rooftop HVAC / turbine vent on commercial / larger buildings
-        if (bw > 48 && bh > 40) {
-          g.globalAlpha = 0.55; g.fillStyle = '#252a34'; g.fillRect(mx - 6, my - 5, 13, 11);
-          g.globalAlpha = 0.85; g.fillStyle = '#8b939e'; g.fillRect(mx - 7, my - 6, 11, 9);
-          g.globalAlpha = 0.65; g.fillStyle = '#bcc4ce'; g.beginPath(); g.arc(mx - 1.5, my - 1.5, 3, 0, Math.PI * 2); g.fill();
+        if (flat) {                                        // membrane roof: seams, coping, rooftop units
+          g.globalAlpha = 0.16; g.strokeStyle = '#1d222c'; g.lineWidth = 0.9; g.beginPath();
+          for (let t = u0 + 9; t < u1; t += 11) { g.moveTo(mx + ux * t + vx * v0, my + uy * t + vy * v0); g.lineTo(mx + ux * t + vx * v1, my + uy * t + vy * v1); }
+          g.stroke();
+          const units = Math.min(5, Math.floor(area / 6000));
+          for (let k = 0; k < units; k++) { const hx = mx + ux * (u0 + len * (0.2 + 0.6 * r())) + vx * (v0 + span * (0.25 + 0.5 * r())), hy = my + uy * (u0 + len * (0.2 + 0.6 * r())) + vy * (v0 + span * (0.25 + 0.5 * r()));
+            g.globalAlpha = 0.5; g.fillStyle = '#1b2029'; g.fillRect(hx - 5 + SUNX * 4, hy - 4 + SUNY * 4, 12, 10);
+            g.globalAlpha = 0.9; g.fillStyle = '#9aa2ac'; g.fillRect(hx - 6, hy - 5, 11, 9); g.fillStyle = '#c4cbd3'; g.fillRect(hx - 6, hy - 5, 11, 2.5); }
+        } else {
+          const hip = len < span * 1.3;                    // near-square: four-facet hip roof
+          const facets = [];                               // [polygon pts, outward normal (plan)]
+          const P = (uu, vv) => [mx + ux * uu + vx * vv, my + uy * uu + vy * vv];
+          const vm = (v0 + v1) / 2, pad = 8;
+          if (hip) {
+            const r0 = u0 + span / 2, r1 = Math.max(r0 + 0.1, u1 - span / 2), mid0 = Math.min(r0, (u0 + u1) / 2), mid1 = Math.max(r1, (u0 + u1) / 2);
+            facets.push([[P(u0 - pad, v0 - pad), P(u1 + pad, v0 - pad), P(mid1, vm), P(mid0, vm)], [-vx, -vy]]);
+            facets.push([[P(u0 - pad, v1 + pad), P(u1 + pad, v1 + pad), P(mid1, vm), P(mid0, vm)], [vx, vy]]);
+            facets.push([[P(u0 - pad, v0 - pad), P(u0 - pad, v1 + pad), P(mid0, vm)], [-ux, -uy]]);
+            facets.push([[P(u1 + pad, v0 - pad), P(u1 + pad, v1 + pad), P(mid1, vm)], [ux, uy]]);
+          } else {
+            facets.push([[P(u0 - pad, v0 - pad), P(u1 + pad, v0 - pad), P(u1 + pad, vm), P(u0 - pad, vm)], [-vx, -vy]]);
+            facets.push([[P(u0 - pad, vm), P(u1 + pad, vm), P(u1 + pad, v1 + pad), P(u0 - pad, v1 + pad)], [vx, vy]]);
+          }
+          for (const [pts, nrm] of facets) {
+            const lit = nrm[0] * LX + nrm[1] * LY;          // -1 .. 1: facing the sun or away
+            g.globalAlpha = 1; g.fillStyle = shade(base, 1 + 0.34 * lit);
+            g.beginPath(); pts.forEach(([x, y], k) => k ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fill();
+          }
+          // shingle courses parallel to the eaves (both slopes), fading toward the ridge
+          g.lineWidth = 0.8; g.strokeStyle = '#141820';
+          for (let t = 3; t < span / 2; t += 3.4) { g.globalAlpha = 0.10 + 0.08 * (1 - t / (span / 2));
+            for (const sd of [-1, 1]) { const vv = vm + sd * (span / 2 - t); const a0 = P(u0 - pad, vv), a1 = P(u1 + pad, vv); g.beginPath(); g.moveTo(a0[0], a0[1]); g.lineTo(a1[0], a1[1]); g.stroke(); } }
+          // weathering streaks + moss on the shaded slope
+          const wr = mulberry32(i * 2654435761);
+          for (let k = 0; k < 6; k++) { const p = P(u0 + len * wr(), v0 + span * wr()); g.globalAlpha = 0.05 + wr() * 0.06; g.fillStyle = wr() < 0.5 ? '#2a3326' : '#0f1217'; g.beginPath(); g.ellipse(p[0], p[1], 4 + wr() * 8, 2 + wr() * 4, Math.atan2(uy, ux), 0, Math.PI * 2); g.fill(); }
+          // ridge cap(s)
+          g.globalAlpha = 0.55; g.strokeStyle = shade(base, 1.45); g.lineWidth = 1.6; g.beginPath();
+          if (hip) { const r0 = u0 + span / 2, r1 = Math.max(r0 + 0.1, u1 - span / 2), mid0 = Math.min(r0, (u0 + u1) / 2), mid1 = Math.max(r1, (u0 + u1) / 2), A = P(mid0, vm), Bp = P(mid1, vm);
+            g.moveTo(A[0], A[1]); g.lineTo(Bp[0], Bp[1]);
+            for (const [c0, c1] of [[P(u0, v0), A], [P(u0, v1), A], [P(u1, v0), Bp], [P(u1, v1), Bp]]) { g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]); } }
+          else { const A = P(u0, vm), Bp = P(u1, vm); g.moveTo(A[0], A[1]); g.lineTo(Bp[0], Bp[1]); }
+          g.stroke();
+          // chimney on ~40%
+          if ((i * 31) % 10 < 4) { const cpt = P(u0 + len * ((i % 2) ? 0.18 : 0.82), vm + span * 0.18);
+            g.globalAlpha = 0.5; g.fillStyle = '#0d1118'; g.fillRect(cpt[0] - 2.5 + SUNX * 6, cpt[1] - 2.5 + SUNY * 6, 6, 6);
+            g.globalAlpha = 1; g.fillStyle = '#7a4a3c'; g.fillRect(cpt[0] - 3, cpt[1] - 3, 6, 6); g.fillStyle = '#3a2620'; g.fillRect(cpt[0] - 1.5, cpt[1] - 1.5, 3, 3); }
         }
         g.restore();
-        // crisp parapet / eave coping highlight
-        g.globalAlpha = 0.45; g.strokeStyle = '#c4cbd4'; g.lineWidth = 1.2; poly(g, f); g.stroke();
+        // eave line: dark under-edge + thin light fascia
+        g.globalAlpha = 0.55; g.strokeStyle = '#151820'; g.lineWidth = 1.4; poly(g, f); g.stroke();
+        g.globalAlpha = 0.35; g.strokeStyle = '#d6dbe2'; g.lineWidth = 0.7; poly(g, f); g.stroke();
       }
       g.globalAlpha = 1;
       yield;
