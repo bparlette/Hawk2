@@ -614,22 +614,309 @@ const CELICA87_LOFT_SPEC = {
     }
   };
 
-function buildLoftVehicle(row) {
-  const loft = buildLoftedCar(CELICA87_LOFT_SPEC);
-  // fleet light convention: a popups row rides pods-up and lit; popupsDown
-  // sits flush with no light signature. Default for this style is up.
-  loft.setPopups(row.popupsDown ? 0 : 1);
-  const d = CELICA87_LOFT_SPEC.dims;
+
+// ---------------------------------------------------------------- camaro3 loft
+// Brad's '87 Camaro (camaro3) is ALSO built by Neon's loft builder, with
+// her fitted 3rd-gen spec (bakeoff-brad/camaro-spec.json) used VERBATIM —
+// Cherie (2026-11-20): "Don't change, I like Neon's new one as is." The
+// spec carries the canon white-front / maroon-rear split paint, the fixed
+// recessed lamps with her beam colour, T-tops, sail pillar, hood louvers
+// and IROC wheels; the crew row's paint / paintFade / hoodLouvers / tTop /
+// wheels fields are superseded for this style. Rides on the EXTENDED loft
+// template (split paint, fixedLamps, sailPillar + tTops, camaroGrid tail,
+// camaroWing, iroc5 wheels). Same fleet adapter as the Celica below.
+const CAMARO87_LOFT_SPEC = {
+  "meta": {
+    "name": "Brad's '87 Chevy Camaro Z28 / IROC-Z (3rd Gen)",
+    "year": 1987,
+    "notes": "Fitted from games/scaggsville-3d/reference/car-real/camaro-clayton/ using wheel diameter (0.652m) as ruler. Canon white-front / maroon-rear split paint + yellow beams (0xffd94a) + T-tops."
+  },
+  "dims": {
+    "length": 4.76,
+    "width": 1.84,
+    "height": 1.265,
+    "wheelbase": 2.57,
+    "wheelZFront": 1.3,
+    "wheelZRear": -1.27,
+    "wheelRadius": 0.326,
+    "wheelWidth": 0.245,
+    "trackHalfFront": 0.79,
+    "trackHalfRear": 0.79,
+    "archGap": 0.048
+  },
+  "paint": {
+    "color": 16119285,
+    "roughness": 0.2,
+    "metalness": 0.28,
+    "clearcoat": 0.96,
+    "clearcoatRoughness": 0.11,
+    "split": {
+      "frontColor": 15790320,
+      "rearColor": 7479336,
+      "zCenter": 0.05,
+      "blendWidth": 0.55
+    }
+  },
+  "bodyStations": [
+    {
+      "z": -2.38,
+      "yBot": 0.3,
+      "yBelt": 0.74,
+      "yDeck": 0.88,
+      "wBot": 0.8,
+      "wBelt": 0.87,
+      "wDeck": 0.81,
+      "crown": 0.015
+    },
+    {
+      "z": -2.18,
+      "yBot": 0.24,
+      "yBelt": 0.76,
+      "yDeck": 0.9,
+      "wBot": 0.84,
+      "wBelt": 0.91,
+      "wDeck": 0.84,
+      "crown": 0.016
+    },
+    {
+      "z": -1.6,
+      "yBot": 0.195,
+      "yBelt": 0.76,
+      "yDeck": 0.9,
+      "wBot": 0.86,
+      "wBelt": 0.92,
+      "wDeck": 0.85,
+      "crown": 0.016
+    },
+    {
+      "z": -0.8,
+      "yBot": 0.185,
+      "yBelt": 0.75,
+      "yDeck": 0.89,
+      "wBot": 0.86,
+      "wBelt": 0.92,
+      "wDeck": 0.85,
+      "crown": 0.016
+    },
+    {
+      "z": 0.4,
+      "yBot": 0.185,
+      "yBelt": 0.74,
+      "yDeck": 0.87,
+      "wBot": 0.86,
+      "wBelt": 0.92,
+      "wDeck": 0.85,
+      "crown": 0.02
+    },
+    {
+      "z": 1.25,
+      "yBot": 0.19,
+      "yBelt": 0.72,
+      "yDeck": 0.85,
+      "wBot": 0.85,
+      "wBelt": 0.915,
+      "wDeck": 0.84,
+      "crown": 0.025
+    },
+    {
+      "z": 1.92,
+      "yBot": 0.2,
+      "yBelt": 0.67,
+      "yDeck": 0.8,
+      "wBot": 0.82,
+      "wBelt": 0.88,
+      "wDeck": 0.8,
+      "crown": 0.022
+    },
+    {
+      "z": 2.26,
+      "yBot": 0.21,
+      "yBelt": 0.6,
+      "yDeck": 0.72,
+      "wBot": 0.78,
+      "wBelt": 0.83,
+      "wDeck": 0.75,
+      "crown": 0.016
+    },
+    {
+      "z": 2.38,
+      "yBot": 0.22,
+      "yBelt": 0.56,
+      "yDeck": 0.67,
+      "wBot": 0.74,
+      "wBelt": 0.79,
+      "wDeck": 0.71,
+      "crown": 0.012
+    }
+  ],
+  "greenhouse": {
+    "zRearBase": -1.78,
+    "yRearBase": 0.895,
+    "wRearBase": 0.77,
+    "zRearRoof": -0.74,
+    "yRearRoof": 1.255,
+    "wRearRoof": 0.6,
+    "zFrontRoof": -0.02,
+    "yFrontRoof": 1.26,
+    "wFrontRoof": 0.61,
+    "zFrontBase": 0.66,
+    "yFrontBase": 0.865,
+    "wFrontBase": 0.79,
+    "roofCrown": 0.022,
+    "bPillarZ": -0.68,
+    "tTops": true,
+    "sailPillar": {
+      "enabled": true,
+      "zRear": -1.16
+    },
+    "windshieldColor": 1713718,
+    "windshieldOpacity": 0.48,
+    "sideGlassColor": 1317928,
+    "sideGlassOpacity": 0.58,
+    "rearGlassColor": 659480,
+    "rearGlassOpacity": 0.9,
+    "rearWiper": false,
+    "mirrors": {
+      "z": 0.44,
+      "y": 0.9,
+      "w": 0.15,
+      "h": 0.085,
+      "d": 0.12
+    }
+  },
+  "frontFascia": {
+    "bumperY": 0.495,
+    "bumperH": 0.085,
+    "bumperProtrusion": 0.055,
+    "rubStripY": 0.305,
+    "rubStripH": 0.024,
+    "fixedLamps": {
+      "enabled": true,
+      "y": 0.615,
+      "h": 0.135,
+      "pocketW": 0.52,
+      "xOffset": 0.51,
+      "fogLamps": true,
+      "lampColor": 16774614,
+      "beamColor": 16767306,
+      "emissiveIntensity": 2.1,
+      "beamOpacity": 0.52
+    },
+    "lowerIntake": {
+      "y": 0.39,
+      "h": 0.11,
+      "w": 0.84,
+      "dividers": 0
+    },
+    "chinSpoiler": {
+      "enabled": true,
+      "painted": true,
+      "y": 0.24,
+      "h": 0.1,
+      "protrusion": 0.045,
+      "zBack": 1.8
+    },
+    "popups": {
+      "enabled": false
+    }
+  },
+  "rearFascia": {
+    "bumperY": 0.46,
+    "bumperH": 0.14,
+    "bumperProtrusion": 0.045,
+    "rubStripY": 0.37,
+    "rubStripH": 0.026,
+    "paintedLowerValance": true,
+    "tailPanel": {
+      "style": "camaroGrid",
+      "y": 0.68,
+      "h": 0.21,
+      "centerW": 0.42,
+      "lampW": 0.62,
+      "amberOuterW": 0.15,
+      "reverseW": 0.12,
+      "wrapZ": 0.1
+    },
+    "spoiler": {
+      "style": "camaroWing",
+      "z": -2.26,
+      "y": 0.9,
+      "h": 0.075,
+      "d": 0.18,
+      "w": 1.62
+    },
+    "exhaust": {
+      "side": "left",
+      "count": 2,
+      "xOffset": 0.46,
+      "y": 0.22,
+      "r": 0.032
+    },
+    "mudFlaps": false,
+    "fuelDoor": {
+      "z": -1.72,
+      "y": 0.76,
+      "side": 1
+    }
+  },
+  "trim": {
+    "sideRubStrip": {
+      "enabled": true,
+      "y": 0.365,
+      "h": 0.032
+    },
+    "rockerSkirt": {
+      "enabled": false,
+      "y": 0.21,
+      "h": 0.05
+    },
+    "doorHandle": {
+      "z": -0.58,
+      "y": 0.77
+    },
+    "frontSideMarker": {
+      "z": 1.92,
+      "y": 0.5,
+      "w": 0.11,
+      "h": 0.026,
+      "color": 15236628
+    },
+    "hoodLouvers": {
+      "enabled": true,
+      "z": 1.32,
+      "w": 0.25,
+      "len": 0.56,
+      "xOffset": 0.26
+    }
+  },
+  "wheels": {
+    "spokeCount": 5,
+    "spokeStyle": "iroc5",
+    "rimColor": 13686494,
+    "tireColor": 1447707,
+    "hubRadius": 0.068,
+    "rimRatio": 0.69
+  }
+};
+
+function buildLoftVehicle(row, spec, anchorPos, beamFallback, usePopups) {
+  const loft = buildLoftedCar(spec);
+  if (usePopups) {
+    // fleet light convention: a popups row rides pods-up and lit; popupsDown
+    // sits flush with no light signature. Default for this style is up.
+    loft.setPopups(row.popupsDown ? 0 : 1);
+  }
+  const d = spec.dims;
   // Driver anchor at the loft interior's own steering wheel: the loft is
   // modelled driver-left (+X, see the gpcar_loft.js header) with its wheel
   // at x +0.34, so the seated figure's hands land on the rim exactly as on
-  // the fleet cars. Hips sit just ahead of the loft seat backs (z -0.46);
-  // scale follows the fleet formula against the loft roof height.
+  // the fleet cars. Hips sit just ahead of the loft seat backs; scale
+  // follows the fleet formula against the loft roof height.
   const driverAnchor = new THREE.Object3D();
-  driverAnchor.position.set(0.34, 0.59, -0.14);
+  driverAnchor.position.set(anchorPos[0], anchorPos[1], anchorPos[2]);
   driverAnchor.name = 'driverAnchor';
   loft.group.add(driverAnchor);
-  const gh = CELICA87_LOFT_SPEC.greenhouse;
+  const gh = spec.greenhouse;
   const roofTop = Math.max(gh.yRearRoof, gh.yFrontRoof) + (gh.roofCrown || 0);
   const driverScale = THREE.MathUtils.clamp((roofTop - 0.10 - driverAnchor.position.y) / 0.72, 0.8, 1);
   // loft wheels arrive as an array [fr, fl, rr, rl] of {steerPivot, spinPivot}
@@ -642,7 +929,7 @@ function buildLoftVehicle(row) {
   };
   const veh = {
     group: loft.group, wheels, row, driverAnchor, driverScale,
-    beamColor: row.beamColor !== undefined ? row.beamColor : CELICA87_LOFT_SPEC.frontFascia.popups.beamColor,
+    beamColor: row.beamColor !== undefined ? row.beamColor : beamFallback,
     dims: { len: d.length, wid: d.width, wheelR: d.wheelRadius },
     _spin: 0,
     updateWheels(speed, steer, dt) {
@@ -671,7 +958,8 @@ function buildLoftVehicle(row) {
 // Returns { group, wheels: {fl, fr, rl, rr}, dims: {len, wid, wheelR},
 //           beamColor, updateWheels(speed, steer, dt), spin (wheel angle) }
 export function buildVehicle(row) {
-  if (row.style === 'celica87') return buildLoftVehicle(row); // loft-built (see below)
+  if (row.style === 'celica87') return buildLoftVehicle(row, CELICA87_LOFT_SPEC, [0.34, 0.59, -0.14], CELICA87_LOFT_SPEC.frontFascia.popups.beamColor, true); // loft-built (see above)
+  if (row.style === 'camaro3') return buildLoftVehicle(row, CAMARO87_LOFT_SPEC, [0.34, 0.62, -0.24], CAMARO87_LOFT_SPEC.frontFascia.fixedLamps.beamColor, false); // loft-built, spec verbatim
   const st = VEHICLE_STYLES[row.style] || VEHICLE_STYLES.sedan;
   const L = st.len, W = st.wid, R = st.wheelR;
   const group = new THREE.Group();
