@@ -265,6 +265,29 @@ function getGlowTex() {
   return _glowTex;
 }
 
+// Apply optional longitudinal two-tone split vertex colors (e.g., white front -> maroon rear)
+function applySplitPaintVertexColors(geo, paintSpec) {
+  if (!paintSpec || !paintSpec.split) return;
+  const sp = paintSpec.split;
+  const cFront = new THREE.Color(sp.frontColor);
+  const cRear = new THREE.Color(sp.rearColor);
+  const zC = sp.zCenter ?? 0.0;
+  const halfB = Math.max(0.01, (sp.blendWidth ?? 0.45) * 0.5);
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const z = pos.getZ(i);
+    const t = clamp((z - (zC - halfB)) / (2 * halfB), 0, 1);
+    const s = t * t * (3 - 2 * t); // smoothstep
+    c.copy(cRear).lerp(cFront, s);
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+}
+
 // Build a smooth lofted mesh from an array of cross-section rings (each ring = array of [x,y,z])
 function buildLoftGeo(rings, closeFront = true, closeRear = true) {
   const pos = [];
@@ -403,6 +426,7 @@ function buildBodyMesh(spec, paintMat, darkMat) {
 
   const bodyGroup = new THREE.Group();
   const bodyGeo = buildLoftGeo(rings, true, true);
+  applySplitPaintVertexColors(bodyGeo, spec.paint);
   const bodyMesh = new THREE.Mesh(bodyGeo, paintMat);
   bodyMesh.castShadow = true;
   bodyMesh.receiveShadow = true;
@@ -466,10 +490,32 @@ function buildGreenhouse(spec, mats) {
       [w, y - thick, z],
     ]);
   }
-  const roofMesh = new THREE.Mesh(buildLoftGeo(roofRings, true, true), mats.paint);
+  const roofGeo = buildLoftGeo(roofRings, true, true);
+  applySplitPaintVertexColors(roofGeo, spec.paint);
+  const roofMesh = new THREE.Mesh(roofGeo, mats.paint);
   roofMesh.castShadow = true;
   roofMesh.receiveShadow = true;
   group.add(roofMesh);
+
+  // Optional T-Top smoked glass roof panels (e.g. 3rd-gen Camaro T-tops!)
+  if (gh.tTops) {
+    const zMid = (gh.zRearRoof + gh.zFrontRoof) * 0.5;
+    const len = (gh.zFrontRoof - gh.zRearRoof) * 0.82;
+    const wAvg = (gh.wRearRoof + gh.wFrontRoof) * 0.5;
+    const yTop = (gh.yRearRoof + gh.yFrontRoof) * 0.5 + gh.roofCrown * 0.85;
+    for (const s of [-1, 1]) {
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(wAvg * 0.82, 0.016, len),
+        mats.rearGlass
+      );
+      panel.position.set(s * (wAvg * 0.46), yTop, zMid);
+      group.add(panel);
+    }
+    // Center T-bar divider
+    const tBar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.020, len + 0.04), mats.trimBlack);
+    tBar.position.set(0, yTop + 0.002, zMid);
+    group.add(tBar);
+  }
 
   // 2. Continuous Flush Windshield (curves smoothly in X with subtle crown)
   const wsCols = 10;
@@ -525,18 +571,51 @@ function buildGreenhouse(spec, mats) {
     ];
     group.add(new THREE.Mesh(buildStripGeo(doorTop, doorBot, side < 0), mats.sideGlass));
 
-    // Rear quarter glass (from rear hatch base forward to bPillarZ — dark tinted!)
-    const qtrTop = [
-      [side * (gh.wRearBase - 0.012), gh.yRearBase + 0.005, gh.zRearBase],
-      [side * (gh.wRearRoof - 0.012), gh.yRearRoof - 0.015, gh.zRearRoof],
-      [side * (wRoofB - 0.012), yRoofB - 0.015, bZ],
-    ];
-    const qtrBot = [
-      [side * (gh.wRearBase - 0.012), gh.yRearBase - 0.01, gh.zRearBase],
-      [side * (lerp(gh.wRearBase, wBaseB, 0.5) - 0.012), lerp(gh.yRearBase, yBaseB, 0.5) - 0.01, lerp(gh.zRearBase, bZ, 0.5)],
-      [side * (wBaseB - 0.012), yBaseB - 0.01, bZ],
-    ];
-    group.add(new THREE.Mesh(buildStripGeo(qtrTop, qtrBot, side < 0), mats.rearGlass));
+    // Rear quarter glass OR sculpted body-colored B-pillar sail (e.g., 3rd-gen Camaro!)
+    if (gh.sailPillar && gh.sailPillar.enabled) {
+      const sailRearZ = gh.sailPillar.zRear ?? lerp(bZ, gh.zRearBase, 0.42);
+      const uRearS = clamp((sailRearZ - gh.zRearBase) / Math.max(1e-4, gh.zFrontBase - gh.zRearBase), 0, 1);
+      const yBaseS = lerp(gh.yRearBase, gh.yFrontBase, uRearS);
+      const wBaseS = lerp(gh.wRearBase, gh.wFrontBase, uRearS);
+      const uRoofS = clamp((sailRearZ - gh.zRearBase) / Math.max(1e-4, gh.zRearRoof - gh.zRearBase), 0, 1);
+      // Thick sloped painted sail panel connecting roof edge smoothly down to rear quarter deck
+      const sailTop = [
+        [side * (gh.wRearRoof + 0.002), gh.yRearRoof - 0.008, gh.zRearRoof],
+        [side * (wRoofB + 0.002), yRoofB - 0.008, bZ],
+      ];
+      const sailBot = [
+        [side * (wBaseS + 0.002), yBaseS - 0.01, sailRearZ],
+        [side * (wBaseB + 0.002), yBaseB - 0.01, bZ],
+      ];
+      const sailGeo = buildStripGeo(sailTop, sailBot, side < 0);
+      applySplitPaintVertexColors(sailGeo, spec.paint);
+      const sailMesh = new THREE.Mesh(sailGeo, mats.paint);
+      sailMesh.castShadow = true;
+      group.add(sailMesh);
+
+      // Wrap-around frameless rear hatch side glass behind the sail!
+      const hatchSideTop = [
+        [side * (gh.wRearBase - 0.010), gh.yRearBase + 0.005, gh.zRearBase],
+        [side * (gh.wRearRoof - 0.010), gh.yRearRoof - 0.014, gh.zRearRoof],
+      ];
+      const hatchSideBot = [
+        [side * (gh.wRearBase - 0.010), gh.yRearBase - 0.01, gh.zRearBase],
+        [side * (wBaseS - 0.010), yBaseS - 0.01, sailRearZ],
+      ];
+      group.add(new THREE.Mesh(buildStripGeo(hatchSideTop, hatchSideBot, side < 0), mats.rearGlass));
+    } else {
+      const qtrTop = [
+        [side * (gh.wRearBase - 0.012), gh.yRearBase + 0.005, gh.zRearBase],
+        [side * (gh.wRearRoof - 0.012), gh.yRearRoof - 0.015, gh.zRearRoof],
+        [side * (wRoofB - 0.012), yRoofB - 0.015, bZ],
+      ];
+      const qtrBot = [
+        [side * (gh.wRearBase - 0.012), gh.yRearBase - 0.01, gh.zRearBase],
+        [side * (lerp(gh.wRearBase, wBaseB, 0.5) - 0.012), lerp(gh.yRearBase, yBaseB, 0.5) - 0.01, lerp(gh.zRearBase, bZ, 0.5)],
+        [side * (wBaseB - 0.012), yBaseB - 0.01, bZ],
+      ];
+      group.add(new THREE.Mesh(buildStripGeo(qtrTop, qtrBot, side < 0), mats.rearGlass));
+    }
 
     // Sculpted pillars hugging the exact greenhouse edges (no floating boxes!)
     function addPillar(p1, p2, r, mat) {
@@ -552,11 +631,13 @@ function buildGreenhouse(spec, mats) {
     }
 
     // Body-colored A-pillar outer frame + dark inner trim
-    addPillar([side * gh.wFrontBase, gh.yFrontBase, gh.zFrontBase], [side * gh.wFrontRoof, gh.yFrontRoof - 0.005, gh.zFrontRoof], 0.022, mats.paint);
+    addPillar([side * gh.wFrontBase, gh.yFrontBase, gh.zFrontBase], [side * gh.wFrontRoof, gh.yFrontRoof - 0.005, gh.zFrontRoof], 0.022, mats.paintFront);
     // Matte-black B-pillar (characteristic T160 blacked-out center pillar!)
     addPillar([side * (wBaseB - 0.006), yBaseB, bZ], [side * (wRoofB - 0.006), yRoofB - 0.008, bZ], 0.024, mats.trimBlack);
-    // Sleek blacked-out C-pillar / hatch rail
-    addPillar([side * gh.wRearBase, gh.yRearBase, gh.zRearBase], [side * gh.wRearRoof, gh.yRearRoof - 0.008, gh.zRearRoof], 0.020, mats.trimBlack);
+    // Sleek blacked-out C-pillar / hatch rail (omitted on frameless bubble-hatch cars with sailPillar!)
+    if (!gh.sailPillar || !gh.sailPillar.enabled) {
+      addPillar([side * gh.wRearBase, gh.yRearBase, gh.zRearBase], [side * gh.wRearRoof, gh.yRearRoof - 0.008, gh.zRearRoof], 0.020, mats.trimBlack);
+    }
     // Window sill black rubber trim along beltline
     addPillar([side * gh.wRearBase, gh.yRearBase - 0.002, gh.zRearBase], [side * gh.wFrontBase, gh.yFrontBase - 0.002, gh.zFrontBase], 0.014, mats.trimBlack);
     // Upper roof-rail black weatherstrip
@@ -686,88 +767,161 @@ function buildFrontFascia(spec, mats) {
   const bumpW = Math.min(stPrev.wBelt + 0.015, wFront + 0.065);
   const bumper = new THREE.Mesh(
     buildWrapBeamGeo(bumpW, ff.bumperH, ff.bumperProtrusion + 0.06, 0.28, 0.14),
-    mats.paint
+    mats.paintFront
   );
   bumper.position.set(0, ff.bumperY, zFront - 0.04);
   bumper.castShadow = true;
   group.add(bumper);
 
-  // Continuous matte-black wrap-around bumper rub strip
-  const rubFront = new THREE.Mesh(
-    buildWrapBeamGeo(bumpW + 0.008, ff.rubStripH, ff.bumperProtrusion + 0.068, 0.29, 0.14),
-    mats.trimBlack
-  );
-  rubFront.position.set(0, ff.rubStripY, zFront - 0.04);
-  group.add(rubFront);
-
-  // 2. Recessed Black Slatted Center Grille Panel
-  const gr = ff.grille;
-  const grilleBack = new THREE.Mesh(
-    new THREE.BoxGeometry(gr.w, gr.h, 0.04),
-    mats.dark
-  );
-  grilleBack.position.set(0, gr.y, zFront + 0.002);
-  group.add(grilleBack);
-
-  for (let i = 0; i < (gr.slats || 3); i++) {
-    const sy = gr.y - gr.h * 0.34 + (i / Math.max(1, (gr.slats || 3) - 1)) * (gr.h * 0.62);
-    const slat = new THREE.Mesh(new THREE.BoxGeometry(gr.w - 0.02, 0.012, 0.025), mats.trimGrey);
-    slat.position.set(0, sy, zFront + 0.014);
-    group.add(slat);
-  }
-  if (gr.topBarText) {
-    const topBar = new THREE.Mesh(new THREE.BoxGeometry(gr.w, 0.026, 0.024), mats.smokedLens);
-    topBar.position.set(0, gr.y + gr.h * 0.35, zFront + 0.014);
-    group.add(topBar);
+  // Continuous matte-black wrap-around bumper rub strip (optional)
+  if (ff.rubStripH > 0) {
+    const rubFront = new THREE.Mesh(
+      buildWrapBeamGeo(bumpW + 0.008, ff.rubStripH, ff.bumperProtrusion + 0.068, 0.29, 0.14),
+      mats.trimBlack
+    );
+    rubFront.position.set(0, ff.rubStripY, zFront - 0.04);
+    group.add(rubFront);
   }
 
-  // 3. Flanking Smoked Inner Lenses + Wrap-Around Amber Corner Lenses
-  const cl = ff.cornerLamps;
-  for (const s of [-1, 1]) {
-    const xInner = s * (gr.w / 2 + cl.innerSmokedW / 2 + 0.006);
-    const innerLens = new THREE.Mesh(
-      new THREE.BoxGeometry(cl.innerSmokedW, cl.h, 0.036),
-      mats.smokedLens
-    );
-    innerLens.position.set(xInner, cl.y, zFront + 0.006);
-    group.add(innerLens);
+  // 2A. FIXED RECESSED HEADLIGHT POCKETS (e.g., 3rd-gen Camaro quad lamps + fogs + yellow beams)
+  if (ff.fixedLamps && ff.fixedLamps.enabled) {
+    const fl = ff.fixedLamps;
+    const pocketY = fl.y ?? 0.61;
+    const pocketH = fl.h ?? 0.135;
+    const pocketW = fl.pocketW ?? 0.48;
+    const xOff = fl.xOffset ?? 0.49;
 
-    const xOuter = s * (gr.w / 2 + cl.innerSmokedW + cl.outerAmberW / 2 + 0.004);
-    const amberFront = new THREE.Mesh(
-      new THREE.BoxGeometry(cl.outerAmberW, cl.h, 0.042),
-      mats.amberLens
-    );
-    amberFront.position.set(xOuter, cl.y, zFront - 0.006);
-    amberFront.rotation.y = s * -0.26;
-    group.add(amberFront);
+    const headMat = new THREE.MeshStandardMaterial({
+      color: fl.lampColor ?? 0xfff5d6,
+      emissive: fl.beamColor ?? 0xffd94a,
+      emissiveIntensity: fl.emissiveIntensity ?? 1.9,
+      roughness: 0.14,
+    });
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: fl.beamColor ?? 0xffd94a,
+      map: getGlowTex(),
+      transparent: true,
+      opacity: fl.beamOpacity ?? 0.45,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
 
-    const amberSide = new THREE.Mesh(
-      new THREE.BoxGeometry(0.036, cl.h * 0.94, cl.wrapZ),
-      mats.amberLens
+    // Painted center nose bridge between the two deep recessed pockets
+    const bridge = new THREE.Mesh(
+      new THREE.BoxGeometry(Math.max(0.24, (xOff - pocketW * 0.5) * 2.08), pocketH + 0.02, 0.12),
+      mats.paintFront
     );
-    amberSide.position.set(s * (wFront + 0.015), cl.y, zFront - cl.wrapZ * 0.54);
-    amberSide.rotation.y = s * -0.16;
-    group.add(amberSide);
+    bridge.position.set(0, pocketY, zFront + 0.01);
+    group.add(bridge);
+
+    for (const s of [-1, 1]) {
+      // Deep matte-black recessed headlight pocket (visible black surround framing quad lamps!)
+      const pocket = new THREE.Mesh(
+        new THREE.BoxGeometry(pocketW, pocketH, 0.10),
+        mats.dark
+      );
+      pocket.position.set(s * xOff, pocketY, zFront - 0.005);
+      group.add(pocket);
+
+      // Quad rectangular lamps (2 per side seated inside the upper pocket)
+      const lampW = pocketW * 0.40;
+      for (const k of [-0.23, 0.23]) {
+        const lamp = new THREE.Mesh(
+          new THREE.BoxGeometry(lampW, pocketH * 0.56, 0.022),
+          headMat
+        );
+        lamp.position.set(s * xOff + k * pocketW, pocketY + pocketH * 0.14, zFront + 0.036);
+        group.add(lamp);
+      }
+
+      // Lower recessed fog lamps + outboard turn signal lenses (proud of front valance!)
+      if (fl.fogLamps) {
+        const fog = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.062, 0.03), headMat);
+        fog.position.set(s * 0.27, ff.lowerIntake.y, zFront + 0.056);
+        group.add(fog);
+        const turn = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.062, 0.03), mats.smokedLens);
+        turn.position.set(s * 0.61, ff.lowerIntake.y, zFront + 0.052);
+        group.add(turn);
+      }
+
+      // Volumetric road light pool ahead of the car (e.g., Brad's yellow beams!)
+      const pool = new THREE.Mesh(new THREE.PlaneGeometry(1.75, 4.6), beamMat);
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.set(s * xOff * 1.05, 0.018, zFront + 2.45);
+      group.add(pool);
+    }
+  } else {
+    // 2B. Recessed Black Slatted Center Grille Panel + Flanking Smoked/Amber Corner Lamps
+    const gr = ff.grille;
+    const grilleBack = new THREE.Mesh(
+      new THREE.BoxGeometry(gr.w, gr.h, 0.04),
+      mats.dark
+    );
+    grilleBack.position.set(0, gr.y, zFront + 0.002);
+    group.add(grilleBack);
+
+    for (let i = 0; i < (gr.slats || 3); i++) {
+      const sy = gr.y - gr.h * 0.34 + (i / Math.max(1, (gr.slats || 3) - 1)) * (gr.h * 0.62);
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(gr.w - 0.02, 0.012, 0.025), mats.trimGrey);
+      slat.position.set(0, sy, zFront + 0.014);
+      group.add(slat);
+    }
+    if (gr.topBarText) {
+      const topBar = new THREE.Mesh(new THREE.BoxGeometry(gr.w, 0.026, 0.024), mats.smokedLens);
+      topBar.position.set(0, gr.y + gr.h * 0.35, zFront + 0.014);
+      group.add(topBar);
+    }
+
+    const cl = ff.cornerLamps;
+    for (const s of [-1, 1]) {
+      const xInner = s * (gr.w / 2 + cl.innerSmokedW / 2 + 0.006);
+      const innerLens = new THREE.Mesh(
+        new THREE.BoxGeometry(cl.innerSmokedW, cl.h, 0.036),
+        mats.smokedLens
+      );
+      innerLens.position.set(xInner, cl.y, zFront + 0.006);
+      group.add(innerLens);
+
+      const xOuter = s * (gr.w / 2 + cl.innerSmokedW + cl.outerAmberW / 2 + 0.004);
+      const amberFront = new THREE.Mesh(
+        new THREE.BoxGeometry(cl.outerAmberW, cl.h, 0.042),
+        mats.amberLens
+      );
+      amberFront.position.set(xOuter, cl.y, zFront - 0.006);
+      amberFront.rotation.y = s * -0.26;
+      group.add(amberFront);
+
+      const amberSide = new THREE.Mesh(
+        new THREE.BoxGeometry(0.036, cl.h * 0.94, cl.wrapZ),
+        mats.amberLens
+      );
+      amberSide.position.set(s * (wFront + 0.015), cl.y, zFront - cl.wrapZ * 0.54);
+      amberSide.rotation.y = s * -0.16;
+      group.add(amberSide);
+    }
   }
 
   // 4. Lower Recessed Intake Slot with vertical dividers
   const li = ff.lowerIntake;
+  const intakeZ = ff.fixedLamps && ff.fixedLamps.enabled ? zFront + 0.036 : zFront - 0.012;
   const intakeBack = new THREE.Mesh(new THREE.BoxGeometry(li.w, li.h, 0.05), mats.dark);
-  intakeBack.position.set(0, li.y, zFront - 0.012);
+  intakeBack.position.set(0, li.y, intakeZ);
   group.add(intakeBack);
   for (let i = 1; i <= (li.dividers || 3); i++) {
     const x = lerp(-li.w * 0.45, li.w * 0.45, i / ((li.dividers || 3) + 1));
-    const div = new THREE.Mesh(new THREE.BoxGeometry(0.022, li.h, 0.055), mats.paint);
+    const div = new THREE.Mesh(new THREE.BoxGeometry(0.022, li.h, 0.055), mats.paintFront);
     div.position.set(x, li.y, zFront - 0.008);
     group.add(div);
   }
 
-  // 5. Smooth Wrap-Around Matte-Black Lower Chin Air Dam / Lip Spoiler
+  // 5. Smooth Wrap-Around Lower Chin Air Dam / Lip Spoiler (painted or matte black)
   if (ff.chinSpoiler && ff.chinSpoiler.enabled) {
     const cs = ff.chinSpoiler;
+    const chinMat = cs.painted ? mats.paintFront : mats.trimBlack;
     const chin = new THREE.Mesh(
-      buildWrapBeamGeo(bumpW - 0.03, cs.h, cs.protrusion + 0.04, Math.max(0.22, zFront - cs.zBack), 0.14),
-      mats.trimBlack
+      buildWrapBeamGeo(bumpW - 0.01, cs.h, cs.protrusion + 0.05, Math.max(0.22, zFront - cs.zBack), 0.14),
+      chinMat
     );
     chin.position.set(0, cs.y, zFront - 0.04);
     chin.castShadow = true;
@@ -887,24 +1041,26 @@ function buildRearFascia(spec, mats) {
   const bumpW = Math.min(stNext.wBelt + 0.012, wRear + 0.055);
   const bumper = new THREE.Mesh(
     buildWrapBeamGeo(bumpW, rf.bumperH, rf.bumperProtrusion + 0.055, 0.28, 0.13),
-    mats.paint
+    mats.paintRear
   );
   bumper.rotation.y = Math.PI;
   bumper.position.set(0, rf.bumperY, zRear + 0.04);
   bumper.castShadow = true;
   group.add(bumper);
 
-  const rubRear = new THREE.Mesh(
-    buildWrapBeamGeo(bumpW + 0.008, rf.rubStripH, rf.bumperProtrusion + 0.062, 0.29, 0.13),
-    mats.trimBlack
-  );
-  rubRear.rotation.y = Math.PI;
-  rubRear.position.set(0, rf.rubStripY, zRear + 0.04);
-  group.add(rubRear);
+  if (rf.rubStripH > 0) {
+    const rubRear = new THREE.Mesh(
+      buildWrapBeamGeo(bumpW + 0.008, rf.rubStripH, rf.bumperProtrusion + 0.062, 0.29, 0.13),
+      mats.trimBlack
+    );
+    rubRear.rotation.y = Math.PI;
+    rubRear.position.set(0, rf.rubStripY, zRear + 0.04);
+    group.add(rubRear);
+  }
 
   const lowerVal = new THREE.Mesh(
     buildWrapBeamGeo(bumpW - 0.025, 0.082, 0.05, 0.24, 0.12),
-    mats.trimBlack
+    rf.paintedLowerValance ? mats.paintRear : mats.trimBlack
   );
   lowerVal.rotation.y = Math.PI;
   lowerVal.position.set(0, rf.bumperY - rf.bumperH * 0.68, zRear + 0.05);
@@ -928,46 +1084,83 @@ function buildRearFascia(spec, mats) {
     bezel.position.set(xLamp, tp.y, zRear - 0.004);
     group.add(bezel);
 
-    // Ruby red main tail/brake section
-    const redW = tp.lampW - tp.amberOuterW;
-    const redLens = new THREE.Mesh(new THREE.BoxGeometry(redW, tp.h - 0.012, 0.038), mats.tailLens);
-    redLens.position.set(s * (tp.centerW / 2 + redW / 2 + 0.02), tp.y, zRear - 0.008);
-    group.add(redLens);
+    if (tp.style === 'camaroGrid') {
+      // Iconic 3rd-gen Camaro grid tail lamps: white inner -> amber middle -> red outer + dark grid bars
+      const wWhite = tp.lampW * 0.22;
+      const wAmb = tp.lampW * 0.24;
+      const wRed = tp.lampW - wWhite - wAmb;
+      const x0 = tp.centerW / 2 + 0.02;
+      const mWhite = new THREE.Mesh(new THREE.BoxGeometry(wWhite - 0.008, tp.h - 0.014, 0.038), mats.reverseLens);
+      mWhite.position.set(s * (x0 + wWhite * 0.5), tp.y, zRear - 0.008);
+      group.add(mWhite);
+      const mAmb = new THREE.Mesh(new THREE.BoxGeometry(wAmb - 0.008, tp.h - 0.014, 0.038), mats.amberLens);
+      mAmb.position.set(s * (x0 + wWhite + wAmb * 0.5), tp.y, zRear - 0.008);
+      group.add(mAmb);
+      const mRed = new THREE.Mesh(new THREE.BoxGeometry(wRed - 0.008, tp.h - 0.014, 0.038), mats.tailLens);
+      mRed.position.set(s * (x0 + wWhite + wAmb + wRed * 0.5), tp.y, zRear - 0.008);
+      group.add(mRed);
+      // Signature black horizontal grid louvers across the tail lamp
+      for (const dy of [-0.26, 0, 0.26]) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(tp.lampW, 0.009, 0.044), mats.trimBlack);
+        bar.position.set(xLamp, tp.y + dy * tp.h, zRear - 0.009);
+        group.add(bar);
+      }
+    } else {
+      // Ruby red main tail/brake section
+      const redW = tp.lampW - tp.amberOuterW;
+      const redLens = new THREE.Mesh(new THREE.BoxGeometry(redW, tp.h - 0.012, 0.038), mats.tailLens);
+      redLens.position.set(s * (tp.centerW / 2 + redW / 2 + 0.02), tp.y, zRear - 0.008);
+      group.add(redLens);
 
-    // White reverse light inset square
-    const revLens = new THREE.Mesh(new THREE.BoxGeometry(tp.reverseW, tp.h * 0.34, 0.042), mats.reverseLens);
-    revLens.position.set(s * (tp.centerW / 2 + redW * 0.45 + 0.02), tp.y - tp.h * 0.16, zRear - 0.010);
-    group.add(revLens);
+      // White reverse light inset square
+      const revLens = new THREE.Mesh(new THREE.BoxGeometry(tp.reverseW, tp.h * 0.34, 0.042), mats.reverseLens);
+      revLens.position.set(s * (tp.centerW / 2 + redW * 0.45 + 0.02), tp.y - tp.h * 0.16, zRear - 0.010);
+      group.add(revLens);
 
-    // Outer wrap-around amber turn section
-    const ambLens = new THREE.Mesh(new THREE.BoxGeometry(tp.amberOuterW, tp.h - 0.012, 0.040), mats.amberLens);
-    ambLens.position.set(s * (tp.centerW / 2 + redW + tp.amberOuterW / 2 + 0.02), tp.y, zRear - 0.004);
-    ambLens.rotation.y = s * 0.16;
-    group.add(ambLens);
+      // Outer wrap-around amber turn section
+      const ambLens = new THREE.Mesh(new THREE.BoxGeometry(tp.amberOuterW, tp.h - 0.012, 0.040), mats.amberLens);
+      ambLens.position.set(s * (tp.centerW / 2 + redW + tp.amberOuterW / 2 + 0.02), tp.y, zRear - 0.004);
+      ambLens.rotation.y = s * 0.16;
+      group.add(ambLens);
 
-    const ambWrap = new THREE.Mesh(new THREE.BoxGeometry(0.036, tp.h - 0.016, tp.wrapZ), mats.amberLens);
-    ambWrap.position.set(s * (wRear + 0.004), tp.y, zRear + tp.wrapZ * 0.45);
-    ambWrap.rotation.y = s * 0.10;
-    group.add(ambWrap);
+      const ambWrap = new THREE.Mesh(new THREE.BoxGeometry(0.036, tp.h - 0.016, tp.wrapZ), mats.amberLens);
+      ambWrap.position.set(s * (wRear + 0.004), tp.y, zRear + tp.wrapZ * 0.45);
+      ambWrap.rotation.y = s * 0.10;
+      group.add(ambWrap);
+    }
   }
 
-  // 3. Integrated Ducktail Lip Spoiler (iconic T160 kick-up lip!)
+  // 3. Integrated Ducktail Lip Spoiler / 3-Piece Wrap-Around Camaro Wing / Pedestal Wing
   if (rf.spoiler && rf.spoiler.style === 'lip') {
     const sp = rf.spoiler;
     const lipGeo = new THREE.BoxGeometry(sp.w, sp.h, sp.d);
-    const lip = new THREE.Mesh(lipGeo, mats.paint);
+    const lip = new THREE.Mesh(lipGeo, mats.paintRear);
     lip.position.set(0, sp.y, sp.z);
-    lip.rotation.x = 0.24; // kicks upward cleanly at the trailing edge
+    lip.rotation.x = 0.24;
     lip.castShadow = true;
     group.add(lip);
+  } else if (rf.spoiler && rf.spoiler.style === 'camaroWing') {
+    const sp = rf.spoiler;
+    // Center raised blade + wrap-around quarter-panel endcaps (classic 3-piece Z28/IROC-Z spoiler!)
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(sp.w, sp.h, sp.d), mats.paintRear);
+    blade.position.set(0, sp.y + sp.h * 0.5, sp.z);
+    blade.rotation.x = 0.18;
+    blade.castShadow = true;
+    group.add(blade);
+    for (const s of [-1, 1]) {
+      const endCap = new THREE.Mesh(new THREE.BoxGeometry(0.11, sp.h * 1.15, sp.d * 2.1), mats.paintRear);
+      endCap.position.set(s * (sp.w * 0.5 - 0.04), sp.y + sp.h * 0.32, sp.z + sp.d * 0.65);
+      endCap.rotation.x = 0.12;
+      group.add(endCap);
+    }
   } else if (rf.spoiler && rf.spoiler.style === 'wing') {
     const sp = rf.spoiler;
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(sp.w, 0.035, sp.d), mats.paint);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(sp.w, 0.035, sp.d), mats.paintRear);
     wing.position.set(0, sp.y + sp.h, sp.z);
     wing.castShadow = true;
     group.add(wing);
     for (const s of [-1, 1]) {
-      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.045, sp.h, sp.d * 0.7), mats.paint);
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.045, sp.h, sp.d * 0.7), mats.paintRear);
       strut.position.set(s * sp.w * 0.38, sp.y + sp.h * 0.5, sp.z);
       group.add(strut);
     }
@@ -1011,7 +1204,7 @@ function buildRearFascia(spec, mats) {
     const frame = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.132, 0.142), mats.dark);
     frame.position.set(fd.side * (st.wBelt + 0.001), fd.y, fd.z);
     group.add(frame);
-    const door = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.120, 0.130), mats.paint);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.120, 0.130), mats.paintRear);
     door.position.set(fd.side * (st.wBelt + 0.002), fd.y, fd.z);
     group.add(door);
   }
@@ -1081,6 +1274,25 @@ function buildSideTrim(spec, mats) {
       marker.position.set(s * (st.wBelt + 0.008), sm.y, sm.z);
       group.add(marker);
     }
+
+    // Optional twin hood louvers (e.g., IROC-Z / Z28 hood vents seated flush on hood surface!)
+    if (trim.hoodLouvers && trim.hoodLouvers.enabled) {
+      const hl = trim.hoodLouvers;
+      const z0 = hl.z ?? 1.25;
+      const len = hl.len ?? 0.52;
+      const stA = sampleStations(bodyStations, z0 - len * 0.5);
+      const stB = sampleStations(bodyStations, z0 + len * 0.5);
+      const yA = stA.yDeck + stA.crown * 0.72;
+      const yB = stB.yDeck + stB.crown * 0.72;
+      const slope = Math.atan2(yA - yB, len);
+      const louver = new THREE.Mesh(
+        new THREE.BoxGeometry(hl.w ?? 0.24, 0.014, len),
+        mats.trimBlack
+      );
+      louver.position.set(s * (hl.xOffset ?? 0.25), (yA + yB) * 0.5 + 0.005, z0);
+      louver.rotation.x = slope;
+      group.add(louver);
+    }
   }
 
   return group;
@@ -1128,20 +1340,37 @@ function buildWheel(spec, mats, side) {
   innerDrum.position.x = side * (W * 0.04);
   spinPivot.add(innerDrum);
 
-  // Multi-spoke alloy face (e.g. 10-spoke blade for '86/'87 Celica GT-S!)
+  // Multi-spoke alloy face (10-spoke blade for Celica GT-S, twin-slot 5-spoke for IROC-Z!)
   const spokeCount = wheels.spokeCount ?? 10;
   const spokeLen = rimR - (wheels.hubRadius ?? 0.068) * 0.5;
-  const spokeW = wheels.spokeStyle === 'blade' ? 0.032 : 0.024;
-  for (let i = 0; i < spokeCount; i++) {
-    const a = (i / spokeCount) * Math.PI * 2;
-    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.022, spokeLen, spokeW), mats.rim);
-    spoke.position.set(
-      side * (W * 0.42),
-      Math.cos(a) * (spokeLen * 0.5 + 0.02),
-      Math.sin(a) * (spokeLen * 0.5 + 0.02)
-    );
-    spoke.rotation.x = a;
-    spinPivot.add(spoke);
+  if (wheels.spokeStyle === 'iroc5') {
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      for (const offset of [-0.017, 0.017]) {
+        const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.024, spokeLen, 0.018), mats.rim);
+        const rMid = spokeLen * 0.5 + 0.02;
+        spoke.position.set(
+          side * (W * 0.42),
+          Math.cos(a) * rMid - Math.sin(a) * offset,
+          Math.sin(a) * rMid + Math.cos(a) * offset
+        );
+        spoke.rotation.x = a;
+        spinPivot.add(spoke);
+      }
+    }
+  } else {
+    const spokeW = wheels.spokeStyle === 'blade' ? 0.032 : 0.024;
+    for (let i = 0; i < spokeCount; i++) {
+      const a = (i / spokeCount) * Math.PI * 2;
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.022, spokeLen, spokeW), mats.rim);
+      spoke.position.set(
+        side * (W * 0.42),
+        Math.cos(a) * (spokeLen * 0.5 + 0.02),
+        Math.sin(a) * (spokeLen * 0.5 + 0.02)
+      );
+      spoke.rotation.x = a;
+      spinPivot.add(spoke);
+    }
   }
 
   // Center hub cap
@@ -1193,15 +1422,41 @@ export function buildLoftedCar(userSpec = {}) {
 
   const p = spec.paint;
   const gh = spec.greenhouse;
+  const hasSplit = Boolean(p.split);
+  const paintBase = new THREE.MeshPhysicalMaterial({
+    color: hasSplit ? 0xffffff : p.color,
+    vertexColors: hasSplit,
+    roughness: p.roughness ?? 0.24,
+    metalness: p.metalness ?? 0.28,
+    clearcoat: p.clearcoat ?? 0.92,
+    clearcoatRoughness: p.clearcoatRoughness ?? 0.14,
+    envMapIntensity: 1.25,
+  });
+  const paintFront = hasSplit
+    ? new THREE.MeshPhysicalMaterial({
+        color: p.split.frontColor,
+        roughness: p.roughness ?? 0.24,
+        metalness: p.metalness ?? 0.28,
+        clearcoat: p.clearcoat ?? 0.92,
+        clearcoatRoughness: p.clearcoatRoughness ?? 0.14,
+        envMapIntensity: 1.25,
+      })
+    : paintBase;
+  const paintRear = hasSplit
+    ? new THREE.MeshPhysicalMaterial({
+        color: p.split.rearColor,
+        roughness: p.roughness ?? 0.24,
+        metalness: p.metalness ?? 0.28,
+        clearcoat: p.clearcoat ?? 0.92,
+        clearcoatRoughness: p.clearcoatRoughness ?? 0.14,
+        envMapIntensity: 1.25,
+      })
+    : paintBase;
+
   const mats = {
-    paint: new THREE.MeshPhysicalMaterial({
-      color: p.color,
-      roughness: p.roughness ?? 0.24,
-      metalness: p.metalness ?? 0.28,
-      clearcoat: p.clearcoat ?? 0.92,
-      clearcoatRoughness: p.clearcoatRoughness ?? 0.14,
-      envMapIntensity: 1.25,
-    }),
+    paint: paintBase,
+    paintFront,
+    paintRear,
     windshield: new THREE.MeshPhysicalMaterial({
       color: gh.windshieldColor ?? 0x1a2636,
       roughness: 0.05,
