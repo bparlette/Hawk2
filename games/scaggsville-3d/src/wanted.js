@@ -2,6 +2,14 @@
 import * as THREE from 'three';
 import { createCar, pursue, collide } from './drive.js';
 
+// Cherie ruling (2026-11-21): NO COP CHASES in Scaggsville 3D. The wanted
+// system stays in the tree (fully reversible) but pursuit is gated OFF:
+// addHeat is a no-op, no cruisers ever spawn or pursue, stars stay at 0 and
+// the HUD star row is hidden in index.html. Kosack's scripted fake-cop
+// pull-over minigame (src/missions.js) is a separate system — canon, not a
+// chase — and is NOT touched by this gate. Flip to true to restore chases.
+const PURSUIT_ENABLED = false;
+
 const STAR_THRESHOLDS = [0, 18, 42, 68, 86, 100];
 
 function buildCopMesh() {
@@ -116,6 +124,7 @@ export function createWanted(scene, world, D) {
   }
 
   function addHeat(amount, reason = '') {
+    if (!PURSUIT_ENABLED) return { promoted: false, stars: 0, reason };
     const prevStars = state.stars;
     state.heat = Math.min(100, state.heat + amount);
     state.stars = starsFromHeat(state.heat);
@@ -141,6 +150,13 @@ export function createWanted(scene, world, D) {
   }
 
   function update(dt, playerCar, fx, audio, callbacks = {}) {
+    if (!PURSUIT_ENABLED) {
+      // gated off: keep any pre-gate state cleared, sirens silent, no spawns
+      if (state.stars !== 0 || state.heat !== 0) forceClear();
+      else clearAllCops();
+      if (audio && audio.siren) audio.siren(false);
+      return;
+    }
     state.flashPhase += dt * 11;
     const blinkA = Math.sin(state.flashPhase) > 0;
 
