@@ -802,6 +802,30 @@ function buildGreenhouse(spec, mats) {
     group.add(wiperPivot);
   }
 
+  // 5b. Front Windshield Wipers (parked at the windshield base, lying on the
+  // glass slope). Built when the spec asks (greenhouse.frontWipers) — the
+  // Fleet Drive garage turns them on for customized cars so the chrome
+  // package has real wiper geometry to chrome (accessories.chromePackage).
+  if (gh.frontWipers) {
+    const wiperMat = (spec.accessories && spec.accessories.chromePackage) ? mats.chrome : mats.trimBlack;
+    const dy = gh.yFrontRoof - gh.yFrontBase, dz = gh.zFrontRoof - gh.zFrontBase;
+    const len = Math.hypot(dy, dz) || 1;
+    const dir = new THREE.Vector3(0, dy / len, dz / len);       // up the glass
+    const nrm = new THREE.Vector3(0, -dz / len, dy / len);      // off the glass
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+    for (const s of [-1, 1]) {
+      const pivot = new THREE.Vector3(s * 0.30, gh.yFrontBase + 0.015, gh.zFrontBase - 0.01);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.012, 0.17), wiperMat);
+      arm.quaternion.copy(q);
+      arm.position.copy(pivot).addScaledVector(dir, 0.07).addScaledVector(nrm, 0.012);
+      group.add(arm);
+      const bladeF = new THREE.Mesh(new THREE.BoxGeometry(0.020, 0.014, 0.46), wiperMat);
+      bladeF.quaternion.copy(q);
+      bladeF.position.copy(pivot).addScaledVector(dir, 0.30).addScaledVector(nrm, 0.016);
+      group.add(bladeF);
+    }
+  }
+
   // 6. Simple Cabin Interior (dashboard, steering wheel, 2 bucket seats visible through glass)
   const dash = new THREE.Mesh(new THREE.BoxGeometry(gh.wFrontBase * 1.72, 0.18, 0.34), mats.interior);
   dash.position.set(0, gh.yFrontBase - 0.04, gh.zFrontBase - 0.22);
@@ -934,6 +958,10 @@ function buildFrontFascia(spec, mats) {
   const zFront = stFront.z;
   const wFront = stFront.wBelt;
   const group = new THREE.Group();
+  // Lamp material handles for live headlight-colour changes (Fleet Drive
+  // garage): emissive = lamp faces whose emissive IS the beam colour;
+  // tint = additive beam / halo / pool materials tinted by the beam colour.
+  const lampMats = { emissive: [], tint: [] };
 
   // 1. Smooth Wrap-Around Front Bumper Bar (painted | chrome | unpainted gray plastic)
   const bumpW = Math.min(stPrev.wBelt + 0.025, wFront + 0.095);
@@ -983,6 +1011,8 @@ function buildFrontFascia(spec, mats) {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
+    lampMats.emissive.push(headMat);
+    lampMats.tint.push(beamMat);
 
     // Painted center nose bridge between the two deep recessed pockets
     const bridge = new THREE.Mesh(
@@ -1026,6 +1056,7 @@ function buildFrontFascia(spec, mats) {
       const pool = new THREE.Mesh(new THREE.PlaneGeometry(1.75, 4.6), beamMat);
       pool.rotation.x = -Math.PI / 2;
       pool.position.set(s * xOff * 1.05, 0.018, zFront + 2.45);
+      pool.userData.groundPool = true; pool.userData.baseY = 0.018;
       group.add(pool);
     }
   } else if (ff.lampStyle === 'teardrop') {
@@ -1189,6 +1220,44 @@ function buildFrontFascia(spec, mats) {
     group.add(chin);
   }
 
+  // 5c. Generic beam glow for cars whose lamps are plain lenses (corner-lamp
+  // / teardrop styles): when the spec carries a top-level frontFascia
+  // beamColor, add lamp-face glows + road pools in that colour so EVERY car
+  // can show a chosen headlight colour (Fleet Drive garage). No stock fleet
+  // spec sets it, so stock builds are unchanged.
+  if (!(ff.fixedLamps && ff.fixedLamps.enabled) && !(ff.popups && ff.popups.enabled) && ff.beamColor != null) {
+    const beamMatG = new THREE.MeshBasicMaterial({
+      color: ff.beamColor,
+      map: getGlowTex(),
+      transparent: true,
+      opacity: ff.beamOpacity ?? 0.45,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const glowMatG = new THREE.MeshBasicMaterial({
+      color: ff.beamColor,
+      map: getGlowTex(),
+      transparent: true,
+      opacity: 0.55,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const glowY = (ff.cornerLamps && ff.cornerLamps.y) ?? 0.58;
+    for (const s of [-1, 1]) {
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.22), glowMatG);
+      glow.position.set(s * wFront * 0.52, glowY, zFront + 0.045);
+      group.add(glow);
+      const pool = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 4.5), beamMatG);
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.set(s * wFront * 0.55, 0.018, zFront + 2.4);
+      pool.userData.groundPool = true; pool.userData.baseY = 0.018;
+      group.add(pool);
+    }
+    lampMats.tint.push(beamMatG, glowMatG);
+  }
+
   // 6. Pop-Up Headlights (100% flush with hood slope when DOWN; raised glowing buckets + beams when UP!)
   const popupControl = { state: 0, pivots: [], lamps: [], beams: [] };
   if (ff.popups && ff.popups.enabled) {
@@ -1263,6 +1332,7 @@ function buildFrontFascia(spec, mats) {
       const pool = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 4.4), beamMat);
       pool.rotation.x = -Math.PI / 2;
       pool.position.set(s * pp.xOffset * 1.12, 0.018, zFront + 2.35);
+      pool.userData.groundPool = true; pool.userData.baseY = 0.018;
       group.add(pool);
 
       popupControl.pivots.push(piv);
@@ -1282,9 +1352,11 @@ function buildFrontFascia(spec, mats) {
       haloMat.opacity = t * 0.80;
     };
     popupControl.set(0);
+    lampMats.emissive.push(lampMat);
+    lampMats.tint.push(beamMat, haloMat);
   }
 
-  return { group, popupControl };
+  return { group, popupControl, lampMats };
 }
 
 // ---------------------------------------------------------------------------
@@ -1665,7 +1737,50 @@ function buildWheel(spec, mats, side) {
   // Multi-spoke alloy face (10-spoke blade for Celica GT-S, twin-slot 5-spoke for IROC-Z!)
   const spokeCount = wheels.spokeCount ?? 10;
   const spokeLen = rimR - (wheels.hubRadius ?? 0.068) * 0.5;
-  if (wheels.spokeStyle === 'iroc5') {
+  if (wheels.spokeStyle === 'steelie') {
+    // Solid stamped-steel wheel: dark disc with a ring of punched vent holes
+    const disc = new THREE.Mesh(
+      new THREE.CylinderGeometry(rimR * 0.96, rimR * 0.96, 0.024, 24).rotateZ(Math.PI / 2),
+      mats.dark
+    );
+    disc.position.x = side * (W * 0.40);
+    spinPivot.add(disc);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.020, 0.030, 8).rotateZ(Math.PI / 2), mats.tire);
+      hole.position.set(side * (W * 0.40), Math.cos(a) * rimR * 0.62, Math.sin(a) * rimR * 0.62);
+      spinPivot.add(hole);
+    }
+  } else if (wheels.spokeStyle === 'twin') {
+    // Twin-5: five pairs of slim spokes
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      for (const da of [-0.10, 0.10]) {
+        const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.022, spokeLen, 0.020), mats.rim);
+        spoke.position.set(
+          side * (W * 0.42),
+          Math.cos(a + da) * (spokeLen * 0.5 + 0.02),
+          Math.sin(a + da) * (spokeLen * 0.5 + 0.02)
+        );
+        spoke.rotation.x = a + da;
+        spinPivot.add(spoke);
+      }
+    }
+  } else if (wheels.spokeStyle === 'mesh') {
+    // Cross-lace mesh: two interleaved spoke sets, the second raked back
+    for (let i = 0; i < spokeCount; i++) {
+      const a = (i / spokeCount) * Math.PI * 2;
+      const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.020, spokeLen, 0.016), mats.rim);
+      s1.position.set(side * (W * 0.42), Math.cos(a) * (spokeLen * 0.5 + 0.02), Math.sin(a) * (spokeLen * 0.5 + 0.02));
+      s1.rotation.x = a;
+      spinPivot.add(s1);
+      const a2 = a + Math.PI / spokeCount;
+      const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.020, spokeLen * 0.94, 0.014), mats.rim);
+      s2.position.set(side * (W * 0.34), Math.cos(a2) * (spokeLen * 0.47 + 0.02), Math.sin(a2) * (spokeLen * 0.47 + 0.02));
+      s2.rotation.x = a2;
+      spinPivot.add(s2);
+    }
+  } else if (wheels.spokeStyle === 'iroc5') {
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * Math.PI * 2;
       for (const offset of [-0.017, 0.017]) {
@@ -1741,6 +1856,10 @@ export function buildLoftedCar(userSpec = {}) {
       rockerSkirt: { ...DEFAULT_CAR_SPEC.trim.rockerSkirt, ...(userSpec.trim?.rockerSkirt || {}) },
     },
     wheels: { ...DEFAULT_CAR_SPEC.wheels, ...(userSpec.wheels || {}) },
+    // Garage/accessory layer (Fleet Drive): chromePackage, underglow
+    // { enabled, color }, plus a top-level rideHeight offset in metres.
+    accessories: userSpec.accessories || null,
+    rideHeight: userSpec.rideHeight || 0,
   };
 
   const p = spec.paint;
@@ -1847,13 +1966,17 @@ export function buildLoftedCar(userSpec = {}) {
   };
 
   const group = new THREE.Group();
-  group.add(buildBodyMesh(spec, mats.paint, mats.dark));
-  group.add(buildGreenhouse(spec, mats));
+  // Everything except the wheels rides on a lift group so ride height can
+  // move the BODY while the wheels stay planted (Fleet Drive garage).
+  const lift = new THREE.Group();
+  group.add(lift);
+  lift.add(buildBodyMesh(spec, mats.paint, mats.dark));
+  lift.add(buildGreenhouse(spec, mats));
 
   const front = buildFrontFascia(spec, mats);
-  group.add(front.group);
-  group.add(buildRearFascia(spec, mats));
-  group.add(buildSideTrim(spec, mats));
+  lift.add(front.group);
+  lift.add(buildRearFascia(spec, mats));
+  lift.add(buildSideTrim(spec, mats));
 
   // Build 4 wheels (front wheels steer + spin, rear wheels spin)
   const wheelObjs = [];
@@ -1870,11 +1993,60 @@ export function buildLoftedCar(userSpec = {}) {
     wheelObjs.push({ ...w, front: wd.front });
   }
 
+  // Underglow (accessory): additive ground wash + a soft point light.
+  let underglow = null;
+  if (spec.accessories && spec.accessories.underglow && spec.accessories.underglow.enabled) {
+    const ug = spec.accessories.underglow;
+    const ugMat = new THREE.MeshBasicMaterial({
+      color: ug.color ?? 0x2266ff,
+      map: getGlowTex(),
+      transparent: true,
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const ugPlane = new THREE.Mesh(new THREE.PlaneGeometry(spec.dims.width * 1.45, spec.dims.length * 0.98), ugMat);
+    ugPlane.rotation.x = -Math.PI / 2;
+    ugPlane.position.y = 0.03;
+    group.add(ugPlane);
+    const ugLight = new THREE.PointLight(ug.color ?? 0x2266ff, 5, 4.2, 1.8);
+    ugLight.position.y = 0.3;
+    group.add(ugLight);
+    underglow = { mat: ugMat, light: ugLight, plane: ugPlane };
+  }
+
+  // Ride height: body (lift) moves; ground light pools stay on the ground.
+  const poolMeshes = [];
+  lift.traverse(o => { if (o.userData && o.userData.groundPool) poolMeshes.push(o); });
+  function setRideHeight(v) {
+    lift.position.y = v;
+    for (const p of poolMeshes) p.position.y = (p.userData.baseY ?? 0.018) - v;
+  }
+  setRideHeight(spec.rideHeight || 0);
+
+  // Headlight colour, live: lamp-face emissives + beam/halo/pool tints.
+  const lampMats = front.lampMats || { emissive: [], tint: [] };
+  function setBeamColor(hex) {
+    for (const m of lampMats.emissive) { if (m.emissive) m.emissive.setHex(hex); }
+    for (const m of lampMats.tint) { if (m.color) m.color.setHex(hex); }
+    if (mats.clearHeadLens && mats.clearHeadLens.emissive) {
+      // plain-lens cars (teardrop / corner-lamp): tint the lens glow too
+      mats.clearHeadLens.emissive.setHex(hex);
+    }
+  }
+
   return {
     group,
+    lift,
     spec,
     dims: spec.dims,
     wheels: wheelObjs,
+    mats,
+    lampMats,
+    underglow,
+    setRideHeight,
+    setBeamColor,
     popups: front.popupControl,
     setPopups(val) {
       if (front.popupControl.set) front.popupControl.set(val);
