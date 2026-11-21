@@ -120,6 +120,7 @@
     box-shadow:0 4px 14px rgba(0,0,0,.45);text-shadow:none;touch-action:none;}
   #btnGarage:active{transform:scale(.95);}
   body.garage #btnGarage, body.garage #stickZone{display:none !important;}
+  body.garage #labels, body.garage #hud, body.garage #prompt{display:none !important;}
   /* ---- GARAGE overlay (turntable stage renders on the main canvas below) ---- */
   #garage{position:fixed;inset:0;z-index:1300;display:none;}
   body.garage #garage{display:block;}
@@ -788,10 +789,12 @@ function fitStageCam(){
   stageCam.position.set(Math.sin(az) * dist * 0.94, (d.height || 1.4) * 0.55 + dist * 0.30, Math.cos(az) * dist * 0.94);
   stageCam.lookAt(0, (d.height || 1.4) * 0.40, 0);
   // Frame the car in the FREE area: panel is a right rail on desktop, a
-  // bottom sheet on phone — shift the view the other way.
+  // bottom sheet on phone — sampling the frustum from an offset window
+  // moves the subject the opposite way (positive offset = subject moves
+  // up / left, into the free area).
   const w = window.innerWidth, h = window.innerHeight;
-  if (w <= 680) stageCam.setViewOffset(w, h, 0, -h * 0.20, w, h);
-  else stageCam.setViewOffset(w, h, -Math.min(302, w * 0.3) / 2, 0, w, h);
+  if (w <= 680) stageCam.setViewOffset(w, h, 0, h * 0.20, w, h);
+  else stageCam.setViewOffset(w, h, Math.min(302, w * 0.3) / 2, 0, w, h);
 }
 function buildStageCar(i){
   gSel = i;
