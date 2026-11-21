@@ -205,3 +205,29 @@ convoy drives the same real roads the player drove.
   vehicles + figures runs higher (~150) — the ≤60 budget was a world-module
   budget and the world holds it; per-vehicle meshes are the cost of shaped,
   wheel-rolling cars.
+
+## World look pass 1 (Opus, Nov 21) — toward GTA V street realism
+
+Same map, same data contract (`groundAt`, `surfaceAt` 12 m grid unchanged, colliders, stops, route, spawn,
+target, lighting; `skyDome` / `litWindows` / `lampGlow` names the day-night cycle drives are unchanged).
+`buildWorld.js` now orchestrates four modules:
+
+| Module | What it adds |
+|---|---|
+| `src/world/textures.js` | Procedural canvas set: world-mapped asphalt, grass, leaf litter, 1.5 m sidewalk slabs, architectural shingles; facade bay tiles (lap siding / brick, 2.9 m x 3.1 m, window with trim, mullions, shutters) with a separate paint mask + roughness map (glass is glossy, trim stays white). |
+| `src/world/roads.js` | One-draw road surface with **shader-painted markings** by OSM class (double yellow + white edges on collectors, yellow/white edges + dashed lanes on one-way carriageways, none on residential), faded near polyline ends; world-space asphalt with macro variation + wheel paths; curbs + 1.6 m sidewalks swept along residential streets (cut wherever they would land on other pavement); gravel shoulders elsewhere. Bitset paved mask + nearest-road index for the other modules. |
+| `src/world/houses.js` | Every real footprint becomes a house: foundation, siding/brick bays with windows, gable or hip roof with eaves/soffits/fascia, chimneys; the side facing the nearest real road gets the front door + stoop + porch hood and (wider fronts) a garage door + driveway to that road + a mailbox. Sheds (< 34 m²) and commercial/school footprints (> 520 m², flat roof + parapet + rooftop units) handled separately. Lit-window quads sit on the painted windows. |
+| `src/world/vegetation.js` + `greens.js` | Street trees, yard trees, foundation shrubs, and the **real OSM woods** (446 polygons, 14.2 km², from `laurel-fulton/data/areas.json` via `tools/extract_greens.py`; frame fitted from 2,027 building matches, median residual 0.00 m): leaf-litter floor + trees banded by distance to road (7.5 m spacing near roads, 26 m at the fog line, none beyond 700 m). Instanced in 400 m chunks with distance cull (760 m) and LOD swap beyond 260 m. |
+
+Merged world meshes are now split into 900 m tiles so frustum + shadow culling can skip districts.
+
+**Measured** (headless Chromium/SwiftShader, 390×844, the same 5 route views, `__proof.stats()`):
+
+| | Before | After |
+|---|---|---|
+| Triangles / frame | 568k – 643k | 654k – 770k |
+| Draw calls (non-convoy views) | 202 – 245 | 224 – 289 |
+| World build time | — | 1.7 s (textures 0.37, roads 0.18, houses 0.35, vegetation 0.59) |
+| Page errors | 0 | 0 |
+
+Rerun the woods extraction with `python3 tools/extract_greens.py`.
