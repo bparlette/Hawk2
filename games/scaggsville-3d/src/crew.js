@@ -17,30 +17,38 @@
 // are BLUE (beamColor rows below); everyone else runs the warm default.
 // Brad's two-tone is a LENGTH fade — white ahead of the windshield, fading
 // to maroon behind it — not a top/bottom split (paintFade row below).
+//
+// Loft routing (Nov 20 fleet fits): a row with a `loft` key is built by
+// gpvehicles.js from its embedded photo-fitted loft spec (the fit viewer's
+// spec JSON, verbatim) instead of the extruded style build — Brad (camaro3)
+// and Rigg (celica87) route on their unique styles; the rest name their
+// spec here because styles repeat (two camaro3, two cavalier3 rows). For
+// loft rows the style/paint/wheels fields are superseded by the spec;
+// lightBar, underglow and burnt still apply as fleet-layer extras.
 export const CREW_VEHICLES = {
   brad:    { style: 'camaro3',     paint: 0xf2f0ea, hoodLouvers: true, tTop: true, wheels: 'alloy',
              beamColor: 0xffb800,
              paintFade: { front: 0xf5f1e8, rear: 0x6e1f2a, zWhite: 0.3, zFull: -1.4 },
              name: "Brad's '87 Camaro" },
-  clayton: { style: 'camaro3',     paint: 0x2e6b34, hoodLouvers: true, tTop: true, wheels: 'alloy',
+  clayton: { style: 'camaro3',     paint: 0x2e6b34, hoodLouvers: true, tTop: true, wheels: 'alloy', loft: 'camaroClayton',
              name: "Clayton's Camaro" },
-  zack:    { style: 'tracerSedan', paint: 0x3a7d4c, wheels: 'steel',
+  zack:    { style: 'tracerSedan', paint: 0x3a7d4c, wheels: 'steel', loft: 'tracer',
              name: "Zack's Tracer" },
-  kosack:  { style: 'cavalier3',   paint: 0xb02020, lightBar: true, wheels: 'steel',
+  kosack:  { style: 'cavalier3',   paint: 0xb02020, lightBar: true, wheels: 'steel', loft: 'cavalier96',
              name: "Kosack's '96 Cavalier" },
   cavalierBlack: { style: 'cavalier3', paint: 0x14151a, wheels: 'steel',
              name: "The Black Cavalier" },
-  jason:   { style: 'camryV20',    paint: 0xf4f4f2, wheels: 'steel',
+  jason:   { style: 'camryV20',    paint: 0xf4f4f2, wheels: 'steel', loft: 'camry',
              name: "Jason's '89 Camry" },
   rigg:    { style: 'celica87',    paint: 0x2a66b0, popups: true, wheels: 'multi', beamColor: 0x0066ff,
              name: "Rigg's '87 Celica GT" },
-  grant:   { style: 'brougham',    paint: 0x5e1f24, paint2: 0xb9bcbe, twoTone: 'cladding', wheels: 'wire',
+  grant:   { style: 'brougham',    paint: 0x5e1f24, paint2: 0xb9bcbe, twoTone: 'cladding', wheels: 'wire', loft: 'brougham',
              name: "Grant's Brougham 'USS Mino'" },
-  jimmy:   { style: 'astro2',      paint: 0xc8ccd2, underglow: 0x2a6bff, wheels: 'steel',
+  jimmy:   { style: 'astro2',      paint: 0xc8ccd2, underglow: 0x2a6bff, wheels: 'steel', loft: 'astroJimmy',
              name: "Jimmy's Astro" },
-  billy:   { style: 'astro1',      paint: 0x2a7d8c, wheels: 'steel',
+  billy:   { style: 'astro1',      paint: 0x2a7d8c, wheels: 'steel', loft: 'astroBilly',
              name: "Billy's Astro" },
-  lamar:   { style: 'mustangFox',  paint: 0x35322e, burnt: true, fogLamps: true, spoiler: true, wheels: 'alloy',
+  lamar:   { style: 'mustangFox',  paint: 0x35322e, burnt: true, fogLamps: true, spoiler: true, wheels: 'alloy', loft: 'mustangFox',
              name: "Lamar's '87 Mustang" },
 };
 
