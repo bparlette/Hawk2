@@ -113,6 +113,52 @@
   #btnIn.show{display:flex;}
   body.onfoot #btnA, body.onfoot #btnB, body.onfoot #btnSwap, body.onfoot #btnPop, body.onfoot #btnOut{display:none !important;}
   .btn.on{filter:brightness(1.5);transform:scale(.94);}
+  /* ---- GARAGE entry button ---- */
+  #btnGarage{position:fixed;top:calc(42px + env(safe-area-inset-top));right:14px;z-index:1250;
+    background:rgba(255,176,0,.9);color:#1a1206;font-weight:900;letter-spacing:.12em;font-size:13px;
+    border:2px solid rgba(255,255,255,.6);border-radius:999px;padding:9px 16px;cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.45);text-shadow:none;touch-action:none;}
+  #btnGarage:active{transform:scale(.95);}
+  body.garage #btnGarage, body.garage #stickZone{display:none !important;}
+  /* ---- GARAGE overlay (turntable stage renders on the main canvas below) ---- */
+  #garage{position:fixed;inset:0;z-index:1300;display:none;}
+  body.garage #garage{display:block;}
+  #gHead{position:absolute;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+    display:flex;align-items:center;gap:10px;pointer-events:none;width:max-content;max-width:96vw;}
+  #gName{pointer-events:none;background:rgba(10,14,26,.72);color:#fff;border:1.5px solid rgba(255,217,160,.45);
+    border-radius:999px;padding:8px 18px;font-size:15px;font-weight:800;letter-spacing:.04em;white-space:nowrap;
+    text-shadow:0 1px 3px rgba(0,0,0,.6);}
+  #gName small{display:block;text-align:center;color:#ffd9a0;font-size:10px;letter-spacing:.18em;}
+  .gNav{pointer-events:auto;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.55);
+    background:rgba(16,20,36,.72);color:#fff;font-size:19px;font-weight:900;cursor:pointer;touch-action:none;}
+  .gNav:active{transform:scale(.93);}
+  #gClose{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;width:44px;height:44px;border-radius:50%;
+    border:2px solid rgba(255,255,255,.55);background:rgba(16,20,36,.72);color:#fff;font-size:17px;font-weight:900;cursor:pointer;touch-action:none;}
+  #gPanel{position:absolute;top:0;right:0;bottom:0;width:302px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    background:rgba(10,14,26,.88);color:#eef1f6;padding:64px 16px 18px;box-sizing:border-box;
+    border-left:1.5px solid rgba(255,217,160,.35);backdrop-filter:blur(6px);}
+  #gPanel h3{margin:16px 0 8px;font-size:11px;letter-spacing:.22em;color:#ffd9a0;font-weight:800;}
+  #gPanel h3:first-child{margin-top:0;}
+  .gRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .gRow label{font-size:12px;font-weight:700;min-width:74px;color:#cfd6e2;}
+  .gRow output{font-size:12px;font-weight:800;color:#ffd9a0;min-width:44px;text-align:right;}
+  #gPanel input[type=range]{flex:1;accent-color:#ffb000;height:28px;}
+  #gPanel input[type=color]{width:44px;height:34px;border:none;background:none;padding:0;cursor:pointer;}
+  .gsw{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.35);cursor:pointer;padding:0;touch-action:none;}
+  .gsw.sel{border-color:#ffb000;box-shadow:0 0 0 2px rgba(255,176,0,.55);}
+  .gchip{border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.07);color:#eef1f6;border-radius:999px;
+    padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;touch-action:none;}
+  .gchip.sel{border-color:#ffb000;background:rgba(255,176,0,.25);color:#ffd9a0;}
+  .gchip:active{transform:scale(.95);}
+  #gReset{width:100%;margin-top:18px;background:rgba(255,255,255,.08);color:#cfd6e2;border:1.5px solid rgba(255,255,255,.3);
+    border-radius:10px;padding:10px;font-size:12px;font-weight:800;letter-spacing:.08em;cursor:pointer;}
+  #gDrive{width:100%;margin-top:10px;background:#ffb000;color:#1a1206;border:none;border-radius:12px;
+    padding:15px;font-size:16px;font-weight:900;letter-spacing:.1em;cursor:pointer;box-shadow:0 4px 16px rgba(255,176,0,.4);}
+  #gDrive:active{transform:scale(.97);}
+  @media (max-width:680px){
+    #gPanel{top:auto;left:0;right:0;bottom:0;width:auto;max-height:46%;padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+      border-left:none;border-top:1.5px solid rgba(255,217,160,.35);}
+  }
 </style>
 </head>
 <body class="onfoot">
@@ -133,6 +179,35 @@
 <div class="btn" id="btnPop">POP<small>UP/DN</small></div>
 <div class="btn" id="btnOut">GET<small>OUT</small></div>
 <div class="btn" id="btnIn">GET<small>IN</small></div>
+<div id="btnGarage">GARAGE</div>
+<div id="garage">
+  <div id="gHead">
+    <button class="gNav" id="gPrev" aria-label="Previous car">◀</button>
+    <div id="gName">—</div>
+    <button class="gNav" id="gNext" aria-label="Next car">▶</button>
+  </div>
+  <button id="gClose" aria-label="Close garage">✕</button>
+  <div id="gPanel">
+    <h3>PAINT</h3>
+    <div class="gRow" id="gPaints"></div>
+    <div class="gRow" style="margin-top:8px"><label>Custom</label><input type="color" id="gPaintPick" value="#7d1015"><span style="font-size:11px;color:#9aa4b5">any colour — resprays the whole car</span></div>
+    <h3>RIDE HEIGHT</h3>
+    <div class="gRow"><label>Stance</label><input type="range" id="gRide" min="-10" max="15" step="1" value="0"><output id="gRideOut">stock</output></div>
+    <h3>RIMS</h3>
+    <div class="gRow"><label>Size</label><input type="range" id="gRimSize" min="48" max="88" step="1" value="65"><output id="gRimOut"></output></div>
+    <div class="gRow" id="gRimStyles" style="margin-top:8px"></div>
+    <h3>WINDOW TINT</h3>
+    <div class="gRow"><label>Tint</label><input type="range" id="gTint" min="0" max="100" step="1" value="0"><output id="gTintOut">stock</output></div>
+    <h3>HEADLIGHT COLOUR</h3>
+    <div class="gRow" id="gBeams"></div>
+    <h3>ACCESSORIES</h3>
+    <div class="gRow"><button class="gchip" id="gChrome">CHROME PACKAGE</button></div>
+    <div class="gRow" style="margin-top:8px"><button class="gchip" id="gGlow">UNDERGLOW</button></div>
+    <div class="gRow" id="gGlowColors" style="margin-top:8px"></div>
+    <button id="gReset">RESET TO STOCK</button>
+    <button id="gDrive">DRIVE IT ▸</button>
+  </div>
+</div>
 
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
@@ -623,6 +698,277 @@ window.__dbg = {
   camera,
 };
 
+/* ============================================================ THE GARAGE
+   GTA-style chooser: the selected car on a lit turntable in its own stage
+   scene (three-point light + platform + contact shadow), prev/next swaps
+   the centre car, and every control wires to a REAL builder parameter —
+   paint / rideHeight / rimRatio / spokeStyle / glass tint / beam colour /
+   chrome package / underglow — via src/gpcar_loft.js. DRIVE IT rebuilds
+   the fleet car from the custom spec so the choices drive. Customs are
+   kept per car for the session. Pattern: the Meng To selector recipe
+   (lit stage, camera refit per car, whole car in frame at phone size). */
+const stageScene = new THREE.Scene();
+{
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512;
+  const g = c.getContext('2d'); const gr = g.createLinearGradient(0,0,0,512);
+  gr.addColorStop(0,'#0a0f22'); gr.addColorStop(0.62,'#141d38'); gr.addColorStop(1,'#2a2140');
+  g.fillStyle = gr; g.fillRect(0,0,4,512);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  stageScene.background = tex;
+}
+stageScene.add(new THREE.HemisphereLight(0x8fa3cc, 0x1a140e, 0.55));
+const stageKey = new THREE.DirectionalLight(0xfff1dd, 2.8);
+stageKey.position.set(4.5, 6.5, 3.5); stageKey.castShadow = true;
+stageKey.shadow.mapSize.set(1024,1024);
+stageKey.shadow.camera.left=-5; stageKey.shadow.camera.right=5; stageKey.shadow.camera.top=5; stageKey.shadow.camera.bottom=-5;
+stageKey.shadow.camera.near=1; stageKey.shadow.camera.far=25; stageKey.shadow.bias=-0.0006;
+stageScene.add(stageKey);
+const stageFill = new THREE.DirectionalLight(0x9db8ff, 0.85); stageFill.position.set(-5.5, 3, -1.5); stageScene.add(stageFill);
+const stageRim = new THREE.DirectionalLight(0xffc98a, 1.6); stageRim.position.set(-1.5, 4.5, -6); stageScene.add(stageRim);
+const stageCam = new THREE.PerspectiveCamera(38, window.innerWidth/window.innerHeight, 0.1, 120);
+{
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 40), new THREE.MeshStandardMaterial({ color: 0x0c101e, roughness: 0.95 }));
+  floor.rotation.x = -Math.PI/2; floor.position.y = -0.121; floor.receiveShadow = true; stageScene.add(floor);
+  const deck = new THREE.Mesh(new THREE.CylinderGeometry(3.35, 3.55, 0.12, 56), new THREE.MeshStandardMaterial({ color: 0x252d42, roughness: 0.5, metalness: 0.35 }));
+  deck.position.y = -0.06; deck.receiveShadow = true; stageScene.add(deck);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(3.35, 0.018, 8, 72), new THREE.MeshBasicMaterial({ color: 0xffb000 }));
+  ring.rotation.x = Math.PI/2; ring.position.y = 0.004; stageScene.add(ring);
+}
+const turntable = new THREE.Group(); stageScene.add(turntable);
+
+let garageOpen = false, gSel = 0, gBuilt = null, gDrag = null, gLastDrag = -10;
+const customs = {}; // fleet index -> { spec, tint, beam }
+const PAINT_SWATCHES = [0xf5f5f5, 0x0c0c0e, 0x7d1015, 0x5f1622, 0xe07f2a, 0xffb800, 0x14532d, 0x1e6b45, 0x0f4296, 0x9a5cff, 0xb8c0ca, 0x1b6d7c];
+const BEAM_SWATCHES = [0xffd9a8, 0xffb800, 0xffd94a, 0x0066ff, 0xbfe3ff, 0x9a5cff, 0x51ff7a, 0xff3b30];
+const GLOW_SWATCHES = [0x2266ff, 0x9a5cff, 0x2bff88, 0xff2a3c, 0xffa02b, 0x28d7ff];
+const RIM_STYLES = [['blade','Blade'], ['twin','Twin-5'], ['mesh','Mesh'], ['steelie','Steelie'], ['iroc5','IROC-5']];
+const hexCss = n => '#' + n.toString(16).padStart(6, '0');
+
+function customOf(i){
+  if (!customs[i]){
+    const spec = structuredClone(fleet[i].def.spec);
+    spec.greenhouse = { ...(spec.greenhouse || {}), frontWipers: true }; // wipers exist so the chrome package is real
+    customs[i] = { spec, tint: 0, beam: null };
+  }
+  return customs[i];
+}
+function effSpec(i){ return customs[i] ? customs[i].spec : fleet[i].def.spec; }
+function disposeBuilt(b){
+  if (!b) return;
+  b.group.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material){ (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()); }
+  });
+}
+function applyTint(built, t){
+  const gh = built.spec.greenhouse, m = built.mats;
+  const dark = new THREE.Color(0x04060a), tmp = new THREE.Color();
+  const mix = (mat, stockColor, stockOp) => {
+    if (!mat) return;
+    mat.opacity = THREE.MathUtils.lerp(stockOp, 0.97, t);
+    mat.color.copy(tmp.setHex(stockColor ?? 0x10161f).lerp(dark, t * 0.75));
+  };
+  mix(m.windshield, gh.windshieldColor, gh.windshieldOpacity ?? 0.52);
+  mix(m.sideGlass, gh.sideGlassColor, gh.sideGlassOpacity ?? 0.62);
+  mix(m.rearGlass, gh.rearGlassColor, gh.rearGlassOpacity ?? 0.88);
+}
+function fitStageCam(){
+  if (!gBuilt) return;
+  const d = gBuilt.dims;
+  const radius = Math.hypot(d.length || 4.6, d.width || 1.8) / 2;
+  const fovV = THREE.MathUtils.degToRad(stageCam.fov);
+  const fovH = 2 * Math.atan(Math.tan(fovV / 2) * stageCam.aspect);
+  const dist = (radius / Math.tan(Math.min(fovV, fovH) / 2)) * 1.04;
+  const az = 0.62;
+  stageCam.position.set(Math.sin(az) * dist * 0.94, (d.height || 1.4) * 0.55 + dist * 0.30, Math.cos(az) * dist * 0.94);
+  stageCam.lookAt(0, (d.height || 1.4) * 0.40, 0);
+  // Frame the car in the FREE area: panel is a right rail on desktop, a
+  // bottom sheet on phone — shift the view the other way.
+  const w = window.innerWidth, h = window.innerHeight;
+  if (w <= 680) stageCam.setViewOffset(w, h, 0, -h * 0.20, w, h);
+  else stageCam.setViewOffset(w, h, -Math.min(302, w * 0.3) / 2, 0, w, h);
+}
+function buildStageCar(i){
+  gSel = i;
+  if (gBuilt){ turntable.remove(gBuilt.group); disposeBuilt(gBuilt); gBuilt = null; }
+  turntable.rotation.y = 0.6;
+  gBuilt = buildLoftedCar(effSpec(i));
+  if (fleet[i].hasPopups) gBuilt.setPopups(1);
+  applyTint(gBuilt, customs[i] ? customs[i].tint : 0);
+  turntable.add(gBuilt.group);
+  fitStageCam();
+  refreshGarageUI();
+}
+function refreshGarageUI(){
+  const st = fleet[gSel], c = customs[gSel], spec = effSpec(gSel);
+  document.getElementById('gName').innerHTML = st.def.name + '<small>' + (c ? 'CUSTOM' : 'STOCK') + ' · ' + (gSel + 1) + ' / ' + fleet.length + '</small>';
+  document.getElementById('gRide').value = Math.round((spec.rideHeight || 0) * 100);
+  document.getElementById('gRideOut').textContent = rideLabel(spec.rideHeight || 0);
+  document.getElementById('gRimSize').value = Math.round((spec.wheels.rimRatio ?? 0.65) * 100);
+  document.getElementById('gRimOut').textContent = Math.round((spec.wheels.rimRatio ?? 0.65) * 100) + '%';
+  document.getElementById('gTint').value = Math.round((c ? c.tint : 0) * 100);
+  document.getElementById('gTintOut').textContent = (c && c.tint > 0) ? Math.round(c.tint * 100) + '%' : 'stock';
+  document.querySelectorAll('#gRimStyles .gchip').forEach(ch => ch.classList.toggle('sel', ch.dataset.style === (spec.wheels.spokeStyle || 'blade')));
+  document.getElementById('gChrome').classList.toggle('sel', !!(spec.accessories && spec.accessories.chromePackage));
+  const ug = spec.accessories && spec.accessories.underglow;
+  document.getElementById('gGlow').classList.toggle('sel', !!(ug && ug.enabled));
+  document.querySelectorAll('#gPaints .gsw').forEach(sw => sw.classList.toggle('sel', !spec.paint.split && parseInt(sw.dataset.hex, 10) === spec.paint.color));
+  const beamNow = c && c.beam != null ? c.beam : beamColorOf(spec);
+  document.querySelectorAll('#gBeams .gsw').forEach(sw => sw.classList.toggle('sel', parseInt(sw.dataset.hex, 10) === beamNow));
+  document.querySelectorAll('#gGlowColors .gsw').forEach(sw => sw.classList.toggle('sel', !!(ug && ug.enabled) && parseInt(sw.dataset.hex, 10) === (ug ? ug.color : 0x2266ff)));
+  if (!spec.paint.split && spec.paint.color != null) document.getElementById('gPaintPick').value = hexCss(spec.paint.color);
+}
+function rideLabel(v){ return v === 0 ? 'stock' : (v < 0 ? '−' + Math.abs(Math.round(v * 100)) + ' cm' : '+' + Math.round(v * 100) + ' cm'); }
+function openGarage(){ if (garageOpen) return; garageOpen = true; document.body.classList.add('garage'); buildStageCar(active); }
+function closeGarage(){ garageOpen = false; document.body.classList.remove('garage'); }
+function applyCustomToFleet(i){
+  const c = customs[i]; if (!c) return;
+  const st = fleet[i], old = st.built;
+  const built = buildLoftedCar(c.spec);
+  scene.remove(old.group);
+  if (emberLight && emberLight.parent === old.group) built.group.add(emberLight);
+  disposeBuilt(old);
+  st.built = built;
+  if (st.hasPopups) built.setPopups(st.popT);
+  applyTint(built, c.tint);
+  st.beamColor = c.beam != null ? c.beam : beamColorOf(c.spec);
+  scene.add(built.group);
+  placeCar(st, 0);
+}
+function driveIt(){
+  const i = gSel;
+  applyCustomToFleet(i);
+  closeGarage();
+  if (mode === 'drive' && active !== i) getOut();
+  if (mode === 'walk') getIn(i);
+  else if (active !== i) swapCar(i);
+}
+function updateGarage(dt, now){
+  if (!gDrag && now / 1000 - gLastDrag > 2.5) turntable.rotation.y += dt * 0.45; // idle turntable
+  if (gBuilt && gBuilt.underglow) gBuilt.underglow.light.intensity = 5 + Math.sin(now * 0.004) * 0.8;
+}
+/* garage controls */
+{
+  const $ = id => document.getElementById(id);
+  const paints = $('gPaints');
+  for (const hex of PAINT_SWATCHES){
+    const b = document.createElement('button'); b.className = 'gsw'; b.dataset.hex = hex;
+    b.style.background = hexCss(hex); b.title = 'Respray ' + hexCss(hex);
+    b.addEventListener('click', () => { const c = customOf(gSel); c.spec.paint = { ...c.spec.paint, color: hex }; delete c.spec.paint.split; buildStageCar(gSel); });
+    paints.appendChild(b);
+  }
+  $('gPaintPick').addEventListener('input', e => { const c = customOf(gSel); c.spec.paint = { ...c.spec.paint, color: parseInt(e.target.value.slice(1), 16) }; delete c.spec.paint.split; });
+  $('gPaintPick').addEventListener('change', () => buildStageCar(gSel));
+  $('gRide').addEventListener('input', e => {
+    const c = customOf(gSel), v = parseInt(e.target.value, 10) / 100;
+    c.spec.rideHeight = v; if (gBuilt) gBuilt.setRideHeight(v);
+    $('gRideOut').textContent = rideLabel(v);
+  });
+  $('gRimSize').addEventListener('change', e => {
+    const c = customOf(gSel); c.spec.wheels = { ...(c.spec.wheels || {}), rimRatio: parseInt(e.target.value, 10) / 100 };
+    $('gRimOut').textContent = e.target.value + '%'; buildStageCar(gSel);
+  });
+  $('gRimSize').addEventListener('input', e => { $('gRimOut').textContent = e.target.value + '%'; });
+  const styles = $('gRimStyles');
+  for (const [style, label] of RIM_STYLES){
+    const b = document.createElement('button'); b.className = 'gchip'; b.dataset.style = style; b.textContent = label;
+    b.addEventListener('click', () => { const c = customOf(gSel); c.spec.wheels = { ...(c.spec.wheels || {}), spokeStyle: style }; buildStageCar(gSel); });
+    styles.appendChild(b);
+  }
+  $('gTint').addEventListener('input', e => {
+    const c = customOf(gSel); c.tint = parseInt(e.target.value, 10) / 100;
+    if (gBuilt) applyTint(gBuilt, c.tint);
+    $('gTintOut').textContent = c.tint > 0 ? e.target.value + '%' : 'stock';
+  });
+  const beams = $('gBeams');
+  for (const hex of BEAM_SWATCHES){
+    const b = document.createElement('button'); b.className = 'gsw'; b.dataset.hex = hex;
+    b.style.background = hexCss(hex); b.title = 'Headlights ' + hexCss(hex);
+    b.addEventListener('click', () => {
+      const c = customOf(gSel), ff = (c.spec.frontFascia = { ...(c.spec.frontFascia || {}) });
+      if (ff.fixedLamps && ff.fixedLamps.enabled) ff.fixedLamps = { ...ff.fixedLamps, beamColor: hex };
+      else if (ff.popups && ff.popups.enabled) ff.popups = { ...ff.popups, beamColor: hex };
+      else ff.beamColor = hex;
+      c.beam = hex;
+      if (gBuilt) gBuilt.setBeamColor(hex);
+      refreshGarageUI();
+    });
+    beams.appendChild(b);
+  }
+  $('gChrome').addEventListener('click', () => {
+    const c = customOf(gSel), stock = fleet[gSel].def.spec, on = !(c.spec.accessories && c.spec.accessories.chromePackage);
+    c.spec.accessories = { ...(c.spec.accessories || {}), chromePackage: on };
+    c.spec.frontFascia = { ...(c.spec.frontFascia || {}) };
+    c.spec.rearFascia = { ...(c.spec.rearFascia || {}) };
+    if (on){
+      c.spec.frontFascia.chromeBumper = true;
+      if (c.spec.frontFascia.bumpers === 'unpainted') c.spec.frontFascia.bumpers = 'chrome';
+      c.spec.frontFascia.grille = { ...(c.spec.frontFascia.grille || {}), chromeFrame: true };
+      c.spec.rearFascia.chromeBumper = true;
+    } else {
+      c.spec.frontFascia.chromeBumper = (stock.frontFascia || {}).chromeBumper;
+      c.spec.frontFascia.bumpers = (stock.frontFascia || {}).bumpers;
+      c.spec.frontFascia.grille = { ...(c.spec.frontFascia.grille || {}), chromeFrame: ((stock.frontFascia || {}).grille || {}).chromeFrame };
+      c.spec.rearFascia.chromeBumper = (stock.rearFascia || {}).chromeBumper;
+    }
+    buildStageCar(gSel);
+  });
+  $('gGlow').addEventListener('click', () => {
+    const c = customOf(gSel), ug = (c.spec.accessories || {}).underglow;
+    const color = ug && ug.color != null ? ug.color : (gSel === 8 ? 0x2266ff : 0x2266ff); // Jimmy's Astro canon: blue
+    c.spec.accessories = { ...(c.spec.accessories || {}), underglow: { enabled: !(ug && ug.enabled), color } };
+    buildStageCar(gSel);
+  });
+  const glowColors = $('gGlowColors');
+  for (const hex of GLOW_SWATCHES){
+    const b = document.createElement('button'); b.className = 'gsw'; b.dataset.hex = hex;
+    b.style.background = hexCss(hex); b.title = 'Underglow ' + hexCss(hex);
+    b.addEventListener('click', () => {
+      const c = customOf(gSel);
+      c.spec.accessories = { ...(c.spec.accessories || {}), underglow: { enabled: true, color: hex } };
+      if (gBuilt && gBuilt.underglow){ gBuilt.underglow.mat.color.setHex(hex); gBuilt.underglow.light.color.setHex(hex); c.spec.accessories.underglow = { enabled: true, color: hex }; refreshGarageUI(); }
+      else buildStageCar(gSel);
+    });
+    glowColors.appendChild(b);
+  }
+  $('gReset').addEventListener('click', () => { delete customs[gSel]; buildStageCar(gSel); });
+  $('gDrive').addEventListener('click', driveIt);
+  $('gPrev').addEventListener('click', () => buildStageCar((gSel + fleet.length - 1) % fleet.length));
+  $('gNext').addEventListener('click', () => buildStageCar((gSel + 1) % fleet.length));
+  $('gClose').addEventListener('click', closeGarage);
+  $('btnGarage').addEventListener('pointerdown', e => { e.preventDefault(); openGarage(); });
+  const gel = $('garage');
+  gel.addEventListener('pointerdown', e => {
+    if (e.target !== gel) return;
+    gDrag = { id: e.pointerId, x: e.clientX };
+    try { gel.setPointerCapture(e.pointerId); } catch(_){}
+  });
+  gel.addEventListener('pointermove', e => {
+    if (!gDrag || e.pointerId !== gDrag.id) return;
+    turntable.rotation.y += (e.clientX - gDrag.x) * 0.008;
+    gDrag.x = e.clientX; gLastDrag = performance.now() / 1000;
+  });
+  const gEnd = e => { if (gDrag && e.pointerId === gDrag.id){ gDrag = null; gLastDrag = performance.now() / 1000; } };
+  gel.addEventListener('pointerup', gEnd); gel.addEventListener('pointercancel', gEnd);
+  window.addEventListener('keydown', e => {
+    if (e.code === 'KeyG' && !e.repeat) garageOpen ? closeGarage() : openGarage();
+    if (!garageOpen) return;
+    if (e.code === 'Escape') closeGarage();
+    if (e.code === 'ArrowRight') buildStageCar((gSel + 1) % fleet.length);
+    if (e.code === 'ArrowLeft') buildStageCar((gSel + fleet.length - 1) % fleet.length);
+  });
+  window.addEventListener('resize', () => { stageCam.aspect = window.innerWidth/window.innerHeight; stageCam.updateProjectionMatrix(); fitStageCam(); });
+}
+window.__garage = {
+  open: openGarage, close: closeGarage, driveIt,
+  select(i){ buildStageCar(i); },
+  get open_(){ return garageOpen; },
+  get sel(){ return gSel; },
+  customs,
+  stageBuilt(){ return gBuilt; },
+  customOf,
+};
+
 /* ============================================================ MAIN LOOP — Bunny Hop chase camera.
    Drive mode: lazy yaw (tau 0.55 s) behind the car, 1.65 m-class shoulder
    height scaled to the car, FOV 60 + speed breathe to 64, roll 0.
@@ -636,6 +982,7 @@ let last = performance.now();
 function animate(now){
   requestAnimationFrame(animate);
   let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (garageOpen){ updateGarage(dt, now); renderer.render(stageScene, stageCam); return; }
   pollInput();
   const st = fleet[active];
   if (mode === 'drive') stepCar(st, dt); else stepPerson(dt, now);
