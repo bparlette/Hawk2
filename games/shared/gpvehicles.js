@@ -190,15 +190,19 @@ export const VEHICLE_STYLES = {
     headY: 0.72, tailY: 0.92,
   },
   // '87 Celica GT (ST162 liftback): rounded wedge, pop-up headlights, long
-  // liftback slope. Dims from the fleet data (4.37 x 1.69).
+  // liftback slope. Dims from the fleet data (4.37 x 1.69). Profile re-traced
+  // Nov 20 from the T160 photo set (celica-rigg): blunter, taller nose face,
+  // flat 0.90 beltline, integrated spoiler lip kicking up at the tail, longer
+  // shallower glass hatch, big quarter glass on the hatch slope.
   celica87: {
-    len: 4.37, wid: 1.69, wheelR: 0.31, wheelbase: 2.52,
-    body: [[-2.18,0.34],[-2.18,0.82],[-2.08,0.88],[-1.15,0.90],[0.35,0.84],[1.45,0.76],[2.05,0.62],[2.18,0.52],[2.18,0.32]],
-    cabin: [[-1.95,0.88],[-0.55,1.27],[-0.02,1.30],[0.52,0.86]],
+    len: 4.37, wid: 1.69, wheelR: 0.31, wheelbase: 2.52, popups: true,
+    body: [[-2.18,0.34],[-2.18,0.88],[-2.10,0.96],[-1.70,0.94],[-0.80,0.92],[0.35,0.90],[1.20,0.86],[1.95,0.80],[2.18,0.74],[2.18,0.30]],
+    cabin: [[-2.02,0.94],[-0.78,1.28],[-0.05,1.295],[0.55,0.88]],
     cabinW: 0.86,
-    glass: { shield: [0.52,0.86,-0.02,1.30], rear: [-1.95,0.88,-0.55,1.27],
-             band: { z0: -0.50, z1: 0.26, y: 1.08, h: 0.30 } },
-    headY: 0.58, tailY: 0.76,
+    glass: { shield: [0.55,0.88,-0.05,1.295], rear: [-2.02,0.94,-0.78,1.28], rearW: 0.80,
+             band: { z0: -0.62, z1: 0.32, y: 1.10, h: 0.33 },
+             quarter: [-1.90,0.973,-0.86,1.258] },
+    headY: 0.85, tailY: 0.78, glowZ: 2.04, rubStripe: true, noBumperBand: true,
   },
   // Tracer sedan (Mazda 323 BG platform twin): compact 3-box sedan, black
   // rub stripe. Plan proportions from the fleet sprite (4.17 x 1.65).
@@ -276,10 +280,10 @@ function wheelGeometry(R, kind) {
   // rim barrel (dark) set into the tire
   put(rimD, new THREE.CylinderGeometry(R * 0.60, R * 0.60, 0.20, 16).rotateZ(Math.PI / 2), 0, 0, 0);
   P(rimD[0], kind === 'steel' ? 0x33353a : 0x232529);
-  const spokeN = kind === 'wire' ? 12 : 5;
+  const spokeN = kind === 'wire' ? 12 : kind === 'multi' ? 10 : 5;
   for (const sx of [-1, 1]) for (let i = 0; i < spokeN; i++) {
     const a = (i / spokeN) * Math.PI * 2, sp = [];
-    const wdt = kind === 'wire' ? 0.016 : 0.055, len = R * (kind === 'wire' ? 0.60 : 0.56);
+    const wdt = kind === 'wire' ? 0.016 : kind === 'multi' ? 0.034 : 0.055, len = R * (kind === 'wire' ? 0.60 : 0.56);
     put(sp, new THREE.BoxGeometry(0.035, len, wdt), sx * 0.098, Math.sin(a) * R * 0.30, Math.cos(a) * R * 0.30, Math.PI / 2 - a, 0, 0);
     P(sp[0], kind === 'steel' ? 0x33353a : 0xc7ccd4);
     rimL.push(sp[0]);
@@ -337,7 +341,9 @@ function applyLengthFade(geo, fade) {
 // ---------------------------------------------------------------- factory
 // Row: { style, paint, paint2, twoTone: 'band'|'cladding', glassTint,
 //        lightBar, hoodLouvers, underglow, fogLamps, spoiler, burnt,
-//        wheels: 'alloy'|'steel'|'wire',
+//        wheels: 'alloy'|'steel'|'wire'|'multi' (multi = 10 thin spokes),
+//        popups: raised pop-up pods (on styles with popups: true),
+//        popupsDown: lids shut — flush hood panels, no headlight signature,
 //        beamColor: hex — this car's headlight beam colour (lens, halo and
 //          road pool all follow it; veh.beamColor exposes it, resolved
 //          against the warm default, so hosts can tint their spotlight),
@@ -383,7 +389,7 @@ export function buildVehicle(row) {
   }
 
   // glasshouse
-  const glassGeos = [], trimGeos = [], darkGeos = [], lightGeos = [], headGeos = [], tailGeos = [], paintGeos = [], seatGeos = [], dashGeos = [];
+  const glassGeos = [], trimGeos = [], darkGeos = [], lightGeos = [], headGeos = [], tailGeos = [], amberGeos = [], paintGeos = [], seatGeos = [], dashGeos = [];
   if (st.cabin && !st.van) {
     const cabW = W * (st.cabinW || 0.87);
     const cabinGeo = profileGeo(st.cabin, cabW);
@@ -428,6 +434,13 @@ export function buildVehicle(row) {
     const bw = st.van ? W + 0.015 : cabW2 + 0.015;
     box(glassGeos, bw, g.band.h, g.band.z1 - g.band.z0, 0, g.band.y, (g.band.z0 + g.band.z1) / 2);
   }
+  if (g.quarter) { // sloped quarter glass lying on the hatch slope (liftbacks):
+    // a thin sheet per side, tilted with the rear-glass segment it parallels
+    const q = g.quarter, qdz = q[2] - q[0], qdy = q[3] - q[1];
+    const qH = Math.hypot(qdz, qdy), qTilt = Math.atan2(qdz, qdy);
+    for (const sx of [-1, 1])
+      box(glassGeos, 0.03, qH * 0.96, 0.04, sx * (cabW2 / 2 + 0.006), (q[1] + q[3]) / 2, (q[0] + q[2]) / 2, qTilt, 0, 0);
+  }
 
   // ---- interior tub: floor, dash, seats, steering wheel — seen through the
   // tinted glass, so the cabin reads as a real cabin instead of a hollow shell.
@@ -470,15 +483,31 @@ export function buildVehicle(row) {
 
   // lights: headlights + amber corners front, full-width-ish tails rear
   const hw = W / 2 - 0.34;
-  box(headGeos, 0.36, 0.11, 0.04, -hw, st.headY, L / 2 + 0.005);
-  box(headGeos, 0.36, 0.11, 0.04, hw, st.headY, L / 2 + 0.005);
+  if (!st.popups) { // pop-up cars carry their lamps in the pods, not on the face
+    box(headGeos, 0.36, 0.11, 0.04, -hw, st.headY, L / 2 + 0.005);
+    box(headGeos, 0.36, 0.11, 0.04, hw, st.headY, L / 2 + 0.005);
+  }
   box(tailGeos, 0.42, 0.10, 0.04, -hw, st.tailY, -L / 2 - 0.005);
   box(tailGeos, 0.42, 0.10, 0.04, hw, st.tailY, -L / 2 - 0.005);
   if (row.fogLamps) {
     box(headGeos, 0.13, 0.13, 0.04, -W / 2 + 0.42, 0.34, L / 2 + 0.01);
     box(headGeos, 0.13, 0.13, 0.04, W / 2 - 0.42, 0.34, L / 2 + 0.01);
   }
-  if (row.popups) { // raised pop-up headlight pods on the nose
+  if (row.popups && st.popups) { // pop-ups UP, modelled from the up-and-lit
+    // photo: black bucket at the hood's front corner, tilted body-colour lid
+    // on top, one big rectangular lamp face on the pod's front
+    for (const sx of [-1, 1]) {
+      box(darkGeos, 0.38, 0.20, 0.30, sx * 0.56, 0.84, L / 2 - 0.36, -0.22, 0, 0);
+      box(paintGeos, 0.37, 0.05, 0.32, sx * 0.56, 0.955, L / 2 - 0.385, -0.22, 0, 0);
+      box(headGeos, 0.31, 0.15, 0.03, sx * 0.56, 0.855, L / 2 - 0.19, -0.22, 0, 0);
+    }
+  } else if (row.popupsDown && st.popups) { // pop-ups DOWN: flush lid panels
+    // on the hood (dark seam under a paint lid) — hood line stays unbroken
+    for (const sx of [-1, 1]) {
+      box(darkGeos, 0.385, 0.012, 0.335, sx * 0.56, 0.822, L / 2 - 0.36, -0.075, 0, 0);
+      box(paintGeos, 0.36, 0.014, 0.315, sx * 0.56, 0.830, L / 2 - 0.36, -0.075, 0, 0);
+    }
+  } else if (row.popups) { // generic raised pop-up pods (legacy rows)
     box(paintGeos, 0.36, 0.07, 0.34, -W / 2 + 0.36, st.headY + 0.13, L / 2 - 0.38);
     box(paintGeos, 0.36, 0.07, 0.34, W / 2 - 0.36, st.headY + 0.13, L / 2 - 0.38);
     box(headGeos, 0.30, 0.06, 0.03, -W / 2 + 0.36, st.headY + 0.10, L / 2 - 0.20);
@@ -488,7 +517,7 @@ export function buildVehicle(row) {
   if (st.chromeBumpers) {
     box(trimGeos, W * 0.96, 0.16, 0.10, 0, 0.38, L / 2 + 0.05);
     box(trimGeos, W * 0.96, 0.16, 0.10, 0, 0.38, -L / 2 - 0.05);
-  } else {
+  } else if (!st.noBumperBand) { // styles with their own face/valance work opt out
     box(darkGeos, W * 0.9, 0.13, 0.06, 0, 0.40, L / 2 + 0.01);
     box(darkGeos, W * 0.9, 0.13, 0.06, 0, 0.42, -L / 2 - 0.01);
   }
@@ -511,6 +540,41 @@ export function buildVehicle(row) {
     box(darkGeos, W * 0.8, 0.20, 0.04, 0, 0.70, -L / 2 - 0.01);
     box(darkGeos, 0.03, 0.26, 0.20, -W * 0.435, 1.08, -0.98, 0, 0, 0);
     box(darkGeos, 0.03, 0.26, 0.20, W * 0.435, 1.08, -0.98, 0, 0, 0);
+  }
+  if (row.style === 'celica87') { // T160 details, from the photo set
+    // black grille panel on the face, between the pop-up lids (plain black —
+    // bright slat lines just pick up the sunset and read as rust)
+    box(darkGeos, W * 0.52, 0.17, 0.05, 0, 0.68, L / 2 + 0.002);
+    // amber turn signals wrapping the front corners
+    box(amberGeos, 0.17, 0.10, 0.05, -W / 2 + 0.10, 0.60, L / 2 + 0.002);
+    box(amberGeos, 0.17, 0.10, 0.05, W / 2 - 0.10, 0.60, L / 2 + 0.002);
+    box(amberGeos, 0.05, 0.10, 0.24, -W / 2 - 0.002, 0.60, L / 2 - 0.14);
+    box(amberGeos, 0.05, 0.10, 0.24, W / 2 + 0.002, 0.60, L / 2 - 0.14);
+    // deep black air dam under the front bumper + the centre intake slot in
+    // the body-colour bumper above it (this style skips the generic band)
+    box(darkGeos, W * 0.94, 0.17, 0.08, 0, 0.235, L / 2 - 0.01);
+    box(darkGeos, W * 0.50, 0.08, 0.04, 0, 0.36, L / 2 + 0.01);
+    box(darkGeos, W * 0.94, 0.09, 0.04, 0, 0.36, -L / 2 - 0.005);
+    // the black rub strip continues across both bumpers (sides: rubStripe)
+    box(darkGeos, W * 0.98, 0.07, 0.04, 0, 0.52, L / 2 + 0.005);
+    box(darkGeos, W * 0.98, 0.07, 0.04, 0, 0.55, -L / 2 - 0.005);
+    // black rocker bands between the wheels
+    box(darkGeos, 0.035, 0.13, st.wheelbase * 0.94, -W / 2 - 0.002, 0.335, 0);
+    box(darkGeos, 0.035, 0.13, st.wheelbase * 0.94, W / 2 + 0.002, 0.335, 0);
+    // rear: black plate panel between the tails, amber outer tail sections
+    box(darkGeos, W * 0.30, 0.21, 0.04, 0, st.tailY, -L / 2 - 0.002);
+    box(amberGeos, 0.15, 0.10, 0.04, -(hw + 0.285), st.tailY, -L / 2 - 0.005);
+    box(amberGeos, 0.15, 0.10, 0.04, hw + 0.285, st.tailY, -L / 2 - 0.005);
+    // rear wiper parked at the base of the hatch glass
+    box(darkGeos, 0.44, 0.018, 0.045, 0.10, 1.005, -1.86, 1.303, 0, 0);
+    // square fuel door on the driver's rear quarter
+    box(darkGeos, 0.02, 0.16, 0.16, -W / 2 - 0.003, 0.78, -1.52);
+    // twin exhaust tips under the rear bumper
+    for (const ex of [0.52, 0.64]) {
+      const tip = new THREE.CylinderGeometry(0.027, 0.027, 0.12, 10);
+      tip.rotateX(Math.PI / 2); tip.applyMatrix4(xform(ex, 0.20, -L / 2 - 0.01));
+      trimGeos.push(tip.index ? tip.toNonIndexed() : tip);
+    }
   }
   if (row.lightBar) {
     box(darkGeos, 1.06, 0.05, 0.26, 0, (st.cabin ? 1.44 : 1.2), -0.45);
@@ -550,6 +614,7 @@ export function buildVehicle(row) {
     : VEHICLE_MATS.head;
   addBucket(headGeos, headMat);
   addBucket(tailGeos, VEHICLE_MATS.tail);
+  addBucket(amberGeos, VEHICLE_MATS.amber);
   addBucket(seatGeos, VEHICLE_MATS.seat);
   addBucket(dashGeos, VEHICLE_MATS.dash);
 
@@ -608,15 +673,23 @@ export function buildVehicle(row) {
       m.position.set(x, y, z); m.rotation.y = ry; m.scale.set(w, h, 1); m.renderOrder = 3;
       group.add(m);
     };
-    mkGlow(headGlowMat, 0.6, 0.36, -hw, st.headY, L / 2 + 0.10, 0);
-    mkGlow(headGlowMat, 0.6, 0.36, hw, st.headY, L / 2 + 0.10, 0);
+    // head halos sit at the lamp faces: the nose tip by default, or the
+    // style's glowZ when the lamps live elsewhere (pop-up pods). Lids-down
+    // pop-ups burn no headlight signature at all (no halos, no road pool).
+    const glowZ = st.glowZ || L / 2 + 0.10;
+    if (!row.popupsDown) {
+      mkGlow(headGlowMat, 0.6, 0.36, -hw, st.headY, glowZ, 0);
+      mkGlow(headGlowMat, 0.6, 0.36, hw, st.headY, glowZ, 0);
+    }
     mkGlow(GLOW_MATS.tail, 0.62, 0.3, -hw, st.tailY, -L / 2 - 0.10, Math.PI);
     mkGlow(GLOW_MATS.tail, 0.62, 0.3, hw, st.tailY, -L / 2 - 0.10, Math.PI);
-    const pool = new THREE.Mesh(_glowPlane, poolMat);
-    if (!poolMat.map) { poolMat.map = gt; poolMat.needsUpdate = true; }
-    pool.rotation.x = -Math.PI / 2; pool.position.set(0, 0.09, L / 2 + 2.7);
-    pool.scale.set(W * 1.6, 6.0, 1); pool.renderOrder = 2;
-    group.add(pool);
+    if (!row.popupsDown) {
+      const pool = new THREE.Mesh(_glowPlane, poolMat);
+      if (!poolMat.map) { poolMat.map = gt; poolMat.needsUpdate = true; }
+      pool.rotation.x = -Math.PI / 2; pool.position.set(0, 0.09, L / 2 + 2.7);
+      pool.scale.set(W * 1.6, 6.0, 1); pool.renderOrder = 2;
+      group.add(pool);
+    }
   }
 
   const veh = {

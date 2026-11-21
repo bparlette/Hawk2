@@ -32,7 +32,7 @@ export const CREW_VEHICLES = {
              name: "The Black Cavalier" },
   jason:   { style: 'camryV20',    paint: 0xf4f4f2, wheels: 'steel',
              name: "Jason's '89 Camry" },
-  rigg:    { style: 'celica87',    paint: 0x2a66b0, popups: true, wheels: 'alloy', beamColor: 0x0066ff,
+  rigg:    { style: 'celica87',    paint: 0x2a66b0, popups: true, wheels: 'multi', beamColor: 0x0066ff,
              name: "Rigg's '87 Celica GT" },
   grant:   { style: 'brougham',    paint: 0x5e1f24, paint2: 0xb9bcbe, twoTone: 'cladding', wheels: 'wire',
              name: "Grant's Brougham 'USS Mino'" },
