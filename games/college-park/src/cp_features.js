@@ -541,10 +541,30 @@ export class CPF {
     g.save(); g.translate(r.x, r.y); g.rotate(r.h);
     g.fillStyle = 'rgba(20,14,30,0.30)'; g.beginPath(); g.ellipse(1.5, 2.5, 17, 8, 0, 0, TAU); g.fill();
     if (r.kind === 'scooter') {
-      g.fillStyle = '#2a2e38'; g.beginPath(); g.arc(-11, 0, 4.4, 0, TAU); g.arc(12, 0, 4.4, 0, TAU); g.fill();
-      g.fillStyle = HUES[r.hue]; g.beginPath(); g.roundRect(-13, -3.4, 27, 6.8, 3.4); g.fill();
-      g.strokeStyle = '#2a2e38'; g.lineWidth = 3; g.beginPath(); g.moveTo(11, 0); g.lineTo(15, -1); g.stroke();
-      g.lineWidth = 2.4; g.beginPath(); g.moveTo(15, -5); g.lineTo(15, 5); g.stroke();
+      // city rental e-scooter (owner reference, Nov 21): WHITE deck + stem, matte black
+      // wheels / grips / grip tape / stem clamp, long low deck, rear fender, no seat.
+      const INK = '#210f2e', WH = '#f0eee6', BK = '#17181d';
+      // rear fender: a white arc hugging the back of the rear wheel
+      g.strokeStyle = WH; g.lineWidth = 3.4; g.beginPath(); g.arc(-13, 0, 6.6, Math.PI * 0.55, Math.PI * 1.45); g.stroke();
+      g.strokeStyle = INK; g.lineWidth = 1.1; g.beginPath(); g.arc(-13, 0, 8.1, Math.PI * 0.6, Math.PI * 1.4); g.stroke();
+      // wheels: solid black, front a touch larger than the rear
+      g.fillStyle = BK; g.beginPath(); g.arc(-13, 0, 4.3, 0, TAU); g.arc(13, 0, 5, 0, TAU); g.fill();
+      g.fillStyle = '#3a3d46'; g.beginPath(); g.arc(-13, 0, 1.2, 0, TAU); g.arc(13, 0, 1.4, 0, TAU); g.fill();
+      // deck: long, low, narrow — white, rising into the stem at the front nose
+      g.fillStyle = WH; g.beginPath(); g.roundRect(-15.5, -3.1, 30.5, 6.2, 3); g.fill();
+      g.beginPath(); g.ellipse(14.5, 0, 4.8, 3.4, 0, 0, TAU); g.fill();
+      g.lineWidth = 1.6; g.strokeStyle = INK; g.beginPath(); g.roundRect(-15.5, -3.1, 30.5, 6.2, 3); g.stroke();
+      // grip tape: the black strip down the deck's top (white deck shows all around it)
+      g.fillStyle = '#1b1c21'; g.beginPath(); g.roundRect(-12.5, -1.3, 22.5, 2.6, 1.3); g.fill();
+      // stem: white, ink-edged, leaning out over the front wheel; black clamp band 1/3 up
+      g.lineCap = 'round';
+      g.strokeStyle = INK; g.lineWidth = 6.4; g.beginPath(); g.moveTo(13, 0); g.lineTo(20.5, 0); g.stroke();
+      g.strokeStyle = WH; g.lineWidth = 4.2; g.beginPath(); g.moveTo(13, 0); g.lineTo(20.5, 0); g.stroke();
+      g.strokeStyle = BK; g.lineWidth = 5.2; g.beginPath(); g.moveTo(16.4, 0); g.lineTo(17.7, 0); g.stroke();
+      // handlebar: straight black bar, thicker grips at the ends
+      g.strokeStyle = BK; g.lineWidth = 2.8; g.beginPath(); g.moveTo(20.5, -5.6); g.lineTo(20.5, 5.6); g.stroke();
+      g.lineWidth = 4.4; g.beginPath(); g.moveTo(20.5, -5.6); g.lineTo(20.5, -3.6); g.moveTo(20.5, 3.6); g.lineTo(20.5, 5.6); g.stroke();
+      g.lineCap = 'butt';
     } else {
       g.strokeStyle = '#20242e'; g.lineWidth = 2.6;
       g.beginPath(); g.arc(-12, 0, 6.4, 0, TAU); g.stroke(); g.beginPath(); g.arc(13, 0, 6.4, 0, TAU); g.stroke();
