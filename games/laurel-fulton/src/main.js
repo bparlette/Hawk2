@@ -160,7 +160,8 @@ const goIn = (id, who) => {
   for (const pg of pGuests) guests.push(pg);
   insideId = id; inside = new Interior(KITS[id], { who, house: P.name, guests, partyImgs: party.imgs }); if (foot) foot.active = false;
 };
-const goInPlace = (pl, who) => { inside = new PlaceInterior(KITS[pl.interior], { who, exitAt: pl }); if (foot) foot.active = false; };   // L12/L13: a public building, anyone
+let CPF = null;   // College Park features (games/college-park/src/cp_features.js): loaded at the bottom of this module ONLY when isCollegePark(TITLE); stays null in Laurel, and every CPF hook below no-ops on null.
+const goInPlace = (pl, who) => { inside = (CPF && CPF.makeInterior ? CPF.makeInterior(pl, KITS[pl.interior], who) : null) || new PlaceInterior(KITS[pl.interior], { who, exitAt: pl }); if (foot) foot.active = false; };   // L12/L13: a public building, anyone
 const goOut = () => {                                     // out the front door: on foot on the front walk, your car in the driveway
   if (inside && inside.exitAt) { const pl = inside.exitAt, d = doorPoint(pl); inside = null; foot.active = true; foot.x = d.x + d.nx * 14; foot.y = d.y + d.ny * 14; foot.h = Math.atan2(d.ny, d.nx); foot.px = foot.x; foot.py = foot.y; foot.z = 0; cam.x = foot.x; cam.y = foot.y; return; }   // out of a public place: on foot at its door
   const hp = roster.people.find(p => p.id === insideId) || PLAYERS.find(p => foot && p.id === foot.who.id) || foot.who, [hx, hy] = hp.house; inside = null; insideId = null;
@@ -506,6 +507,7 @@ function frame(now) {
   if (pilot && M && M.complete) pilot = null;            // the autopilot's job ends at the finish: the stick is yours again
   while (acc >= STEP && n < 6 * SPEED) { const inp = pilot ? (input.read(), pilot.input(STEP)) : input.read(); if (picking) { acc = 0; break; }
     const beat = (M && M.beat) || oM.beat || intro, ZERO = { jx: 0, jy: 0, jm: 0, keys: {} };
+    if (CPF) CPF.preStep(STEP, inp);
     if (inside) { sim.step(STEP, ZERO); if (inside.step(STEP, inp) === 'exit') goOut(); }
     else if (foot && foot.active) { sim.step(STEP, ZERO); if (!beat) { stepOnFoot(foot, STEP, inp, SUP); const nc = inp.action && !(PL && PL.label(foot, sim)) ? nearAnyCar(foot, sim.cars) : null; /* a public door / the 108 Astro's lights win over GET IN */ if (nc) { if (nc !== sim.player) swapPlayerCar(sim, M, nc); foot.active = false; } else if (inp.action && atMyDoor()) goIn(doorOf(), foot.who); else if (inp.action && PL) { const r = PL.act(foot, sim); if (r && r.enter && KITS[r.enter.interior]) goInPlace(r.enter, foot.who); } } }   // L12/L13: GO IN at a public door / ROB LIGHTS at the Astro
     else { sim.step(STEP, beat || cops.hold ? ZERO : inp);   /* L15: BUSTED holds your input */ if (foot && !beat && !pilot && inp.action && Math.abs(sim.player.v) < FOOT.exitV) { exitCar(foot, sim.player); if (inHouse(foot.x, foot.y)) { const c = sim.player, a = c.h + Math.PI / 2, d = (c.wid || 20) / 2 + 7; foot.x = c.x + Math.cos(a) * d; foot.y = c.y + Math.sin(a) * d; foot.px = foot.x; foot.py = foot.y; } } }
@@ -513,6 +515,7 @@ function frame(now) {
     if (!inside && !picking) RIGGB.step(STEP);   // Rigg-isms: the street-side barker (indoors, the interior has its own)
     if (PL) PL.step(STEP); if (KOTH) KOTH.step(sim, STEP); if (M) stepRally(sim, M, STEP); if (net) stepOnlineBeat(STEP);
     party.step(timeOfDay(), sim.player);
+    if (CPF) CPF.step(STEP, inp, timeOfDay());
     fakeCop.step(STEP, !!(sim.player.model === 'cavalier_kosack' && ((inp.action && Math.abs(sim.player.v) >= FOOT.exitV) || sirenKey)));
     if (TRAFFIC_ON && !picking) { traffic.step(STEP); cops.step(STEP, { inCar: !(foot && foot.active) && !inside }); }   // L15
     valet.step(sim, STEP);
@@ -546,7 +549,7 @@ function frame(now) {
     cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; cam.zoom += (tz - cam.zoom) * (fixed ? 1 : 1 - Math.exp(-dt * 1.5));
   }
   if (!fixed && cam.zoom < MIN_ZOOM) cam.zoom = MIN_ZOOM;   // HARD CAP (owner, Nov 18; halved Nov 19): never wider than 1,415 m across, whatever path set the zoom
-  if (inside) { (inside.place ? PIR : IR).draw(inside, VIEW_W, view.h, DPR, now / 1000); drawControls(); requestAnimationFrame(frame); return; }
+  if (inside) { (inside.place ? PIR : IR).draw(inside, VIEW_W, view.h, DPR, now / 1000); if (CPF && CPF.drawInside) CPF.drawInside(inside, inside.place ? PIR : IR, VIEW_W, view.h, DPR, now / 1000); drawControls(); requestAnimationFrame(frame); return; }
   // KOTH circle road (owner, Nov 17): the cul-de-sac you're sitting in — or fighting over — is
   // REAL pavement: the same sac the ring below draws gets its disc painted as asphalt, road grip
   // in the sim and black (not dirt-brown) skid marks. setPave no-ops until the sac changes.
@@ -578,9 +581,10 @@ function frame(now) {
     if (name) { ctx.font = '800 15px system-ui'; const w = ctx.measureText(name).width + 28; ctx.fillStyle = 'rgba(27,20,48,0.72)'; ctx.beginPath(); ctx.roundRect(VIEW_W / 2 - w / 2, 18, w, 30, 15); ctx.fill(); ctx.fillStyle = '#ffe4b0'; ctx.fillText(name, VIEW_W / 2, 38); }
     ctx.font = '800 13px system-ui'; ctx.fillStyle = 'rgba(255,240,215,0.9)';
     ctx.fillText((foot && foot.active) ? clockText(tod) : Math.round(Math.abs(c.v) / 10 * 2.237) + ' mph · ' + clockText(tod), VIEW_W / 2, 64);   // Palm City's clock rides the HUD line: 6:38 PM -> 7:48 PM as dusk falls
-    const pb = party.banner();
+    const pb = isCollegePark(TITLE) ? null : party.banner();   // CP has no Kosack party — the banner named the wrong host there (known CP defect); the darty is CP's own (cp_features.js)
     if (pb) { ctx.font = '900 11px system-ui'; const pw = ctx.measureText(pb).width + 20; ctx.fillStyle = 'rgba(27,20,48,0.86)'; ctx.strokeStyle = '#210f2e'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.roundRect(VIEW_W - pw - 12, 104, pw, 24, 10); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#d48aff'; ctx.textAlign = 'center'; ctx.fillText(pb, VIEW_W - pw / 2 - 12, 120); }
   }
+  if (CPF && CPF.drawOverlay) CPF.drawOverlay(ctx, VIEW_W, view.h, now / 1000);
   // prefetch: the view + a margin + where the car will be in ~1.2 s, nearest first
   const hw0 = VIEW_W / 2 / cam.zoom + 320, hh0 = view.h / 2 / cam.zoom + 320, want = [], hwf = Math.min(hw0, 1400), hhf = Math.min(hh0, 1800);
   const hw = hwf, hh = hhf, farOut = hw0 * hh0 > 4e6;                           // zoomed right out: prefetch only round the car (the view's ground is drawn as roads, renderer FAR_CHUNKS)
@@ -743,3 +747,6 @@ renderer.draw = (S, cam, t, tod) => {
 requestAnimationFrame(frame);
 window.__lf = { places: () => PL, goInPlace, door: () => doorOf(), van: () => van, get areas() { return areas; }, inside: () => inside, setSpeed: (k) => { SPEED = k; }, roof: () => RF, sim, W, ground, cam, input, renderer, map: () => mapOpen, mission: () => M, koth: () => KOTH, fakeCop: () => fakeCop, party: () => party, valet: () => valet, destruct: () => destruct, help: () => help, jumpTo, pick, landmarks: () => LANDMARKS, startAt: () => startAt, lmChips: () => lmChips(), picking: () => picking, pilot: () => pilot, foot: () => foot, tod: () => timeOfDay(), simTime: () => simTime, net: () => net, obeat: () => oM.beat };
 window.__lf.traffic = traffic; window.__lf.cops = cops;   // L15
+// College Park features: darty, campus farm, helicopter, rideables, cafeteria (games/college-park/src/cp_features.js).
+// Gated on the page title exactly like the breadcrumb, so Laurel never even fetches the module.
+if (isCollegePark(TITLE)) import('../../college-park/src/cp_features.js').then(m => { CPF = m.init({ sim, W, renderer, ground, cam, input, Q, TITLE, timeOfDay, view, VIEW_W, getAreas: () => areas, getFoot: () => foot, getPL: () => PL, PIR, IR, DPR: () => DPR }); }).catch(e => { if (window.showErr) window.showErr('cpf: ' + ((e && e.message) || e)); });

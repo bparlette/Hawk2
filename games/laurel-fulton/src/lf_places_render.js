@@ -19,6 +19,7 @@ const LOOKS = {   // who wears what: sheet, shirt tint (over the torso half), ac
   guard: { sheet: 'cop', tag: '#e8c23a' }, apron: { sheet: 'player', tint: '#b8322a', acc: 'apron' }, rigg: { sheet: 'player', tint: '#2f6fd9', acc: 'vest' },
   manager: { sheet: 'player', tint: '#e8e6dc', acc: 'tie' }, jimmy: { sheet: 'player', tint: '#2f4fd0' }, clayton: { sheet: 'player', tint: '#e8c8a0' },
   zack: { sheet: 'player', tint: '#7a9a4a' }, hero: { sheet: 'player' },
+  student1: { sheet: 'player', tint: '#a6192e' }, student2: { sheet: 'player', tint: '#e8c23a' }, student3: { sheet: 'player', tint: '#2a2a30' }, student4: { sheet: 'player', tint: '#3a6ad8' },   // College Park cafeteria students (only the Yahentamitsi kit uses these looks)
 };
 function sheetFor(look) {
   const L = LOOKS[look] || LOOKS.hero, im = SH.img[L.sheet]; if (!im || !im.complete || !im.naturalWidth) return null;
