@@ -1,0 +1,32 @@
+{
+ "page": "games/scaggsville-3d/index.html",
+ "viewport": [
+  390,
+  844
+ ],
+ "waitFor": "window.__proof",
+ "steps": [
+  {
+   "eval": "window.__proof.start('brad')"
+  },
+  {
+   "wait": 2500
+  },
+  {
+   "eval": "window.__proof.setTime('golden')"
+  },
+  {
+   "wait": 600
+  },
+  {
+   "shot": "spawn"
+  },
+  {
+   "stats": "spawn"
+  },
+  {
+   "eval": "new Promise(res=>{ const L=globalThis.__lookdev; const proto=Object.getPrototypeOf(Object.getPrototypeOf(L.scene)); const rows={}; const key=(o,p)=>p+' | '+((o.name||'').replace(/@.*/,'')||(o.parent&&o.parent.name? o.parent.name+'/':'')+(o.material&&o.material.type)||o.type)+(o.isInstancedMesh?' [inst]':''); const a=proto.onBeforeRender, b=proto.onBeforeShadow; let on=false; proto.onBeforeRender=function(...x){ if(on&&(this.isMesh||this.isLine||this.isPoints)){ const k=key(this,'main'); rows[k]=(rows[k]||0)+1; } return a.apply(this,x); }; proto.onBeforeShadow=function(...x){ if(on&&this.isMesh){ const k=key(this,'shadow'); rows[k]=(rows[k]||0)+1; } return b&&b.apply(this,x); }; requestAnimationFrame(()=>{ on=true; requestAnimationFrame(()=>{ on=false; proto.onBeforeRender=a; proto.onBeforeShadow=b; const t={main:0,shadow:0}; for(const [k,v] of Object.entries(rows)) t[k.split(' |')[0]]+=v; res({totals:t, top:Object.entries(rows).sort((p,q)=>q[1]-p[1]).slice(0,40)}); }); }); })"
+  }
+ ],
+ "note": "Per-object draws by pass for one frame at the spawn view of scaggsville-3d.json. 'main' counts onBeforeRender, which also fires for the transmission pre-pass (MeshPhysicalMaterial glass re-renders opaque objects), so main can exceed the GL total's share; 'shadow' counts onBeforeShadow (sun shadow map). Names: mesh name, else parent/materialType."
+}

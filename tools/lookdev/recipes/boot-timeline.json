@@ -1,0 +1,10 @@
+{
+  "page": "games/scaggsville-3d/index.html",
+  "viewport": [390, 844],
+  "init": "(()=>{ const T=globalThis.__boot={ t0: performance.now(), longTasks: [], marks: {} }; const mark=(k)=>{ if(!(k in T.marks)) T.marks[k]=Math.round(performance.now()); }; try { new PerformanceObserver(l=>{ for(const e of l.getEntries()) T.longTasks.push([Math.round(e.startTime), Math.round(e.duration)]); }).observe({ type:'longtask', buffered:true }); } catch(e){} try { new PerformanceObserver(l=>{ for(const e of l.getEntries()) mark(e.name); }).observe({ type:'paint', buffered:true }); } catch(e){} const poll=()=>{ const p=document.getElementById('pick'); if(p && p.children.length) mark('pickCardsVisible'); if(globalThis.__lookdev) mark('firstThreeFrame'); if(!('pickCardsVisible' in T.marks) || !('firstThreeFrame' in T.marks)) requestAnimationFrame(poll); }; requestAnimationFrame(poll); addEventListener('DOMContentLoaded', ()=>mark('domContentLoaded')); })()",
+  "waitFor": "window.__proof && window.__boot && window.__boot.marks.pickCardsVisible && window.__boot.marks.firstThreeFrame",
+  "steps": [
+    {"eval": "(()=>{ const B=window.__boot; const lt=B.longTasks.sort((a,b)=>b[1]-a[1]); return { marks: B.marks, longestTaskMs: lt[0]||null, longTasksOver200ms: lt.filter(t=>t[1]>200).length, totalBlockedMs: lt.reduce((s,t)=>s+Math.max(0,t[1]-50),0) }; })()"},
+    {"shot": "pick"}
+  ]
+}

@@ -9,7 +9,7 @@ npx playwright install chromium` if it isn't preinstalled) and Python 3 + Pillow
 | `shoot.cjs <recipe.json> [--out DIR] [--tag NAME] [--root REPO]` | Run a recipe: page errors, 404s, screenshots, GL draws/frame (incl. shadow passes), three.js calls + triangles, fps, per-mesh triangle breakdown in the camera frustum (`tris`), what mesh is under a pixel (`pick`), luma of a crop (`luma`). Writes `DIR/<tag>.json` + PNGs. Exits 1 on any page error. |
 | `sheet.py OUT.png --rows "before:a.png,b.png" "after:c.png,d.png" [--scale 0.6]` | Labelled before/after contact sheet. |
 | `luma.py shot.png --crop x0,y0,x1,y1 [--ref frame.jpg --refcrop ...]` | Mean luma, % near-black (< 25), % clipped (≥ 250), and delta vs a reference frame. |
-| `recipes/*.json` | Ready recipes: `scaggsville-3d`, `scaggsville-2d`, `scaggsville-2d-woods`, `college-park`, `palm-city`, `bunny-hop`. Copy one for a new game. |
+| `recipes/*.json` | Ready recipes: `scaggsville-3d`, `scaggsville-2d`, `scaggsville-2d-woods`, `college-park`, `palm-city`, `bunny-hop`. Copy one for a new game. Measurement recipes: `boot-timeline` (first paint / pick cards / first three.js frame / long tasks), `scaggsville-3d-draws` (per-object draws by pass: main + shadow), `scaggsville-3d-far-lod` (pinned street-level camera 1.1 km off the route, for comparing house LOD between builds with `--root`). |
 
 How it works: repo files are served by request interception; CDN files are fetched once and cached in
 `tools/lookdev/.cache/` (git-ignored). When `three.module.js` loads, a hook is appended so the latest
@@ -20,6 +20,7 @@ work on any three.js game without touching it. A WebGL draw counter is injected 
 
 ```json
 { "page": "games/x/index.html?query", "viewport": [390, 844], "dpr": 1,
+  "init": "/* optional: script run before any page script, e.g. performance observers */",
   "waitFor": "window.__proof",
   "steps": [
     {"eval": "window.__proof.start('brad')"}, {"wait": 2500},
@@ -30,6 +31,8 @@ work on any three.js game without touching it. A WebGL draw counter is injected 
 
 Prefer the game's own debug hooks (`__proof`, `__dbg`, `?cam=`, `?pilot`, `?t=`) for repeatable views: teleport
 to fixed points instead of driving there, or the camera ends up somewhere different every run.
+
+Compare two builds with the same recipe: `git worktree add /tmp/before <commit>` then `--root /tmp/before`.
 
 ## Typical loop
 

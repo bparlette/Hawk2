@@ -10,7 +10,7 @@
 //    is kept on globalThis.__lookdev, so `stats`, `tris` and `pick` work on ANY three.js game
 //  * a WebGL draw counter counts every GL draw call (includes shadow passes; works for 2D canvas games too)
 //
-// Recipe JSON: { "page": "games/x/index.html?query", "viewport": [390,844], "dpr": 1,
+// Recipe JSON: { "page": "games/x/index.html?query", "viewport": [390,844], "dpr": 1, "init": "js run before page scripts",
 //   "waitFor": "JS expression that becomes truthy when the page is ready", "timeout": 120000,
 //   "steps": [ {"eval": "js"}, {"wait": ms}, {"waitFor": "js"}, {"click": [x,y]}, {"key": "KeyW", "hold": ms},
 //              {"keyDown": "KeyW"}, {"keyUp": "KeyW"}, {"shot": "name"}, {"stats": "name"},
@@ -51,6 +51,7 @@ const GL_COUNTER = `(() => { let calls = 0; globalThis.__lookdevGL = { reset(){ 
   const [vw, vh] = R.viewport || [390, 844];
   const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: R.dpr || 1 });
   await ctx.addInitScript(GL_COUNTER);
+  if (R.init) await ctx.addInitScript(R.init);   // recipe-supplied script that runs before any page script (boot timelines, stubs)
   const report = { page: R.page, root: ROOT, viewport: [vw, vh], errors: [], consoleErrors: [], missing: [], steps: [] };
   await ctx.route('**/*', async (route) => {
     const req = route.request(), u = new URL(req.url());

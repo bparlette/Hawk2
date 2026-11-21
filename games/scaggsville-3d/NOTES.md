@@ -274,3 +274,33 @@ route are lean (walls + roof, `houseFullRadius`); merged normals and colours are
 
 Verify any future map change with the checks above: `tools/lookdev/` plus the coverage script pattern in
 `tools/extract_world.py`'s docstring.
+
+## Streaming world (Opus, Nov 21): camera-keyed house LOD, ~2 s boot, draws back under ~350
+
+Measured with `tools/lookdev/` at 390×844 (SwiftShader). Before = `273a4ed`.
+
+| | before | after |
+|---|---|---|
+| Boot: pick cards + first three.js frame (`recipes/boot-timeline.json`) | 6.9 s (one 6.7 s task) | **2.1 s** (longest task 1.9–2.1 s) |
+| GL draws, spawn / route 33 % (`recipes/scaggsville-3d.json`) | 450 / 373 | **352 / 254** |
+| Far street 1.1 km off the route (`recipes/scaggsville-3d-far-lod.json`) | lean houses, 368 draws, 612k tris | **full houses**, 323 draws, 596k tris |
+| Coverage | 4,496 roads, 9,931 buildings | unchanged |
+
+- **House LOD is keyed to the camera, not the route.** `planHouses()` decides every house once (seeded per building,
+  so the result doesn't depend on order or level); `createHouseLOD()` keeps one lean mesh per 450 m tile
+  (`houseTile`) and builds the full tile (foundation, door, porch, garage, driveway, mailbox, soffits, chimney,
+  windows, contact shadows) when the camera comes within `houseFullIn` 260 m, releasing it beyond `houseFullOut`
+  460 m. Any neighbourhood the player drives into gets full detail; memory stays bounded.
+- **One atlas material for houses and props** (`games/shared/world3d/atlas.js` + `T.atlas` in textures.js): 15
+  materials × tiles became one draw per tile. `textureGrad` with the unwrapped UV derivatives, so there are no mip seams.
+- **The build is time-sliced** (`games/shared/world3d/scheduler.js`). Before the first frame the only work is
+  textures, roads and lean houses within 650 m of the spawn. Everything else (the remaining lean tiles, full tiles
+  and vegetation per 400 m chunk) streams in slices nearest-first while the pick screen and depart sweep play.
+  Slices are 10 ms, and grow to 60 ms when frames are long, so streaming isn't tied to a slow frame rate.
+  Vegetation is chunk-seeded, so the tree layout differs from the old global-RNG one but is stable run to run.
+- **Road index:** exact capsule raster plus scanline lot fill, 449 → 65 ms.
+- **Shadow draws:** only house tiles, prop tiles and tree chunks near the camera cast. The sun's box is ±80 m;
+  far tiles cost shadow draws nobody could see.
+- **Not touched (other owners):** vehicles are the largest remaining draw cost, about 180 main-pass plus 43 shadow
+  draws at the spawn (`gpvehicles.js` cars are 130–175 meshes each; glass `MeshPhysicalMaterial` also triggers a
+  transmission pre-pass). Merging static car parts by material is the next lever.
