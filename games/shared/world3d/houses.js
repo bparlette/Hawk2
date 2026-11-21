@@ -71,6 +71,28 @@ export function houseMaterials(T){
 
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
 
+// footprint polygon -> [{cx,cz,hw,hd}] boxes aligned to (ex,ez). fill >= 0.8 (or a styled hero house): one box,
+// the true bbox. Otherwise the polygon is rasterised in the box frame and merged into rectangles.
+export function footprintParts(pts, cx, cz, ex, ez, single=false){
+  const L=pts.map(p=>{ const dx=p[0]-cx, dz=p[1]-cz; return [dx*ex[0]+dz*ex[1], dx*ez[0]+dz*ez[1]]; });
+  let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9; for(const [x,z] of L){ x0=Math.min(x0,x); x1=Math.max(x1,x); z0=Math.min(z0,z); z1=Math.max(z1,z); }
+  let A=0; for(let i=0,j=L.length-1;i<L.length;j=i++) A+=L[j][0]*L[i][1]-L[i][0]*L[j][1]; A=Math.abs(A)/2;
+  const toW=(lx,lz,hw,hd)=>({ cx:cx+ex[0]*lx+ez[0]*lz, cz:cz+ex[1]*lx+ez[1]*lz, hw, hd });
+  const fill=A/Math.max(1e-6,(x1-x0)*(z1-z0));
+  if(single || fill>=0.8 || L.length<5) return [toW((x0+x1)/2,(z0+z1)/2,(x1-x0)/2,(z1-z0)/2)];
+  const cell=Math.max(1, Math.min(4, Math.min(x1-x0,z1-z0)/6)), W=Math.max(1,Math.round((x1-x0)/cell)), H=Math.max(1,Math.round((z1-z0)/cell));
+  const cw=(x1-x0)/W, chh=(z1-z0)/H, inside=(x,z)=>{ let c=false; for(let i=0,j=L.length-1;i<L.length;j=i++){ const [xi,zi]=L[i],[xj,zj]=L[j]; if(((zi>z)!==(zj>z)) && (x<(xj-xi)*(z-zi)/(zj-zi)+xi)) c=!c; } return c; };
+  const g=new Uint8Array(W*H); for(let j=0;j<H;j++) for(let i=0;i<W;i++) g[j*W+i]=inside(x0+(i+0.5)*cw, z0+(j+0.5)*chh)?1:0;
+  const out=[];   // greedy maximal rectangles: grow right, then down while the whole run is filled
+  for(let j=0;j<H;j++) for(let i=0;i<W;i++){ if(!g[j*W+i]) continue;
+    let i1=i; while(i1+1<W && g[j*W+i1+1]) i1++;
+    let j1=j; for(;;){ if(j1+1>=H) break; let ok=true; for(let k=i;k<=i1;k++) if(!g[(j1+1)*W+k]){ ok=false; break; } if(!ok) break; j1++; }
+    for(let jj=j;jj<=j1;jj++) for(let k=i;k<=i1;k++) g[jj*W+k]=0;
+    const a=x0+i*cw, bq=x0+(i1+1)*cw, c=z0+j*chh, d=z0+(j1+1)*chh;
+    if((bq-a)*(d-c) >= 6) out.push(toW((a+bq)/2,(c+d)/2,(bq-a)/2,(d-c)/2)); }
+  return out.length? out : [toW((x0+x1)/2,(z0+z1)/2,(x1-x0)/2,(z1-z0)/2)];
+}
+
 // ---------- 1. plan: cheap per-footprint decisions for EVERY building (sync) ----------
 // Every random choice comes from per-building streams seeded by the building index, so a house is identical
 // whichever detail level builds it and in whatever order tiles stream in.
@@ -85,11 +107,17 @@ export function planHouses({ D, roads, tile=300 }){
     // box local +x MUST lie along the longest edge (dx,dz) = (sin ba, cos ba); three's rotation.y = ry maps +x to
     // (cos ry, -sin ry), so ry = atan2(-dz, dx). (-ba+PI/2 mirrored the axis in z — fixed Nov 21, median fill 0.50 -> 0.93.)
     const ry=Math.atan2(-Math.cos(ba), Math.sin(ba)), cos=Math.cos(ry), sin=Math.sin(ry), ex=[cos,-sin], ez=[sin,cos];
-    let hw=0, hd=0;
-    for(const p of pts){ const dx=p[0]-cx, dz=p[1]-cz; hw=Math.max(hw, Math.abs(dx*ex[0]+dz*ex[1])); hd=Math.max(hd, Math.abs(dx*ez[0]+dz*ez[1])); }
+    // footprint -> boxes in the house frame. The old box was centred on the vertex centroid with half-sizes = max
+    // |projection|, so it over-covered (the 30-point Atholton campus became one 337 x 129 m box over Freetown Road and
+    // its own rally stop). Now: the true bbox when the footprint fills it, else a raster of the real polygon merged
+    // into rectangles (one item + one collider per wing).
+    const isHeroSt = b.hero && b.hero!=='atholton' && heroStyle[b.hero];
+    const parts=footprintParts(pts, cx, cz, ex, ez, isHeroSt);
+    parts.forEach((P, partNo)=>{
+    let cx=P.cx, cz=P.cz, hw=P.hw, hd=P.hd;
     hw=Math.max(hw,2.2); hd=Math.max(hd,2.2);
     const area=4*hw*hd, isSchool=b.hero==='atholton', st=b.hero && !isSchool ? heroStyle[b.hero] : null;
-    const rS=mulberry32(idx*2654435761 ^ 0x51), rG=mulberry32(idx*2246822519 ^ 0x6a);
+    const rS=mulberry32(idx*2654435761 ^ 0x51), rG=mulberry32(idx*2246822519 ^ 0x6a ^ partNo*977);
     const kind = isSchool || (!st && area>520) ? 'big' : (!st && area<34 ? 'shed' : 'house');
     const storeys = isSchool? 2 : st? (st.storeys||2) : kind==='shed'? 1 : kind==='big'? 2 : (rS()<0.7?2:1);
     const wallTop = kind==='shed'? 2.5 : kind==='big'? (isSchool? 9 : 7.2) : FOUND + storeys*STOREY;
@@ -125,6 +153,7 @@ export function planHouses({ D, roads, tile=300 }){
     const tk=Math.floor(cx/tile)+','+Math.floor(cz/tile);
     if(!tiles.has(tk)) tiles.set(tk, { key:tk, x0:Math.floor(cx/tile)*tile, z0:Math.floor(cz/tile)*tile, size:tile, idx:[] });
     tiles.get(tk).idx.push(items.length-1);
+    });
   });
   return { items, colliders, drives, tiles, tileSize:tile };
 }
