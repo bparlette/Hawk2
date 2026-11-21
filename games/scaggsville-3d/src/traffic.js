@@ -179,7 +179,7 @@ export function createTraffic(scene, world, D) {
     tailIM.setMatrixAt(idx, _m);
   }
 
-  function update(dt, playerCar, fx, audio, callbacks = {}) {
+  function update(dt, playerCar, fx, audio, callbacks = {}, signals = null) {
     const px = playerCar.x, pz = playerCar.z;
     const pSpd = Math.abs(playerCar.speed);
 
@@ -234,8 +234,37 @@ export function createTraffic(scene, world, D) {
             while (dh > Math.PI) dh -= Math.PI * 2;
             while (dh < -Math.PI) dh += Math.PI * 2;
             c.heading += dh * Math.min(1, dt * 6);
-            const wantSpd = pullOver ? 2.4 : c.targetSpeed;
-            c.speed += (wantSpd - c.speed) * Math.min(1, dt * (pullOver ? 4.5 : 2.5));
+            let wantSpd = pullOver ? 2.4 : c.targetSpeed;
+            let braking = pullOver;
+
+            // 1. Signalized intersection stop-at-red & caution-on-yellow (never stops ON crossing!)
+            if (signals) {
+              const sig = signals.queryApproach(c.x, c.z, c.heading);
+              if (sig && (sig.state === 'red' || (sig.state === 'yellow' && sig.stopDist > 5.0))) {
+                const cap = sig.stopDist <= 1.4 ? 0 : (sig.stopDist - 1.2) * 1.45;
+                if (cap < wantSpd) { wantSpd = cap; braking = true; }
+              }
+            }
+
+            // 2. Smooth queueing behind any stopped/slower traffic car ahead in the same lane
+            const cFx = Math.sin(c.heading), cFz = Math.cos(c.heading);
+            for (let j = 0; j < POOL_SIZE; j++) {
+              if (j === i) continue;
+              const o = cars[j];
+              if (!o.active || o.hijacked) continue;
+              const odx = o.x - c.x, odz = o.z - c.z;
+              const fwd = odx * cFx + odz * cFz;
+              if (fwd <= 0.5 || fwd > 16.5) continue;
+              const lat = Math.abs(-odx * cFz + odz * cFx);
+              if (lat > 1.85) continue;
+              const align = cFx * Math.sin(o.heading) + cFz * Math.cos(o.heading);
+              if (align < 0.72) continue;
+              const qCap = fwd <= 6.2 ? 0 : Math.min(o.speed + (fwd - 6.2) * 1.5, (fwd - 5.8) * 1.6);
+              if (qCap < wantSpd) { wantSpd = qCap; braking = true; }
+            }
+
+            c.speed += (wantSpd - c.speed) * Math.min(1, dt * (braking ? 6.0 : 2.6));
+            if (wantSpd === 0 && c.speed < 0.15) c.speed = 0;
             c.x += Math.sin(c.heading) * c.speed * dt;
             c.z += Math.cos(c.heading) * c.speed * dt;
           }
@@ -279,5 +308,41 @@ export function createTraffic(scene, world, D) {
     for (const im of [bodyIM, glassIM, darkIM, headIM, tailIM]) im.instanceMatrix.needsUpdate = true;
   }
 
-  return { cars, update };
+  function seedQueue(junc, count = 2) {
+    if (!junc) return 0;
+    // Find a road segment near junc aligned with junc's Axis A
+    let bestEdge = null, bestScore = 1e9;
+    for (const e of spawnEdges) {
+      const d = Math.hypot(e.mx - junc.x, e.mz - junc.z);
+      if (d > 65) continue;
+      const pts = e.road.pts, a = pts[e.segIdx], b = pts[e.segIdx + 1];
+      const eh = Math.atan2(b[0] - a[0], b[1] - a[1]);
+      const align = Math.abs(Math.sin(eh) * junc.fx + Math.cos(eh) * junc.fz);
+      if (align > 0.75 && d < bestScore) { bestScore = d; bestEdge = e; }
+    }
+    if (!bestEdge) return 0;
+    const pts = bestEdge.road.pts;
+    const a = pts[bestEdge.segIdx], b = pts[bestEdge.segIdx + 1];
+    const eh = Math.atan2(b[0] - a[0], b[1] - a[1]);
+    const dir = (Math.sin(eh) * junc.fx + Math.cos(eh) * junc.fz) >= 0 ? 1 : -1;
+    const h = dir > 0 ? eh : eh + Math.PI;
+    const fx = Math.sin(h), fz = Math.cos(h), rx = -fz, rz = fx;
+    const laneOff = Math.min(2.2, Math.max(1.2, (bestEdge.road.w || 8.5) * 0.24));
+    let placed = 0;
+    for (let k = 0; k < Math.min(count, POOL_SIZE); k++) {
+      const c = cars[k];
+      const back = 13.5 + k * 7.8;
+      c.active = true; c.hijacked = false; c.stun = 0;
+      c.road = bestEdge.road; c.segIdx = bestEdge.segIdx; c.dir = dir;
+      c.x = junc.x - fx * back + rx * laneOff;
+      c.z = junc.z - fz * back + rz * laneOff;
+      c.heading = h; c.speed = 6.5; c.targetSpeed = 13;
+      syncInstance(c, k);
+      placed++;
+    }
+    for (const im of [bodyIM, glassIM, darkIM, headIM, tailIM]) im.instanceMatrix.needsUpdate = true;
+    return placed;
+  }
+
+  return { cars, update, seedQueue };
 }

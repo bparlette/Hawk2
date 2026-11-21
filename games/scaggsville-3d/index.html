@@ -151,6 +151,7 @@ import { createMinimap } from './src/minimap.js';
 import { createRadio } from './src/radio.js';
 import { createActivities } from './src/activities.js';
 import { createPost } from './src/post.js';
+import { createSignals } from './src/signals.js';
 
 /* ============================== RENDERER / SCENE ============================== */
 const L = WORLD_LIGHTING;
@@ -207,6 +208,7 @@ const fx = createFX(scene);
 const traffic = createTraffic(scene, world, WORLD_DATA);
 const props = createProps(scene, world, WORLD_DATA);
 const wanted = createWanted(scene, world, WORLD_DATA);
+const signals = createSignals(scene, WORLD_DATA);
 const minimap = createMinimap(WORLD_DATA, document.body);
 const radio = createRadio({ music, gameAudio });
 const activities = createActivities({
@@ -893,19 +895,29 @@ function animate(){
       }
     }
 
-    // convoy followers retrace the trail
+    // convoy followers retrace the trail (loosely respect reds when close to player; catch up if held)
     followers.forEach((f, i)=>{
       if (f.missionHold) return;   // Lane D has the wheel (fake-cop beat)
       const back=(i+1)*13.5, want=trailDist-back;
       let tp=trail[0];
       for(let j=trail.length-1;j>=0;j--){ if(trail[j].d<=want){ tp=trail[j]; break; } }
-      const dist=pursue(f.state, tp.x, tp.z, dt, world.surfaceAt(f.state.x, f.state.z), { arriveDist:26 });
-      if(dist<2.2 && Math.abs(player.speed)<0.4) f.state.speed*=0.8;
+      const gap=Math.hypot(f.state.x-player.x, f.state.z-player.z);
+      const fSig = gap < 65 ? signals.queryApproach(f.state.x, f.state.z, f.state.heading) : null;
+      const holdRed = !!(fSig && fSig.state === 'red' && fSig.stopDist > 0.4 && fSig.stopDist < 15);
+      if (holdRed) {
+        f.state.speed *= Math.exp(-6 * dt);
+        if (Math.abs(f.state.speed) < 0.15) f.state.speed = 0;
+        f.state.x += Math.sin(f.state.heading) * f.state.speed * dt;
+        f.state.z += Math.cos(f.state.heading) * f.state.speed * dt;
+      } else {
+        const dist=pursue(f.state, tp.x, tp.z, dt, world.surfaceAt(f.state.x, f.state.z), { arriveDist:26, boost: gap > 55 });
+        if(dist<2.2 && Math.abs(player.speed)<0.4) f.state.speed*=0.8;
+      }
       collide(f.state, world.colliders);
       f.veh.group.position.set(f.state.x, 0, f.state.z);
       f.veh.group.rotation.y=f.state.heading;
       f.veh.updateWheels(f.state.speed, f.state.steerVis, dt);
-      if(f.veh.setLights) f.veh.setLights({ brake:false, reverse:false, nightK });
+      if(f.veh.setLights) f.veh.setLights({ brake: holdRed, reverse:false, nightK });
     });
     // crew figures: idle at their houses, wave when you're headed their way,
     // walk to their car when they join, player figure gets in at first throttle
@@ -930,11 +942,12 @@ function animate(){
       }
     }
 
-    // Live GTA World: AI Traffic, Breakables + Stunt Ramps, Howard County PD & FX
+    // Live GTA World: Signals, AI Traffic, Breakables + Stunt Ramps, Wanted & FX
+    signals.update(dt);
     traffic.update(dt, player, fx, gameAudio, {
       onNearMiss: () => addScore(100, 'NEAR MISS!'),
       onTrafficHit: imp => { if(imp > 14) wanted.addHeat(14, 'HIT & RUN'); }
-    });
+    }, signals);
     props.update(dt, player, fx, gameAudio, {
       onPropSmash: it => {
         addScore(it.kind==='hydrant'? 75 : 40, it.kind==='hydrant'? 'HYDRANT GEYSER!' : 'SMASH!');
@@ -1106,6 +1119,9 @@ window.__dbg={ get ready(){ return started; },
   get music(){ return music.state(); },
   get cine(){ return cine.state; },
   get post(){ return post.stats(); },
+  get signals(){ return { count: signals.junctions.length, drawCalls: signals.drawCalls,
+    junctions: signals.junctions.map(j => ({ id:j.id, x:+j.x.toFixed(1), z:+j.z.toFixed(1), h:+j.heading.toFixed(2),
+      name: j.mainName+' & '+j.crossName, stateA:j.stateA, stateB:j.stateB })) }; },
   get state(){ return player? { x:player.x, z:player.z, heading:player.heading, speed:player.speed,
     collected:[...collected], targets:[...targets], followers:followers.length, finished,
     driverSeated: !!(playerVeh && playerVeh._driver),
@@ -1152,6 +1168,10 @@ window.__proof={
   setCam(m){ camMode=(m|0)%3; cine.cancel(); },
   setInput(obj){ proofInput=obj || null; },
   setBloom(on){ post.setBloom(on); },
+  signalAt(i=0){ const j=signals.junctions[i|0]; return j? { id:j.id, x:j.x, z:j.z, heading:j.heading, name:j.mainName+' & '+j.crossName, stateA:j.stateA, stateB:j.stateB } : null; },
+  setSignalPhase(i, t){ signals.setPhase(i, t); },
+  seedQueue(i=0, n=2){ return traffic.seedQueue(signals.junctions[i|0], n); },
+  trafficNear(x, z, r=45){ return traffic.cars.filter(c=>c.active && Math.hypot(c.x-x, c.z-z)<r).map(c=>({ x:+c.x.toFixed(1), z:+c.z.toFixed(1), speed:+c.speed.toFixed(2) })); },
 };
 window.__missions = missions;
 window.__crowd = crowd;   // Lane A seam for the party lane (spawnCrowd/clearCrowd)
