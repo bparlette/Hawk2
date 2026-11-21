@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Scaggsville 3D — Crew Lineup</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#232038;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  #game{position:fixed;inset:0;} canvas{display:block;}
+  #cap{position:fixed;left:0;right:0;bottom:0;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
+    color:#fff;background:linear-gradient(0deg, rgba(8,10,20,.72), transparent);pointer-events:none;}
+  #cap b{font-size:19px;letter-spacing:.02em;}
+  #cap span{display:block;font-size:12.5px;color:#ffd9a0;font-weight:700;letter-spacing:.06em;margin-top:2px;}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="cap"><b></b><span></span></div>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildVehicle } from '../shared/gpvehicles.js';
+import { buildPerson, poseIdle, poseWave, poseWalk } from '../shared/people.js';
+import { CREW_VEHICLES, CREW_PEOPLE } from './src/crew.js';
+import { makeSkyDome, applyWorldEnvMap, WORLD_LIGHTING } from './src/world/buildWorld.js';
+
+const L = WORLD_LIGHTING;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = L.renderer.exposure;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.getElementById('game').appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 6000);
+scene.add(makeSkyDome());
+applyWorldEnvMap(renderer, scene);
+const sunDir = new THREE.Vector3(...L.sun.dir).normalize();
+const sun = new THREE.DirectionalLight(L.sun.color, L.sun.intensity);
+sun.position.copy(sunDir).multiplyScalar(60); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -40; sun.shadow.camera.right = 40; sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
+sun.shadow.camera.near = 5; sun.shadow.camera.far = 160; sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.05;
+scene.add(sun); scene.add(sun.target);
+scene.add(new THREE.HemisphereLight(L.hemi.sky, L.hemi.ground, L.hemi.intensity));
+scene.add(new THREE.AmbientLight(L.ambient.color, L.ambient.intensity));
+const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 40),
+  new THREE.MeshStandardMaterial({ color: 0x4d6338, roughness: 1 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const apron = new THREE.Mesh(new THREE.PlaneGeometry(90, 30),
+  new THREE.MeshStandardMaterial({ color: 0x565d68, roughness: 0.94 }));
+apron.rotation.x = -Math.PI / 2; apron.position.set(0, 0.01, -3); apron.receiveShadow = true; scene.add(apron);
+
+const params = new URLSearchParams(location.search);
+const only = params.get('car');
+const view = params.get('view');
+const ORDER = ['brad', 'clayton', 'rigg', 'kosack', 'cavalierBlack', 'jason', 'grant', 'jimmy', 'billy', 'zack', 'lamar'];
+const figures = [];
+const cars = {};
+if (view === 'people') {
+  // dedicated people stage: three figures in front of Brad's Camaro
+  const veh = buildVehicle(CREW_VEHICLES.brad);
+  veh.group.position.set(0, 0, -1.6); veh.group.rotation.y = -0.35;
+  scene.add(veh.group); cars.brad = veh;
+  [['jimmy', -1.25, 1.0], ['brad', 0, 1.25], ['billy', 1.25, 1.0]].forEach(([id, x, z]) => {
+    const p = buildPerson(CREW_PEOPLE[id]);
+    p.group.position.set(x, 0, z); p.group.rotation.y = -0.15;
+    scene.add(p.group); figures.push(p);
+  });
+} else {
+  ORDER.forEach((id, i) => {
+    if (only && only !== id) return;
+    const veh = buildVehicle(CREW_VEHICLES[id]);
+    // two depth rows for the group shot (portrait-friendly); single car
+    // centred for ?car=
+    const row = i < 6 ? 0 : 1, col = i < 6 ? i : i - 6;
+    const x = only ? 0 : (row ? 3.6 : -3.6);
+    const z = only ? 0 : (row ? 2.8 : 6) - col * 6.3;
+    veh.group.position.set(x, 0, z);
+    veh.group.rotation.y = only ? 0 : -0.42;
+    scene.add(veh.group); cars[id] = veh;
+    if (only && CREW_PEOPLE[id]) {
+      const p = buildPerson(CREW_PEOPLE[id]);
+      p.group.position.set(2.7, 0, 0.9);
+      p.group.rotation.y = -0.4; // figures face +Z (toward the camera) with a slight angle
+      scene.add(p.group); figures.push(p);
+    }
+  });
+}
+const capB = document.querySelector('#cap b'), capS = document.querySelector('#cap span');
+if (only && cars[only]) {
+  capB.textContent = CREW_VEHICLES[only].name;
+  capS.textContent = 'gpvehicles.js · style: ' + CREW_VEHICLES[only].style + (only === 'rigg'
+    ? ' · modeled from the fleet spec — the showcase photo is a different (1970s) car'
+    : only === 'cavalierBlack' ? ' · modeled from the fleet asset sheet' : ' · modeled from the reference photo');
+  const rear = only === 'rigg'; // rigg's showcase ref is a rear 3/4
+  camera.position.set(rear ? 5.4 : -6.6, 2.0, rear ? -8.2 : 8.8);
+  camera.lookAt(0, 0.62, 0);
+} else if (view === 'people') {
+  capB.textContent = 'The Crew';
+  capS.textContent = 'Figure Factory / rigkit-method figures — idle, wave, walk poses are procedural';
+  camera.position.set(0.3, 1.45, 7.4); camera.lookAt(0.3, 0.92, 0);
+} else {
+  capB.textContent = 'Scaggsville 3D — The Full Fleet';
+  capS.textContent = 'One shared vehicle factory (gpvehicles.js) · eleven data rows · profiles traced from the real cars';
+  camera.position.set(0, 7.5, 17.5); camera.lookAt(0, 0, -6);
+}
+const clock = new THREE.Clock();
+let walkPhase = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  figures.forEach((p, i) => {
+    if (view === 'people') {
+      if (i % 3 === 0) poseWave(p, t);
+      else if (i % 3 === 1) { poseWalk(p, walkPhase + i); }
+      else poseIdle(p, t);
+    } else poseWave(p, t);
+  });
+  walkPhase += dt * 7;
+  for (const id in cars) cars[id].updateWheels(0, 0, 0);
+  renderer.render(scene, camera);
+}
+animate();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+window.__lineup = { ready: true, cars: Object.keys(cars) };
+</script>
+</body>
+</html>

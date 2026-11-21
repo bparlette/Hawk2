@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Bake-Off #1 — Classic Muscle Ute</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #0d1a38; color: #eef3fb;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 10px; left: 10px; z-index: 10;
+    background: rgba(8, 14, 30, 0.72); border: 1px solid rgba(140, 190, 255, 0.3);
+    border-radius: 10px; padding: 8px 12px; font-size: 11px; line-height: 1.45;
+    backdrop-filter: blur(6px); user-select: none;
+  }
+  #hud b { color: #8ec5ff; letter-spacing: 0.12em; }
+  #views {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 10; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+  }
+  #views button {
+    background: rgba(8, 14, 30, 0.76); color: #eef3fb;
+    border: 1px solid rgba(140, 190, 255, 0.35); border-radius: 999px;
+    padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer;
+  }
+  #views button.active { background: #1d64c8; border-color: #9ed0ff; }
+  body.clean #hud, body.clean #views { display: none; }
+</style>
+</head>
+<body>
+<div id="hud"><b>NEON BAKE-OFF #1 · MUSCLE UTE</b><div id="stats">Loading…</div></div>
+<div id="views">
+  <button id="bOrbit" class="active">Orbit</button>
+  <button id="b1">1 · Rear 3/4 (ute-shop-dusk)</button>
+  <button id="b2">2 · Profile (drive-5)</button>
+  <button id="b3">3 · Front 3/4</button>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildUte } from './buildUte.js';
+
+const params = new URLSearchParams(window.location.search);
+if (params.get('clean') === '1') document.body.classList.add('clean');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.22;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x162952, 22, 85);
+
+// Blue-hour sky dome + warm shopfront horizon glow (used for both sky & PMREM reflections!)
+function createBlueHourSky() {
+  const geo = new THREE.SphereGeometry(90, 32, 20);
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    vertexShader: `
+      varying vec3 vDir;
+      void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: `
+      varying vec3 vDir;
+      void main() {
+        vec3 d = normalize(vDir);
+        float h = clamp(d.y, 0.0, 1.0);
+        vec3 colHor = vec3(0.24, 0.44, 0.78);
+        vec3 colMid = vec3(0.09, 0.22, 0.56);
+        vec3 colTop = vec3(0.03, 0.08, 0.24);
+        vec3 sky = mix(colHor, colMid, smoothstep(0.0, 0.26, h));
+        sky = mix(sky, colTop, smoothstep(0.22, 0.85, h));
+        // Warm horizon sunset whisper + shopfront bounce in PMREM
+        float warmSide = pow(max(dot(d, normalize(vec3(-0.75, 0.14, -0.45))), 0.0), 4.0);
+        sky += vec3(0.88, 0.46, 0.34) * warmSide * 0.55;
+        float shopGlow = pow(max(dot(d, normalize(vec3(-0.6, 0.08, 0.65))), 0.0), 5.0);
+        sky += vec3(0.45, 0.82, 1.0) * shopGlow * 0.42;
+        if (d.y < 0.0) sky = mix(colHor * 0.45, vec3(0.05, 0.09, 0.18), clamp(-d.y * 5.0, 0.0, 1.0));
+        gl_FragColor = vec4(sky, 1.0);
+      }
+    `,
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+scene.add(createBlueHourSky());
+
+// Bake PMREM environment from blue-hour sky so clearcoat cobalt paint reflects the sky!
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envScene = new THREE.Scene();
+envScene.add(createBlueHourSky());
+const envRT = pmrem.fromScene(envScene, 0.035);
+scene.environment = envRT.texture;
+pmrem.dispose();
+
+// Blue-hour key + warm shop bounce + cool sky fill
+const hemi = new THREE.HemisphereLight(0x6da8ff, 0x26324d, 1.35);
+scene.add(hemi);
+const keySun = new THREE.DirectionalLight(0xaacdff, 1.85);
+keySun.position.set(10, 11, 8);
+keySun.castShadow = true;
+keySun.shadow.mapSize.set(1024, 1024);
+keySun.shadow.camera.left = -9; keySun.shadow.camera.right = 9;
+keySun.shadow.camera.top = 9; keySun.shadow.camera.bottom = -9;
+keySun.shadow.bias = -0.0005;
+scene.add(keySun);
+
+const shopWarm = new THREE.PointLight(0xffb56b, 22, 18, 1.6);
+shopWarm.position.set(-4.5, 3.2, -3.5);
+scene.add(shopWarm);
+
+const shopCyan = new THREE.PointLight(0x52c8ff, 14, 16, 1.6);
+shopCyan.position.set(-5.5, 2.8, 3.2);
+scene.add(shopCyan);
+
+// Wet-look blue-hour auto-shop lot ground
+function makeWetApronTex() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#2e3b52';
+  g.fillRect(0, 0, 512, 512);
+  let s = 777;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  for (let i = 0; i < 16000; i++) {
+    const v = 38 + Math.floor(rnd() * 34);
+    g.fillStyle = `rgb(${v},${v + 8},${v + 22})`;
+    g.fillRect(rnd() * 512, rnd() * 512, 2, 2);
+  }
+  // Subtle damp reflection patches
+  for (let i = 0; i < 14; i++) {
+    const x = rnd() * 512, y = rnd() * 512, r = 30 + rnd() * 75;
+    const gr = g.createRadialGradient(x, y, 4, x, y, r);
+    gr.addColorStop(0, 'rgba(18, 28, 48, 0.35)');
+    gr.addColorStop(1, 'rgba(18, 28, 48, 0)');
+    g.fillStyle = gr;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(9, 9);
+  return tex;
+}
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(70, 70),
+  new THREE.MeshStandardMaterial({
+    map: makeWetApronTex(),
+    roughness: 0.28,
+    metalness: 0.18,
+    envMapIntensity: 1.35,
+  })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Subtle tiki auto-shop backdrop (red canopy, lit bay, pennant string, cones, dumpster, palms)
+{
+  const backdrop = new THREE.Group();
+  const stucco = new THREE.MeshStandardMaterial({ color: 0xc2aa8e, roughness: 0.9 });
+  const redCanopy = new THREE.MeshStandardMaterial({ color: 0xb83834, roughness: 0.72, side: THREE.DoubleSide });
+  const cyanBay = new THREE.MeshStandardMaterial({ color: 0x9ce8ff, emissive: 0x4cc4ff, emissiveIntensity: 2.2 });
+  const warmSign = new THREE.MeshStandardMaterial({ color: 0xffe4b2, emissive: 0xffa84c, emissiveIntensity: 2.4 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0x4a5666, roughness: 0.5, metalness: 0.5 });
+  const coneMat = new THREE.MeshStandardMaterial({ color: 0xe65a24, roughness: 0.6 });
+
+  // Shop building behind & to the left of the ute
+  const shop = new THREE.Mesh(new THREE.BoxGeometry(10, 4.4, 5.5), stucco);
+  shop.position.set(-8.5, 2.2, -5.5);
+  backdrop.add(shop);
+  const bay = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 2.9), cyanBay);
+  bay.position.set(-8.5, 1.55, -2.72);
+  backdrop.add(bay);
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.55, 0.16), warmSign);
+  sign.position.set(-8.5, 3.7, -2.7);
+  backdrop.add(sign);
+
+  // Red pop-up canopy tent (ute-shop-dusk.jpg)
+  const canopyTop = new THREE.Mesh(new THREE.ConeGeometry(3.4, 1.1, 4), redCanopy);
+  canopyTop.position.set(-3.2, 3.3, -6.2);
+  canopyTop.rotation.y = Math.PI / 4;
+  backdrop.add(canopyTop);
+  for (const [px, pz] of [[-5.2, -8.2], [-1.2, -8.2], [-5.2, -4.2], [-1.2, -4.2]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.8, 6), steel);
+    leg.position.set(px, 1.4, pz);
+    backdrop.add(leg);
+  }
+
+  // Overhead red/white pennant string (ute-shop-night.jpg)
+  const penMatR = new THREE.MeshStandardMaterial({ color: 0xd93a36, roughness: 0.7, side: THREE.DoubleSide });
+  const penMatW = new THREE.MeshStandardMaterial({ color: 0xf2f4f8, roughness: 0.7, side: THREE.DoubleSide });
+  const penGeo = new THREE.ConeGeometry(0.16, 0.34, 3);
+  penGeo.rotateX(Math.PI);
+  for (let i = 0; i < 16; i++) {
+    const t = i / 15;
+    const x = -7.5 + t * 14.5;
+    const sag = Math.sin(t * Math.PI) * 0.65;
+    const p = new THREE.Mesh(penGeo, i % 2 === 0 ? penMatR : penMatW);
+    p.position.set(x, 4.4 - sag, -2.8);
+    backdrop.add(p);
+  }
+
+  // Traffic cones + dumpster
+  for (const [cx, cz] of [[-4.0, 2.8], [-4.5, 2.1], [3.6, -4.2]]) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.52, 10), coneMat);
+    cone.position.set(cx, 0.26, cz);
+    backdrop.add(cone);
+  }
+  const dump = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.25, 1.3), new THREE.MeshStandardMaterial({ color: 0x3b483d, roughness: 0.78 }));
+  dump.position.set(-2.2, 0.62, -7.8);
+  backdrop.add(dump);
+
+  // Pole light behind shop
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 7.5, 8), steel);
+  pole.position.set(1.2, 3.75, -8.5);
+  backdrop.add(pole);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 10), cyanBay);
+  lamp.position.set(1.2, 7.4, -8.5);
+  backdrop.add(lamp);
+
+  scene.add(backdrop);
+}
+
+// Add the hero Classic Muscle Ute
+const ute = buildUte();
+scene.add(ute);
+
+// Camera + fixed reference-matching angles
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 200);
+const SHOTS = {
+  // 1. 3/4 rear-side matching ute-shop-dusk.jpg (full 5.15 m ute with margin at 390x844 portrait)
+  '1': { pos: [9.6, 1.75, -7.8], look: [-0.15, 0.80, -0.05], fov: 50 },
+  // 2. Pure side profile matching drive-5.jpg (full nose-to-tail silhouette with margin at 390x844 portrait)
+  '2': { pos: [14.4, 1.38, 0.0], look: [0.0, 0.78, 0.0], fov: 50 },
+  // 3. 3/4 front (full nose-to-tail with hood power-bulge, quad lamps, chrome bumper, wash)
+  '3': { pos: [9.2, 1.70, 8.8], look: [-0.08, 0.76, 0.10], fov: 50 },
+};
+
+let mode = 'orbit';
+let angle = -0.68, pitch = 0.20, dist = 6.2;
+const target = new THREE.Vector3(0, 0.78, 0.05);
+
+function setMode(m) {
+  mode = m;
+  ['bOrbit', 'b1', 'b2', 'b3'].forEach((id) => {
+    document.getElementById(id).classList.toggle('active', id === (m === 'orbit' ? 'bOrbit' : 'b' + m));
+  });
+  if (SHOTS[m]) {
+    camera.fov = SHOTS[m].fov;
+    camera.updateProjectionMatrix();
+    camera.position.set(...SHOTS[m].pos);
+    camera.lookAt(...SHOTS[m].look);
+  }
+}
+
+document.getElementById('bOrbit').onclick = () => setMode('orbit');
+document.getElementById('b1').onclick = () => setMode('1');
+document.getElementById('b2').onclick = () => setMode('2');
+document.getElementById('b3').onclick = () => setMode('3');
+
+const reqShot = params.get('shot');
+if (reqShot && SHOTS[reqShot]) setMode(reqShot);
+
+let dragging = false, lx = 0, ly = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; if (mode !== 'orbit') setMode('orbit'); });
+window.addEventListener('pointerup', () => { dragging = false; });
+window.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  angle -= (e.clientX - lx) * 0.006;
+  pitch = THREE.MathUtils.clamp(pitch + (e.clientY - ly) * 0.005, 0.04, 1.1);
+  lx = e.clientX; ly = e.clientY;
+});
+renderer.domElement.addEventListener('wheel', (e) => {
+  if (mode !== 'orbit') setMode('orbit');
+  dist = THREE.MathUtils.clamp(dist + e.deltaY * 0.01, 3.2, 14);
+}, { passive: true });
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const statsEl = document.getElementById('stats');
+let lastT = performance.now(), frameTimes = [];
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const w0 = performance.now();
+  const dt = Math.min(0.05, (now - lastT) * 0.001);
+  lastT = now;
+
+  if (mode === 'orbit') {
+    if (!dragging) angle += dt * 0.22;
+    camera.position.set(
+      target.x + Math.cos(angle) * Math.cos(pitch) * dist,
+      target.y + Math.sin(pitch) * dist,
+      target.z + Math.sin(angle) * Math.cos(pitch) * dist
+    );
+    camera.lookAt(target);
+  }
+  renderer.render(scene, camera);
+  frameTimes.push(performance.now() - w0);
+  if (frameTimes.length > 60) frameTimes.shift();
+  const med = [...frameTimes].sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)] || 0;
+  statsEl.textContent = `Draw calls: ${renderer.info.render.calls} · Tris: ${renderer.info.render.triangles.toLocaleString()} · Work: ${med.toFixed(2)} ms`;
+}
+requestAnimationFrame(animate);
+
+window.__bakeoff = { renderer, scene, camera, setMode };
+</script>
+</body>
+</html>

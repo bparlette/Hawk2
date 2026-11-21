@@ -29,13 +29,13 @@ export const WORLD_CONFIG = {
   skylineCard: true,      // hazed distant skyline silhouette on canal axis (1 draw)
 };
 
-// Reference lighting & renderer values (frame-1 sky, frame-2 sun, frame-5 blue ambient)
+// Reference lighting & renderer values (frame-1 sky, frame-2 20deg sun clearing houses, frame-5 blue ambient)
 export const WORLD_LIGHTING = {
   fog: { color: 0x8d82a3, near: 42, far: 160 },
-  sun: { color: 0xffb38a, intensity: 2.35, dir: [-0.84, 0.19, 0.50] },
-  hemi: { sky: 0xa4cbf7, ground: 0x675e70, intensity: 1.75 },
-  ambient: { color: 0x627aa8, intensity: 1.05 },
-  renderer: { toneMapping: 'ACESFilmicToneMapping', exposure: 1.18 },
+  sun: { color: 0xffb38a, intensity: 2.35, dir: [-0.80, 0.34, 0.48] },
+  hemi: { sky: 0xa4cbf7, ground: 0x675e70, intensity: 1.72 },
+  ambient: { color: 0x627aa8, intensity: 1.02 },
+  renderer: { toneMapping: 'ACESFilmicToneMapping', exposure: 1.16 },
 };
 
 export const WATER_Y = 0.0;
@@ -115,8 +115,8 @@ function makeAsphaltTexture(withLines = true) {
   c.height = 256;
   const g = c.getContext('2d');
   const rng = mulberry32(101);
-  // Mid grey-blue asphalt targeting road luma 70-100 (frame-2, frame-4)
-  g.fillStyle = '#626f82';
+  // Mid grey-blue asphalt targeting road luma 75-90 (frame-2 measures 85)
+  g.fillStyle = '#728094';
   g.fillRect(0, 0, 256, 256);
 
   // Patchy wear & resurfacing strips (frame-2)
@@ -125,37 +125,32 @@ function makeAsphaltTexture(withLines = true) {
     const py = rng() * 256;
     const pw = 24 + rng() * 68;
     const ph = 18 + rng() * 52;
-    g.fillStyle = rng() < 0.5 ? 'rgba(132, 146, 166, 0.22)' : 'rgba(66, 76, 92, 0.24)';
+    g.fillStyle = rng() < 0.5 ? 'rgba(148, 162, 182, 0.22)' : 'rgba(78, 88, 106, 0.20)';
     g.fillRect(px, py, pw, ph);
   }
 
   // Subtle tire-track polishing bands
-  g.fillStyle = 'rgba(54, 62, 76, 0.22)';
+  g.fillStyle = 'rgba(64, 74, 90, 0.18)';
   g.fillRect(0, 44, 256, 42);
   g.fillRect(0, 170, 256, 42);
 
-  // Aggregate grain
-  for (let i = 0; i < 4200; i++) {
+  // Fine-grained aggregate speckle (frame-2 wear, no blocky near-field glyphs)
+  for (let i = 0; i < 6400; i++) {
     const x = rng() * 256;
     const y = rng() * 256;
-    const v = 78 + Math.floor(rng() * 44);
+    const v = 96 + Math.floor(rng() * 42);
     g.fillStyle = `rgb(${v},${v + 8},${v + 18})`;
-    g.fillRect(x, y, 2, 2);
+    g.fillRect(x, y, 1, 1);
   }
 
-  // Hairline tar repair seams
-  g.strokeStyle = 'rgba(42, 48, 60, 0.45)';
-  g.lineWidth = 1.5;
-  for (let i = 0; i < 6; i++) {
+  // Subtle fine longitudinal micro-seams (no blocky zig-zags)
+  g.strokeStyle = 'rgba(56, 66, 82, 0.22)';
+  g.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    const y = 32 + rng() * 192;
     g.beginPath();
-    let x = rng() * 256;
-    let y = rng() * 256;
-    g.moveTo(x, y);
-    for (let s = 0; s < 5; s++) {
-      x += (rng() - 0.5) * 38;
-      y += (rng() - 0.5) * 28;
-      g.lineTo(x, y);
-    }
+    g.moveTo(0, y);
+    g.lineTo(256, y + (rng() - 0.5) * 6);
     g.stroke();
   }
 
@@ -369,9 +364,11 @@ function createCanalWater(sunDir, fogColor, fogNear, fogFar) {
     uFogColor: { value: new THREE.Color(fogColor) },
     uFogNear: { value: fogNear },
     uFogFar: { value: fogFar },
+    uSwimmer: { value: new THREE.Vector4(0, 0, 0, 0) }, // (x, z, speed, active)
   };
   const mat = new THREE.ShaderMaterial({
     transparent: true,
+    side: THREE.DoubleSide, // the surface must also render seen from BELOW (diving)
     uniforms,
     vertexShader: /* glsl */ `
       varying vec3 vWorldPos;
@@ -390,6 +387,7 @@ function createCanalWater(sunDir, fogColor, fogNear, fogFar) {
       uniform vec3 uFogColor;
       uniform float uFogNear;
       uniform float uFogFar;
+      uniform vec4 uSwimmer;
       varying vec3 vWorldPos;
       varying float vFogDepth;
 
@@ -409,32 +407,65 @@ function createCanalWater(sunDir, fogColor, fogNear, fogFar) {
         ));
 
         vec3 V = normalize(cameraPosition - vWorldPos);
+        float underBridge = (1.0 - smoothstep(3.8, 6.2, abs(p.x))) * (1.0 - smoothstep(8.0, 11.0, abs(p.y)));
+
+        /* ---- the surface seen from BELOW (diving): a bright refractive
+           ceiling — cyan brightening toward overhead (Snell's window), warm
+           sun transmission, ripple sparkle, and bridge silhouette overhead. */
+        if (!gl_FrontFacing) {
+          float up = pow(max(dot(V, vec3(0.0, 1.0, 0.0)), 0.0), 1.35);
+          float sun = pow(max(dot(V, uSunDir), 0.0), 5.0);
+          float sparkle = 0.5 + 0.5 * sin(p.x * 6.0 + t * 2.0 + w3 * 4.0) * sin(p.y * 5.0 - t * 1.7);
+          vec3 colB = mix(vec3(0.14, 0.40, 0.58), vec3(0.62, 0.86, 0.96), up);
+          colB += vec3(1.0, 0.86, 0.68) * sun * 0.95;
+          colB += vec3(0.5, 0.78, 0.88) * sparkle * 0.14;
+          colB *= mix(1.0, 0.48, underBridge);
+          gl_FragColor = vec4(colB, 0.94);
+          return;
+        }
+
         float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.8);
 
         // frame-3 / frame-7 bright dusk blue-teal water reflecting cyan-pink sky
-        vec3 deepCol = vec3(0.09, 0.26, 0.44);
-        vec3 skyRefl = mix(vec3(0.36, 0.56, 0.82), vec3(0.96, 0.70, 0.66), pow(max(dot(reflect(-V, N), uSunDir), 0.0), 2.4));
-        vec3 col = mix(deepCol, skyRefl, clamp(0.28 + fresnel * 0.68, 0.0, 0.92));
+        vec3 deepCol = vec3(0.09, 0.28, 0.46);
+        float shallow = smoothstep(3.5, 6.9, abs(p.y));
+        deepCol = mix(deepCol, vec3(0.18, 0.50, 0.62), shallow * 0.68);
+        vec3 skyRefl = mix(vec3(0.36, 0.58, 0.84), vec3(0.96, 0.72, 0.68), pow(max(dot(reflect(-V, N), uSunDir), 0.0), 2.4));
+        vec3 col = mix(deepCol, skyRefl, clamp(0.26 + fresnel * 0.68, 0.0, 0.92));
 
         vec3 H = normalize(uSunDir + V);
         float spec = pow(max(dot(N, H), 0.0), 72.0);
         float broadSpec = pow(max(dot(N, H), 0.0), 14.0);
         col += vec3(1.0, 0.88, 0.72) * spec * 1.55;
         col += vec3(0.98, 0.68, 0.58) * broadSpec * 0.30;
+        float glit = pow(max(dot(N, H), 0.0), 240.0)
+          * (1.5 + 1.5 * sin(p.x * 23.0 + t * 3.0) * sin(p.y * 19.0 - t * 2.2));
+        col += vec3(1.0, 0.9, 0.74) * glit * 2.2;
 
         float streak = smoothstep(0.52, 0.95, sin(p.x * 0.7 + t * 1.1 + w2 * 1.6) * 0.5 + 0.5);
         col += vec3(0.28, 0.44, 0.60) * streak * 0.12;
 
-        float underBridge = (1.0 - smoothstep(3.8, 6.2, abs(p.x))) * (1.0 - smoothstep(8.0, 11.0, abs(p.y)));
         col *= mix(1.0, 0.58, underBridge);
+
+        // Live swimmer wake & churn foam driven by world.setSwimmerWake(x, z, speed)
+        if (uSwimmer.w > 0.5) {
+          float sd = length(p - uSwimmer.xy);
+          float ring = sin(sd * 5.2 - t * (4.5 + uSwimmer.z * 1.4)) * 0.5 + 0.5;
+          float wakeMask = (1.0 - smoothstep(0.4, 3.6 + uSwimmer.z * 0.4, sd)) * smoothstep(0.18, 0.55, sd);
+          float churn = (1.0 - smoothstep(0.15, 0.95, sd)) * (0.45 + 0.25 * uSwimmer.z);
+          float swFoam = clamp(wakeMask * ring * 0.55 + churn, 0.0, 0.82);
+          col = mix(col, vec3(0.88, 0.94, 0.98), swFoam);
+        }
 
         float edge = smoothstep(6.25, 7.05, abs(p.y));
         col = mix(col, vec3(0.76, 0.82, 0.88), edge * (0.25 + 0.12 * sin(p.x * 1.8 + t * 1.7)));
+        float foam = smoothstep(6.55, 6.95, abs(p.y)) * (0.35 + 0.30 * sin(p.x * 2.6 + t * 2.3 + w2 * 2.0));
+        col = mix(col, vec3(0.85, 0.92, 0.95), clamp(foam, 0.0, 0.55));
 
         float fogFactor = smoothstep(uFogNear, uFogFar, vFogDepth);
         col = mix(col, uFogColor, fogFactor);
 
-        gl_FragColor = vec4(col, 0.94);
+        gl_FragColor = vec4(col, mix(0.86, 0.72, shallow));
       }
     `,
   });
@@ -446,7 +477,10 @@ function createCanalWater(sunDir, fogColor, fogNear, fogFar) {
   mesh.onBeforeRender = () => {
     uniforms.uTime.value = (performance.now() - t0) * 0.001;
   };
-  return { mesh, mat };
+  function setSwimmerWake(x, z, speed = 0) {
+    uniforms.uSwimmer.value.set(x, z, speed, speed >= 0 && (x !== 0 || z !== 0 || speed > 0) ? 1 : 0);
+  }
+  return { mesh, mat, setSwimmerWake };
 }
 
 export function buildWorld(scene, configOverrides = null) {
@@ -489,6 +523,7 @@ export function buildWorld(scene, configOverrides = null) {
   const colliders = []; // [{ minX, maxX, minZ, maxZ, top, type }]
   const bins = [];      // [{ x, z, top }] (landable bin footprints)
   const binBoxes = [];  // exact AABBs for groundAt(x, z) including dumpster
+  const binProps = [];  // [{ x, z, top, baseY, mesh }] individual bin meshes — the host tips these over on prop hits
   const climbOut = [];  // [{ x, z, side }]
 
   function addCollider(minX, maxX, minZ, maxZ, top, type = 'wall') {
@@ -563,8 +598,8 @@ export function buildWorld(scene, configOverrides = null) {
   regMat('canalBed', new THREE.MeshStandardMaterial({ color: 0x1c3642, roughness: 1.0 }), false);
   regMat('bankSlope', new THREE.MeshStandardMaterial({ map: concreteBridgeTex, color: 0xb2afa6, roughness: 0.92 }), false);
   regMat('wetConcrete', new THREE.MeshStandardMaterial({ color: 0x5c686b, roughness: 0.82 }), false);
-  regMat('asphaltEW', new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.68, metalness: 0.06 }), false);
-  regMat('asphaltPlain', new THREE.MeshStandardMaterial({ map: asphaltPlainTex, roughness: 0.72, metalness: 0.05 }), false);
+  regMat('asphaltEW', new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.52, metalness: 0.08 }), false);
+  regMat('asphaltPlain', new THREE.MeshStandardMaterial({ map: asphaltPlainTex, roughness: 0.56, metalness: 0.06 }), false);
   regMat('sidewalk', new THREE.MeshStandardMaterial({ map: concreteTex, roughness: 0.88 }), false);
   regMat('curbStrip', new THREE.MeshStandardMaterial({ color: 0xdad9d4, roughness: 0.84 }), false);
   regMat('bridgeConcrete', new THREE.MeshStandardMaterial({ map: concreteBridgeTex, color: 0xc8c5bd, roughness: 0.86 }), true);
@@ -593,13 +628,21 @@ export function buildWorld(scene, configOverrides = null) {
     ['carBurgundy', 0x6e2834],
   ];
   for (const [k, hex] of carPalette) {
-    regMat(k, new THREE.MeshStandardMaterial({ color: hex, roughness: 0.34, metalness: 0.42 }), true);
+    regMat(k, new THREE.MeshStandardMaterial({
+      color: hex, roughness: 0.16, metalness: 0.55, envMapIntensity: 1.35,
+    }), true);
   }
-  regMat('carGlass', new THREE.MeshStandardMaterial({ color: 0x161f2e, roughness: 0.15, metalness: 0.75 }), false);
-  regMat('carTire', new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.92 }), true);
-  regMat('carTrim', new THREE.MeshStandardMaterial({ color: 0x9aa2ad, roughness: 0.35, metalness: 0.75 }), false);
-  regMat('carHeadlight', new THREE.MeshStandardMaterial({ color: 0xffe9ba, emissive: 0xffd080, emissiveIntensity: 1.6 }), false);
-  regMat('carTaillight', new THREE.MeshStandardMaterial({ color: 0xc92a2a, emissive: 0xff2b2b, emissiveIntensity: 1.4 }), false);
+  regMat('carGlass', new THREE.MeshStandardMaterial({
+    color: 0x162438, roughness: 0.08, metalness: 0.85, transparent: true, opacity: 0.58, envMapIntensity: 1.4,
+  }), false);
+  regMat('carInterior', new THREE.MeshStandardMaterial({ color: 0x262932, roughness: 0.92 }), false);
+  regMat('carTire', new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.90 }), true);
+  regMat('carTrim', new THREE.MeshStandardMaterial({ color: 0xd0d6de, roughness: 0.24, metalness: 0.82 }), false);
+  regMat('carHeadlight', new THREE.MeshStandardMaterial({ color: 0xfff4d6, emissive: 0xffe09c, emissiveIntensity: 2.2 }), false);
+  regMat('carTaillight', new THREE.MeshStandardMaterial({ color: 0xe62e3a, emissive: 0xff2238, emissiveIntensity: 2.4 }), false);
+  regMat('carWash', new THREE.MeshBasicMaterial({
+    color: 0xdceeff, transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending,
+  }), false);
 
   const stuccoPalette = [
     ['stuccoPeach', 0xc89a7e],
@@ -655,8 +698,47 @@ export function buildWorld(scene, configOverrides = null) {
     buckets.get('grass').push(plane);
   }
 
-  const { mesh: waterMesh, mat: waterMat } = createCanalWater(sunDir, fog.color, fog.near, fog.far);
+  const { mesh: waterMesh, mat: waterMat, setSwimmerWake } = createCanalWater(sunDir, fog.color, fog.near, fog.far);
   scene.add(waterMesh);
+
+  /* Caustic light dancing on the canal bed (1 additive draw): two moving
+     interference layers, strongest mid-channel. Reads from below while
+     diving and faintly through the surface at grazing angles. */
+  {
+    const cGeo = new THREE.PlaneGeometry(MAP_HALF_X * 2, 10.4, 1, 1);
+    cGeo.rotateX(-Math.PI / 2);
+    const cUniforms = { uTime: { value: 0 } };
+    const cMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: cUniforms,
+      vertexShader: /* glsl */ `
+        varying vec3 vWorldPos;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldPos = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform float uTime;
+        varying vec3 vWorldPos;
+        void main() {
+          vec2 p = vWorldPos.xz;
+          float t = uTime;
+          float c1 = sin(p.x * 1.9 + t * 0.9) * sin(p.y * 2.3 - t * 0.7);
+          float c2 = sin(p.x * 3.7 - t * 1.3 + p.y * 1.2) * sin(p.y * 4.1 + t * 1.1);
+          float ca = pow(max(c1 * c2, 0.0), 1.6) * 1.9;
+          float fade = 1.0 - smoothstep(3.6, 5.2, abs(p.y));
+          gl_FragColor = vec4(vec3(0.30, 0.55, 0.66) * ca * fade * 0.5, 1.0);
+        }
+      `,
+    });
+    const caustics = new THREE.Mesh(cGeo, cMat);
+    caustics.position.y = WATER_Y - 1.40;
+    caustics.renderOrder = 2;
+    caustics.onBeforeRender = () => { cUniforms.uTime.value = performance.now() * 0.001; };
+    scene.add(caustics);
+  }
 
   // =========================================================================
   // 2. TWO CLIMB-OUT SPOTS (Steps + Yellow Steel Ladders into the Water)
@@ -808,21 +890,65 @@ export function buildWorld(scene, configOverrides = null) {
   // =========================================================================
   // 5. TRASH BINS (Hop Line + Singles + Dumpster — ~1.1 m tall)
   // =========================================================================
+  // Bins are individual meshes (one merged vertex-coloured geometry each) so
+  // the host can tip them over on a prop hit; everything else stays bucketed.
+  const binMeshMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.52, metalness: 0.14 });
+  function colouredPart(geo, hex, x, y, z, rz = 0) {
+    if (rz) geo.rotateZ(rz);
+    geo.translate(x, y, z);
+    const g = geo.index ? geo.toNonIndexed() : geo;
+    const n = g.attributes.position.count;
+    const col = new Float32Array(n * 3);
+    const c = new THREE.Color(hex);
+    for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return g;
+  }
+  function mergeColoured(parts) {
+    let total = 0;
+    for (const g of parts) total += g.attributes.position.count;
+    const pos = new Float32Array(total * 3), norm = new Float32Array(total * 3),
+      uv = new Float32Array(total * 2), col = new Float32Array(total * 3);
+    let o = 0;
+    for (const g of parts) {
+      const n = g.attributes.position.count;
+      pos.set(g.attributes.position.array, o * 3);
+      norm.set(g.attributes.normal.array, o * 3);
+      if (g.attributes.uv) uv.set(g.attributes.uv.array, o * 2);
+      col.set(g.attributes.color.array, o * 3);
+      o += n;
+      g.dispose();
+    }
+    const m = new THREE.BufferGeometry();
+    m.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    m.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+    m.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    m.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return m;
+  }
   function addTrashBin(x, z, baseY, blue = false, yaw = 0) {
     const w = 0.92;
     const d = 0.88;
     const h = 1.1;
     const top = +(baseY + h).toFixed(3);
-    const bodyMat = blue ? 'binBlue' : 'binGreen';
+    const bodyCol = blue ? 0x34649c : 0x3b764e;
 
-    addBox(bodyMat, w * 0.88, h * 0.55, d * 0.88, x, baseY + h * 0.275, z, 0, yaw);
-    addBox(bodyMat, w, h * 0.38, d, x, baseY + h * 0.72, z, 0, yaw);
-    addBox('binLid', w * 1.05, 0.11, d * 1.05, x, baseY + h - 0.055, z, 0, yaw);
-    const hx = x + Math.sin(yaw) * (d * 0.52);
-    const hz = z + Math.cos(yaw) * (d * 0.52);
-    addBox('binLid', 0.62, 0.05, 0.06, hx, baseY + h - 0.16, hz, 0, yaw);
-    addCyl('carTire', 0.11, 0.11, 0.08, x - 0.38, baseY + 0.11, z - 0.36, 0, 0, Math.PI / 2);
-    addCyl('carTire', 0.11, 0.11, 0.08, x + 0.38, baseY + 0.11, z - 0.36, 0, 0, Math.PI / 2);
+    const geo = mergeColoured([
+      colouredPart(new THREE.BoxGeometry(w * 0.88, h * 0.55, d * 0.88), bodyCol, 0, h * 0.275, 0),
+      colouredPart(new THREE.BoxGeometry(w, h * 0.38, d), bodyCol, 0, h * 0.72, 0),
+      colouredPart(new THREE.BoxGeometry(w * 1.05, 0.11, d * 1.05), 0xd4dae2, 0, h - 0.055, 0),
+      colouredPart(new THREE.BoxGeometry(0.62, 0.05, 0.06), 0xd4dae2, 0, h - 0.16, d * 0.52),
+      colouredPart(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 12), 0x17181c, -0.38, 0.11, -0.36, Math.PI / 2),
+      colouredPart(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 12), 0x17181c, 0.38, 0.11, -0.36, Math.PI / 2),
+    ]);
+    const mesh = new THREE.Mesh(geo, binMeshMat);
+    mesh.position.set(x, baseY, z);
+    mesh.rotation.y = yaw;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.name = 'world_bin';
+    scene.add(mesh);
+    binProps.push({ x, z, top, baseY, mesh });
 
     bins.push({ x, z, top });
     binBoxes.push({ minX: x - 0.52, maxX: x + 0.52, minZ: z - 0.52, maxZ: z + 0.52, top });
@@ -912,6 +1038,16 @@ export function buildWorld(scene, configOverrides = null) {
       z - lx * sin + lz * cos,
     ];
 
+    // Visible cabin interior behind tinted glass (bench seat, backrests, dash — ute-shop-dusk / drive-5)
+    const [ix, iy, iz] = localToWorld(-0.22, 1.02, 0);
+    addBox('carInterior', 0.95, 0.30, 1.24, ix, iy, iz, 0, yaw);
+    const [dxI, dyI, dzI] = localToWorld(0.45, 0.98, 0);
+    addBox('carInterior', 0.34, 0.24, 1.26, dxI, dyI, dzI, 0, yaw);
+    for (const side of [-0.36, 0.36]) {
+      const [hrx, hry, hrz] = localToWorld(-0.42, 1.24, side);
+      addBox('carInterior', 0.14, 0.18, 0.24, hrx, hry, hrz, 0, yaw);
+    }
+
     const [wx, wy, wz] = localToWorld(0.76, 1.14, 0);
     addBox('carGlass', 0.62, 0.44, 1.34, wx, wy, wz, 0, yaw, -0.72);
     const [rx, ry, rz] = localToWorld(-1.02, 1.14, 0);
@@ -924,19 +1060,31 @@ export function buildWorld(scene, configOverrides = null) {
     const [rbx, rby, rbz] = localToWorld(-2.14, 0.46, 0);
     addBox('carTrim', 0.14, 0.16, 1.76, rbx, rby, rbz, 0, yaw);
 
-    for (const side of [-0.62, 0.62]) {
+    // Stacked dual red taillights + glowing rear license plate + headlight wash pool (drive-1, drive-2)
+    for (const side of [-0.66, 0.66]) {
       const [hx, hy, hz] = localToWorld(2.15, 0.64, side);
-      addBox('carHeadlight', 0.08, 0.13, 0.32, hx, hy, hz, 0, yaw);
-      const [tx, ty, tz] = localToWorld(-2.14, 0.68, side);
-      addBox('carTaillight', 0.08, 0.12, 0.34, tx, ty, tz, 0, yaw);
+      addBox('carHeadlight', 0.08, 0.14, 0.34, hx, hy, hz, 0, yaw);
+      const [t1x, t1y, t1z] = localToWorld(-2.14, 0.74, side);
+      addBox('carTaillight', 0.08, 0.10, 0.24, t1x, t1y, t1z, 0, yaw);
+      const [t2x, t2y, t2z] = localToWorld(-2.14, 0.60, side);
+      addBox('carTaillight', 0.08, 0.10, 0.24, t2x, t2y, t2z, 0, yaw);
     }
+    const [plx, ply, plz] = localToWorld(-2.15, 0.56, 0);
+    addBox('carHeadlight', 0.06, 0.14, 0.34, plx, ply, plz, 0, yaw);
+    const [washX, washY, washZ] = localToWorld(3.9, 0.035, 0);
+    addBox('carWash', 3.4, 0.02, 2.0, washX, washY, washZ, 0, yaw);
 
+    // Detailed wheels: tire + whitewall/alloy contrast ring + hubcap boss (ute-shop-dusk, drive-5)
     for (const wxL of [-1.32, 1.32]) {
       for (const wzL of [-0.84, 0.84]) {
         const [px, py, pz] = localToWorld(wxL, 0.34, wzL);
         addCyl('carTire', 0.34, 0.34, 0.24, px, py, pz, Math.PI / 2, yaw, 0, 12);
-        const [hx, hy, hz] = localToWorld(wxL, 0.34, wzL + Math.sign(wzL) * 0.03);
-        addCyl('carTrim', 0.19, 0.19, 0.22, hx, hy, hz, Math.PI / 2, yaw, 0, 10);
+        const [rxW, ryW, rzW] = localToWorld(wxL, 0.34, wzL + Math.sign(wzL) * 0.02);
+        addCyl('carTrim', 0.23, 0.23, 0.22, rxW, ryW, rzW, Math.PI / 2, yaw, 0, 12);
+        const [ixW, iyW, izW] = localToWorld(wxL, 0.34, wzL + Math.sign(wzL) * 0.032);
+        addCyl('carTire', 0.15, 0.15, 0.22, ixW, iyW, izW, Math.PI / 2, yaw, 0, 10);
+        const [hx, hy, hz] = localToWorld(wxL, 0.34, wzL + Math.sign(wzL) * 0.044);
+        addCyl('carTrim', 0.08, 0.08, 0.22, hx, hy, hz, Math.PI / 2, yaw, 0, 8);
       }
     }
 
@@ -1450,11 +1598,13 @@ export function buildWorld(scene, configOverrides = null) {
     surfaces: { groundAt, bins },
     colliders,
     bins,
+    binProps,
     water,
     climbOutAt,
     climbOut: climbOut.map(({ x, z }) => ({ x, z })),
     spawn: { x: -32, z: STREET_Z, heading: Math.PI / 2 },
     waterMat,
+    setSwimmerWake,
     config: cfg,
     lighting: WORLD_LIGHTING,
   };

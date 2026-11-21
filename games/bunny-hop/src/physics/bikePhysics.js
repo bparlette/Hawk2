@@ -25,12 +25,12 @@ export const CONFIG = {
   maxFrameDt: 0.1,          // s, frame dt clamp (tab-switch hitch guard)
 
   // --- momentum ---
-  topSpeed: 12.0,           // m/s, pedal=1 asymptote
-  cruiseSpeed: 7.0,         // m/s, reference "normal riding" speed (steer peak, lean full)
+  topSpeed: 6.94,           // m/s, pedal=1 asymptote = 25 km/h base (Cherie Nov 20: full flow build x3 = 75 km/h; the host scales this cap via FLOW)
+  cruiseSpeed: 4.2,         // m/s, reference "normal riding" speed (steer peak, lean full) — kept at ~60% of topSpeed, the old 7.0/12 proportion
   pedalAccel: 7.0,          // m/s², launch accel at standstill; accel = pedalAccel*(pedal - v/topSpeed)
   rollingResistance: 0.35,  // m/s², constant coast decel
   aeroDrag: 0.008,          // 1/m, coast decel term k*v²
-  brakeDecel: 9.0,          // m/s², pedal=-1 while rolling forward
+  brakeDecel: 5.2,          // m/s², pedal=-1 while rolling forward — scaled x(6.94/12) with the Nov 20 top-speed change so brake FEEL is unchanged (~1.2 s stop from base top, per the momentum spec test)
   reverseAccel: 2.0,        // m/s², pedal<0 from (near) standstill
   reverseMaxSpeed: 1.5,     // m/s, backwards cap
   slopeGravityScale: 0.6,   // fraction of g·sin(slope) applied along the ground
@@ -38,7 +38,7 @@ export const CONFIG = {
 
   // --- steering & lean ---
   maxTurnRate: 1.7,         // rad/s, at steerPeakSpeed with full steer
-  steerPeakSpeed: 6.0,      // m/s, where turn authority peaks (curve x·e^(1-x))
+  steerPeakSpeed: 3.47,     // m/s, where turn authority peaks (curve x·e^(1-x)) — kept at 0.5 x topSpeed, the old 6.0/12 proportion (Nov 20 rescale)
   leanMax: 0.42,            // rad, full-steer lean once at leanFullSpeed
   leanFullSpeed: 6.0,       // m/s, lean ramps in (smoothstep) from 0 to here
   leanStiffness: 9.0,       // rad/s, critically-damped spring natural frequency

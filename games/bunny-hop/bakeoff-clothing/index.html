@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Clothing Bake-Off — Bunny Hop Rider</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #1a2442; color: #f2f4fa;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 10px; left: 10px; z-index: 10;
+    background: rgba(12, 16, 30, 0.78); border: 1px solid rgba(160, 210, 255, 0.32);
+    border-radius: 10px; padding: 8px 12px; font-size: 11px; line-height: 1.45;
+    backdrop-filter: blur(6px); user-select: none; max-width: 92vw;
+  }
+  #hud b { color: #8ed0ff; letter-spacing: 0.1em; }
+  #controls {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 10; display: flex; flex-direction: column; gap: 6px; align-items: center; width: 96vw;
+  }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  button {
+    background: rgba(12, 16, 30, 0.82); color: #f2f4fa;
+    border: 1px solid rgba(160, 210, 255, 0.35); border-radius: 999px;
+    padding: 6px 11px; font-size: 11px; font-weight: 700; cursor: pointer;
+  }
+  button.active { background: #1d6f8a; border-color: #a6e3ff; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <b>CLOTHING BAKE-OFF · BUNNY HOP RIDER</b>
+  <div id="label">Loading…</div>
+  <div id="stats"></div>
+</div>
+<div id="controls">
+  <div class="row">
+    <button id="o1" class="active">1 · Coastal Tee</button>
+    <button id="o2">2 · Open Flannel</button>
+    <button id="o3">3 · Ringer Tee</button>
+  </div>
+  <div class="row">
+    <button id="vChase" class="active">Chase</button>
+    <button id="vSide">Side</button>
+    <button id="vCrouch">Crouch (0.95)</button>
+    <button id="vFront">Front 3/4</button>
+    <button id="vOrbit">Orbit</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildRiderScene, OUTFIT_VARIANTS } from './buildRiderClothing.js';
+
+const params = new URLSearchParams(window.location.search);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.16;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x526596);
+scene.fog = new THREE.Fog(0x7c7498, 18, 65);
+
+// Matching Bunny Hop dusk lighting (20deg warm key + bright cyan-blue hemisphere fill)
+const hemi = new THREE.HemisphereLight(0xa4cbf7, 0x5c5468, 1.65);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffbe94, 2.25);
+sun.position.set(-12, 9, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -4; sun.shadow.camera.right = 4;
+sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -4;
+sun.shadow.bias = -0.0005;
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0x5a709e, 0.85));
+
+// Dusk asphalt ground strip with white dashes
+const gCanvas = document.createElement('canvas');
+gCanvas.width = 256; gCanvas.height = 256;
+const gg = gCanvas.getContext('2d');
+gg.fillStyle = '#5c697d'; gg.fillRect(0, 0, 256, 256);
+gg.fillStyle = 'rgba(240,244,252,0.85)'; gg.fillRect(122, 16, 12, 92);
+const gTex = new THREE.CanvasTexture(gCanvas);
+gTex.colorSpace = THREE.SRGBColorSpace;
+gTex.wrapS = gTex.wrapT = THREE.RepeatWrapping;
+gTex.repeat.set(6, 10);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(50, 50),
+  new THREE.MeshStandardMaterial({ map: gTex, roughness: 0.72 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Build all 3 outfit variants so switching is instant
+const rigs = [0, 1, 2].map((i) => {
+  const r = buildRiderScene(i);
+  r.root.visible = i === 0;
+  scene.add(r.root);
+  return r;
+});
+
+let activeOutfit = Math.max(0, Math.min(2, (parseInt(params.get('outfit') || '1', 10) || 1) - 1));
+let activeView = params.get('view') || 'chase';
+let crouchTarget = activeView === 'crouch' ? 0.95 : 0.0;
+let pedalPhase = 0.65;
+let autoPedal = !params.get('view'); // static clean phase when capturing fixed shots
+
+const labelEl = document.getElementById('label');
+const statsEl = document.getElementById('stats');
+
+function selectOutfit(idx) {
+  activeOutfit = idx;
+  rigs.forEach((r, i) => { r.root.visible = i === idx; });
+  ['o1', 'o2', 'o3'].forEach((id, i) => document.getElementById(id).classList.toggle('active', i === idx));
+  labelEl.textContent = OUTFIT_VARIANTS[idx].name;
+}
+
+const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 120);
+const VIEWS = {
+  // Chase view matching Bunny Hop shoulder-height chase framing (shows collar, short sleeves + bare arms, open hem over pants!)
+  chase:  { pos: [0.65, 1.58, -2.55], look: [0.0, 1.08, 0.05], crouch: 0.0 },
+  // Side profile (shows hem shadow gap over waistband, mid-bicep sleeve ending, bare arm, backwards cap)
+  side:   { pos: [2.75, 1.24, -0.05], look: [0.0, 1.04, -0.05], crouch: 0.0 },
+  // Full crouch (crouch01 = 0.95, 3/4 rear-side — stress-tests hem & sleeve separation with zero poke-through!)
+  crouch: { pos: [1.65, 1.28, -2.10], look: [0.0, 0.96, -0.05], crouch: 0.95 },
+  // Front 3/4 (shows open collar, bare neck, unbuttoned flannel / ringer collar)
+  front:  { pos: [1.75, 1.44, 2.25], look: [0.0, 1.10, -0.05], crouch: 0.0 },
+};
+
+let orbitAngle = 0.6, orbitPitch = 0.22, orbitDist = 3.1;
+const orbitTarget = new THREE.Vector3(0, 1.06, -0.05);
+
+function selectView(v) {
+  activeView = v;
+  ['vChase', 'vSide', 'vCrouch', 'vFront', 'vOrbit'].forEach((id) => {
+    const key = id.slice(1).toLowerCase();
+    document.getElementById(id).classList.toggle('active', key === v);
+  });
+  if (VIEWS[v]) {
+    crouchTarget = VIEWS[v].crouch;
+    camera.position.set(...VIEWS[v].pos);
+    camera.lookAt(...VIEWS[v].look);
+  }
+}
+
+document.getElementById('o1').onclick = () => selectOutfit(0);
+document.getElementById('o2').onclick = () => selectOutfit(1);
+document.getElementById('o3').onclick = () => selectOutfit(2);
+document.getElementById('vChase').onclick = () => selectView('chase');
+document.getElementById('vSide').onclick = () => selectView('side');
+document.getElementById('vCrouch').onclick = () => selectView('crouch');
+document.getElementById('vFront').onclick = () => selectView('front');
+document.getElementById('vOrbit').onclick = () => selectView('orbit');
+
+selectOutfit(activeOutfit);
+selectView(activeView);
+
+let dragging = false, lx = 0, ly = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; if (activeView !== 'orbit') selectView('orbit'); });
+window.addEventListener('pointerup', () => { dragging = false; });
+window.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  orbitAngle -= (e.clientX - lx) * 0.007;
+  orbitPitch = THREE.MathUtils.clamp(orbitPitch + (e.clientY - ly) * 0.005, 0.04, 1.1);
+  lx = e.clientX; ly = e.clientY;
+});
+renderer.domElement.addEventListener('wheel', (e) => {
+  if (activeView !== 'orbit') selectView('orbit');
+  orbitDist = THREE.MathUtils.clamp(orbitDist + e.deltaY * 0.006, 1.6, 6.0);
+}, { passive: true });
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+let lastT = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, (now - lastT) * 0.001);
+  lastT = now;
+
+  if (autoPedal) pedalPhase += dt * 4.2;
+  rigs[activeOutfit].setPose(crouchTarget, pedalPhase);
+
+  if (activeView === 'orbit') {
+    if (!dragging) orbitAngle += dt * 0.35;
+    camera.position.set(
+      orbitTarget.x + Math.cos(orbitAngle) * Math.cos(orbitPitch) * orbitDist,
+      orbitTarget.y + Math.sin(orbitPitch) * orbitDist,
+      orbitTarget.z + Math.sin(orbitAngle) * Math.cos(orbitPitch) * orbitDist
+    );
+    camera.lookAt(orbitTarget);
+  }
+  renderer.render(scene, camera);
+  statsEl.textContent = `Draw calls: ${renderer.info.render.calls} · Tris: ${renderer.info.render.triangles.toLocaleString()} · Crouch: ${crouchTarget.toFixed(2)}`;
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

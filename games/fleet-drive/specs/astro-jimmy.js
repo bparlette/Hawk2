@@ -1,0 +1,239 @@
+// Jimmy's 2000 Chevrolet Astro LS (Gen 2) — silver, NEON FIT (fit-astro-jimmy-neon/astro-jimmy-spec.json, Hawk2 main). Parked per Cherie's fleet rule (22:50): Neon's own cars wherever Neon has one.
+// Spec used verbatim from the compare-gated fit — see ../AI-RECIPE.md.
+export const SPEC = {
+ "meta": {
+  "name": "Jimmy's '00 Chevrolet Astro LS (Gen 2)",
+  "year": 2000,
+  "notes": "Fitted from games/scaggsville-3d/reference/car-real/astro-jimmy/ (4.82m x 1.97m x 1.90m, wb 2.82m). Canon silver paint (0xb8c0ca). Gen-2 longer aero nose, chrome grille bar, wide composite headlamps, 3-bay dark-tinted passenger glass, roof rack, rear Dutch doors + wiper."
+ },
+ "dims": {
+  "length": 4.82,
+  "width": 1.97,
+  "height": 1.9,
+  "wheelbase": 2.82,
+  "wheelZFront": 1.48,
+  "wheelZRear": -1.34,
+  "wheelRadius": 0.345,
+  "wheelWidth": 0.235,
+  "trackHalfFront": 0.855,
+  "trackHalfRear": 0.855,
+  "archGap": 0.055
+ },
+ "paint": {
+  "color": 12107978,
+  "roughness": 0.22,
+  "metalness": 0.42,
+  "clearcoat": 0.94,
+  "clearcoatRoughness": 0.12
+ },
+ "bodyStations": [
+  {
+   "z": -2.41,
+   "yBot": 0.35,
+   "yBelt": 0.94,
+   "yDeck": 1.24,
+   "wBot": 0.9,
+   "wBelt": 0.97,
+   "wDeck": 0.93,
+   "crown": 0.018
+  },
+  {
+   "z": -2.2,
+   "yBot": 0.32,
+   "yBelt": 0.96,
+   "yDeck": 1.25,
+   "wBot": 0.92,
+   "wBelt": 0.985,
+   "wDeck": 0.95,
+   "crown": 0.02
+  },
+  {
+   "z": -1.35,
+   "yBot": 0.3,
+   "yBelt": 0.96,
+   "yDeck": 1.25,
+   "wBot": 0.92,
+   "wBelt": 0.985,
+   "wDeck": 0.95,
+   "crown": 0.02
+  },
+  {
+   "z": 0.25,
+   "yBot": 0.3,
+   "yBelt": 0.96,
+   "yDeck": 1.25,
+   "wBot": 0.92,
+   "wBelt": 0.985,
+   "wDeck": 0.95,
+   "crown": 0.02
+  },
+  {
+   "z": 1.45,
+   "yBot": 0.31,
+   "yBelt": 0.95,
+   "yDeck": 1.23,
+   "wBot": 0.91,
+   "wBelt": 0.975,
+   "wDeck": 0.93,
+   "crown": 0.026
+  },
+  {
+   "z": 2.08,
+   "yBot": 0.33,
+   "yBelt": 0.86,
+   "yDeck": 1.07,
+   "wBot": 0.87,
+   "wBelt": 0.93,
+   "wDeck": 0.88,
+   "crown": 0.028
+  },
+  {
+   "z": 2.41,
+   "yBot": 0.36,
+   "yBelt": 0.78,
+   "yDeck": 0.93,
+   "wBot": 0.79,
+   "wBelt": 0.87,
+   "wDeck": 0.8,
+   "crown": 0.022
+  }
+ ],
+ "greenhouse": {
+  "zRearBase": -2.34,
+  "yRearBase": 1.24,
+  "wRearBase": 0.91,
+  "zRearRoof": -2.2,
+  "yRearRoof": 1.88,
+  "wRearRoof": 0.82,
+  "zFrontRoof": 0.84,
+  "yFrontRoof": 1.89,
+  "wFrontRoof": 0.82,
+  "zFrontBase": 1.52,
+  "yFrontBase": 1.22,
+  "wFrontBase": 0.91,
+  "roofCrown": 0.036,
+  "roofRack": true,
+  "bPillarZ": 0.24,
+  "cPillarZ": -1.04,
+  "cPillarPaint": false,
+  "windshieldColor": 1713718,
+  "windshieldOpacity": 0.44,
+  "sideGlassColor": 988446,
+  "sideGlassOpacity": 0.68,
+  "rearGlassColor": 725016,
+  "rearGlassOpacity": 0.84,
+  "rearWiper": true,
+  "mirrors": {
+   "z": 1.12,
+   "y": 1.32,
+   "w": 0.18,
+   "h": 0.13,
+   "d": 0.1
+  }
+ },
+ "frontFascia": {
+  "bumperY": 0.49,
+  "bumperH": 0.24,
+  "bumperProtrusion": 0.085,
+  "bumperCornerR": 0.2,
+  "rubStripY": 0.49,
+  "rubStripH": 0,
+  "grille": {
+   "style": "eggcrate",
+   "chromeFrame": true,
+   "vBars": 1,
+   "y": 0.77,
+   "h": 0.25,
+   "w": 1.0,
+   "slats": 6,
+   "topBarText": false
+  },
+  "cornerLamps": {
+   "y": 0.77,
+   "h": 0.24,
+   "innerSmokedW": 0.26,
+   "outerAmberW": 0.08,
+   "wrapZ": 0.16
+  },
+  "lowerIntake": {
+   "y": 0.36,
+   "h": 0.06,
+   "w": 0.88,
+   "dividers": 0
+  },
+  "chinSpoiler": {
+   "enabled": false
+  },
+  "popups": {
+   "enabled": false
+  }
+ },
+ "rearFascia": {
+  "bumperY": 0.48,
+  "bumperH": 0.2,
+  "bumperProtrusion": 0.085,
+  "bumperCornerR": 0.18,
+  "rubStripY": 0.56,
+  "rubStripH": 0.042,
+  "paintedLowerValance": true,
+  "barnDoors": true,
+  "tailPanel": {
+   "style": "vertical",
+   "y": 0.89,
+   "h": 0.36,
+   "centerW": 0.54,
+   "lampW": 0.14,
+   "amberOuterW": 0.04,
+   "reverseW": 0.05,
+   "wrapZ": 0.08
+  },
+  "spoiler": {
+   "style": "none"
+  },
+  "exhaust": {
+   "side": "right",
+   "count": 1,
+   "xOffset": 0.58,
+   "y": 0.3,
+   "r": 0.032
+  },
+  "mudFlaps": false,
+  "fuelDoor": {
+   "z": -0.58,
+   "y": 0.74,
+   "side": 1
+  }
+ },
+ "trim": {
+  "sideRubStrip": {
+   "enabled": false,
+   "y": 0.52,
+   "h": 0.04
+  },
+  "rockerSkirt": {
+   "enabled": false,
+   "y": 0.3,
+   "h": 0.05
+  },
+  "doorHandle": {
+   "z": 0.34,
+   "y": 1.05
+  },
+  "frontSideMarker": {
+   "z": 2.08,
+   "y": 0.5,
+   "w": 0.12,
+   "h": 0.032,
+   "color": 15236628
+  }
+ },
+ "wheels": {
+  "spokeCount": 5,
+  "spokeStyle": "blade",
+  "rimColor": 14146526,
+  "tireColor": 1447707,
+  "hubRadius": 0.085,
+  "rimRatio": 0.62
+ }
+};
+export default SPEC;

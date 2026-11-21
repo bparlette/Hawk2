@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Bake-Off · Rigg's '87 Celica GT (Car-Fitter Procedural)</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #141a2b; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #hud {
+    position: fixed; top: 12px; left: 12px; padding: 10px 14px; border-radius: 12px;
+    background: rgba(14, 19, 30, 0.84); color: #eef2f8; font-size: 12px; line-height: 1.45;
+    border: 1px solid rgba(124, 196, 255, 0.25); backdrop-filter: blur(8px); pointer-events: none;
+  }
+  #hud .title { font-weight: 700; color: #7cc4ff; letter-spacing: 0.05em; text-transform: uppercase; font-size: 11px; }
+  #hud .sub { color: #b8c6db; font-size: 11px; }
+  #controls {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 96vw;
+  }
+  button {
+    border: 1px solid rgba(255,255,255,0.22); background: rgba(14, 19, 30, 0.85); color: #eef2f8;
+    padding: 7px 12px; border-radius: 999px; font-size: 12px; cursor: pointer; backdrop-filter: blur(6px);
+  }
+  button.active { background: #1659c9; border-color: #7cc4ff; color: #fff; font-weight: 600; }
+  body.clean #hud, body.clean #controls { display: none; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="hud">
+  <div class="title">Neon Car-Fitter Proof · Rigg's '87 Celica GT (T160)</div>
+  <div id="stats">Loading celica-spec.json…</div>
+  <div class="sub">Zero Blender · Generic <code>gpcar_loft.js</code> + <code>celica-spec.json</code> · Blue paint &amp; <code>0x0066ff</code> beams</div>
+</div>
+<div id="controls">
+  <button data-view="front34">Front 3/4</button>
+  <button data-view="side">Side</button>
+  <button data-view="rear34">Rear 3/4</button>
+  <button data-view="front">Front</button>
+  <button data-view="rear">Rear</button>
+  <button id="btnPopups">Pop-ups: UP</button>
+  <button id="btnMode">Light: Dusk</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { buildLoftedCar } from './gpcar_loft.js';
+
+const params = new URLSearchParams(location.search);
+if (params.get('clean') === '1') document.body.classList.add('clean');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.14;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+
+const hemi = new THREE.HemisphereLight(0x96b0e8, 0x1e2436, 0.9);
+scene.add(hemi);
+const keyLight = new THREE.DirectionalLight(0xffcf9a, 1.55);
+keyLight.position.set(5, 8, 6);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.camera.left = -4;
+keyLight.shadow.camera.right = 4;
+keyLight.shadow.camera.top = 4;
+keyLight.shadow.camera.bottom = -4;
+scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0x6b96e8, 0.8);
+fillLight.position.set(-6, 4, -5);
+scene.add(fillLight);
+
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x262c3a, roughness: 0.48, metalness: 0.1 });
+const floor = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.5, 0.12, 64), floorMat);
+floor.position.y = -0.06;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const outerFloor = new THREE.Mesh(
+  new THREE.PlaneGeometry(50, 50),
+  new THREE.MeshStandardMaterial({ color: 0x1c212e, roughness: 0.78 })
+);
+outerFloor.rotation.x = -Math.PI / 2;
+outerFloor.position.y = -0.121;
+outerFloor.receiveShadow = true;
+scene.add(outerFloor);
+
+// PMREM reflections
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envScene = new THREE.Scene();
+envScene.background = new THREE.Color(0x9cb4db);
+const stripMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+for (const [x, y, z] of [[0, 6, 0], [5, 5, 4], [-5, 5, -3]]) {
+  const s = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 1.2), stripMat);
+  s.position.set(x, y, z);
+  envScene.add(s);
+}
+scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+
+let lightMode = params.get('mode') === 'studio' ? 'studio' : 'dusk';
+function applyLighting() {
+  if (lightMode === 'dusk') {
+    scene.background = new THREE.Color(0x161e34);
+    hemi.color.setHex(0x90a8dc);
+    hemi.groundColor.setHex(0x1c2233);
+    hemi.intensity = 0.85;
+    keyLight.color.setHex(0xffbe86);
+    keyLight.intensity = 1.5;
+    fillLight.color.setHex(0x5280d8);
+    fillLight.intensity = 0.7;
+    floorMat.color.setHex(0x282f3e);
+    outerFloor.material.color.setHex(0x1a202e);
+    document.getElementById('btnMode').textContent = 'Light: Dusk';
+  } else {
+    scene.background = new THREE.Color(0xebeef2);
+    hemi.color.setHex(0xffffff);
+    hemi.groundColor.setHex(0x9ca2ac);
+    hemi.intensity = 1.15;
+    keyLight.color.setHex(0xfffaf2);
+    keyLight.intensity = 1.8;
+    fillLight.color.setHex(0xdce8ff);
+    fillLight.intensity = 0.95;
+    floorMat.color.setHex(0xd4d8de);
+    outerFloor.material.color.setHex(0xe4e7ec);
+    document.getElementById('btnMode').textContent = 'Light: Studio';
+  }
+}
+applyLighting();
+
+const VIEWS = {
+  front34: { pos: [4.55, 1.38, 4.55], target: [0, 0.58, 0.06], fov: 30 },
+  side:    { pos: [7.80, 0.88, 0.00], target: [0, 0.60, 0.00], fov: 26 },
+  rear34:  { pos: [4.45, 1.42, -4.65], target: [0, 0.60, -0.05], fov: 30 },
+  front:   { pos: [0.00, 0.88, 5.45], target: [0, 0.58, 0.00], fov: 28 },
+  rear:    { pos: [0.00, 0.90, -5.45], target: [0, 0.60, 0.00], fov: 28 },
+};
+
+let orbitTheta = Math.atan2(4.55, 4.55), orbitPhi = 1.3, orbitR = 6.5, isOrbit = false;
+function setView(name) {
+  const v = VIEWS[name] || VIEWS.front34;
+  isOrbit = false;
+  camera.fov = v.fov;
+  camera.updateProjectionMatrix();
+  camera.position.set(...v.pos);
+  camera.lookAt(...v.target);
+  document.querySelectorAll('[data-view]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.view === name);
+  });
+}
+
+let dragging = false, lastX = 0, lastY = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  if (!isOrbit) {
+    const p = camera.position;
+    orbitR = Math.hypot(p.x, p.y - 0.60, p.z);
+    orbitTheta = Math.atan2(p.x, p.z);
+    orbitPhi = Math.acos(Math.max(-1, Math.min(1, (p.y - 0.60) / orbitR)));
+    isOrbit = true;
+  }
+});
+window.addEventListener('pointerup', () => { dragging = false; });
+window.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  orbitTheta -= (e.clientX - lastX) * 0.008;
+  orbitPhi = Math.max(0.25, Math.min(1.52, orbitPhi - (e.clientY - lastY) * 0.006));
+  lastX = e.clientX; lastY = e.clientY;
+  camera.position.set(
+    Math.sin(orbitPhi) * Math.sin(orbitTheta) * orbitR,
+    0.60 + Math.cos(orbitPhi) * orbitR,
+    Math.sin(orbitPhi) * Math.cos(orbitTheta) * orbitR
+  );
+  camera.lookAt(0, 0.60, 0);
+});
+
+const spec = await (await fetch('./celica-spec.json')).json();
+const car = buildLoftedCar(spec);
+scene.add(car.group);
+
+let targetPopup = params.get('popups') === '0' ? 0 : 1;
+let curPopup = targetPopup;
+car.setPopups(curPopup);
+document.getElementById('btnPopups').textContent = `Pop-ups: ${targetPopup ? 'UP' : 'DOWN'}`;
+
+document.getElementById('btnPopups').addEventListener('click', () => {
+  targetPopup = targetPopup ? 0 : 1;
+  document.getElementById('btnPopups').textContent = `Pop-ups: ${targetPopup ? 'UP' : 'DOWN'}`;
+});
+document.getElementById('btnMode').addEventListener('click', () => {
+  lightMode = lightMode === 'dusk' ? 'studio' : 'dusk';
+  applyLighting();
+});
+document.querySelectorAll('[data-view]').forEach((b) => {
+  b.addEventListener('click', () => setView(b.dataset.view));
+});
+
+setView(params.get('view') || 'front34');
+renderer.render(scene, camera);
+document.getElementById('stats').textContent =
+  `Draw calls: ${renderer.info.render.calls} · Tris: ${renderer.info.render.triangles.toLocaleString()}`;
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (Math.abs(curPopup - targetPopup) > 0.002) {
+    curPopup += (targetPopup - curPopup) * 0.14;
+    car.setPopups(curPopup);
+  }
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

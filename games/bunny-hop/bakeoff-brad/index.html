@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Bake-Off #2 — Brad's '87 Camaro</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #141d36; color: #f2f4fa;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 10px; left: 10px; z-index: 10;
+    background: rgba(10, 14, 28, 0.76); border: 1px solid rgba(255, 224, 110, 0.35);
+    border-radius: 10px; padding: 8px 12px; font-size: 11px; line-height: 1.45;
+    backdrop-filter: blur(6px); user-select: none;
+  }
+  #hud b { color: #ffe46b; letter-spacing: 0.12em; }
+  #views {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 10; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+  }
+  #views button {
+    background: rgba(10, 14, 28, 0.78); color: #f2f4fa;
+    border: 1px solid rgba(255, 224, 110, 0.35); border-radius: 999px;
+    padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer;
+  }
+  #views button.active { background: #8c1a27; border-color: #ffe46b; }
+  body.clean #hud, body.clean #views { display: none; }
+</style>
+</head>
+<body>
+<div id="hud"><b>NEON BAKE-OFF #2 · BRAD'S '87 CAMARO</b><div id="stats">Loading…</div></div>
+<div id="views">
+  <button id="bOrbit" class="active">Orbit</button>
+  <button id="b1">1 · High 3/4 (Split)</button>
+  <button id="b2">2 · Front 3/4 (Yellow Beams)</button>
+  <button id="b3">3 · Rear 3/4 (Maroon Hatch)</button>
+  <button id="bToggle">Body: Blender SubD GLB</button>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { buildCamaro } from './buildCamaro.js';
+
+const params = new URLSearchParams(window.location.search);
+if (params.get('clean') === '1') document.body.classList.add('clean');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.20;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x283254, 24, 95);
+
+// Dusk suburban sky dome (used for both sky & PMREM reflections on Brad's clearcoat paint)
+function createDuskSky() {
+  const geo = new THREE.SphereGeometry(95, 32, 20);
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    vertexShader: `
+      varying vec3 vDir;
+      void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: `
+      varying vec3 vDir;
+      void main() {
+        vec3 d = normalize(vDir);
+        float h = clamp(d.y, 0.0, 1.0);
+        vec3 colHor = vec3(0.74, 0.48, 0.56);
+        vec3 colMid = vec3(0.22, 0.34, 0.62);
+        vec3 colTop = vec3(0.06, 0.12, 0.28);
+        vec3 sky = mix(colHor, colMid, smoothstep(0.0, 0.24, h));
+        sky = mix(sky, colTop, smoothstep(0.20, 0.85, h));
+        float glow = pow(max(dot(d, normalize(vec3(-0.7, 0.16, -0.55))), 0.0), 4.0);
+        sky += vec3(0.95, 0.56, 0.38) * glow * 0.55;
+        if (d.y < 0.0) sky = mix(colHor * 0.45, vec3(0.08, 0.10, 0.18), clamp(-d.y * 5.0, 0.0, 1.0));
+        gl_FragColor = vec4(sky, 1.0);
+      }
+    `,
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+scene.add(createDuskSky());
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envScene = new THREE.Scene();
+envScene.add(createDuskSky());
+const envRT = pmrem.fromScene(envScene, 0.035);
+scene.environment = envRT.texture;
+pmrem.dispose();
+
+// Dusk lighting + warm key + real yellow headlight spill point light in front of Brad's nose
+const hemi = new THREE.HemisphereLight(0x88b0f0, 0x2f2b3a, 1.45);
+scene.add(hemi);
+
+const sun = new THREE.DirectionalLight(0xffcfb0, 1.95);
+sun.position.set(10, 12, 9);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -8; sun.shadow.camera.right = 8;
+sun.shadow.camera.top = 8; sun.shadow.camera.bottom = -8;
+sun.shadow.bias = -0.0005;
+scene.add(sun);
+
+const yellowBeamLight = new THREE.PointLight(0xffe44d, 18, 14, 1.6);
+yellowBeamLight.position.set(0, 0.72, 4.4);
+scene.add(yellowBeamLight);
+
+// Dusk asphalt street with white dashes & curb (Laurel/Fulton suburban setting)
+function makeStreetTex() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#363f52';
+  g.fillRect(0, 0, 512, 512);
+  let s = 303;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  for (let i = 0; i < 16000; i++) {
+    const v = 46 + Math.floor(rnd() * 34);
+    g.fillStyle = `rgb(${v},${v + 6},${v + 16})`;
+    g.fillRect(rnd() * 512, rnd() * 512, 2, 2);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(8, 8);
+  return tex;
+}
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(75, 75),
+  new THREE.MeshStandardMaterial({
+    map: makeStreetTex(),
+    roughness: 0.34,
+    metalness: 0.14,
+    envMapIntensity: 1.3,
+  })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Subtle suburban curb + warm dusk porch silhouette in background
+{
+  const curb = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.14, 50), new THREE.MeshStandardMaterial({ color: 0x9ea2ab, roughness: 0.9 }));
+  curb.position.set(-4.6, 0.07, 0);
+  curb.receiveShadow = true;
+  scene.add(curb);
+
+  const houseMat = new THREE.MeshStandardMaterial({ color: 0x6f7380, roughness: 0.92 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x2a2e38, roughness: 0.92 });
+  const winMat = new THREE.MeshStandardMaterial({ color: 0xffe4aa, emissive: 0xffb854, emissiveIntensity: 2.2 });
+  const house = new THREE.Mesh(new THREE.BoxGeometry(8, 4.8, 12), houseMat);
+  house.position.set(-12.5, 2.4, -3);
+  scene.add(house);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(7.2, 2.4, 4), roofMat);
+  roof.position.set(-12.5, 6.0, -3);
+  roof.rotation.y = Math.PI / 4;
+  scene.add(roof);
+  for (const wz of [-6, -2, 1]) {
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.3), winMat);
+    win.position.set(-8.48, 2.5, wz);
+    win.rotation.y = Math.PI / 2;
+    scene.add(win);
+  }
+}
+
+// Add Brad's 1987 Camaro — the pure procedural build is the DEFAULT (Cherie's pick,
+// Nov 20); the Blender SubD hybrid is one toggle (or ?mode=subd) away.
+const useProcOnly = params.get('mode') !== 'subd';
+const camaroProc = buildCamaro(false);
+const camaroHybrid = buildCamaro(true); // procedural wheels, glass, yellow lights, taillights, trim, interior
+camaroProc.visible = useProcOnly;
+camaroHybrid.visible = !useProcOnly;
+scene.add(camaroProc);
+scene.add(camaroHybrid);
+
+const subdPaintMat = new THREE.MeshPhysicalMaterial({
+  vertexColors: true,
+  metalness: 0.44,
+  roughness: 0.13,
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.04,
+  envMapIntensity: 1.75,
+  side: THREE.DoubleSide,
+});
+
+const loader = new GLTFLoader();
+loader.load('./brad-camaro-subd.glb', (gltf) => {
+  gltf.scene.traverse((obj) => {
+    if (obj.isMesh) {
+      obj.material = subdPaintMat;
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    }
+  });
+  camaroHybrid.add(gltf.scene);
+});
+
+const bToggle = document.getElementById('bToggle');
+let usingSubd = !useProcOnly;
+bToggle.textContent = usingSubd ? 'Body: Blender SubD GLB' : 'Body: Pure Procedural';
+bToggle.onclick = () => {
+  usingSubd = !usingSubd;
+  camaroHybrid.visible = usingSubd;
+  camaroProc.visible = !usingSubd;
+  bToggle.textContent = usingSubd ? 'Body: Blender SubD GLB' : 'Body: Pure Procedural';
+};
+
+// Camera + 3 fixed phone-size (390x844) shots matching neon-bakeoff-brad.md
+const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 200);
+const SHOTS = {
+  // 1. High 3/4 showing the full white-to-maroon lengthwise fade with margin at 390x844
+  '1': { pos: [9.4, 7.6, 5.6], look: [0.0, 0.58, 0.10], fov: 48 },
+  // 2. 3/4 front matching front34.jpg (full white nose + yellow quad headlights + yellow beam pool)
+  '2': { pos: [8.8, 1.50, 9.2], look: [-0.08, 0.62, 0.35], fov: 48 },
+  // 3. 3/4 rear matching rear34.jpg (full deep maroon quarters, glass hatch, ducktail, multi-grid taillights)
+  '3': { pos: [9.0, 1.60, -8.8], look: [-0.05, 0.66, -0.10], fov: 48 },
+};
+
+let mode = 'orbit';
+let angle = 0.72, pitch = 0.24, dist = 8.6;
+const target = new THREE.Vector3(0, 0.68, 0.05);
+
+function setMode(m) {
+  mode = m;
+  ['bOrbit', 'b1', 'b2', 'b3'].forEach((id) => {
+    document.getElementById(id).classList.toggle('active', id === (m === 'orbit' ? 'bOrbit' : 'b' + m));
+  });
+  if (SHOTS[m]) {
+    camera.fov = SHOTS[m].fov;
+    camera.updateProjectionMatrix();
+    camera.position.set(...SHOTS[m].pos);
+    camera.lookAt(...SHOTS[m].look);
+  }
+}
+
+document.getElementById('bOrbit').onclick = () => setMode('orbit');
+document.getElementById('b1').onclick = () => setMode('1');
+document.getElementById('b2').onclick = () => setMode('2');
+document.getElementById('b3').onclick = () => setMode('3');
+
+const reqShot = params.get('shot');
+if (reqShot && SHOTS[reqShot]) setMode(reqShot);
+
+let dragging = false, lx = 0, ly = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; if (mode !== 'orbit') setMode('orbit'); });
+window.addEventListener('pointerup', () => { dragging = false; });
+window.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  angle -= (e.clientX - lx) * 0.006;
+  pitch = THREE.MathUtils.clamp(pitch + (e.clientY - ly) * 0.005, 0.04, 1.25);
+  lx = e.clientX; ly = e.clientY;
+});
+renderer.domElement.addEventListener('wheel', (e) => {
+  if (mode !== 'orbit') setMode('orbit');
+  dist = THREE.MathUtils.clamp(dist + e.deltaY * 0.01, 3.5, 16);
+}, { passive: true });
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const statsEl = document.getElementById('stats');
+let lastT = performance.now(), frameTimes = [];
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const w0 = performance.now();
+  const dt = Math.min(0.05, (now - lastT) * 0.001);
+  lastT = now;
+
+  if (mode === 'orbit') {
+    if (!dragging) angle += dt * 0.22;
+    camera.position.set(
+      target.x + Math.cos(angle) * Math.cos(pitch) * dist,
+      target.y + Math.sin(pitch) * dist,
+      target.z + Math.sin(angle) * Math.cos(pitch) * dist
+    );
+    camera.lookAt(target);
+  }
+  renderer.render(scene, camera);
+  frameTimes.push(performance.now() - w0);
+  if (frameTimes.length > 60) frameTimes.shift();
+  const med = [...frameTimes].sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)] || 0;
+  statsEl.textContent = `Draw calls: ${renderer.info.render.calls} · Tris: ${renderer.info.render.triangles.toLocaleString()} · Work: ${med.toFixed(2)} ms`;
+}
+requestAnimationFrame(animate);
+
+window.__bakeoff = { renderer, scene, camera, setMode };
+</script>
+</body>
+</html>

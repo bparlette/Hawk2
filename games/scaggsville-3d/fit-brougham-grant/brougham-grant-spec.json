@@ -1,0 +1,260 @@
+{
+  "meta": {
+    "name": "Grant's '90 Cadillac Brougham",
+    "year": 1990,
+    "notes": "Fitted from games/scaggsville-3d/reference/car-real/brougham-grant/ (Clair Classics 'Custom Gold Edition' car). Canon MAROON paint + vinyl roof; photo car's black/silver two-tone, gold trim and red pinstripe NOT carried. Factory dims: L 5.613 / W 1.913 / H 1.439 / WB 3.086; tyre 235/70R15 (r 0.355). Built on the a254581 archetype extensions: vinylRoof, chromeBumper F/R, eggcrate grille + chromeFrame, tailPanel 'vertical', cPillarZ."
+  },
+  "dims": {
+    "length": 5.61,
+    "width": 1.91,
+    "height": 1.44,
+    "wheelbase": 3.09,
+    "wheelZFront": 1.55,
+    "wheelZRear": -1.54,
+    "wheelRadius": 0.355,
+    "wheelWidth": 0.235,
+    "trackHalfFront": 0.77,
+    "trackHalfRear": 0.77,
+    "archGap": 0.05
+  },
+  "paint": {
+    "color": 6231586,
+    "roughness": 0.3,
+    "metalness": 0.25,
+    "clearcoat": 0.8,
+    "clearcoatRoughness": 0.18,
+    "vinylColor": 2170144
+  },
+  "bodyStations": [
+    {
+      "z": -2.8,
+      "yBot": 0.34,
+      "yBelt": 0.98,
+      "yDeck": 1.03,
+      "wBot": 0.86,
+      "wBelt": 0.93,
+      "wDeck": 0.88,
+      "crown": 0.01
+    },
+    {
+      "z": -2.45,
+      "yBot": 0.27,
+      "yBelt": 1.0,
+      "yDeck": 1.05,
+      "wBot": 0.89,
+      "wBelt": 0.945,
+      "wDeck": 0.9,
+      "crown": 0.01
+    },
+    {
+      "z": -1.9,
+      "yBot": 0.24,
+      "yBelt": 1.0,
+      "yDeck": 1.05,
+      "wBot": 0.9,
+      "wBelt": 0.95,
+      "wDeck": 0.9,
+      "crown": 0.01
+    },
+    {
+      "z": -1.2,
+      "yBot": 0.23,
+      "yBelt": 1.0,
+      "yDeck": 1.04,
+      "wBot": 0.9,
+      "wBelt": 0.95,
+      "wDeck": 0.9,
+      "crown": 0.01
+    },
+    {
+      "z": -0.3,
+      "yBot": 0.23,
+      "yBelt": 1.0,
+      "yDeck": 1.03,
+      "wBot": 0.9,
+      "wBelt": 0.95,
+      "wDeck": 0.9,
+      "crown": 0.01
+    },
+    {
+      "z": 0.6,
+      "yBot": 0.23,
+      "yBelt": 1.0,
+      "yDeck": 1.03,
+      "wBot": 0.9,
+      "wBelt": 0.95,
+      "wDeck": 0.9,
+      "crown": 0.01
+    },
+    {
+      "z": 1.3,
+      "yBot": 0.24,
+      "yBelt": 0.99,
+      "yDeck": 1.03,
+      "wBot": 0.9,
+      "wBelt": 0.95,
+      "wDeck": 0.9,
+      "crown": 0.01
+    },
+    {
+      "z": 2.0,
+      "yBot": 0.25,
+      "yBelt": 0.98,
+      "yDeck": 1.02,
+      "wBot": 0.89,
+      "wBelt": 0.945,
+      "wDeck": 0.895,
+      "crown": 0.01
+    },
+    {
+      "z": 2.55,
+      "yBot": 0.28,
+      "yBelt": 0.96,
+      "yDeck": 1.0,
+      "wBot": 0.88,
+      "wBelt": 0.935,
+      "wDeck": 0.885,
+      "crown": 0.01
+    },
+    {
+      "z": 2.8,
+      "yBot": 0.33,
+      "yBelt": 0.94,
+      "yDeck": 0.97,
+      "wBot": 0.85,
+      "wBelt": 0.92,
+      "wDeck": 0.87,
+      "crown": 0.008
+    }
+  ],
+  "greenhouse": {
+    "zRearBase": -1.34,
+    "yRearBase": 1.03,
+    "wRearBase": 0.78,
+    "zRearRoof": -1.02,
+    "yRearRoof": 1.435,
+    "wRearRoof": 0.72,
+    "zFrontRoof": 0.7,
+    "yFrontRoof": 1.435,
+    "wFrontRoof": 0.72,
+    "zFrontBase": 1.02,
+    "yFrontBase": 1.02,
+    "wFrontBase": 0.8,
+    "roofCrown": 0.012,
+    "bPillarZ": 0.08,
+    "windshieldColor": 1713718,
+    "windshieldOpacity": 0.5,
+    "sideGlassColor": 1450028,
+    "sideGlassOpacity": 0.55,
+    "rearGlassColor": 725016,
+    "rearGlassOpacity": 0.8,
+    "rearWiper": false,
+    "mirrors": {
+      "z": 0.92,
+      "y": 1.06,
+      "w": 0.14,
+      "h": 0.09,
+      "d": 0.1
+    },
+    "vinylRoof": true,
+    "cPillarZ": -0.68,
+    "cPillarPaint": false
+  },
+  "frontFascia": {
+    "bumperY": 0.44,
+    "bumperH": 0.21,
+    "bumperProtrusion": 0.1,
+    "rubStripY": 0.44,
+    "rubStripH": 0.05,
+    "grille": {
+      "y": 0.8,
+      "h": 0.34,
+      "w": 0.6,
+      "slats": 5,
+      "style": "eggcrate",
+      "vBars": 11,
+      "chromeFrame": true,
+      "topBarText": false
+    },
+    "cornerLamps": {
+      "y": 0.8,
+      "h": 0.19,
+      "innerSmokedW": 0.33,
+      "outerAmberW": 0.1,
+      "wrapZ": 0.18
+    },
+    "lowerIntake": {
+      "y": 0.26,
+      "h": 0.05,
+      "w": 0.9,
+      "dividers": 0
+    },
+    "chinSpoiler": {
+      "enabled": false
+    },
+    "popups": {
+      "enabled": false
+    },
+    "chromeBumper": true
+  },
+  "rearFascia": {
+    "bumperY": 0.44,
+    "bumperH": 0.21,
+    "bumperProtrusion": 0.1,
+    "rubStripY": 0.44,
+    "rubStripH": 0.05,
+    "paintedLowerValance": false,
+    "tailPanel": {
+      "style": "vertical",
+      "y": 0.82,
+      "h": 0.44,
+      "centerW": 1.49,
+      "lampW": 0.16,
+      "amberOuterW": 0.04,
+      "reverseW": 0.05,
+      "wrapZ": 0.1
+    },
+    "spoiler": {
+      "style": "none"
+    },
+    "exhaust": {
+      "side": "right",
+      "count": 1,
+      "xOffset": 0.55,
+      "y": 0.24,
+      "r": 0.034
+    },
+    "mudFlaps": false,
+    "fuelDoor": null,
+    "chromeBumper": true
+  },
+  "trim": {
+    "sideRubStrip": {
+      "enabled": true,
+      "y": 0.62,
+      "h": 0.03
+    },
+    "rockerSkirt": {
+      "enabled": false
+    },
+    "doorHandle": {
+      "z": 0.32,
+      "y": 0.95
+    },
+    "frontSideMarker": {
+      "z": 2.35,
+      "y": 0.62,
+      "w": 0.1,
+      "h": 0.025,
+      "color": 15236628
+    }
+  },
+  "wheels": {
+    "spokeCount": 16,
+    "spokeStyle": "mesh",
+    "rimColor": 13686494,
+    "tireColor": 1447707,
+    "hubRadius": 0.06,
+    "rimRatio": 0.56
+  }
+}

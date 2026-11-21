@@ -41,18 +41,20 @@ Implements `tasking/neon-followup.md` + **Phase A & Phase B** of `tasking/respon
 | Preview draw calls (`?shots=1`, `renderer.info`) | **48–49** | ≤ 60 |
 | Preview triangles | **33,108** | — |
 | Geometries / Textures | **50 geos · 9 tex (~2.02 MB)** | ≤ 4 MB |
-| PMREM init (`applyWorldEnvMap`) | **14.4 ms** (warm) / **202.7 ms** (cold 4-shot headless) | ≤ 150 ms target |
-| Road crop luma (`index.html`, Rec.601, x 10–90%, y 45–80%) | **98.4** (up from 9.8) | 70–100 |
+| PMREM init (`applyWorldEnvMap`) | **24.2 ms** (51 ms SwiftShader) | ≤ 150 ms |
+| Preview (a) spawn road crop (Rec.601, x 10–90%, y 45–80%) | **92.4** (`px < 25: 0.4%`) | 70–100 (`< 5%`) |
+| Preview (a) spawn lower half | **86.3** (`px < 25: 0.3%`) | 70–100 (`< 5%`) |
+| Preview (b) bridge lower half | **84.3** (`px < 25: 1.0%`) | 70–100 (`< 5%`) |
 | Colliders / Bins / ClimbOuts | **109 / 13 / 2** | — |
 
 ## 4. Host Integration Reference (`WORLD_LIGHTING` & `applyWorldEnvMap`)
 
 - `buildWorld(scene)` sets `scene.fog` and adds the dusk sky dome; if the host already provides a `DirectionalLight`, `buildWorld` does not add duplicate lights.
 - To match the preview 1:1 in `index.html`, apply `WORLD_LIGHTING` and call `applyWorldEnvMap(renderer, scene)` once after renderer init:
-  - Renderer: `ACESFilmicToneMapping`, `toneMappingExposure = 1.18`, `SRGBColorSpace`
-  - Sun: `0xffb38a`, intensity `2.35`, dir `[-0.84, 0.19, 0.50]`
-  - Hemisphere: sky `0xa4cbf7`, ground `0x675e70`, intensity `1.75`
-  - Ambient: `0x627aa8`, intensity `1.05`
+  - Renderer: `ACESFilmicToneMapping`, `toneMappingExposure = 1.22`, `SRGBColorSpace`
+  - Sun: `0xffb38a`, intensity `2.40`, dir `[-0.84, 0.19, 0.50]`
+  - Hemisphere: sky `0xa8d0fa`, ground `0x6c6378`, intensity `1.85`
+  - Ambient: `0x6680b0`, intensity `1.12`
   - Fog: `new THREE.Fog(0x8d82a3, 42, 160)`
 - **Water animation:** self-contained via `waterMesh.onBeforeRender` (zero host hook, zero per-frame allocations).
 - **Preview scripts:** `world-preview.html?shots=1` renders the 4 fixed `390×844` views + `renderer.info` console/HUD dump.

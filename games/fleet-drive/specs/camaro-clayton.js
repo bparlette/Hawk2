@@ -1,0 +1,270 @@
+// Clayton's '89 Chevrolet Camaro IROC-Z — green (fit-camaro-clayton/camaro-clayton-spec.json, Hawk2 main).
+// Spec used verbatim from the compare-gated fit — see ../AI-RECIPE.md.
+export const SPEC = {
+ "meta": {
+  "name": "Clayton's '89 Chevy Camaro IROC-Z (3rd Gen)",
+  "year": 1989,
+  "notes": "Same 3rd-gen shell as Brad's car; fitted from games/scaggsville-3d/reference/car-real/camaro-clayton/ (badges/wheels read 1988-90; provenance caveat in SOURCES.md). Canon GREEN paint + warm-white beams. Diffs vs Brad: solid green (no fade), black hood accent panels, later flat 5-spoke wheels."
+ },
+ "dims": {
+  "length": 4.76,
+  "width": 1.84,
+  "height": 1.265,
+  "wheelbase": 2.57,
+  "wheelZFront": 1.3,
+  "wheelZRear": -1.27,
+  "wheelRadius": 0.326,
+  "wheelWidth": 0.245,
+  "trackHalfFront": 0.79,
+  "trackHalfRear": 0.79,
+  "archGap": 0.048
+ },
+ "paint": {
+  "color": 1332013,
+  "roughness": 0.22,
+  "metalness": 0.28,
+  "clearcoat": 0.94,
+  "clearcoatRoughness": 0.12
+ },
+ "bodyStations": [
+  {
+   "z": -2.38,
+   "yBot": 0.3,
+   "yBelt": 0.74,
+   "yDeck": 0.88,
+   "wBot": 0.8,
+   "wBelt": 0.87,
+   "wDeck": 0.81,
+   "crown": 0.015
+  },
+  {
+   "z": -2.18,
+   "yBot": 0.24,
+   "yBelt": 0.76,
+   "yDeck": 0.9,
+   "wBot": 0.84,
+   "wBelt": 0.91,
+   "wDeck": 0.84,
+   "crown": 0.016
+  },
+  {
+   "z": -1.6,
+   "yBot": 0.195,
+   "yBelt": 0.76,
+   "yDeck": 0.9,
+   "wBot": 0.86,
+   "wBelt": 0.92,
+   "wDeck": 0.85,
+   "crown": 0.016
+  },
+  {
+   "z": -0.8,
+   "yBot": 0.185,
+   "yBelt": 0.75,
+   "yDeck": 0.89,
+   "wBot": 0.86,
+   "wBelt": 0.92,
+   "wDeck": 0.85,
+   "crown": 0.016
+  },
+  {
+   "z": 0.4,
+   "yBot": 0.185,
+   "yBelt": 0.74,
+   "yDeck": 0.87,
+   "wBot": 0.86,
+   "wBelt": 0.92,
+   "wDeck": 0.85,
+   "crown": 0.02
+  },
+  {
+   "z": 1.25,
+   "yBot": 0.19,
+   "yBelt": 0.72,
+   "yDeck": 0.85,
+   "wBot": 0.85,
+   "wBelt": 0.915,
+   "wDeck": 0.84,
+   "crown": 0.025
+  },
+  {
+   "z": 1.92,
+   "yBot": 0.2,
+   "yBelt": 0.67,
+   "yDeck": 0.8,
+   "wBot": 0.82,
+   "wBelt": 0.88,
+   "wDeck": 0.8,
+   "crown": 0.022
+  },
+  {
+   "z": 2.26,
+   "yBot": 0.21,
+   "yBelt": 0.6,
+   "yDeck": 0.72,
+   "wBot": 0.78,
+   "wBelt": 0.83,
+   "wDeck": 0.75,
+   "crown": 0.016
+  },
+  {
+   "z": 2.38,
+   "yBot": 0.22,
+   "yBelt": 0.56,
+   "yDeck": 0.67,
+   "wBot": 0.74,
+   "wBelt": 0.79,
+   "wDeck": 0.71,
+   "crown": 0.012
+  }
+ ],
+ "greenhouse": {
+  "zRearBase": -1.78,
+  "yRearBase": 0.895,
+  "wRearBase": 0.77,
+  "zRearRoof": -0.74,
+  "yRearRoof": 1.255,
+  "wRearRoof": 0.6,
+  "zFrontRoof": -0.02,
+  "yFrontRoof": 1.26,
+  "wFrontRoof": 0.61,
+  "zFrontBase": 0.66,
+  "yFrontBase": 0.865,
+  "wFrontBase": 0.79,
+  "roofCrown": 0.022,
+  "bPillarZ": -0.68,
+  "tTops": true,
+  "sailPillar": {
+   "enabled": true,
+   "zRear": -1.16
+  },
+  "windshieldColor": 1713718,
+  "windshieldOpacity": 0.48,
+  "sideGlassColor": 1317928,
+  "sideGlassOpacity": 0.58,
+  "rearGlassColor": 659480,
+  "rearGlassOpacity": 0.9,
+  "rearWiper": false,
+  "mirrors": {
+   "z": 0.44,
+   "y": 0.9,
+   "w": 0.15,
+   "h": 0.085,
+   "d": 0.12
+  }
+ },
+ "frontFascia": {
+  "bumperY": 0.495,
+  "bumperH": 0.085,
+  "bumperProtrusion": 0.055,
+  "rubStripY": 0.305,
+  "rubStripH": 0.024,
+  "fixedLamps": {
+   "enabled": true,
+   "y": 0.615,
+   "h": 0.135,
+   "pocketW": 0.52,
+   "xOffset": 0.51,
+   "fogLamps": true,
+   "lampColor": 16774614,
+   "beamColor": 16767400,
+   "emissiveIntensity": 1.9,
+   "beamOpacity": 0.45
+  },
+  "lowerIntake": {
+   "y": 0.39,
+   "h": 0.11,
+   "w": 0.84,
+   "dividers": 0
+  },
+  "chinSpoiler": {
+   "enabled": true,
+   "painted": true,
+   "y": 0.24,
+   "h": 0.1,
+   "protrusion": 0.045,
+   "zBack": 1.8
+  },
+  "popups": {
+   "enabled": false
+  }
+ },
+ "rearFascia": {
+  "bumperY": 0.46,
+  "bumperH": 0.14,
+  "bumperProtrusion": 0.045,
+  "rubStripY": 0.37,
+  "rubStripH": 0.026,
+  "paintedLowerValance": true,
+  "tailPanel": {
+   "style": "camaroGrid",
+   "y": 0.68,
+   "h": 0.21,
+   "centerW": 0.42,
+   "lampW": 0.62,
+   "amberOuterW": 0.15,
+   "reverseW": 0.12,
+   "wrapZ": 0.1
+  },
+  "spoiler": {
+   "style": "camaroWing",
+   "z": -2.26,
+   "y": 0.9,
+   "h": 0.075,
+   "d": 0.18,
+   "w": 1.62
+  },
+  "exhaust": {
+   "side": "left",
+   "count": 2,
+   "xOffset": 0.46,
+   "y": 0.22,
+   "r": 0.032
+  },
+  "mudFlaps": false,
+  "fuelDoor": {
+   "z": -1.72,
+   "y": 0.76,
+   "side": 1
+  }
+ },
+ "trim": {
+  "sideRubStrip": {
+   "enabled": true,
+   "y": 0.365,
+   "h": 0.032
+  },
+  "rockerSkirt": {
+   "enabled": false,
+   "y": 0.21,
+   "h": 0.05
+  },
+  "doorHandle": {
+   "z": -0.58,
+   "y": 0.77
+  },
+  "frontSideMarker": {
+   "z": 1.92,
+   "y": 0.5,
+   "w": 0.11,
+   "h": 0.026,
+   "color": 15236628
+  },
+  "hoodLouvers": {
+   "enabled": true,
+   "z": 1.42,
+   "w": 0.27,
+   "len": 0.95,
+   "xOffset": 0.26
+  }
+ },
+ "wheels": {
+  "spokeCount": 5,
+  "spokeStyle": "blade",
+  "rimColor": 13686494,
+  "tireColor": 1447707,
+  "hubRadius": 0.075,
+  "rimRatio": 0.66
+ }
+};
+export default SPEC;
