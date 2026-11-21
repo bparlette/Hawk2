@@ -334,7 +334,30 @@ export function buildWorld(scene, overrides=null){
     houseLOD.update(cp.x, cp.z); veg.cull(cp);
     for(const m of casters){ const b=m.geometry.boundingSphere; m.castShadow = Math.hypot(b.center.x-cp.x, b.center.z-cp.z) - b.radius < 120; }
   };
-  buildLampGlow(scene, lampPts, WORLD_LIGHTING.dressing.lampGlow);
+  // Night-lighting pass: glow points along the non-route streets too (pools +
+  // halos only, no new pole geometry — the mesh is invisible by day), plus a
+  // porch light at every rally stop, all merged into the one lampGlow mesh.
+  const streetGlowPts=[];
+  {
+    let gAcc=0;
+    for(const r of D.roads){
+      if(r.hw==='service' || /^(motorway|trunk)/.test(r.hw)) continue;
+      for(let i=0;i<r.pts.length-1;i++){
+        const [ax,az]=r.pts[i],[bx,bz]=r.pts[i+1]; const L=Math.hypot(bx-ax,bz-az);
+        let s=95-(gAcc%95);
+        while(s<L){
+          const t=s/L, side=(Math.floor((gAcc+s)/95)%2)? 1:-1;
+          const dx=(bz-az)/(L||1), dz=-(bx-ax)/(L||1);
+          streetGlowPts.push([ax+(bx-ax)*t+dx*5.6*side, az+(bz-az)*t+dz*5.6*side]);
+          s+=95;
+        }
+        gAcc+=L;
+      }
+      if(streetGlowPts.length>1600) break;
+    }
+  }
+  const porchPts=D.stops.map(s=>[s.hx+(s.sx-s.hx)*0.16, s.hz+(s.sz-s.hz)*0.16]);
+  buildLampGlow(scene, lampPts, WORLD_LIGHTING.dressing.lampGlow, streetGlowPts, porchPts);
 
   return {
     groundAt: (x,z)=>0,
@@ -354,32 +377,41 @@ export function buildWorld(scene, overrides=null){
   };
 }
 
-function buildLampGlow(scene, pts, opacity=0.42){
+function buildLampGlow(scene, pts, opacity=0.42, streetPts=[], porchPts=[]){
   // streetlight dressing at blue hour, ONE merged additive mesh: a warm pool
   // on the wet road under each lamp + a crossed halo card at the lamp head.
   // Lane A: the mesh is ALWAYS built (when lamps exist) and its opacity /
   // visibility is the live control — the day/night cycle fades it from 0 at
   // golden hour up through dusk/night. Static callers pass the active
   // preset's opacity (0 at golden -> mesh hidden, look unchanged).
-  if(!pts.length) return;
+  // Night-lighting pass: streetPts get pool+halo only (dimmer, lower halo),
+  // porchPts get a small warm pool + door-height halo at each rally stop.
+  if(!pts.length && !streetPts.length && !porchPts.length) return;
   const c=document.createElement('canvas'); c.width=c.height=128;
   const g2=c.getContext('2d');
   const gr=g2.createRadialGradient(64,64,2,64,64,64);
   gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.4,'rgba(255,255,255,0.4)'); gr.addColorStop(1,'rgba(255,255,255,0)');
   g2.fillStyle=gr; g2.fillRect(0,0,128,128);
   const tex=new THREE.CanvasTexture(c);
-  const geos=[];
-  const poolG=new THREE.PlaneGeometry(10.5,10.5); poolG.rotateX(-Math.PI/2);
+  const geos=[]; const tints=[];
+  const mkPool=(s)=>{ const g=new THREE.PlaneGeometry(s,s); g.rotateX(-Math.PI/2); return g; };
+  const poolG=mkPool(13.5), poolStreet=mkPool(11), poolPorch=mkPool(6.5);
   const glowA=new THREE.PlaneGeometry(2.6,1.5);
   const glowB=new THREE.PlaneGeometry(2.6,1.5); glowB.rotateY(Math.PI/2);
+  const glowSA=new THREE.PlaneGeometry(1.9,1.1);
+  const glowSB=new THREE.PlaneGeometry(1.9,1.1); glowSB.rotateY(Math.PI/2);
+  const glowPA=new THREE.PlaneGeometry(1.35,0.95);
+  const glowPB=new THREE.PlaneGeometry(1.35,0.95); glowPB.rotateY(Math.PI/2);
   const Q2=new THREE.Quaternion(), E2=new THREE.Euler(), V2=new THREE.Vector3(), S2=new THREE.Vector3(1,1,1);
-  const put=(src,x,y,z)=>{ E2.set(0,0,0); Q2.setFromEuler(E2); V2.set(x,y,z); const gg=src.clone(); gg.applyMatrix4(new THREE.Matrix4().compose(V2,Q2,S2)); geos.push(gg.index?gg.toNonIndexed():gg); };
-  for(const [x,z] of pts){ put(poolG, x, 0.075, z); put(glowA, x, 7.28, z); put(glowB, x, 7.28, z); }
+  const put=(src,x,y,z,tint)=>{ E2.set(0,0,0); Q2.setFromEuler(E2); V2.set(x,y,z); const gg=src.clone(); gg.applyMatrix4(new THREE.Matrix4().compose(V2,Q2,S2)); geos.push(gg.index?gg.toNonIndexed():gg); tints.push(tint); };
+  const T_LAMP=new THREE.Color(0xffb46a), T_STREET=new THREE.Color(0xd9903f), T_PORCH=new THREE.Color(0xffc98a);
+  for(const [x,z] of pts){ put(poolG, x, 0.075, z, T_LAMP); put(glowA, x, 7.28, z, T_LAMP); put(glowB, x, 7.28, z, T_LAMP); }
+  for(const [x,z] of streetPts){ put(poolStreet, x, 0.075, z, T_STREET); put(glowSA, x, 6.2, z, T_STREET); put(glowSB, x, 6.2, z, T_STREET); }
+  for(const [x,z] of porchPts){ put(poolPorch, x, 0.09, z, T_PORCH); put(glowPA, x, 2.7, z, T_PORCH); put(glowPB, x, 2.7, z, T_PORCH); }
   let total=0; for(const g of geos) total+=g.attributes.position.count;
   const pos=new Float32Array(total*3), nor=new Float32Array(total*3), uv=new Float32Array(total*2), col=new Float32Array(total*3);
-  const tint=new THREE.Color(0xffb46a);
   let o=0;
-  for(const g of geos){ const n=g.attributes.position.count;
+  for(let gi=0; gi<geos.length; gi++){ const g=geos[gi], tint=tints[gi]; const n=g.attributes.position.count;
     pos.set(g.attributes.position.array,o*3); nor.set(g.attributes.normal.array,o*3);
     if(g.attributes.uv) uv.set(g.attributes.uv.array,o*2);
     for(let i=0;i<n;i++){ col[(o+i)*3]=tint.r; col[(o+i)*3+1]=tint.g; col[(o+i)*3+2]=tint.b; }
