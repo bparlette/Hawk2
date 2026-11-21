@@ -168,5 +168,27 @@ export function makeTextures(){
     g.fillStyle='#3b3f44'; for(let k=1;k<4;k++) g.fillRect(20+k*54-2,60,4,140); g.fillRect(20,128,216,3);
     T.store=tex(c); T.storeRough=tex(roughFrom(c,0.08,0.85),{srgb:false}); }
 
+  // ---- foliage atlas 512x512: x 0..383 leaf clusters (alpha-tested), 384..447 bark, 448..511 needles ----
+  { const s=512, c=canvas(s), g=c.getContext('2d');
+    g.clearRect(0,0,s,s);
+    const LR=mulberry32(5150);
+    // leaves: hundreds of small leaves, denser toward the middle so a card reads as a rounded clump
+    for(let i=0;i<5200;i++){
+      const a=LR()*Math.PI*2, rr=Math.pow(LR(),0.62)*180; const x=192+Math.cos(a)*rr, y=256+Math.sin(a)*rr*1.25;
+      if(x<4||x>380||y<4||y>508) continue;
+      const v=LR(), lum=0.62+0.38*(1-rr/190);
+      g.fillStyle=`rgb(${Math.round((58+v*40)*lum)},${Math.round((96+v*52)*lum)},${Math.round((34+v*20)*lum)})`;
+      g.beginPath(); g.ellipse(x,y,4+LR()*4.5,2+LR()*2.2,LR()*Math.PI,0,7); g.fill();
+    }
+    for(let i=0;i<900;i++){ const a=LR()*Math.PI*2, rr=Math.pow(LR(),0.8)*150, x=192+Math.cos(a)*rr, y=256+Math.sin(a)*rr*1.25;
+      g.fillStyle=`rgba(170,190,110,${0.25+LR()*0.3})`; g.beginPath(); g.ellipse(x,y,3,1.6,LR()*3,0,7); g.fill(); } // sunlit flecks
+    // bark strip
+    g.fillStyle='#5a4636'; g.fillRect(384,0,64,s);
+    for(let i=0;i<700;i++){ const v=LR(); g.fillStyle=`rgba(${30+v*60},${24+v*44},${18+v*30},0.6)`; g.fillRect(384+LR()*64, LR()*s, 1.5+LR()*2, 10+LR()*40); }
+    // needles strip
+    g.fillStyle='#2f4a2a'; g.fillRect(448,0,64,s);
+    for(let i=0;i<2500;i++){ const v=LR(); g.fillStyle=`rgba(${40+v*40},${70+v*50},${36+v*20},0.7)`; g.fillRect(448+LR()*64, LR()*s, 1, 4+LR()*6); }
+    T.foliage=tex(c,{repeat:false}); T.foliage.premultiplyAlpha=false; }
+
   return T;
 }

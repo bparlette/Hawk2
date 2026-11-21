@@ -231,3 +231,14 @@ Merged world meshes are now split into 900 m tiles so frustum + shadow culling c
 | Page errors | 0 | 0 |
 
 Rerun the woods extraction with `python3 tools/extract_greens.py`.
+
+## World look pass 2 (Opus, Nov 21)
+
+- **Trees are leaf-card canopies** (alpha-tested clusters on a leaves | bark | needles atlas, crown-centred
+  normals for soft rounded light, branches into the crown, dappled alpha shadows). One material, so a
+  chunk is still one draw — and cheaper than the faceted blob trees they replace.
+- **Grass** desaturated toward late-summer olive with drier macro patches (was golf-course green).
+- **Contact shadows**: a soft dark skirt where every house meets the ground (one transparent draw).
+
+Measured, same harness and views: **527k – 625k triangles** (pass 1: 654k – 770k; original: 568k – 643k),
+221 – 291 calls, world build 1.8 s, 0 page errors.

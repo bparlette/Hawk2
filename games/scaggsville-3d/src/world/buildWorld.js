@@ -277,12 +277,14 @@ export function buildWorld(scene, overrides=null){
   vec3 g1=texture2D(map, wp/3.2).rgb, g2=texture2D(map, wp/13.7+0.31).rgb;
   float m1=texture2D(uMacro, wp/420.0).r, m2=texture2D(uMacro, wp/97.0+0.5).r;
   vec3 g=mix(g1,g2,0.38);
-  vec3 lush=vec3(0.86,1.0,0.80), dry=vec3(1.18,1.04,0.70), dark=vec3(0.70,0.82,0.66);
-  vec3 tone=mix(lush, dry, smoothstep(0.45,0.75,m1));
+  vec3 lush=vec3(0.82,0.92,0.70), dry=vec3(1.16,1.02,0.66), dark=vec3(0.68,0.78,0.60);
+  vec3 tone=mix(lush, dry, smoothstep(0.42,0.72,m1));
   tone=mix(tone, dark, smoothstep(0.55,0.85,m2)*0.6);
-  diffuseColor.rgb *= g*tone;`);
+  vec3 gc=g*tone;
+  gc=mix(vec3(dot(gc, vec3(0.299,0.587,0.114))), gc, 0.74);   // late-summer Maryland, not golf-course green
+  diffuseColor.rgb *= gc;`);
   };
-  grassMat.customProgramCacheKey=()=>'sv3d-grass-v1';
+  grassMat.customProgramCacheKey=()=>'sv3d-grass-v2';
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(9800,11800), grassMat);
   ground.rotation.x=-Math.PI/2; ground.position.set(-350,0,-2250);
   ground.receiveShadow=true; ground.name='ground';
@@ -300,6 +302,17 @@ export function buildWorld(scene, overrides=null){
   const H=buildHouses({ D, B, roads, rand, cfg, nearRoute }); lap('houses');
   colliders.push(...H.colliders);
   const winQuads=H.winQuads;
+  // ---- contact shadow skirts: soft darkening where every house meets the ground (one draw) ----
+  { const P=[], Cc=[];
+    for(const c of H.colliders){ if(c.hw*c.hd*4>4000) continue;
+      const ex=[c.cos,-c.sin], ez=[c.sin,c.cos], W=(lx,lz)=>[c.cx+ex[0]*lx+ez[0]*lz, 0.03, c.cz+ex[1]*lx+ez[1]*lz];
+      const ring=[[c.hw,c.hd],[-c.hw,c.hd],[-c.hw,-c.hd],[c.hw,-c.hd]], o=1.7;
+      for(let i=0;i<4;i++){ const a=ring[i], b=ring[(i+1)%4];
+        const ia=W(a[0],a[1]), ib=W(b[0],b[1]), oa=W(a[0]+Math.sign(a[0])*o, a[1]+Math.sign(a[1])*o), ob=W(b[0]+Math.sign(b[0])*o, b[1]+Math.sign(b[1])*o);
+        P.push(...ia,...ib,...ob, ...ia,...ob,...oa); Cc.push(0,0,0,0.42, 0,0,0,0.42, 0,0,0,0, 0,0,0,0.42, 0,0,0,0, 0,0,0,0); } }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(Cc,4));
+    const m=new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, depthWrite:false, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-1, fog:true }));
+    m.name='contactShadows'; m.renderOrder=1; m.matrixAutoUpdate=false; scene.add(m); }
   // driveways (garage -> real road) + a mailbox at the kerb
   const mbPost=new THREE.BoxGeometry(0.09,1.05,0.09); mbPost.translate(0,0.52,0);
   const mbBox=new THREE.CylinderGeometry(0.15,0.15,0.48,10,1,false,0,Math.PI); mbBox.rotateZ(Math.PI/2); mbBox.rotateY(Math.PI/2); mbBox.translate(0,1.12,0);

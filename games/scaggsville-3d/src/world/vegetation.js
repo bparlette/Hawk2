@@ -8,64 +8,87 @@ const CHUNK=400;
 
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
 
-// ---------- tree models (merged, vertex-coloured: darker toward the bottom/inside = baked AO) ----------
-function blob(r, detail, seed, cx, cy, cz, col, sy=1){
-  const R=mulberry32(seed), g=new THREE.IcosahedronGeometry(r, detail), p=g.attributes.position, c=new Float32Array(p.count*3), base=new THREE.Color(col);
-  for(let i=0;i<p.count;i++){
-    const x=p.getX(i), y=p.getY(i), z=p.getZ(i), L=Math.hypot(x,y,z)||1;
-    const k=1+(R()-0.5)*0.32;                                  // lumpy silhouette
-    p.setXYZ(i, cx+x*k, cy+y*k*sy, cz+z*k);
-    const up=y/L, ao=0.55+0.45*(up*0.5+0.5), jit=0.9+R()*0.2;    // darker underneath
-    c[i*3]=base.r*ao*jit; c[i*3+1]=base.g*ao*jit; c[i*3+2]=base.b*ao*jit;
+// ---------- tree models: alpha-tested leaf-card crowns on a 3-region atlas (leaves | bark | needles) ----------
+// One material for everything (atlas), so a chunk is one draw. Crown normals point out from the crown
+// centre (blended with up) for the soft, rounded light real canopies have; vertex colour = baked AO.
+const U_LEAF=[0,0.75], U_BARK=[0.75,0.875], U_NEEDLE=[0.875,1.0];
+function geo(P,N,UV,C){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(UV,2)); g.setAttribute('color',new THREE.Float32BufferAttribute(C,3)); return g; }
+function crown(R, clusters, crownC, crownR, tint){
+  // clusters: [[x,y,z,r], ...] -> 3 crossed cards each
+  const P=[],N=[],UV=[],C=[]; const base=new THREE.Color(tint||'#ffffff');
+  for(const [x,y,z,r] of clusters){
+    for(let k=0;k<3;k++){
+      const yaw=R()*Math.PI, tilt=(k===2? Math.PI/2*0.85 : (R()-0.5)*0.5);
+      const ax=[Math.cos(yaw),0,Math.sin(yaw)];                     // card horizontal axis
+      const up=[ -Math.sin(yaw)*Math.sin(tilt), Math.cos(tilt), Math.cos(yaw)*Math.sin(tilt) ]; // card vertical axis
+      const corners=[[-1,-1],[1,-1],[1,1],[-1,1]], uvs=[[U_LEAF[0],0],[U_LEAF[1],0],[U_LEAF[1],1],[U_LEAF[0],1]];
+      const vs=corners.map(([a,b])=>[x+ax[0]*a*r+up[0]*b*r*1.25, y+ax[1]*a*r+up[1]*b*r*1.25, z+ax[2]*a*r+up[2]*b*r*1.25]);
+      for(const i of [0,1,2,0,2,3]){ const v=vs[i];
+        let nx=(v[0]-crownC[0])/crownR, ny=(v[1]-crownC[1])/crownR*0.8+0.45, nz=(v[2]-crownC[2])/crownR; const L=Math.hypot(nx,ny,nz)||1;
+        P.push(...v); N.push(nx/L,ny/L,nz/L); UV.push(...uvs[i]);
+        const ao=Math.min(1, 0.5+0.55*((v[1]-(crownC[1]-crownR))/(2*crownR))) * (0.85+0.3*Math.min(1,Math.hypot(v[0]-crownC[0],v[2]-crownC[2])/crownR));
+        C.push(base.r*ao, base.g*ao, base.b*ao); }
+    }
   }
-  g.setAttribute('color', new THREE.BufferAttribute(c,3)); g.computeVertexNormals();
-  return g.index? g.toNonIndexed() : g;
+  return geo(P,N,UV,C);
 }
-function trunk(h, r0, r1, col='#5b4636'){
-  const g=new THREE.CylinderGeometry(r1, r0, h, 6, 1, true); g.translate(0,h/2,0);
-  const c=new THREE.Color(col), n=g.attributes.position.count, a=new Float32Array(n*3);
-  for(let i=0;i<n;i++){ const y=g.attributes.position.getY(i)/h; const k=0.55+0.45*y; a[i*3]=c.r*k; a[i*3+1]=c.g*k; a[i*3+2]=c.b*k; }
-  g.setAttribute('color', new THREE.BufferAttribute(a,3));
-  return g.index? g.toNonIndexed() : g;
+function cyl(a, b, r0, r1, seg=6, u=U_BARK, col='#ffffff'){
+  // tapered cylinder from point a to b, bark-mapped
+  const P=[],N=[],UV=[],C=[]; const c=new THREE.Color(col);
+  const d=new THREE.Vector3(b[0]-a[0],b[1]-a[1],b[2]-a[2]), L=d.length(); d.normalize();
+  const t1=new THREE.Vector3(1,0,0); if(Math.abs(d.x)>0.9) t1.set(0,0,1); const t2=new THREE.Vector3().crossVectors(d,t1).normalize(); t1.crossVectors(t2,d).normalize();
+  for(let i=0;i<seg;i++){ const a0=i/seg*Math.PI*2, a1=(i+1)/seg*Math.PI*2;
+    const ring=(ang,r,p)=>[p[0]+(t1.x*Math.cos(ang)+t2.x*Math.sin(ang))*r, p[1]+(t1.y*Math.cos(ang)+t2.y*Math.sin(ang))*r, p[2]+(t1.z*Math.cos(ang)+t2.z*Math.sin(ang))*r];
+    const nrm=(ang)=>[t1.x*Math.cos(ang)+t2.x*Math.sin(ang), t1.y*Math.cos(ang)+t2.y*Math.sin(ang), t1.z*Math.cos(ang)+t2.z*Math.sin(ang)];
+    const q=[ring(a0,r0,a), ring(a1,r0,a), ring(a1,r1,b), ring(a0,r1,b)], n=[nrm(a0),nrm(a1),nrm(a1),nrm(a0)];
+    const uu=[[u[0]+(u[1]-u[0])*i/seg,0],[u[0]+(u[1]-u[0])*(i+1)/seg,0],[u[0]+(u[1]-u[0])*(i+1)/seg,L/4],[u[0]+(u[1]-u[0])*i/seg,L/4]];
+    for(const k of [0,1,2,0,2,3]){ P.push(...q[k]); N.push(...n[k]); UV.push(...uu[k]); const ao=k<2?0.55:1.0; C.push(c.r*ao,c.g*ao,c.b*ao); } }
+  return geo(P,N,UV,C);
 }
-function cone(r, h, y, col, seed){
+function coneG(r, h, y, seed){
   const R=mulberry32(seed), g=new THREE.ConeGeometry(r, h, 9, 2, true); g.translate(0,y+h/2,0);
-  const p=g.attributes.position, c=new Float32Array(p.count*3), base=new THREE.Color(col);
-  for(let i=0;i<p.count;i++){ const yy=(p.getY(i)-y)/h; p.setX(i,p.getX(i)*(1+(R()-0.5)*0.25)); p.setZ(i,p.getZ(i)*(1+(R()-0.5)*0.25));
-    const k=0.5+0.5*yy; c[i*3]=base.r*k; c[i*3+1]=base.g*k; c[i*3+2]=base.b*k; }
-  g.setAttribute('color', new THREE.BufferAttribute(c,3)); g.computeVertexNormals();
-  return g.index? g.toNonIndexed() : g;
+  const p=g.attributes.position; for(let i=0;i<p.count;i++){ p.setX(i,p.getX(i)*(1+(R()-0.5)*0.3)); p.setZ(i,p.getZ(i)*(1+(R()-0.5)*0.3)); }
+  const ng=g.toNonIndexed(); ng.computeVertexNormals();
+  const n=ng.attributes.position.count, uv=new Float32Array(n*2), c=new Float32Array(n*3);
+  for(let i=0;i<n;i++){ const yy=(ng.attributes.position.getY(i)-y)/h; uv[i*2]=U_NEEDLE[0]+(U_NEEDLE[1]-U_NEEDLE[0])*((i%3)/2); uv[i*2+1]=yy; const k=0.5+0.5*yy; c[i*3]=k; c[i*3+1]=k; c[i*3+2]=k; }
+  ng.setAttribute('uv',new THREE.BufferAttribute(uv,2)); ng.setAttribute('color',new THREE.BufferAttribute(c,3));
+  return ng;
 }
 function merge(geos){
   let n=0; for(const g of geos) n+=g.attributes.position.count;
-  const P=new Float32Array(n*3), N=new Float32Array(n*3), C=new Float32Array(n*3); let o=0;
-  for(const g of geos){ const k=g.attributes.position.count; if(!g.attributes.normal) g.computeVertexNormals();
-    P.set(g.attributes.position.array,o*3); N.set(g.attributes.normal.array,o*3); C.set(g.attributes.color.array,o*3); o+=k; g.dispose(); }
-  const m=new THREE.BufferGeometry(); m.setAttribute('position',new THREE.BufferAttribute(P,3)); m.setAttribute('normal',new THREE.BufferAttribute(N,3)); m.setAttribute('color',new THREE.BufferAttribute(C,3));
+  const P=new Float32Array(n*3), N=new Float32Array(n*3), UV=new Float32Array(n*2), C=new Float32Array(n*3); let o=0;
+  for(const g of geos){ const k=g.attributes.position.count;
+    P.set(g.attributes.position.array,o*3); N.set(g.attributes.normal.array,o*3); UV.set(g.attributes.uv.array,o*2); C.set(g.attributes.color.array,o*3); o+=k; g.dispose(); }
+  const m=new THREE.BufferGeometry(); m.setAttribute('position',new THREE.BufferAttribute(P,3)); m.setAttribute('normal',new THREE.BufferAttribute(N,3)); m.setAttribute('uv',new THREE.BufferAttribute(UV,2)); m.setAttribute('color',new THREE.BufferAttribute(C,3));
   m.computeBoundingSphere(); return m;
 }
+function dome(R, n, cy, rx, ry, rMin, rMax){ // cluster centres spread over an ellipsoid shell (+ one core)
+  const out=[[0,cy,0,rMax*1.1]];
+  for(let i=0;i<n;i++){ const a=i/n*Math.PI*2+R()*0.6, e=(R()*0.9-0.25)*Math.PI/2; out.push([Math.cos(a)*Math.cos(e)*rx, cy+Math.sin(e)*ry, Math.sin(a)*Math.cos(e)*rx, rMin+R()*(rMax-rMin)]); }
+  return out;
+}
+function deciduous(seed, { trunkH, crownY, rx, ry, n, rMin, rMax, branches=3, tint='#ffffff' }){
+  const R=mulberry32(seed), parts=[cyl([0,0,0],[0,trunkH,0],0.3,0.2,7)];
+  for(let i=0;i<branches;i++){ const a=i/branches*Math.PI*2+R(); parts.push(cyl([0,trunkH*0.75,0],[Math.cos(a)*rx*0.55, crownY+R()*ry*0.3, Math.sin(a)*rx*0.55],0.13,0.05,5)); }
+  parts.push(crown(R, dome(R, n, crownY, rx, ry, rMin, rMax), [0,crownY,0], Math.max(rx,ry), tint));
+  return merge(parts);
+}
 function makeModels(){
-  const leafA='#4f7a2e', leafB='#5e8434', leafC='#466b2a', leafD='#6f8f3a';
   return {
-    oak: merge([ trunk(3.2,0.32,0.2),
-      blob(2.4,1,11, 0,4.6,0, leafA), blob(1.9,1,12, 1.5,4.0,0.6, leafB), blob(1.8,1,13,-1.4,4.2,-0.5, leafC),
-      blob(1.7,1,14, 0.3,5.6,-1.2, leafB), blob(1.5,1,15,-0.5,3.4,1.4, leafA) ]),                 // ~ 400 tris, street/yard
-    maple: merge([ trunk(3.6,0.26,0.16,'#615040'),
-      blob(2.1,1,21, 0,5.4,0, leafD, 1.25), blob(1.6,1,22, 1.1,4.4,0.4, leafB, 1.2), blob(1.5,1,23,-1.0,4.7,-0.3, leafD, 1.2) ]),
-    pine: merge([ trunk(2.2,0.22,0.14,'#4e3b2c'),
-      cone(2.3,3.4,1.6,'#2f4d2c',31), cone(1.8,3.0,3.6,'#35552f',32), cone(1.25,2.6,5.6,'#3a5c33',33), cone(0.7,2.0,7.4,'#406437',34) ]),
-    woods: merge([ trunk(5,0.3,0.2,'#4d3c2e'),                                                          // cheap, tall: forest interior
-      blob(3.0,0,41, 0,7.2,0, leafC, 1.15), blob(2.4,0,42, 1.4,5.8,0.8, leafA), blob(2.2,0,43,-1.3,6.2,-0.6, leafB) ]),
-    shrub: merge([ blob(0.75,0,51, 0,0.55,0, '#3f6129', 0.8), blob(0.6,0,52, 0.55,0.45,0.2, '#4a6e2f', 0.8), blob(0.5,0,53,-0.45,0.4,-0.15, '#46682c', 0.8) ]), // 60 tris
+    oak:   deciduous(11, { trunkH:3.0, crownY:5.0, rx:2.6, ry:1.9, n:9, rMin:1.3, rMax:1.9, branches:3 }),
+    maple: deciduous(21, { trunkH:3.4, crownY:5.8, rx:2.0, ry:2.5, n:8, rMin:1.1, rMax:1.7, branches:3, tint:'#f2ffe6' }),
+    pine:  merge([ cyl([0,0,0],[0,3,0],0.24,0.16,6), coneG(2.3,3.4,1.6,31), coneG(1.8,3.0,3.6,32), coneG(1.25,2.6,5.6,33), coneG(0.7,2.0,7.4,34) ]),
+    woods: deciduous(41, { trunkH:5.2, crownY:7.6, rx:2.9, ry:2.4, n:7, rMin:1.6, rMax:2.3, branches:2, tint:'#e6f0dc' }),
+    shrub: merge([ crown(mulberry32(51), [[0,0.6,0,0.75],[0.55,0.5,0.2,0.6],[-0.45,0.45,-0.15,0.55]], [0,0.5,0], 0.9, '#cfe0c4') ]),
   };
 }
-// low-poly stand-ins for distant chunks (same silhouette, ~1/5 the triangles)
+// low-poly stand-ins for distant chunks (fewer cards, same silhouette)
 function makeLods(){
-  const leafA='#4f7a2e', leafB='#5e8434', leafC='#466b2a', leafD='#6f8f3a';
   return {
-    oak: merge([ trunk(3.2,0.32,0.2), blob(2.6,0,61, 0,4.7,0, leafA), blob(2.0,0,62, 1.4,4.1,0.5, leafB), blob(1.9,0,63,-1.3,4.3,-0.5, leafC) ]),
-    maple: merge([ trunk(3.6,0.26,0.16,'#615040'), blob(2.2,0,71, 0,5.3,0, leafD, 1.3), blob(1.6,0,72, 0.9,4.4,0.3, leafB, 1.2) ]),
-    pine: merge([ trunk(2.2,0.22,0.14,'#4e3b2c'), cone(2.2,4.6,1.6,'#2f4d2c',81), cone(1.4,3.8,4.6,'#3a5c33',82) ]),
+    oak:   deciduous(61, { trunkH:3.0, crownY:5.0, rx:2.6, ry:1.9, n:4, rMin:1.7, rMax:2.3, branches:0 }),
+    maple: deciduous(71, { trunkH:3.4, crownY:5.8, rx:2.0, ry:2.5, n:3, rMin:1.5, rMax:2.0, branches:0, tint:'#f2ffe6' }),
+    pine:  merge([ cyl([0,0,0],[0,3,0],0.24,0.16,4), coneG(2.2,4.6,1.6,81), coneG(1.4,3.8,4.6,82) ]),
+    woods: deciduous(91, { trunkH:5.2, crownY:7.6, rx:2.9, ry:2.4, n:3, rMin:2.2, rMax:2.8, branches:0, tint:'#e6f0dc' }),
   };
 }
 
@@ -95,8 +118,8 @@ class Forest {
   }
 }
 
-export function vegetationMaterial(){
-  return new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.95, metalness:0, envMapIntensity:0.5 });
+export function vegetationMaterial(T){
+  return new THREE.MeshStandardMaterial({ map:T.foliage, alphaTest:0.42, side:THREE.DoubleSide, vertexColors:true, roughness:0.9, metalness:0, envMapIntensity:0.45 });
 }
 
 export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T }){
@@ -183,7 +206,7 @@ export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T }){
     const m=new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map:T.leaf, roughness:1, color:0xbfb8a8 })); m.receiveShadow=true; m.name='forestFloor'; m.matrixAutoUpdate=false; scene.add(m);
   }
 
-  const mat=vegetationMaterial();
+  const mat=vegetationMaterial(T);
   const built=F.build(scene, models, mat, makeLods());
   // distance cull: chunks beyond the fog are skipped entirely (frustum culling handles the sides)
   const prev=scene.onBeforeRender;
