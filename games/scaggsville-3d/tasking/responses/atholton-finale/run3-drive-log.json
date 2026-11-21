@@ -1,0 +1,145 @@
+{
+ "log": [
+  {
+   "leg": "clayton",
+   "from": [
+    513,
+    431
+   ],
+   "copStop": 0,
+   "ok": true,
+   "minDist": 17.3,
+   "ms": 130285,
+   "finished": false,
+   "collected": [
+    "clayton"
+   ],
+   "pathM": 271
+  },
+  {
+   "leg": "jason",
+   "from": [
+    -388,
+    -1291
+   ],
+   "copStop": 0,
+   "ok": true,
+   "minDist": 17.2,
+   "ms": 201934,
+   "finished": false,
+   "collected": [
+    "clayton",
+    "jason"
+   ],
+   "pathM": 328
+  },
+  {
+   "leg": "grant",
+   "from": [
+    -2481,
+    -2054
+   ],
+   "copStop": 0,
+   "ok": true,
+   "minDist": 16.9,
+   "ms": 166073,
+   "finished": false,
+   "collected": [
+    "clayton",
+    "jason",
+    "grant"
+   ],
+   "pathM": 241
+  },
+  {
+   "leg": "jimmy",
+   "from": [
+    -2516,
+    -2182
+   ],
+   "copStop": 0,
+   "ok": true,
+   "minDist": 17.8,
+   "ms": 148639,
+   "finished": false,
+   "collected": [
+    "clayton",
+    "jason",
+    "grant",
+    "jimmy"
+   ],
+   "pathM": 282
+  },
+  {
+   "leg": "rigg",
+   "from": [
+    -1942,
+    -2926
+   ],
+   "copStop": 0,
+   "ok": true,
+   "minDist": 17.5,
+   "ms": 222094,
+   "finished": false,
+   "collected": [
+    "clayton",
+    "jason",
+    "grant",
+    "jimmy",
+    "rigg"
+   ],
+   "pathM": 260
+  },
+  {
+   "leg": "kosack",
+   "from": [
+    -26,
+    -3661
+   ],
+   "copStop": 0,
+   "ok": true,
+   "minDist": 16.7,
+   "ms": 136249,
+   "finished": false,
+   "collected": [
+    "clayton",
+    "jason",
+    "grant",
+    "jimmy",
+    "rigg",
+    "kosack"
+   ],
+   "pathM": 262
+  },
+  {
+   "leg": "atholton",
+   "from": [
+    -544,
+    -7696
+   ],
+   "copStop": 434,
+   "ok": false,
+   "minDist": 606.7,
+   "ms": 278229,
+   "finished": false,
+   "collected": [
+    "clayton",
+    "jason",
+    "grant",
+    "jimmy",
+    "rigg",
+    "kosack"
+   ],
+   "pathM": 1531
+  }
+ ],
+ "party": {
+  "cop": "done",
+  "copSiren": false,
+  "party": "dormant",
+  "nightK": 1,
+  "greeted": false,
+  "guests": 104
+ },
+ "errors": []
+}
