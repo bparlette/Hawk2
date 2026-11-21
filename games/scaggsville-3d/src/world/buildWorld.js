@@ -38,6 +38,7 @@ export const WORLD_CONFIG = {
   parkedCars: 42,          // ambient parked cars on crew streets / lots
   windowGlow: 0.85,        // fallback only — the active preset's dressing.windowGlow drives lit windows
   houseDetailRadius: 420,  // m from route/stops where houses get window quads
+  houseFullRadius: 700,    // m from the route: full house detail inside, lean textured houses beyond
   vegCullDistance: 760,    // m: vegetation chunks beyond this are not drawn (fog hides them)
 };
 
@@ -244,19 +245,20 @@ export function buildWorld(scene, overrides=null){
   colliders.push(...H.colliders);
   const winQuads=H.winQuads;
   // ---- contact shadow skirts: soft darkening where every house meets the ground (one draw) ----
-  { const P=[], Cc=[];
+  { const tiles=new Map(); let P, Cc;
     for(const c of H.colliders){ if(c.hw*c.hd*4>4000) continue;
+      const tk=Math.floor(c.cx/900)+','+Math.floor(c.cz/900); if(!tiles.has(tk)) tiles.set(tk,{P:[],C:[]}); ({P, C:Cc}=tiles.get(tk));
       const ex=[c.cos,-c.sin], ez=[c.sin,c.cos], W=(lx,lz)=>[c.cx+ex[0]*lx+ez[0]*lz, 0.03, c.cz+ex[1]*lx+ez[1]*lz];
       const ring=[[c.hw,c.hd],[-c.hw,c.hd],[-c.hw,-c.hd],[c.hw,-c.hd]], o=1.7;
       for(let i=0;i<4;i++){ const a=ring[i], b=ring[(i+1)%4];
         const ia=W(a[0],a[1]), ib=W(b[0],b[1]), oa=W(a[0]+Math.sign(a[0])*o, a[1]+Math.sign(a[1])*o), ob=W(b[0]+Math.sign(b[0])*o, b[1]+Math.sign(b[1])*o);
         P.push(...ia,...ib,...ob, ...ia,...ob,...oa); Cc.push(0,0,0,0.42, 0,0,0,0.42, 0,0,0,0, 0,0,0,0.42, 0,0,0,0, 0,0,0,0); } }
-    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(Cc,4));
-    const m=new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, depthWrite:false, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-1, fog:true }));
-    m.name='contactShadows'; m.renderOrder=1; m.matrixAutoUpdate=false; scene.add(m); }
+    const csMat=new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, depthWrite:false, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-1, fog:true });
+    for(const t of tiles.values()){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(t.P,3)); g.setAttribute('color',new THREE.BufferAttribute(Uint8Array.from(t.C,v=>Math.round(v*255)),4,true)); g.computeBoundingSphere();
+      const m=new THREE.Mesh(g, csMat); m.name='contactShadows'; m.renderOrder=1; m.matrixAutoUpdate=false; scene.add(m); } }
   // driveways (garage -> real road) + a mailbox at the kerb
   const mbPost=new THREE.BoxGeometry(0.09,1.05,0.09); mbPost.translate(0,0.52,0);
-  const mbBox=new THREE.CylinderGeometry(0.15,0.15,0.48,10,1,false,0,Math.PI); mbBox.rotateZ(Math.PI/2); mbBox.rotateY(Math.PI/2); mbBox.translate(0,1.12,0);
+  const mbBox=new THREE.CylinderGeometry(0.15,0.15,0.48,4,1,false,0,Math.PI); mbBox.rotateZ(Math.PI/2); mbBox.rotateY(Math.PI/2); mbBox.translate(0,1.12,0);
   const mbBase=new THREE.BoxGeometry(0.3,0.16,0.48); mbBase.translate(0,1.06,0);
   const MBC=['#1f2228','#2a3a52','#f0eee8','#7a1f24'];
   for(const d of H.drives){

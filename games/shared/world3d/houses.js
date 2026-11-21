@@ -70,13 +70,16 @@ export function houseMaterials(T){
 export function buildHouses({ D, B, roads, rand, cfg, nearRoute }){
   const colliders=[], winQuads=[], drives=[];
   const heroStyle={}; for(const [bid,st] of Object.entries(D.heroes)) heroStyle[D.heroBuilding[bid]]=st;
-  let nHouse=0, nShed=0, nBig=0;
+  let nHouse=0, nShed=0, nBig=0, nSimple=0;
   for(const b of D.buildings){
     const pts=b.pts;
     let cx=0,cz=0; for(const p of pts){cx+=p[0];cz+=p[1];} cx/=pts.length; cz/=pts.length;
     let bl=0,ba=0;
     for(let i=0;i<pts.length;i++){ const a=pts[i], c=pts[(i+1)%pts.length]; const L=Math.hypot(c[0]-a[0],c[1]-a[1]); if(L>bl){bl=L; ba=Math.atan2(c[0]-a[0], c[1]-a[1]);} }
-    const ry=-ba+Math.PI/2, cos=Math.cos(ry), sin=Math.sin(ry);
+    // box local +x MUST lie along the longest edge (dx,dz) = (sin ba, cos ba). three's rotation.y = ry maps local +x
+    // to (cos ry, -sin ry), so ry = atan2(-dz, dx). (The original -ba+PI/2 mirrored the axis in z: every non-grid-aligned
+    // house was rotated against its street and its box covered ~2x the real footprint — median fill 0.50 vs 0.93.)
+    const ry=Math.atan2(-Math.cos(ba), Math.sin(ba)), cos=Math.cos(ry), sin=Math.sin(ry);
     // local frame: ex = long axis (half-length hw), ez = depth axis (half-depth hd)
     const ex=[cos,-sin], ez=[sin,cos];
     let hw=0, hd=0;
@@ -95,6 +98,9 @@ export function buildHouses({ D, B, roads, rand, cfg, nearRoute }){
     const wallCol = st? st.wall : brick? BRICK_TINTS[Math.floor(rand()*BRICK_TINTS.length)] : SIDING[Math.floor(rand()*SIDING.length)];
     const roofCol = st? (st.roof? st.roof.c1 : '#6b7078') : ROOFS[Math.floor(rand()*ROOFS.length)];
     colliders.push({ cx, cz, hw, hd, cos, sin, top:wallTop+1.5, type: b.hero? 'hero':'house' });
+    // level of detail: full street-facing detail near the route, a lean textured house beyond it
+    const simple = kind!=='big' && !b.hero && cfg.houseFullRadius!==undefined && !nearRoute(cx,cz,cfg.houseFullRadius);
+    colliders[colliders.length-1].lean = simple;
     const IN_MID=[cx, wallTop*0.5, cz], IN_ROOF=[cx, wallTop-4, cz];
 
     // ---------- which side faces the street ----------
@@ -104,7 +110,9 @@ export function buildHouses({ D, B, roads, rand, cfg, nearRoute }){
       front = Math.abs(dZ)*1.4 >= Math.abs(dX) ? [1, Math.sign(dZ)||1] : [0, Math.sign(dX)||1]; }
 
     // ---------- foundation ----------
-    if(kind!=='shed') boxAt(B,'found', cx, FOUND/2, cz, ry, hw*2+0.08, FOUND, hd*2+0.08, '#ffffff');
+    if(kind!=='shed' && !simple){ // foundation: four side quads (no hidden top/bottom faces)
+      const fw=hw+0.04, fd=hd+0.04, C=[[fw,fd],[-fw,fd],[-fw,-fd],[fw,-fd]];
+      for(let k=0;k<4;k++){ const a=C[k], b2=C[(k+1)%4]; quad(B,'found', W(a[0],a[1],0),W(b2[0],b2[1],0),W(b2[0],b2[1],FOUND),W(a[0],a[1],FOUND), [0,0],[1,0],[1,0.3],[0,0.3], '#ffffff', [cx,FOUND*0.5,cz]); } }
 
     // ---------- walls ----------
     const y0 = kind==='shed'? 0 : FOUND;
@@ -115,7 +123,7 @@ export function buildHouses({ D, B, roads, rand, cfg, nearRoute }){
       { axis:0, sign:-1, a:[-hw, hd], b:[-hw,-hd], len:hd*2 },
     ];
     for(const f of faces){
-      const isFront = f.axis===front[0] && f.sign===front[1];
+      const isFront = !simple && f.axis===front[0] && f.sign===front[1];
       const nb=Math.max(1, Math.round(f.len/BAY));
       if(kind==='shed'){ quad(B,'wallBlank', W(...f.a,y0),W(...f.b,y0),W(...f.b,wallTop),W(...f.a,wallTop), [0,0],[f.len/BAY,0],[f.len/BAY,wallTop/STOREY],[0,wallTop/STOREY], wallCol, IN_MID); continue; }
       if(kind==='big'){
@@ -164,7 +172,7 @@ export function buildHouses({ D, B, roads, rand, cfg, nearRoute }){
         quad(B,key, W(...f.a,y0),W(...f.b,y0),W(...f.b,wallTop),W(...f.a,wallTop), [0,0],[nb,0],[nb,vTop],[0,vTop], wallCol, IN_MID);
       }
       // lit window quads on the painted window centres (subset; the cycle tints them)
-      if(b.hero || nearRoute(cx,cz,cfg.houseDetailRadius)){
+      if(!simple && (b.hero || nearRoute(cx,cz,cfg.houseDetailRadius))){
         const out=[f.axis===0? f.sign:0, f.axis===1? f.sign:0];
         for(let fl=0; fl<storeys; fl++) for(let k=0;k<nb;k++){
           if(isFront && fl===0 && (k===doorBay || garageBays.includes(k))) continue;
@@ -187,7 +195,8 @@ export function buildHouses({ D, B, roads, rand, cfg, nearRoute }){
     const RW = ridgeAlongX? hw : hd, RD = ridgeAlongX? hd : hw;           // half-length along ridge, half-span
     const ov=0.42, rake=0.3, pitch= kind==='shed'? 0.35 : 0.5;          // rise per run
     const rise=(RD+ov)*pitch, ridgeY=wallTop+RD*pitch;
-    const hip = kind==='house' && !st && rand()<0.28 && RW>RD*1.15;
+    const hip = !simple && kind==='house' && !st && rand()<0.28 && RW>RD*1.15;
+    const fascia=(r0,s0,r1,s1)=>{ quad(B,'trim', W(...L(r0,s0),eaveY-0.2),W(...L(r1,s1),eaveY-0.2),W(...L(r1,s1),eaveY+0.02),W(...L(r0,s0),eaveY+0.02), [0,0],[1,0],[1,1],[0,1], '#ffffff', [cx,eaveY-0.1,cz]); };
     // local helpers in ridge frame: (r along ridge, s across) -> local (lx,lz)
     const L=(r,s)=> ridgeAlongX? [r,s] : [s,r];
     const eaveY=wallTop-ov*pitch;
@@ -199,8 +208,8 @@ export function buildHouses({ D, B, roads, rand, cfg, nearRoute }){
         quad(B,'roof', a,b,c,d, [0,0],[2*rr/3,0],[2*rr/3,uS],[0,uS], roofCol, IN_ROOF);
         // soffit (underside of the overhang) + fascia board
         const sa=W(...L(-rr, sgn*sr),eaveY-0.01), sb=W(...L(rr, sgn*sr),eaveY-0.01), sc=W(...L(rr, sgn*RD),wallTop-0.02), sd=W(...L(-rr, sgn*RD),wallTop-0.02);
-        quad(B,'trim', sa,sb,sc,sd,[0,0],[1,0],[1,1],[0,1],'#e9e6df', [(sa[0]+sc[0])/2, eaveY+1, (sa[2]+sc[2])/2]);
-        const fm=W(...L(0, sgn*(sr-0.02)),eaveY-0.08); boxAt(B,'trim', fm[0], fm[1], fm[2], ry, ridgeAlongX? 2*rr: 0.06, 0.2, ridgeAlongX? 0.06 : 2*rr, '#ffffff');
+        if(!simple){ quad(B,'trim', sa,sb,sc,sd,[0,0],[1,0],[1,1],[0,1],'#e9e6df', [(sa[0]+sc[0])/2, eaveY+1, (sa[2]+sc[2])/2]);
+          fascia(-rr, sgn*sr, rr, sgn*sr); }
       }
       for(const sgn of [1,-1]){ // gable end walls (siding, no window) + rake boards
         const a=W(...L(sgn*RW,-RD),wallTop), b=W(...L(sgn*RW,RD),wallTop), c=W(...L(sgn*RW,0),ridgeY);
@@ -213,24 +222,26 @@ export function buildHouses({ D, B, roads, rand, cfg, nearRoute }){
         quad(B,'roof', a,b,c,d, [0,0],[2*rr/3,0],[(rr+hr)/3,uS],[(rr-hr)/3,uS], roofCol, IN_ROOF);
         const e=W(...L(sgn*rr,-sr),eaveY), f2=W(...L(sgn*rr,sr),eaveY), g=W(...L(sgn*hr,0),ridgeY+0.02);
         tri(B,'roof', e,f2,g, [0,0],[2*sr/3,0],[sr/3,uS], roofCol, IN_ROOF);
-        const fm=W(...L(0, sgn*(sr-0.02)),eaveY-0.08); boxAt(B,'trim', fm[0], fm[1], fm[2], ry, ridgeAlongX? 2*rr: 0.06, 0.2, ridgeAlongX? 0.06 : 2*rr, '#ffffff');
-        const fe=W(...L(sgn*(rr-0.02),0),eaveY-0.08); boxAt(B,'trim', fe[0], fe[1], fe[2], ry, ridgeAlongX? 0.06 : 2*sr, 0.2, ridgeAlongX? 2*sr : 0.06, '#ffffff');
+        fascia(-rr, sgn*sr, rr, sgn*sr); fascia(sgn*rr, -sr, sgn*rr, sr);
       }
     }
     // chimney on ~40% of houses
-    if(kind==='house' && rand()<0.4){ const s=rand()<0.5?-1:1; const c=W(...L(s*(RW-0.6), RD*0.35), 0);
+    if(kind==='house' && !simple && rand()<0.4){ const s=rand()<0.5?-1:1; const c=W(...L(s*(RW-0.6), RD*0.35), 0);
       const h=ridgeY+0.9; boxAt(B,'chimney', c[0], h/2, c[2], ry, 0.85, h, 0.6, '#ffffff'); boxAt(B,'trim', c[0], h+0.05, c[2], ry, 0.95, 0.1, 0.7, '#8e8a84'); }
-    if(kind==='shed') nShed++; else nHouse++;
+    if(kind==='shed') nShed++; else nHouse++; if(simple) nSimple++;
   }
-  return { colliders, winQuads, drives, stats:{ houses:nHouse, sheds:nShed, big:nBig } };
+  return { colliders, winQuads, drives, stats:{ houses:nHouse, sheds:nShed, big:nBig, leanHouses:nSimple } };
 }
 
-export function buildLitWindows(scene, quads){
-  // vertical emissive window quads, merged, one draw — host re-tints material.color for the day/night cycle
-  const positions=[], colors=[], idx=[];
+export function buildLitWindows(scene, quads, tile=900){
+  // vertical emissive window quads, merged per 900 m tile; every tile shares ONE material, so a host that
+  // re-tints getObjectByName('litWindows').material.color for the day/night cycle tints them all
+  const tiles=new Map(), mat=new THREE.MeshBasicMaterial({ vertexColors:true, side: THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 });
+  let positions, colors, idx;
   const cA=new THREE.Color(0xffc37a), cB=new THREE.Color(0xbfd9ff), cC=new THREE.Color(0xffe2b0);
   let seed=7; const r=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
   for(const [x,y,z,f,ex,ez] of quads){
+    const k=Math.floor(x/tile)+','+Math.floor(z/tile); if(!tiles.has(k)) tiles.set(k,{p:[],c:[],i:[]}); const T=tiles.get(k); positions=T.p; colors=T.c; idx=T.i;
     const c = r()<0.7? cA : r()<0.5? cB : cC;
     const along = f.axis===1? ex : ez; // horizontal axis of that wall
     const hw=0.45, hh=0.66;
@@ -238,11 +249,13 @@ export function buildLitWindows(scene, quads){
     for(const [ox,oy] of [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]]){ positions.push(x+along[0]*ox, y+oy, z+along[1]*ox); colors.push(c.r,c.g,c.b); }
     idx.push(base,base+1,base+2, base,base+2,base+3);
   }
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(colors,3));
-  g.setIndex(idx); g.computeVertexNormals();
-  const m=new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors:true, side: THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 }));
-  m.matrixAutoUpdate=false; m.name='litWindows'; scene.add(m);
-  return m;
+  let first=null;
+  for(const T of tiles.values()){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(T.p,3));
+    g.setAttribute('color', new THREE.BufferAttribute(Uint8Array.from(T.c, v=>Math.round(v*255)),3,true));   // unlit: no normals needed
+    g.setIndex(T.i); g.computeBoundingSphere();
+    const m=new THREE.Mesh(g, mat); m.matrixAutoUpdate=false; m.name='litWindows'; scene.add(m); if(!first) first=m;
+  }
+  return first;
 }

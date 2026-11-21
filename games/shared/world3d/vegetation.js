@@ -152,12 +152,13 @@ export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T, gr
   // ---- yard trees + foundation shrubs per house ----
   for(const c of colliders){
     if(c.hw*c.hd*4>520) continue;
+    const lean = c.lean;
     const ex=[c.cos,-c.sin], ez=[c.sin,c.cos];
-    const n=1+Math.floor(R()*3);
+    const n=lean? (R()<0.5?1:0) : Math.floor(R()*3);
     for(let k=0;k<n;k++){ const a=R()*6.28, d=Math.hypot(c.hw,c.hd)+3+R()*7, x=c.cx+Math.cos(a)*d, z=c.cz+Math.sin(a)*d;
       if(!free(x,z,2) || onDrive(x,z)) continue; F.add(pick(), x, z, 0.9+R()*0.6, R()*6.28, tint()); yard++; }
-    // shrubs along the two long walls
-    for(const sg of [1,-1]){ const cnt=Math.floor(c.hw/1.6);
+    // shrubs along the two long walls (full-detail houses only)
+    if(!lean) for(const sg of [1,-1]){ const cnt=Math.floor(c.hw/1.6);
       for(let k=0;k<cnt;k++){ if(R()<0.45) continue; const lx=-c.hw+0.8+k*(2*c.hw-1.6)/Math.max(1,cnt-1), lz=sg*(c.hd+0.85);
         const x=c.cx+ex[0]*lx+ez[0]*lz, z=c.cz+ex[1]*lx+ez[1]*lz; if(roads.index.paved(x,z) || onDrive(x,z)) continue;
         F.add('shrub', x, z, 0.8+R()*0.6, R()*6.28, tint()); shrubs++; } }
@@ -174,7 +175,7 @@ export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T, gr
     if(j>0 && dist[id-GW]>d){ dist[id-GW]=d; queue[qt++]=id-GW; } if(j<GH-1 && dist[id+GW]>d){ dist[id+GW]=d; queue[qt++]=id+GW; } }
   const roadDist=(x,z)=>{ const i=Math.floor((x-gx0)/DC), j=Math.floor((z-gz0)/DC); return (i<0||j<0||i>=GW||j>=GH)? 1e9 : dist[j*GW+i]; };
   // spacing by band: dense where you see trunks, sparse + bigger where only the canopy line shows, none past the fog
-  const band=(d)=> d<40? {step:7.5, model:'mix', s:[1.0,0.5]} : d<150? {step:11, model:'woods', s:[1.1,0.5]} : d<400? {step:18, model:'woods', s:[1.5,0.5]} : d<700? {step:26, model:'woods', s:[1.9,0.6]} : null;
+  const band=(d)=> d<25? {step:9, model:'mix', s:[1.0,0.5]} : d<150? {step:13, model:'woods', s:[1.15,0.5]} : d<400? {step:20, model:'woods', s:[1.6,0.5]} : d<700? {step:30, model:'woods', s:[2.0,0.6]} : null;
 
   // ---- REAL woods (OSM green polygons): forest floor + trees ----
   const floorP=[], floorI=[];
@@ -189,7 +190,7 @@ export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T, gr
     let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9; for(const p of poly){ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); z0=Math.min(z0,p[1]); z1=Math.max(z1,p[1]); }
     const inside=(x,z)=>{ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const [xi,zi]=poly[i],[xj,zj]=poly[j]; if(((zi>z)!==(zj>z)) && (x<(xj-xi)*(z-zi)/(zj-zi)+xi)) c=!c; } return c; };
     // walk a 7.5 m lattice; each band keeps the cells on its own coarser lattice
-    const LAT=7.5;
+    const LAT=9;
     for(let x=x0; x<x1; x+=LAT) for(let z=z0; z<z1; z+=LAT){
       const b=band(roadDist(x,z)); if(!b) continue;
       const k=Math.round(b.step/LAT); if(k>1 && ((Math.round((x-x0)/LAT)%k)!==0 || (Math.round((z-z0)/LAT)%k)!==0)) continue;

@@ -137,9 +137,12 @@ export function buildRoads(scene, D, T, B){
     const inPoly=(x,z)=>{ let c=false; for(let i=0,j=p.pts.length-1;i<p.pts.length;j=i++){ const [xi,zi]=p.pts[i],[xj,zj]=p.pts[j]; if(((zi>z)!==(zj>z)) && (x<(xj-xi)*(z-zi)/(zj-zi)+xi)) c=!c; } return c; };
     for(let x=Math.min(...xs); x<=Math.max(...xs); x+=1.5) for(let z=Math.min(...zs); z<=Math.max(...zs); z+=1.5) if(inPoly(x,z)) idx.set(x,z); }
 
-  // ---- road surface ----
-  const P=[], N=[], UV=[], AR=[], I=[];
+  // ---- road surface: one mesh per 900 m tile (one draw each, culled per tile) ----
+  const TILE=900, tiles=new Map();
+  let P, N, UV, AR, I;
+  const useTile=(x,z)=>{ const k=Math.floor(x/TILE)+','+Math.floor(z/TILE); if(!tiles.has(k)) tiles.set(k,{P:[],N:[],UV:[],AR:[],I:[]}); ({P,N,UV,AR,I}=tiles.get(k)); };
   function addRibbon(pts, width, y, type){
+    useTile(pts[0][0], pts[0][1]);
     const S=withNormals(resample(pts, 6)); const total=S[S.length-1].d; const base=P.length/3;
     for(const s of S){ const hw=width/2;
       P.push(s.x+s.nx*hw, y, s.z+s.nz*hw,  s.x-s.nx*hw, y, s.z-s.nz*hw);
@@ -147,30 +150,34 @@ export function buildRoads(scene, D, T, B){
     for(let i=1;i<S.length;i++){ const b0=base+(i-1)*2; I.push(b0,b0+2,b0+1, b0+1,b0+2,b0+3); }
   }
   function addDisc(x,z,r,y){
-    const base=P.length/3, n=28; P.push(x,y,z); N.push(0,1,0); UV.push(0.5,50); AR.push(0,100,2*r,0);
+    useTile(x,z); const base=P.length/3, n=28; P.push(x,y,z); N.push(0,1,0); UV.push(0.5,50); AR.push(0,100,2*r,0);
     for(let k=0;k<=n;k++){ const a=k/n*Math.PI*2; P.push(x+Math.cos(a)*r,y,z+Math.sin(a)*r); N.push(0,1,0); UV.push(0.5,50); AR.push(0,100,2*r,0); }
     for(let k=0;k<n;k++) I.push(base, base+k+2, base+k+1);
   }
   for(const r of D.roads) addRibbon(r.pts, r.w, CLASS_Y[r.hw] ?? 0.065, markFor(r.hw));
   for(const c of D.cds) addDisc(c.x, c.z, c.r, 0.064);
   for(const p of D.parking){ // lots as asphalt fans (real footprints)
-    const cx=p.pts.reduce((s,q)=>s+q[0],0)/p.pts.length, cz=p.pts.reduce((s,q)=>s+q[1],0)/p.pts.length, base=P.length/3;
+    const cx=p.pts.reduce((s,q)=>s+q[0],0)/p.pts.length, cz=p.pts.reduce((s,q)=>s+q[1],0)/p.pts.length; useTile(cx,cz); const base=P.length/3;
     P.push(cx,0.058,cz); N.push(0,1,0); UV.push(0.5,50); AR.push(0,100,40,0);
     for(const q of p.pts){ P.push(q[0],0.058,q[1]); N.push(0,1,0); UV.push(0.5,50); AR.push(0,100,40,0); }
     for(let k=0;k<p.pts.length;k++){ const a=base+1+k, b=base+1+((k+1)%p.pts.length); I.push(base,b,a); }
   }
-  const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(P,3));
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(N,3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(UV,2));
-  geo.setAttribute('aRoad', new THREE.Float32BufferAttribute(AR,4));
-  geo.setIndex(I);
-  // winding check: faces must point up (+Y) — flip if the first triangle faces down
-  { const a=new THREE.Vector3().fromArray(P,I[0]*3), b=new THREE.Vector3().fromArray(P,I[1]*3), c=new THREE.Vector3().fromArray(P,I[2]*3);
-    const n=new THREE.Vector3().subVectors(b,a).cross(new THREE.Vector3().subVectors(c,a));
-    if(n.y<0){ for(let i=0;i<I.length;i+=3){ const t=I[i+1]; I[i+1]=I[i+2]; I[i+2]=t; } geo.setIndex(I); } }
-  const roadMesh=new THREE.Mesh(geo, roadMaterial(T)); roadMesh.receiveShadow=true; roadMesh.name='roads'; roadMesh.matrixAutoUpdate=false;
-  scene.add(roadMesh);
+  const roadMat=roadMaterial(T), roadMeshes=[];
+  for(const t of tiles.values()){
+    if(!t.I.length) continue;
+    // every triangle must face up (+Y): fix each one individually (ribbons, discs and lot fans differ)
+    for(let i=0;i<t.I.length;i+=3){ const a=t.I[i]*3, b=t.I[i+1]*3, c=t.I[i+2]*3;
+      const ny=(t.P[b+2]-t.P[a+2])*(t.P[c]-t.P[a]) - (t.P[b]-t.P[a])*(t.P[c+2]-t.P[a+2]);
+      if(ny<0){ const s=t.I[i+1]; t.I[i+1]=t.I[i+2]; t.I[i+2]=s; } }
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(t.P,3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(t.N,3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(t.UV,2));
+    geo.setAttribute('aRoad', new THREE.Float32BufferAttribute(t.AR,4));
+    geo.setIndex(t.I); geo.computeBoundingSphere();
+    const m=new THREE.Mesh(geo, roadMat); m.receiveShadow=true; m.name='roads'; m.matrixAutoUpdate=false; scene.add(m); roadMeshes.push(m);
+  }
+  const roadMesh=roadMeshes[0];
 
   // ---- curbs + sidewalks (residential), gravel shoulders (collectors / service) ----
   const CURB_H=0.14;
@@ -198,12 +205,12 @@ export function buildRoads(scene, D, T, B){
   }
   let swLen=0;
   for(const r of D.roads){
-    const S=withNormals(resample(r.pts, 2.0)); for(const s of S) s.edge=r.w/2;
+    const S=withNormals(resample(r.pts, 3.0)); for(const s of S) s.edge=r.w/2;
     if(hasSidewalk(r.hw)){
       // curb face + curb top + 0.6 m planting strip (grass-height top) is skipped: sidewalk sits right behind the curb
-      const prof=[[0,0.03],[0,CURB_H],[0.16,CURB_H],[0.2,CURB_H],[1.75,CURB_H],[1.8,0.0]];
-      sweep(S, +1, prof, 'sidewalk', [0,0.02,0.08,0.1,1,1], 0xffffff);
-      sweep(S, -1, prof, 'sidewalk', [0,0.02,0.08,0.1,1,1], 0xffffff);
+      const prof=[[0,0.03],[0,CURB_H],[1.75,CURB_H],[1.8,0.0]];   // curb face, curb+walk top, outer skirt
+      sweep(S, +1, prof, 'sidewalk', [0,0.04,1,1], 0xffffff);
+      sweep(S, -1, prof, 'sidewalk', [0,0.04,1,1], 0xffffff);
       swLen+=S[S.length-1].d*2;
     } else if(r.hw!=='service'){
       const prof=[[0,0.05],[0.9,0.025],[1.4,0.0]];
@@ -211,5 +218,5 @@ export function buildRoads(scene, D, T, B){
       sweep(S, -1, prof, 'shoulder', [0,0.6,1], 0xffffff);
     }
   }
-  return { index:idx, mesh:roadMesh, stats:{ sidewalkKm: +(swLen/1000).toFixed(1) } };
+  return { index:idx, mesh:roadMesh, meshes:roadMeshes, stats:{ sidewalkKm: +(swLen/1000).toFixed(1), roadTiles: roadMeshes.length } };
 }

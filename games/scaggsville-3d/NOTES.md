@@ -242,3 +242,35 @@ Rerun the woods extraction with `python3 tools/extract_greens.py`.
 
 Measured, same harness and views: **527k – 625k triangles** (pass 1: 654k – 770k; original: 568k – 643k),
 221 – 291 calls, world build 1.8 s, 0 page errors.
+
+## Map fidelity fix (Opus, Nov 21): the 3D map now matches the real map the 2D game draws
+
+Measured against `laurel-fulton/data/graph.min.json` (the network the 2D game draws, which matches satellite
+imagery) and `areas.json`:
+
+| Check | Before | After |
+|---|---|---|
+| Road vertex position error vs the real graph | 0.00 m (positions were always exact) | 0.00 m |
+| Real road length inside the map extent that was **missing** | 49–100 % per class (66 % residential, 79 % service, 88 % secondary) | **0.00 %** of 369.3 km |
+| Roads / buildings / lots / cul-de-sacs | 1,165 / 2,027 / 8 / 36 (a corridor around the route) | 4,496 / 9,931 / 114 / 140 (everything in the extent) |
+| House box fit (footprint area / box area, median) | **0.50**: boxes mirrored in z, every non-grid house rotated against its street and ~2× its real footprint | **0.93**: box axis on the real longest edge |
+
+1. **Coverage.** The first extraction kept a corridor around the rally route, so cross streets ended a few metres
+   past intersections and subdivisions were empty grass. `tools/extract_world.py` re-extracts everything inside the
+   same extent with the same fitted frame (2,027 building matches, residual 0.00 m). Stops, route and heroes are
+   byte-identical.
+2. **House orientation.** `ry = -ba + π/2` mapped the box's local +x to a z-mirrored edge direction. Fixed in
+   `games/shared/world3d/houses.js` (`ry = atan2(-cos ba, sin ba)`); colliders share `ry`, so collisions follow the
+   real walls too.
+3. **Scale is real.** The 2D data was compressed ×0.5 on Nov 17 (owner: "every road maybe 1/2 the current length")
+   while `graph.min.json` still says `units_per_m: 10`. 5 units = 1 real metre, so 3D is true size and 2D is a
+   half-scale miniature. Road widths in 2D were not halved, which is why 2D streets look wider than 3D ones.
+
+**Budget for the complete map** (same recipe, 390×844): 581k–618k triangles (corridor build: 525k–662k), 373–450 GL
+draws (326–397), 75.4 MB geometry (58.8 MB, each geometry counted once), world build 5.4 s (1.8 s), 0 page errors.
+To keep it there: road surface, lit windows and contact shadows are tiled at 900 m; houses beyond 700 m from the
+route are lean (walls + roof, `houseFullRadius`); merged normals and colours are int8/uint8; woods are banded
+9/13/20/30 m; shrubs only on full-detail houses.
+
+Verify any future map change with the checks above: `tools/lookdev/` plus the coverage script pattern in
+`tools/extract_world.py`'s docstring.
