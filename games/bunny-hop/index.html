@@ -190,13 +190,46 @@ function tube(a, b, r, material, parent){
   m.castShadow = true; parent.add(m); return m;
 }
 const V3 = (x,y,z)=>new THREE.Vector3(x,y,z);
+/* Woven fabric textures (Neon clothing bake-off, Nov 20): canvas weave for the
+   chinos, full plaid for the flannel — cloth reads as cloth, not flat colour. */
+function makeFabricTexture(baseHex, weaveHex, mode = 'cotton'){
+  const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = baseHex; g.fillRect(0, 0, 256, 256);
+  if (mode === 'plaid'){
+    g.fillStyle = 'rgba(22, 32, 48, 0.55)';
+    for (let i = 0; i < 256; i += 64){ g.fillRect(i, 0, 22, 256); g.fillRect(0, i, 256, 22); }
+    g.fillStyle = 'rgba(236, 224, 200, 0.32)';
+    for (let i = 36; i < 256; i += 64){ g.fillRect(i, 0, 4, 256); g.fillRect(0, i, 256, 4); }
+  } else {
+    let s = 421;
+    const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    g.fillStyle = weaveHex;
+    for (let y = 0; y < 256; y += 3){ g.globalAlpha = 0.08 + rnd() * 0.06; g.fillRect(0, y, 256, 1); }
+    for (let x = 0; x < 256; x += 4){ g.globalAlpha = 0.06 + rnd() * 0.05; g.fillRect(x, 0, 1, 256); }
+    g.globalAlpha = 1.0;
+    g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(0, 240, 256, 3);
+    g.fillStyle = 'rgba(255,255,255,0.14)'; g.fillRect(0, 243, 256, 2);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
 const frameMat = mat(0xd8434f, 0.35, 0.6), chromeMat = mat(0xb9c0c9, 0.3, 0.85), tyreMat = mat(0x17181c, 0.95),
-      skinMat = mat(0xc98a5e, 0.8), shirtMat = mat(0xffd23f, 0.85), pantsMat = mat(0xb09a72, 0.95),
+      skinMat = mat(0xc98a5e, 0.8), shirtMat = mat(0xffd23f, 0.85),
+      pantsMat = new THREE.MeshStandardMaterial({ map: makeFabricTexture('#8c7a5e', '#111620', 'cotton'), roughness: 0.95 }),
       shoeMat = mat(0xf2f2f2, 0.7), capMat = mat(0x24304f, 0.85),
       darkSteelMat = mat(0x2a2c30, 0.55, 0.7), rubberMat = mat(0x141416, 0.95),
       teeMat = mat(0xf3efe6, 0.92), shortsMat = mat(0xb09a72, 0.95), shortsDarkMat = mat(0x8a764f, 0.95),
       capDarkMat = mat(0x182238, 0.85), strapMat = mat(0x30363f, 0.8),
       hairMat = mat(0x2a1c12, 0.9), eyeMat = mat(0xf8f8f5, 0.3), soleMat = mat(0x3a3a3e, 0.9);
+/* Outfit 2 (Neon clothing bake-off winner, Cherie's pick Nov 20): open flannel
+   over a white tank + khaki chinos — plaid shell, dark-red collar + cuffs. */
+const flannelMat = new THREE.MeshStandardMaterial({ map: makeFabricTexture('#9c2d30', '#222e42', 'plaid'), roughness: 0.90, side: THREE.DoubleSide }),
+      collarMat = mat(0x842226, 0.88),
+      cuffMat = new THREE.MeshStandardMaterial({ color: 0x7a1f23, roughness: 0.88, side: THREE.DoubleSide }),
+      tankMat = mat(0xeef1f6, 0.88), beltMat = mat(0x3b281c, 0.65);
 /* --- geometry helpers for the modelled bike + Figure-Factory-style rider --- */
 function xform(geo, px,py,pz, rx=0,ry=0,rz=0, sx=1,sy=1,sz=1){
   const g = geo.clone();
@@ -255,6 +288,81 @@ const spokeMat = new THREE.MeshStandardMaterial({ map: spokeTexture(), transpare
    segments with joint spheres; the tee has sleeves + cuffs + collar + hem, the
    shorts have a waistband and flared leg openings over skin thighs. --- */
 function tapered(rTop, rBot, len, seg = 12){ const g = new THREE.CylinderGeometry(rTop, rBot, len, seg); g.translate(0, -len/2, 0); return g; }
+/* Lofted open-bottom draped shirt (Neon clothing bake-off): real vertical cloth
+   folds, flared open hem, open front gap for the unbuttoned flannel. a=0 is +Z
+   (front), a=PI is -Z (back); v=0 is the hem, v=1 the collar line. */
+function createDrapedShirtGeo({ openFront = false, hemDrop = -0.155, hemFlare = 0.215, chestR = 0.192, neckR = 0.095, topY = 0.455 } = {}){
+  const rows = 10, cols = 28;
+  const pos = [], uvs = [], idx = [];
+  const aStart = openFront ? 0.34 : 0.0;
+  const aEnd = openFront ? (Math.PI * 2 - 0.34) : Math.PI * 2;
+  for (let r = 0; r <= rows; r++){
+    const v = r / rows;
+    const y = hemDrop + v * (topY - hemDrop);
+    let rx, rz;
+    if (v < 0.78){
+      const t = v / 0.78;
+      rx = hemFlare - t * (hemFlare - chestR);
+      rz = (hemFlare * 0.86) - t * (hemFlare * 0.86 - chestR * 0.78);
+    } else {
+      const t = (v - 0.78) / 0.22;
+      const ease = t * t * (3 - 2 * t);
+      rx = chestR * (1 - ease) + neckR * ease;
+      rz = (chestR * 0.78) * (1 - ease) + (neckR * 0.92) * ease;
+    }
+    const foldAmp = (1 - v) * (1 - v) * 0.014;
+    const hemShiftZ = (1 - v) * (1 - v) * -0.022;
+    for (let c = 0; c <= cols; c++){
+      const u = c / cols;
+      const a = aStart + u * (aEnd - aStart);
+      const sinA = Math.sin(a), cosA = Math.cos(a);
+      const fold = (Math.sin(a * 5.0 + 0.4) * 0.6 + Math.cos(a * 3.0 - 0.8) * 0.4) * foldAmp;
+      const x = sinA * (rx + fold);
+      const z = cosA * (rz + fold) + hemShiftZ;
+      const yScallop = y + (1 - v) * Math.sin(a * 5.0) * 0.006;
+      pos.push(x, yScallop, z);
+      uvs.push(u, 1 - v);
+    }
+  }
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++){
+    const a = r * (cols + 1) + c, b = (r + 1) * (cols + 1) + c, d = r * (cols + 1) + (c + 1), e = (r + 1) * (cols + 1) + (c + 1);
+    idx.push(a, d, b, b, d, e);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+/* Open-cuff short sleeve ending MID-UPPER-ARM with a flared cloth cuff, so the
+   bare arm visibly emerges from inside the hollow sleeve (Neon bake-off). */
+function createShortSleeveGeo(len = 0.168){
+  const rows = 6, cols = 16;
+  const pos = [], uvs = [], idx = [];
+  for (let r = 0; r <= rows; r++){
+    const v = r / rows;
+    const y = 0.03 - v * (len + 0.03);
+    const rad = 0.078 - v * 0.008 + Math.pow(v, 3) * 0.012;
+    for (let c = 0; c <= cols; c++){
+      const u = c / cols;
+      const a = u * Math.PI * 2;
+      const fold = Math.sin(a * 4.0) * v * 0.005;
+      pos.push(Math.cos(a) * (rad + fold), y, Math.sin(a) * (rad + fold));
+      uvs.push(u, v);
+    }
+  }
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++){
+    const a = r * (cols + 1) + c, b = (r + 1) * (cols + 1) + c, d = r * (cols + 1) + (c + 1), e = (r + 1) * (cols + 1) + (c + 1);
+    idx.push(a, b, d, b, e, d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
 function buildHead(parent, y0){
   mergedMesh([
     xform(new THREE.SphereGeometry(0.112, 18, 14), 0, y0 + 0.115, 0, 0, 0, 0, 0.95, 1.06, 1.02),
@@ -298,15 +406,24 @@ function buildHead(parent, y0){
   ], strapMat, parent);
 }
 function buildArmParts(sh, el, side){
-  /* Loose shirt construction (Cherie, Nov 20): the sleeve is one continuous
-     garment from the shoulder — a flattened cloth cap over the joint (overlaps
-     the torso shell AND the sleeve at any arm angle, so no gap and no detached
-     ball) plus a loose tube down the upper arm with the arm hidden inside it. */
+  /* FLANNEL SHORT SLEEVE (Neon clothing bake-off winner, Cherie's pick Nov 20):
+     dropped cloth shoulder cap + HOLLOW short sleeve ending mid-upper-arm with
+     a cuff band and a dark cavity ring at its mouth — then the BARE upper arm
+     emerges and runs to the elbow. The separation is the read: sleeve ends,
+     skin shows, joint follows. (Replaces the full-length tee tube, under which
+     the arm hid end-to-end and the shirt read as body.) */
   mergedMesh([
-    xform(new THREE.SphereGeometry(0.086, 12, 10), 0, 0, 0, 0, 0, 0, 1, 0.62, 1),
-    tapered(0.076, 0.062, 0.27),
-    xform(new THREE.CylinderGeometry(0.064, 0.068, 0.05, 12), 0, -0.25, 0),
-  ], teeMat, sh);
+    xform(new THREE.SphereGeometry(0.077, 14, 10), 0, 0, 0, 0, 0, 0, 1, 0.88, 1),
+    createShortSleeveGeo(0.168),
+  ], flannelMat, sh);
+  const cuffMesh = mergedMesh([
+    xform(new THREE.CylinderGeometry(0.082, 0.084, 0.024, 16, 1, true), 0, -0.164, 0),
+    xform(new THREE.RingGeometry(0.044, 0.081, 16), 0, -0.174, 0, Math.PI/2),
+  ], cuffMat, sh);
+  cuffMesh.castShadow = false; // tiny under-cuff parts: skip the shadow pass
+  mergedMesh([
+    xform(tapered(0.044, 0.039, 0.17), 0, -0.135, 0),
+  ], skinMat, sh);
   mergedMesh([
     xform(new THREE.SphereGeometry(0.041, 10, 8), 0, 0, 0),
     tapered(0.040, 0.032, 0.24),
@@ -408,23 +525,28 @@ const BB = { y: 0.37, z: -0.04 }, CRANK_R = 0.17, LEG_L1 = 0.42, LEG_L2 = 0.42;
   ], pantsMat, riderRig);
   mergedMesh([
     xform(new THREE.CylinderGeometry(0.150, 0.156, 0.055, 14), 0, 1.115, -0.19, 0, 0, 0, 1.05, 1, 0.8),
-  ], shortsDarkMat, riderRig);
+  ], beltMat, riderRig);
   spineJ = pivot(riderRig, 0, 1.05, -0.19);
   {
-    /* LOOSE SHIRT SHELL (Cherie, Nov 20): a garment volume standing off the body
-       on all sides (~+0.04 m of air), shoulder line wide enough to swallow the
-       sleeve tops, hem hanging 0.14 m below the spine pivot — past the waist,
-       over the pants. The body's silhouette does not show through it. */
-    const pts = [[0.001, -0.14], [0.175, -0.135], [0.180, -0.06], [0.178, 0.06], [0.182, 0.18], [0.190, 0.30], [0.196, 0.38], [0.188, 0.435], [0.120, 0.465], [0.074, 0.48]]
-      .map(p => new THREE.Vector2(p[0], p[1]));
+    /* OPEN FLANNEL OVER WHITE TANK (Neon clothing bake-off winner — Cherie
+       picked outfit 2, Nov 20): a lofted draped shirt with an open front,
+       cloth folds that grow toward the hem, and a flared open hem hanging
+       0.155 m below the spine pivot — past the belt, over the chinos, with an
+       air gap (no poke-through at full crouch). The white tank fills the open
+       front and collar so the flannel reads as a LAYER over a body; folded
+       lapels + a back collar stand at the bare neck. Replaces the closed
+       lathe tee shell, which read as a torso, not a garment. */
+    const tankMesh = mergedMesh([
+      xform(new THREE.CylinderGeometry(0.112, 0.120, 0.40, 14), 0, 0.19, 0, 0, 0, 0, 1.06, 1, 0.78),
+    ], tankMat, spineJ);
+    tankMesh.castShadow = false; // under-layer: the flannel casts the torso shadow
+    const flannelShirt = new THREE.Mesh(createDrapedShirtGeo({ openFront: true }), flannelMat);
+    flannelShirt.castShadow = true; flannelShirt.receiveShadow = true; spineJ.add(flannelShirt);
     mergedMesh([
-      /* z-scale 0.92 (outfit lane fix): at 0.78 the shell was shallower than
-         the pelvis (z half-extent 0.171), so the trouser seat bulged out
-         behind the hem as a visible band; 0.92 wraps it fully */
-      xform(new THREE.LatheGeometry(pts, 18), 0, 0, 0, 0, 0, 0, 1.12, 1, 0.92),
-      xform(new THREE.TorusGeometry(0.072, 0.015, 8, 18), 0, 0.465, 0, Math.PI/2),
-      xform(new THREE.CylinderGeometry(0.176, 0.180, 0.04, 14), 0, -0.115, 0, 0, 0, 0, 1.12, 1, 0.92),
-    ], teeMat, spineJ);
+      xform(new THREE.BoxGeometry(0.065, 0.055, 0.11), -0.088, 0.455, 0.035, 0.25, -0.35, 0.42),
+      xform(new THREE.BoxGeometry(0.065, 0.055, 0.11), 0.088, 0.455, 0.035, 0.25, 0.35, -0.42),
+      xform(new THREE.TorusGeometry(0.092, 0.018, 8, 18, Math.PI * 1.15), 0, 0.462, -0.005, Math.PI / 2, 0, Math.PI * 0.92),
+    ], collarMat, spineJ);
   }
   neckJ = pivot(spineJ, 0, 0.47, 0.02);
   buildHead(neckJ, 0);
@@ -478,8 +600,8 @@ let swimArmL, swimArmR, swimElbL, swimElbR, swimLegL, swimLegR, swimShinL, swimS
   swimFoam = new THREE.Mesh(new THREE.CircleGeometry(0.88, 20),
     new THREE.MeshBasicMaterial({ color:0xdff2ff, transparent:true, opacity:0.55, depthWrite:false }));
   swimFoam.rotation.x = -Math.PI/2; swimFoam.position.y = 0.24; swimmer.add(swimFoam); // +0.24: ring stays at the surface while the body axis rides 0.16 under it (swim-in-water fix, Cherie Nov 20)
-  const sTorso = new THREE.Mesh(new THREE.CapsuleGeometry(0.158, 0.38, 4, 12), teeMat);
-  sTorso.rotation.x = Math.PI/2; sTorso.scale.set(1.26, 1, 0.86); // same loose tee as the rider
+  const sTorso = new THREE.Mesh(new THREE.CapsuleGeometry(0.158, 0.38, 4, 12), flannelMat);
+  sTorso.rotation.x = Math.PI/2; sTorso.scale.set(1.26, 1, 0.86); // same flannel as the rider
   sTorso.position.set(0, 0, -0.02); sTorso.castShadow = true; swimmer.add(sTorso);
   mergedMesh([
     xform(new THREE.SphereGeometry(0.14, 14, 10), 0, -0.01, -0.30, 0, 0, 0, 1.05, 0.7, 1.15),
