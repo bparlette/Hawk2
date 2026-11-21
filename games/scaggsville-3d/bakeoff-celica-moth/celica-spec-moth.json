@@ -132,8 +132,8 @@
       "enabled": true,
       "h": 0.1,
       "protrusion": 0.01,
-      "y": 0.19,
-      "zBack": 1.94
+      "y": 0.25,
+      "zBack": 1.66
     },
     "cornerLamps": {
       "h": 0.1,
@@ -204,8 +204,8 @@
     "zRearRoof": -0.62
   },
   "meta": {
-    "name": "Rigg's '87 Toyota Celica GT (T160 Liftback) \u00b7 Moth Fit",
-    "notes": "Moth fit from celica-rigg photo set. Ruler: tire OD 0.627 m (205/60R15) measured in side.jpg (hub-to-contact 112 px, D=224 px, scale 2.80 mm/px). Side fractions: nose x175, F hub 484, R hub 1457, tail 1722 px -> L 4.33, WB 2.72 (photo-true, longer than book spec). Fascia stacks anchored to side-profile heights + front/rear band ratios; tail segmentation from rear.jpg plate ruler (265 px = 0.3048 m). Canon blue paint, 0x0066ff beams.",
+    "name": "Rigg's '87 Toyota Celica GT (T160 Liftback) \u00b7 Moth Fit (hardened-tooling refit)",
+    "notes": "Moth fit from celica-rigg photo set. Ruler: tire OD 0.627 m (205/60R15) measured in side.jpg (hub-to-contact 112 px, D=224 px, scale 2.80 mm/px). Side fractions: nose x175, F hub 484, R hub 1457, tail 1722 px -> L 4.33, WB 2.72 (photo-true, longer than book spec). Fascia stacks anchored to side-profile heights + front/rear band ratios; tail segmentation from rear.jpg plate ruler (265 px = 0.3048 m). Canon blue paint, 0x0066ff beams. REFIT 2026-11-20 with hardened tooling (gamepress 759fe65): chinSpoiler.y 0.19->0.25 and zBack 1.94->1.66 per fit_car.py linter (detached chin + short wrap \u2014 the r1-r3 tray defect); rebuilt with auto-anchoring gpcar_loft.js.",
     "year": 1987
   },
   "paint": {

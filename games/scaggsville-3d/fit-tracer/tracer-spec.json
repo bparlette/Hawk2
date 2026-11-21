@@ -1,0 +1,273 @@
+{
+ "bodyStations": [
+  {
+   "crown": 0.014,
+   "wBelt": 0.8,
+   "wBot": 0.74,
+   "wDeck": 0.76,
+   "yBelt": 0.82,
+   "yBot": 0.36,
+   "yDeck": 0.9,
+   "z": -2.195
+  },
+  {
+   "crown": 0.015,
+   "wBelt": 0.825,
+   "wBot": 0.77,
+   "wDeck": 0.785,
+   "yBelt": 0.845,
+   "yBot": 0.315,
+   "yDeck": 0.915,
+   "z": -1.95
+  },
+  {
+   "crown": 0.016,
+   "wBelt": 0.84,
+   "wBot": 0.79,
+   "wDeck": 0.8,
+   "yBelt": 0.86,
+   "yBot": 0.27,
+   "yDeck": 0.915,
+   "z": -1.55
+  },
+  {
+   "crown": 0.016,
+   "wBelt": 0.845,
+   "wBot": 0.8,
+   "wDeck": 0.805,
+   "yBelt": 0.865,
+   "yBot": 0.245,
+   "yDeck": 0.905,
+   "z": -1.22
+  },
+  {
+   "crown": 0.017,
+   "wBelt": 0.85,
+   "wBot": 0.805,
+   "wDeck": 0.81,
+   "yBelt": 0.87,
+   "yBot": 0.225,
+   "yDeck": 0.9,
+   "z": -0.5
+  },
+  {
+   "crown": 0.017,
+   "wBelt": 0.85,
+   "wBot": 0.805,
+   "wDeck": 0.81,
+   "yBelt": 0.865,
+   "yBot": 0.225,
+   "yDeck": 0.9,
+   "z": 0.4
+  },
+  {
+   "crown": 0.017,
+   "wBelt": 0.845,
+   "wBot": 0.8,
+   "wDeck": 0.805,
+   "yBelt": 0.85,
+   "yBot": 0.235,
+   "yDeck": 0.895,
+   "z": 0.95
+  },
+  {
+   "crown": 0.016,
+   "wBelt": 0.84,
+   "wBot": 0.795,
+   "wDeck": 0.8,
+   "yBelt": 0.83,
+   "yBot": 0.24,
+   "yDeck": 0.875,
+   "z": 1.28
+  },
+  {
+   "crown": 0.015,
+   "wBelt": 0.825,
+   "wBot": 0.78,
+   "wDeck": 0.775,
+   "yBelt": 0.795,
+   "yBot": 0.245,
+   "yDeck": 0.83,
+   "z": 1.7
+  },
+  {
+   "crown": 0.014,
+   "wBelt": 0.8,
+   "wBot": 0.755,
+   "wDeck": 0.735,
+   "yBelt": 0.75,
+   "yBot": 0.25,
+   "yDeck": 0.775,
+   "z": 2.0
+  },
+  {
+   "crown": 0.012,
+   "wBelt": 0.765,
+   "wBot": 0.715,
+   "wDeck": 0.685,
+   "yBelt": 0.705,
+   "yBot": 0.26,
+   "yDeck": 0.715,
+   "z": 2.195
+  }
+ ],
+ "dims": {
+  "archGap": 0.045,
+  "height": 1.34,
+  "length": 4.39,
+  "trackHalfFront": 0.715,
+  "trackHalfRear": 0.71,
+  "wheelRadius": 0.298,
+  "wheelWidth": 0.185,
+  "wheelZFront": 1.28,
+  "wheelZRear": -1.22,
+  "wheelbase": 2.5,
+  "width": 1.7
+ },
+ "frontFascia": {
+  "bumperH": 0.23,
+  "bumperProtrusion": 0.07,
+  "bumperY": 0.465,
+  "chinSpoiler": {
+   "enabled": true,
+   "h": 0.05,
+   "protrusion": 0.01,
+   "y": 0.235,
+   "zBack": 1.45
+  },
+  "cornerLamps": {
+   "h": 0.125,
+   "innerSmokedW": 0.34,
+   "outerAmberW": 0.12,
+   "wrapZ": 0.22,
+   "y": 0.625
+  },
+  "fixedLamps": {
+   "enabled": false
+  },
+  "grille": {
+   "h": 0.05,
+   "slats": 2,
+   "topBarText": false,
+   "w": 0.3,
+   "y": 0.605
+  },
+  "lowerIntake": {
+   "dividers": 1,
+   "h": 0.065,
+   "w": 1.02,
+   "y": 0.265
+  },
+  "popups": {
+   "enabled": false
+  },
+  "rubStripH": 0.02,
+  "rubStripY": 0.47
+ },
+ "greenhouse": {
+  "bPillarZ": -0.3,
+  "cPillarPaint": false,
+  "mirrors": {
+   "d": 0.1,
+   "h": 0.08,
+   "w": 0.125,
+   "y": 0.95,
+   "z": 0.78
+  },
+  "rearGlassColor": 725016,
+  "rearGlassOpacity": 0.84,
+  "rearWiper": false,
+  "roofCrown": 0.022,
+  "sideGlassColor": 1450028,
+  "sideGlassOpacity": 0.6,
+  "wFrontBase": 0.73,
+  "wFrontRoof": 0.615,
+  "wRearBase": 0.72,
+  "wRearRoof": 0.605,
+  "windshieldColor": 1713718,
+  "windshieldOpacity": 0.55,
+  "yFrontBase": 0.9,
+  "yFrontRoof": 1.325,
+  "yRearBase": 0.915,
+  "yRearRoof": 1.315,
+  "zFrontBase": 0.88,
+  "zFrontRoof": 0.18,
+  "zRearBase": -1.42,
+  "zRearRoof": -0.7
+ },
+ "meta": {
+  "name": "Zack's '97 Mercury Tracer GS Sedan (photo-gen fit)",
+  "notes": "GENERATION FLAG: photo set is the 1997-99 THIRD-generation Tracer (rounded Escort-based sedan, Cincinnati dealer set, 800x600 max res); the fleet entry describes the 1991-96 car. This fit follows THE PHOTOS (gen-3) per instructions, pending Cherie's call on which generation the fleet car should be. Dims factory-anchored for the '97 sedan (L 4.39, WB 2.50, W 1.70, H 1.34; tyre 185/65R14, OD 0.596 m); side.jpg is slightly yawed so overhangs were NOT photo-traced. Wheels in photos are aftermarket \u2014 proportions only; fitted a generic twin-spoke. CANON PAINT: green (photo car is Silver Frost \u2014 shape only). C-pillar: greenhouse.cPillarZ -1.02, cPillarPaint false (a254581 archetype extension). Round 2: cPillar cylinder removed (rendered as a rod above the roofline; the loft rear-glass slope carries the C-pillar read), chin spoiler tucked (h 0.07->0.05, y 0.22->0.235) toward the photo car's subtle lower lip; paint decimal corrected to 0x1E6B45.",
+  "year": 1997
+ },
+ "paint": {
+  "clearcoat": 0.9,
+  "clearcoatRoughness": 0.13,
+  "color": 1993541,
+  "metalness": 0.3,
+  "roughness": 0.26
+ },
+ "rearFascia": {
+  "bumperH": 0.24,
+  "bumperProtrusion": 0.07,
+  "bumperY": 0.475,
+  "exhaust": {
+   "count": 1,
+   "r": 0.026,
+   "side": "right",
+   "xOffset": 0.48,
+   "y": 0.2
+  },
+  "fuelDoor": {
+   "side": -1,
+   "y": 0.76,
+   "z": -1.8
+  },
+  "mudFlaps": false,
+  "rubStripH": 0.02,
+  "rubStripY": 0.5,
+  "spoiler": {
+   "style": "none"
+  },
+  "tailPanel": {
+   "amberOuterW": 0.04,
+   "centerW": 0.8,
+   "h": 0.155,
+   "lampW": 0.33,
+   "reverseW": 0.09,
+   "wrapZ": 0.2,
+   "y": 0.795
+  }
+ },
+ "trim": {
+  "doorHandle": {
+   "y": 0.9,
+   "z": -0.18
+  },
+  "frontSideMarker": {
+   "color": 15236628,
+   "h": 0.026,
+   "w": 0.09,
+   "y": 0.58,
+   "z": 1.9
+  },
+  "rockerSkirt": {
+   "enabled": true,
+   "h": 0.045,
+   "y": 0.225
+  },
+  "sideRubStrip": {
+   "enabled": true,
+   "h": 0.034,
+   "y": 0.7
+  }
+ },
+ "wheels": {
+  "hubRadius": 0.06,
+  "rimColor": 13684944,
+  "rimRatio": 0.62,
+  "spokeCount": 7,
+  "spokeStyle": "twin",
+  "tireColor": 1449259
+ }
+}
