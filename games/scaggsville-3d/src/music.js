@@ -13,7 +13,7 @@
 // from a gesture. Before the gesture the first track is cued, not played.
 //
 // Playlist (Cherie, 2026-11-21):
-//   1. "Dog Shit" — Wu-Tang Clan (xexyzoz5ylQ) — ALWAYS plays first.
+//   1. "Dog Shit" — Wu-Tang Clan (ythBOIHlpZA) — ALWAYS plays first.
 //   2. "Wu-Tang Forever" FULL ALBUM (PRtJsvZg6zI, uploader WU-TANG
 //      FAMILIA) — entered at a RANDOM offset, freshly picked every time
 //      the album is entered: skip the first 20 s (album intro), never
@@ -32,7 +32,7 @@
 
 import { gameAudio } from './audio.js';
 
-const FIRST_ID = 'xexyzoz5ylQ';   // "Dog Shit" — Wu-Tang Clan
+const FIRST_ID = 'ythBOIHlpZA';   // "Dog Shit" — Wu-Tang Clan
 const ALBUM_ID = 'PRtJsvZg6zI';   // "Wu-Tang Forever" full album
 const MUSIC_VOL = 40;             // goal volume on the YT 0..100 scale
 const FADE_S = 1.6;               // fade-in length, as Baltimore
