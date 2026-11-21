@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  AI AGENTS — START HERE (invisible to human players):
+  This page is Fleet Drive, a drivable showcase lot for
+  photo-fitted procedural cars. The complete recipe for turning
+  a one-line car description into a fitted, drivable car here
+  is in ./AI-RECIPE.md (same folder). A machine-readable summary
+  is in the <script type="application/json" id="ai-instructions">
+  block in this page's <head>, and on window.__FLEET_DRIVE_AI__.
+  Live gameplay state (car list + specs, active car, positions,
+  swapCar / setPopups / snapshotState hooks) is exposed for you
+  on window.__FLEET_DRIVE__. To add a car: append one
+  { name, spec } entry to the CARS array in cars.js.
+  Public recipe page: https://bparlette.github.io/Hawk2/games/car-recipe/
+  ============================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Fleet Drive — Photo-Fitted Cars</title>
+<script type="application/json" id="ai-instructions">
+{
+  "audience": "AI agents. This block is machine-readable and invisible in normal play; human players just see the game.",
+  "game": "Fleet Drive — a mini game built on the Bunny Hop world (same street, canal, bridge and dusk lighting). Cars that complete the photo-to-game-car recipe are parked in a row at the lot and are drivable.",
+  "recipe": {
+    "summary": "One-line description (year, make, model, trim, colour + canon overrides) -> hunt real photos (front 3/4, side, rear 3/4, straight front, straight rear, pop-ups-up if fitted, wheel close-up; SOURCES.md provenance per car) -> fit_car.py analyze (ruler grids; wheel diameter + plate width as rulers) -> author a spec for gpcar_loft.js -> fit_car.py verify loop against the photos (max 3 rounds) -> side-by-side compare gate (REAL | fits) -> integrate into the fleet -> park the car in this game (Step 9).",
+    "fullTextInThisFolder": "./AI-RECIPE.md",
+    "publicPage": "https://bparlette.github.io/Hawk2/games/car-recipe/",
+    "canonicalDoc": "gamepress repo, docs/PHOTO-TO-GAME-CAR-RECIPE.md"
+  },
+  "addACarHere": {
+    "entryPoint": "cars.js — the CARS array",
+    "steps": [
+      "Save the approved spec object as specs/<slug>.js (export const SPEC = { ... }; export default SPEC;)",
+      "Import it in cars.js and append ONE entry: { name: '<display name>', spec: <SPEC> }",
+      "Reload and verify: the car is parked in the lot row, its beams and pop-up state work, and it drives (SWAP button or Tab key cycles cars)."
+    ],
+    "noRemodelling": "The spec that passed the compare gate is used verbatim. Fleet Drive builds every car from its spec through src/gpcar_loft.js (buildLoftedCar). Do not fork the geometry."
+  },
+  "tooling": {
+    "builder": "src/gpcar_loft.js — buildLoftedCar(spec) -> { group, wheels, setPopups(v), updateWheels(speed, steer, dt), dims, spec }",
+    "fitter": "gamepress tools/car-fitter/ — fit_car.py analyze (ruler grids over the photo set) and fit_car.py verify (matched-angle side-by-side sheets)",
+    "world": "src/world/buildWorld.js — buildWorld(scene) -> { groundAt, colliders, bins, water, spawn, ... } (the Bunny Hop world)"
+  },
+  "liveStateForAIs": "window.__FLEET_DRIVE__ — { cars: [{index, name, spec}], activeIndex, activeCar(), parkedCars(), swapCar(i), nextCar(), setPopups(bool), snapshotState() }. window.__FLEET_DRIVE_AI__ mirrors this instruction block.",
+  "rules": [
+    "Photos prove shape; canon paint and beam colour win over whatever the photo car wore.",
+    "A visible anomaly in any compare sheet is a stop-and-check, never a footnote.",
+    "Wrong-generation or wrong-trim photo sets get flagged in SOURCES.md, never silently used.",
+    "The recipe is not complete until the car is parked in this lot and verified drivable."
+  ]
+}
+</script>
+<script>
+  // AI-facing layer (additive; no effect on the human page): present even
+  // before the game module loads. The module enriches this object later.
+  window.__FLEET_DRIVE_AI__ = {
+    game: 'Fleet Drive',
+    note: 'AI agents: full recipe in ./AI-RECIPE.md; machine-readable summary in the #ai-instructions JSON block in <head>; live gameplay state and hooks on window.__FLEET_DRIVE__.',
+    recipePage: 'https://bparlette.github.io/Hawk2/games/car-recipe/',
+    addACar: 'Append one { name, spec } entry to the CARS array in cars.js (spec files in specs/<slug>.js).'
+  };
+</script>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#1c2338;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
+  #game{position:fixed;inset:0;}
+  canvas{display:block;}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:1100;}
+  #speed{position:absolute;top:calc(10px + env(safe-area-inset-top));left:14px;color:#fff;
+    font-size:15px;font-weight:700;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #speed b{font-size:30px;font-weight:800;}
+  #mode{position:absolute;top:calc(48px + env(safe-area-inset-top));left:14px;color:#ffd9a0;
+    font-size:12px;font-weight:700;letter-spacing:.14em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #title{position:absolute;top:calc(10px + env(safe-area-inset-top));right:14px;color:#fff;opacity:.85;
+    font-size:13px;font-weight:800;letter-spacing:.22em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #hint{position:absolute;left:50%;top:16%;transform:translateX(-50%);color:#fff;text-align:center;
+    font-size:14px;line-height:1.55;font-weight:600;text-shadow:0 1px 5px rgba(0,0,0,.85);
+    transition:opacity 1.2s ease;pointer-events:none;width:92%;}
+  #hint span{background:rgba(10,14,26,.55);border-radius:8px;padding:2px 8px;}
+  /* ---- gptouch: floating joystick (left half) + round buttons (bottom-right) ---- */
+  #stickZone{position:fixed;left:0;bottom:0;width:50%;height:62%;z-index:1150;touch-action:none;}
+  #stickBase{position:fixed;width:112px;height:112px;border-radius:50%;border:2px solid rgba(255,255,255,.4);
+    background:rgba(16,20,36,.32);display:none;z-index:1151;pointer-events:none;transform:translate(-50%,-50%);}
+  #stickKnob{position:fixed;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.75);
+    display:none;z-index:1152;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 2px 8px rgba(0,0,0,.4);}
+  .btn{position:fixed;border-radius:50%;border:3px solid rgba(255,255,255,.55);color:#fff;font-weight:900;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:1200;touch-action:none;
+    text-shadow:0 1px 3px rgba(0,0,0,.5);box-shadow:0 4px 14px rgba(0,0,0,.4);}
+  .btn small{font-size:8px;letter-spacing:.1em;font-weight:700;opacity:.9;}
+  #btnA{right:26px;bottom:calc(30px + env(safe-area-inset-bottom));width:92px;height:92px;font-size:21px;background:rgba(255,46,77,.78);}
+  #btnB{right:132px;bottom:calc(22px + env(safe-area-inset-bottom));width:66px;height:66px;font-size:14px;background:rgba(41,230,255,.5);}
+  #btnSwap{right:30px;bottom:calc(138px + env(safe-area-inset-bottom));width:62px;height:62px;font-size:13px;background:rgba(255,210,63,.72);}
+  #btnPop{right:140px;bottom:calc(104px + env(safe-area-inset-bottom));width:62px;height:62px;font-size:11px;background:rgba(120,140,255,.6);}
+  .btn.on{filter:brightness(1.5);transform:scale(.94);}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+  <div id="speed"><b>0</b> km/h</div>
+  <div id="mode"></div>
+  <div id="title">FLEET DRIVE</div>
+  <div id="hint"><span>Stick or <b>A</b>/<b>D</b> steers &nbsp;·&nbsp; <b>A</b> button / <b>W</b> gas &nbsp;·&nbsp; <b>B</b> / <b>S</b> brake &amp; reverse &nbsp;·&nbsp; <b>SWAP</b> or <b>TAB</b> changes car &nbsp;·&nbsp; <b>POP-UPS</b> for the Celica</span></div>
+</div>
+<div id="stickZone"></div>
+<div id="stickBase"></div><div id="stickKnob"></div>
+<div class="btn" id="btnB">B<small>BRAKE</small></div>
+<div class="btn" id="btnA">A<small>GAS</small></div>
+<div class="btn" id="btnSwap">⇄<small>SWAP</small></div>
+<div class="btn" id="btnPop">POP<small>UP/DN</small></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld, WORLD_LIGHTING, applyWorldEnvMap } from './src/world/buildWorld.js';
+import { buildLoftedCar } from './src/gpcar_loft.js';
+import { CARS } from './cars.js';
+
+/* ============================================================ RENDERER / SCENE / DUSK SKY
+   (host setup carried over from Bunny Hop unchanged: same world, same light) */
+const container = document.getElementById('game');
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = WORLD_LIGHTING.renderer.exposure;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(WORLD_LIGHTING.fog.color, WORLD_LIGHTING.fog.near, WORLD_LIGHTING.fog.far);
+{
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512;
+  const g = c.getContext('2d'); const gr = g.createLinearGradient(0,0,0,512);
+  gr.addColorStop(0.0,'#1d2a52'); gr.addColorStop(0.45,'#3a4a7d'); gr.addColorStop(0.72,'#8a5f7d');
+  gr.addColorStop(0.88,'#e07f4a'); gr.addColorStop(1.0,'#f7a856');
+  g.fillStyle = gr; g.fillRect(0,0,4,512);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  scene.background = tex;
+}
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 400); // Bunny Hop settlement: FOV 60 base, +4 speed breathe, 64 cap
+const hemi = new THREE.HemisphereLight(WORLD_LIGHTING.hemi.sky, WORLD_LIGHTING.hemi.ground, WORLD_LIGHTING.hemi.intensity); scene.add(hemi);
+const sun = new THREE.DirectionalLight(WORLD_LIGHTING.sun.color, WORLD_LIGHTING.sun.intensity);
+const SUN_OFF = new THREE.Vector3(...WORLD_LIGHTING.sun.dir).normalize().multiplyScalar(45);
+sun.position.copy(SUN_OFF); sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.left=-34; sun.shadow.camera.right=34; sun.shadow.camera.top=34; sun.shadow.camera.bottom=-34;
+sun.shadow.camera.near=1; sun.shadow.camera.far=140; sun.shadow.bias=-0.0007;
+scene.add(sun); scene.add(sun.target);
+scene.add(new THREE.AmbientLight(WORLD_LIGHTING.ambient.color, WORLD_LIGHTING.ambient.intensity));
+
+/* ============================================================ WORLD */
+const world = buildWorld(scene);
+const envInfo = applyWorldEnvMap(renderer, scene);
+const WATER_Y = world.water.y;
+
+/* Effective ground for collision: world groundAt folded with collider tops
+   (buildings, poles, trees present as tall AABBs) and bin footprints — the
+   same presentation Bunny Hop's physics seam uses. A sample that rises
+   > 0.5 m above the car's current ground is a wall to a car. */
+function effGroundAt(x, z){
+  let h = world.groundAt(x, z);
+  for (const c of world.colliders) if (x > c.minX && x < c.maxX && z > c.minZ && z < c.maxZ && c.top > h) h = c.top;
+  for (const b of world.bins) if (Math.abs(x - b.x) < 0.52 && Math.abs(z - b.z) < 0.52 && b.top > h) h = b.top;
+  return h;
+}
+function blockedAt(x, z, curY){
+  if (world.water.contains(x, z) && effGroundAt(x, z) < 1.2) return true; // canal: never drive in (bridge deck reads 4.0 and is exempt via contains())
+  return effGroundAt(x, z) - curY > 0.5;
+}
+
+/* ============================================================ THE LOT — cars from specs
+   Parked in a row on the main street by the Bunny Hop spawn, facing east.
+   Every entry in CARS (cars.js) becomes a parked, drivable car. */
+const LOT = { x: -36, z0: 25.3, dz: 3.6, heading: Math.PI / 2 };
+function beamColorOf(spec){
+  const ff = spec.frontFascia || {};
+  if (ff.popups && ff.popups.beamColor != null) return ff.popups.beamColor;
+  if (ff.fixedLamps && ff.fixedLamps.beamColor != null) return ff.fixedLamps.beamColor;
+  return 0xffe6b0;
+}
+const fleet = CARS.map((def, i) => {
+  const built = buildLoftedCar(def.spec);
+  scene.add(built.group);
+  const st = {
+    def, built, index: i,
+    x: LOT.x, z: LOT.z0 + i * LOT.dz, heading: LOT.heading,
+    y: 0, speed: 0, steerAngle: 0,
+    hasPopups: !!(def.spec.frontFascia && def.spec.frontFascia.popups && def.spec.frontFascia.popups.enabled),
+    popTarget: 1, popT: 1, // Celica starts with its pop-ups UP so the blue beams show in the lot
+    beamColor: beamColorOf(def.spec),
+  };
+  st.y = world.groundAt(st.x, st.z);
+  if (st.hasPopups) built.setPopups(1);
+  placeCar(st, 0);
+  return st;
+});
+function placeCar(st, dt){
+  const g = st.built.group;
+  g.position.set(st.x, st.y, st.z);
+  g.rotation.order = 'YXZ';
+  g.rotation.y = st.heading;
+  if (dt > 0){
+    // ground following: pitch/roll from ground sampled fore/aft + across
+    const fx = Math.sin(st.heading), fz = Math.cos(st.heading);
+    const rx = Math.cos(st.heading), rz = -Math.sin(st.heading); // car's left vector (local +X)
+    const wb = st.built.dims.wheelbase || 2.5;
+    const hF = world.groundAt(st.x + fx * wb * 0.5, st.z + fz * wb * 0.5);
+    const hR = world.groundAt(st.x - fx * wb * 0.5, st.z - fz * wb * 0.5);
+    const hL = world.groundAt(st.x + rx * 0.8, st.z + rz * 0.8);
+    const hRt = world.groundAt(st.x - rx * 0.8, st.z - rz * 0.8);
+    g.rotation.x = -Math.atan2(hF - hR, wb);
+    g.rotation.z = Math.atan2(hL - hRt, 1.6);
+    st.built.updateWheels(st.speed, -st.steerAngle, dt);
+  } else { g.rotation.x = 0; g.rotation.z = 0; }
+}
+let active = 0;
+
+/* Headlight beam for the driven car: the loft spec already paints halo
+   cards + a road pool in the car's beam colour; this SpotLight adds real
+   illumination on the road ahead. Colour follows the active car's spec. */
+const beam = new THREE.SpotLight(0xffffff, 150, 42, 0.5, 0.65, 1.1);
+beam.castShadow = false;
+scene.add(beam); scene.add(beam.target);
+function updateBeam(st){
+  const fx = Math.sin(st.heading), fz = Math.cos(st.heading);
+  beam.color.setHex(st.beamColor);
+  beam.position.set(st.x + fx * 1.7, st.y + 0.78, st.z + fz * 1.7);
+  beam.target.position.set(st.x + fx * 14, st.y - 0.4, st.z + fz * 14);
+}
+
+/* ============================================================ INPUT (gptouch + keyboard — Bunny Hop pattern) */
+const keys = {};
+let joyActive = false, joyId = null, joyOX = 0, joyOY = 0, joyX = 0;
+let btnA = false, btnB = false;
+const input = { steer: 0, gas: false, brake: false };
+window.addEventListener('keydown', e=>{
+  if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab'].includes(e.code)) e.preventDefault();
+  if (e.code === 'Tab' && !e.repeat) swapCar((active + 1) % fleet.length);
+  if ((e.code === 'KeyP' || e.code === 'KeyL') && !e.repeat) togglePopups();
+  keys[e.code] = true;
+});
+window.addEventListener('keyup', e=>{ keys[e.code] = false; });
+const zone = document.getElementById('stickZone'), sBase = document.getElementById('stickBase'), sKnob = document.getElementById('stickKnob');
+zone.addEventListener('pointerdown', e=>{
+  joyActive = true; joyId = e.pointerId; joyOX = e.clientX; joyOY = e.clientY; joyX = 0;
+  sBase.style.display = sKnob.style.display = 'block';
+  sBase.style.left = joyOX+'px'; sBase.style.top = joyOY+'px';
+  sKnob.style.left = joyOX+'px'; sKnob.style.top = joyOY+'px';
+  try { zone.setPointerCapture(e.pointerId); } catch(_){}
+});
+zone.addEventListener('pointermove', e=>{
+  if (!joyActive || e.pointerId !== joyId) return;
+  let dx = e.clientX - joyOX, dy = e.clientY - joyOY;
+  const len = Math.hypot(dx,dy), max = 52;
+  if (len > max){ dx *= max/len; dy *= max/len; }
+  joyX = dx/max;
+  sKnob.style.left = (joyOX+dx)+'px'; sKnob.style.top = (joyOY+dy)+'px';
+});
+function joyEnd(e){ if (e.pointerId === joyId){ joyActive=false; joyX=0; sBase.style.display = sKnob.style.display = 'none'; } }
+zone.addEventListener('pointerup', joyEnd); zone.addEventListener('pointercancel', joyEnd);
+function bindBtn(id, set){
+  const el = document.getElementById(id);
+  el.addEventListener('pointerdown', e=>{ e.preventDefault(); set(true); el.classList.add('on'); try { el.setPointerCapture(e.pointerId); } catch(_){} });
+  const off = e=>{ set(false); el.classList.remove('on'); };
+  el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off);
+}
+bindBtn('btnA', v=>{ btnA = v; });
+bindBtn('btnB', v=>{ btnB = v; });
+bindBtn('btnSwap', v=>{ if (v) swapCar((active + 1) % fleet.length); });
+bindBtn('btnPop', v=>{ if (v) togglePopups(); });
+document.addEventListener('gesturestart', e=>e.preventDefault());
+document.addEventListener('dblclick', e=>e.preventDefault());
+function pollInput(){
+  let steer = 0;
+  if (keys['KeyA'] || keys['ArrowLeft']) steer -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) steer += 1;
+  if (joyActive) steer += joyX; // stick X steers (gptouch standard)
+  input.steer = THREE.MathUtils.clamp(steer, -1, 1);
+  input.gas = btnA || !!keys['KeyW'] || !!keys['ArrowUp'];
+  input.brake = btnB || !!keys['KeyS'] || !!keys['ArrowDown'];
+}
+
+/* ============================================================ CAR ACTIONS */
+function swapCar(i){
+  if (i === active || !fleet[i]) return;
+  fleet[active].speed = 0; fleet[active].steerAngle = 0;
+  active = i;
+  const st = fleet[active];
+  camYawS = st.heading; // snap the chase cam behind the new car
+  camPos.set(st.x - Math.sin(st.heading) * CAM_DIST, st.y + CAM_H, st.z - Math.cos(st.heading) * CAM_DIST);
+  updateBeam(st);
+}
+function togglePopups(){
+  const st = fleet[active];
+  if (!st.hasPopups) return;
+  st.popTarget = st.popTarget > 0.5 ? 0 : 1;
+}
+function setPopups(v){
+  const st = fleet[active];
+  if (!st.hasPopups) return false;
+  st.popTarget = v ? 1 : 0;
+  return true;
+}
+
+/* ============================================================ DRIVING (simple arcade)
+   Steering sign: heading is rotation.y with forward = (sin h, cos h), so
+   increasing heading swings the nose LEFT. Right input must DECREASE
+   heading — the Scaggsville 3D fix, re-proven in this game's harness. */
+const TOP_SPEED = 24, REV_SPEED = 7;
+function stepCar(st, dt){
+  const maxSteer = THREE.MathUtils.lerp(0.55, 0.16, Math.min(1, Math.abs(st.speed) / TOP_SPEED)); // tightens with speed
+  const targetSteer = input.steer * maxSteer;
+  st.steerAngle += (targetSteer - st.steerAngle) * Math.min(1, dt * 8);
+  if (input.gas){
+    st.speed += 9.5 * dt * Math.max(0, 1 - st.speed / TOP_SPEED);
+  } else if (input.brake){
+    if (st.speed > 0.4) st.speed -= 15 * dt;                    // brake
+    else st.speed -= 6.5 * dt * Math.max(0, 1 + st.speed / REV_SPEED); // then reverse
+  } else {
+    st.speed -= st.speed * 0.55 * dt;                            // coast-down drag
+    if (Math.abs(st.speed) < 0.04) st.speed = 0;
+  }
+  st.speed = THREE.MathUtils.clamp(st.speed, -REV_SPEED, TOP_SPEED);
+  if (Math.abs(st.speed) > 0.001 && Math.abs(st.steerAngle) > 0.0005){
+    const wb = st.built.dims.wheelbase || 2.5;
+    st.heading -= (st.speed / wb) * Math.tan(st.steerAngle) * dt; // right input -> heading decreases -> nose swings right
+  }
+  if (st.speed !== 0){
+    const fx = Math.sin(st.heading), fz = Math.cos(st.heading);
+    const nx = st.x + fx * st.speed * dt, nz = st.z + fz * st.speed * dt;
+    const noseX = nx + fx * 1.9, noseZ = nz + fz * 1.9;
+    if (!blockedAt(nx, nz, st.y) && !blockedAt(noseX, noseZ, st.y)){
+      st.x = nx; st.z = nz;
+    } else if (!blockedAt(nx, st.z, st.y) && !blockedAt(nx + fx * 1.9, st.z + fz * 1.9, st.y) && Math.abs(nx - st.x) > 0.004){
+      st.x = nx; st.speed *= 0.55; // slide along the wall (only if it actually moves us)
+    } else if (!blockedAt(st.x, nz, st.y) && !blockedAt(st.x + fx * 1.9, nz + fz * 1.9, st.y) && Math.abs(nz - st.z) > 0.004){
+      st.z = nz; st.speed *= 0.55;
+    } else {
+      st.speed = 0; // wall / bank / building: stop, never clip through
+    }
+  }
+  st.y = world.groundAt(st.x, st.z);
+}
+
+/* ============================================================ HUD */
+const speedEl = document.querySelector('#speed b'), modeEl = document.getElementById('mode'),
+      hintEl = document.getElementById('hint');
+setTimeout(()=>{ hintEl.style.opacity = '0'; }, 9000);
+
+/* ============================================================ AI-FACING LIVE STATE
+   Layer 2 of the AI layer (layer 1 = instructions: the #ai-instructions
+   JSON block, window.__FLEET_DRIVE_AI__, and ./AI-RECIPE.md). This global
+   lets an AI perceive the GAMEPLAY itself: which cars are in the lot
+   (with their full specs), which one is being driven, where everything
+   is, and simple hooks to verify play. Read-mostly; no visible UI. */
+function carSnapshot(st){
+  return {
+    index: st.index, name: st.def.name,
+    x: +st.x.toFixed(2), z: +st.z.toFixed(2), y: +st.y.toFixed(2),
+    heading: +st.heading.toFixed(3), speedKmh: +(st.speed * 3.6).toFixed(1),
+    parked: Math.abs(st.speed) < 0.01, hasPopups: st.hasPopups,
+    popupsUp: st.hasPopups ? st.popTarget > 0.5 : null, beamColor: '#' + st.beamColor.toString(16).padStart(6, '0'),
+  };
+}
+window.__FLEET_DRIVE__ = {
+  game: 'Fleet Drive',
+  world: 'Bunny Hop world (buildWorld) — street, canal, bridge, dusk',
+  cars: CARS.map((c, i) => ({ index: i, name: c.name, spec: c.spec })),
+  get activeIndex(){ return active; },
+  activeCar(){ return carSnapshot(fleet[active]); },
+  parkedCars(){ return fleet.map(carSnapshot); },
+  swapCar(i){ swapCar(i); return this.activeCar(); },
+  nextCar(){ return this.swapCar((active + 1) % fleet.length); },
+  setPopups(v){ return setPopups(!!v); },
+  snapshotState(){
+    return {
+      activeIndex: active,
+      active: carSnapshot(fleet[active]),
+      cars: fleet.map(carSnapshot),
+      camera: { x: +camera.position.x.toFixed(2), y: +camera.position.y.toFixed(2), z: +camera.position.z.toFixed(2), fov: +camera.fov.toFixed(1) },
+    };
+  },
+};
+try {
+  const aiJson = JSON.parse(document.getElementById('ai-instructions').textContent);
+  window.__FLEET_DRIVE_AI__ = Object.assign(window.__FLEET_DRIVE_AI__ || {}, aiJson, { liveState: 'window.__FLEET_DRIVE__' });
+} catch (e) { /* instructions also live in ./AI-RECIPE.md */ }
+
+/* Debug / scripted-play hooks (verification harness) */
+window.__dbg = {
+  ready: true, world, fleet, input,
+  get active(){ return active; },
+  get envMs(){ return envInfo.initMs; },
+  swapCar, setPopups,
+  state(){ return window.__FLEET_DRIVE__.snapshotState(); },
+  teleport(x, z, heading){
+    const st = fleet[active];
+    st.x = x; st.z = z; if (heading != null) st.heading = heading;
+    st.speed = 0; st.y = world.groundAt(x, z);
+    camYawS = st.heading;
+    camPos.set(x - Math.sin(st.heading) * CAM_DIST, st.y + CAM_H, z - Math.cos(st.heading) * CAM_DIST);
+  },
+  camera,
+};
+
+/* ============================================================ MAIN LOOP — Bunny Hop chase camera,
+   retargeted to a car: lazy yaw (tau 0.55 s), 1.65 m-class shoulder height
+   scaled to the car, FOV 60 + speed breathe to 64, roll 0. */
+const CAM_DIST = 5.4, CAM_H = 2.05;
+const camPos = new THREE.Vector3(fleet[0].x - Math.sin(fleet[0].heading) * CAM_DIST, fleet[0].y + CAM_H, fleet[0].z - Math.cos(fleet[0].heading) * CAM_DIST);
+let camYawS = fleet[0].heading;
+updateBeam(fleet[0]);
+let last = performance.now();
+function animate(now){
+  requestAnimationFrame(animate);
+  let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  pollInput();
+  const st = fleet[active];
+  stepCar(st, dt);
+  // pop-up animation (lerp toward target) on whichever car has them
+  for (const c of fleet){
+    if (!c.hasPopups) continue;
+    const d = c.popTarget - c.popT;
+    if (Math.abs(d) > 0.001){ c.popT += THREE.MathUtils.clamp(d, -dt * 2.4, dt * 2.4); c.built.setPopups(c.popT); }
+  }
+  for (const c of fleet) placeCar(c, dt);
+  updateBeam(st);
+  // camera: lazy yaw eases toward the car's heading while it moves
+  if (Math.abs(st.speed) > 0.15){
+    let dyaw = st.heading - camYawS; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+    camYawS += dyaw * (1 - Math.exp(-dt / 0.55));
+  }
+  const bx = Math.sin(camYawS), bz = Math.cos(camYawS);
+  camPos.x += ((st.x - bx * CAM_DIST) - camPos.x) * Math.min(1, dt * 4.5);
+  camPos.z += ((st.z - bz * CAM_DIST) - camPos.z) * Math.min(1, dt * 4.5);
+  camPos.y += ((st.y + CAM_H) - camPos.y) * Math.min(1, dt * 4.5);
+  const camGround = world.groundAt(camPos.x, camPos.z) + 0.45;
+  if (camPos.y < camGround) camPos.y = camGround;
+  camera.position.copy(camPos);
+  camera.lookAt(st.x, st.y + 0.7, st.z);
+  const fovT = 60 + 4 * THREE.MathUtils.smoothstep(Math.abs(st.speed), 6, 22);
+  if (Math.abs(camera.fov - fovT) > 0.02){ camera.fov = fovT; camera.updateProjectionMatrix(); }
+  sun.position.set(st.x + SUN_OFF.x, SUN_OFF.y, st.z + SUN_OFF.z); sun.target.position.set(st.x, 0, st.z);
+  speedEl.textContent = Math.round(Math.abs(st.speed) * 3.6);
+  modeEl.textContent = st.def.name.toUpperCase() + (Math.abs(st.speed) < 0.01 ? ' — PARKED' : '');
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
