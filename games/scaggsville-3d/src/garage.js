@@ -180,7 +180,9 @@ function disposeVehicle(veh) {
 // panel + START at the bottom; the car is fitted into the band between
 // them (fractions of screen height) via an off-axis view offset — the
 // CHARACTER-SELECTOR refit rule (whole car + soles stay visible).
-const FREE_TOP = 0.16, FREE_BOT = 0.60; // tuned by screenshot pass
+// Compacted layout (Cherie, Nov 21): headings ~11% + bottom zone ~37%
+// leaves the band below — if the DOM heights change, retune these.
+const FREE_TOP = 0.13, FREE_BOT = 0.63; // tuned by screenshot pass
 function createStage(environment) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x141126);
@@ -224,7 +226,7 @@ function createStage(environment) {
     const projHalf = (fitLen / 2) * Math.sin(Math.abs(START_AZ)) + (fitWid / 2) * Math.cos(START_AZ) + 0.35;
     const distH = projHalf / (hTan * 0.94);
     const distV = (fitH / 2 + 0.22) / (vTan * fh);
-    const dist = Math.max(distH, distV) * 1.26; // margin: the whole car stays inside at every spin angle
+    const dist = Math.max(distH, distV) * 1.13; // margin: whole car inside at every spin angle (side-on projects narrower than the fitted 3/4 view)
     const el = 0.30, ty = fitH * 0.44;
     camera.position.set(Math.sin(START_AZ) * Math.cos(el) * dist, ty + Math.sin(el) * dist, Math.cos(START_AZ) * Math.cos(el) * dist);
     camera.lookAt(0, ty, 0);
@@ -280,40 +282,45 @@ const BEAMS = [
 ];
 const FINISHES = [['Stock', null], ['Polished', 'polished'], ['Chrome', 'chrome'], ['Black', 'black'], ['Gold', 'gold'], ['White', 'white']];
 const css = `
-#pick{background:linear-gradient(180deg, rgba(8,6,18,.62), rgba(8,6,18,0) 26%, rgba(8,6,18,0) 58%, rgba(8,6,18,.66)) !important; overflow:hidden;}
+#pick{background:linear-gradient(180deg, rgba(8,6,18,.62), rgba(8,6,18,0) 26%, rgba(8,6,18,0) 58%, rgba(8,6,18,.66)) !important; overflow:hidden;
+  padding:calc(6px + env(safe-area-inset-top)) 10px 8px !important;}
+#pick h1{font-size:19px;margin:0;letter-spacing:.1em;}
+#pick h2{font-size:10px;margin:1px 0 3px;letter-spacing:.16em;}
 .grg-drag{position:absolute;inset:0;z-index:1;touch-action:none;}
 .grg-head{position:relative;z-index:2;text-align:center;pointer-events:none;}
-.grg-plate{position:relative;z-index:2;text-align:center;pointer-events:none;margin-top:2px;}
-.grg-plate .nm{color:#fff;font-size:27px;font-weight:900;letter-spacing:.05em;text-shadow:0 2px 10px rgba(0,0,0,.8);line-height:1.05;}
-.grg-plate .st{color:#ffd9a0;font-size:12px;font-weight:800;letter-spacing:.18em;text-shadow:0 1px 5px rgba(0,0,0,.9);}
-.grg-plate .car{color:#cfd6ea;font-size:14px;font-weight:700;text-shadow:0 1px 5px rgba(0,0,0,.9);margin-top:1px;}
-.grg-nav{position:absolute;top:34%;z-index:3;width:54px;height:74px;border-radius:14px;border:2px solid rgba(255,255,255,.35);
+.grg-plate{position:relative;z-index:2;text-align:center;pointer-events:none;margin-top:0;}
+.grg-plate .nm{color:#fff;font-size:20px;font-weight:900;letter-spacing:.05em;text-shadow:0 2px 10px rgba(0,0,0,.8);line-height:1.0;}
+.grg-plate .st{color:#ffd9a0;font-size:10px;font-weight:800;letter-spacing:.16em;text-shadow:0 1px 5px rgba(0,0,0,.9);margin-top:1px;}
+.grg-plate .car{color:#cfd6ea;font-size:11.5px;font-weight:700;text-shadow:0 1px 5px rgba(0,0,0,.9);margin-top:0;}
+.grg-nav{position:absolute;top:35%;z-index:3;width:54px;height:74px;border-radius:14px;border:2px solid rgba(255,255,255,.35);
   background:rgba(12,14,28,.55);color:#ffd23f;font-size:34px;font-weight:900;line-height:1;cursor:pointer;pointer-events:auto;
   display:flex;align-items:center;justify-content:center;text-shadow:0 2px 6px rgba(0,0,0,.7);}
 .grg-nav:active{background:rgba(255,210,63,.25);}
 .grg-prev{left:8px;} .grg-next{right:8px;}
-.grg-count{position:absolute;top:calc(34% + 82px);z-index:2;width:54px;text-align:center;color:#cfd6ea;font-size:12px;font-weight:800;pointer-events:none;}
+.grg-count{position:absolute;top:calc(35% + 80px);z-index:2;width:54px;text-align:center;color:#cfd6ea;font-size:12px;font-weight:800;pointer-events:none;}
 .grg-count-l{left:8px;} .grg-count-r{right:8px;display:none;}
 .grg-bottom{position:relative;z-index:2;margin-top:auto;width:min(560px,96vw);display:flex;flex-direction:column;align-items:stretch;}
-.grg-panel{background:rgba(10,12,24,.78);border:2px solid rgba(255,255,255,.16);border-radius:14px;padding:8px 12px 10px;
-  max-height:34vh;overflow-y:auto;pointer-events:auto;backdrop-filter:blur(3px);}
-.grg-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.07);}
+.grg-panel{background:rgba(10,12,24,.78);border:2px solid rgba(255,255,255,.16);border-radius:14px;padding:6px 10px 8px;
+  max-height:26.3vh;overflow-y:auto;pointer-events:auto;backdrop-filter:blur(3px);
+  -webkit-mask-image:linear-gradient(180deg,#000 90%,transparent 100%);mask-image:linear-gradient(180deg,#000 90%,transparent 100%);}
+.grg-panel.at-end{-webkit-mask-image:none;mask-image:none;}
+.grg-row{display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.07);}
 .grg-row:last-child{border-bottom:none;}
-.grg-lab{color:#ffd9a0;font-size:11px;font-weight:900;letter-spacing:.12em;width:74px;flex:none;}
-.grg-swatches{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
-.grg-sw{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.35);cursor:pointer;flex:none;padding:0;}
+.grg-lab{color:#ffd9a0;font-size:10px;font-weight:900;letter-spacing:.1em;width:58px;flex:none;}
+.grg-swatches{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+.grg-sw{width:23px;height:23px;border-radius:50%;border:2px solid rgba(255,255,255,.35);cursor:pointer;flex:none;padding:0;}
 .grg-sw.on{border-color:#ffd23f;box-shadow:0 0 0 2px rgba(255,210,63,.5);}
-.grg-sw.stock{width:auto;height:26px;border-radius:13px;padding:0 9px;color:#fff;font-size:10px;font-weight:900;letter-spacing:.08em;background:rgba(255,255,255,.12);}
-.grg-sw.fin{width:auto;height:26px;border-radius:13px;padding:0 9px;color:#fff;font-size:10px;font-weight:900;letter-spacing:.06em;}
-.grg-range{flex:1;accent-color:#ffd23f;height:28px;}
-.grg-tog{border:2px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;border-radius:13px;height:28px;
-  padding:0 14px;font-size:11px;font-weight:900;letter-spacing:.1em;cursor:pointer;}
+.grg-sw.stock{width:auto;height:23px;border-radius:12px;padding:0 8px;color:#fff;font-size:9px;font-weight:900;letter-spacing:.08em;background:rgba(255,255,255,.12);}
+.grg-sw.fin{width:auto;height:23px;border-radius:12px;padding:0 8px;color:#fff;font-size:9px;font-weight:900;letter-spacing:.06em;}
+.grg-range{flex:1;accent-color:#ffd23f;height:26px;}
+.grg-tog{border:2px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;border-radius:12px;height:26px;
+  padding:0 11px;font-size:10px;font-weight:900;letter-spacing:.08em;cursor:pointer;}
 .grg-tog.on{border-color:#ffd23f;background:rgba(255,210,63,.25);color:#ffd23f;}
-.grg-start{margin-top:10px;pointer-events:auto;border:3px solid #ffd23f;background:rgba(46,160,80,.88);color:#fff;border-radius:16px;
-  font-size:21px;font-weight:900;letter-spacing:.1em;padding:13px 10px;cursor:pointer;text-shadow:0 1px 4px rgba(0,0,0,.5);
+.grg-start{margin-top:8px;pointer-events:auto;border:3px solid #ffd23f;background:rgba(46,160,80,.88);color:#fff;border-radius:14px;
+  font-size:18px;font-weight:900;letter-spacing:.1em;padding:9px 10px;cursor:pointer;text-shadow:0 1px 4px rgba(0,0,0,.5);
   box-shadow:0 6px 22px rgba(0,0,0,.5);}
 .grg-start:active{filter:brightness(1.25);}
-.grg-foot{color:#8f97ad;font-size:11px;margin-top:8px;text-align:center;line-height:1.5;position:relative;z-index:2;}
+.grg-foot{color:#8f97ad;font-size:10px;margin-top:6px;text-align:center;line-height:1.4;position:relative;z-index:2;}
 `;
 
 export function mountGarage(pickEl, opts) {
@@ -373,7 +380,9 @@ export function mountGarage(pickEl, opts) {
   function syncPanel() {
     const cu = custom();
     panelEl.innerHTML = '';
-    panelEl.appendChild(swatchRow('PAINT', PAINTS, () => cu.paint, v => { cu.paint = v; }));
+    panelEl.scrollTop = 0; panelEl.classList.remove('at-end');
+    // Row order (Cherie, Nov 21): the everyday adjustments first; PAINT is
+    // demoted to the very last row — below the fold, scroll to reach it.
     panelEl.appendChild(sliderRow('RIDE', -100, 100, 1, () => Math.round(cu.ride * 100), v => { cu.ride = v / 100; }));
     panelEl.appendChild(sliderRow('RIMS', 85, 125, 1, () => Math.round(cu.rimScale * 100), v => { cu.rimScale = v / 100; }));
     panelEl.appendChild(swatchRow('FINISH', FINISHES, () => cu.rimFinish, v => { cu.rimFinish = v; }));
@@ -390,6 +399,7 @@ export function mountGarage(pickEl, opts) {
     rst.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); customs[households[idx].stop] = stockCustom(); applyToStage(); });
     row.appendChild(rst);
     panelEl.appendChild(row);
+    panelEl.appendChild(swatchRow('PAINT', PAINTS, () => cu.paint, v => { cu.paint = v; }));
   }
 
   function show(i) {
@@ -408,6 +418,10 @@ export function mountGarage(pickEl, opts) {
     countEl.textContent = (idx + 1) + ' / ' + households.length;
     syncPanel();
   }
+  // the panel's bottom fade (the "more below" hint) lifts at scroll end
+  panelEl.addEventListener('scroll', () => {
+    panelEl.classList.toggle('at-end', panelEl.scrollTop + panelEl.clientHeight >= panelEl.scrollHeight - 4);
+  }, { passive: true });
   $('.grg-prev').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); show(idx - 1); });
   $('.grg-next').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); show(idx + 1); });
   $('.grg-start').addEventListener('pointerdown', e => {
