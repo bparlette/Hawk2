@@ -314,7 +314,33 @@ export class GroundPainter {
     const AR = this.areas;
     if (AR) {                                             // background tier: realistic weathered roofs, crisp cast shadows, parking lot wear
       const r = mulberry32(cx * 7919 + cy * 104729 + 5);
-      for (const i of AR.inChunk('green', cx, cy)) { g.globalAlpha = 0.16; g.fillStyle = '#254224'; poly(g, AR.A.green[i]); g.fill(); }
+      // REAL WOODS as canopy (Opus, Nov 21): the OSM green polygons were a 16% tint, so forests read as lawn.
+      // Now: a dense crown layer clipped to each polygon — down-sun shadow, three canopy tones, a sunlit rim
+      // on the sun side (the bake's SUN), crowns seeded per world cell so neighbouring chunks agree at seams.
+      for (const i of AR.inChunk('green', cx, cy)) {
+        const gf = AR.A.green[i];
+        g.save(); poly(g, gf); g.clip();
+        g.globalAlpha = 0.55; g.fillStyle = '#1f3220'; g.fillRect(ox - 40, oy - 40, CHUNK + 80, CHUNK + 80);   // forest-floor shade
+        const CELLW = 26, crowns = [];
+        for (let ky = Math.floor((oy - 50) / CELLW); ky <= Math.floor((oy + CHUNK + 50) / CELLW); ky++)
+          for (let kx = Math.floor((ox - 50) / CELLW); kx <= Math.floor((ox + CHUNK + 50) / CELLW); kx++) {
+            const cr = mulberry32((kx * 73856093) ^ (ky * 19349663) ^ 0x7ee5);
+            crowns.push([(kx + cr()) * CELLW, (ky + cr()) * CELLW, 17 + cr() * 14, cr(), cr()]);
+          }
+        g.fillStyle = '#0b130d';
+        for (const [x, y, rr] of crowns) { g.globalAlpha = 0.30; g.beginPath(); g.arc(x + 0.8 * rr * 0.7, y - 0.3 * rr * 0.7, rr, 0, Math.PI * 2); g.fill(); }
+        const TONES = ['#263f22', '#2f4b28', '#36552d', '#3d5f31', '#2a4426'];
+        for (const [x, y, rr, t1] of crowns) { g.globalAlpha = 0.95; g.fillStyle = TONES[(t1 * TONES.length) | 0]; g.beginPath(); g.arc(x, y, rr, 0, Math.PI * 2); g.fill(); }
+        for (const [x, y, rr, t1, t2] of crowns) {         // inner clumps + sunlit rim toward the light (-SUN)
+          g.globalAlpha = 0.55; g.fillStyle = t2 < 0.5 ? '#4a6d3a' : '#557a40';
+          g.beginPath(); g.arc(x - 0.8 * rr * 0.32, y + 0.3 * rr * 0.32, rr * 0.55, 0, Math.PI * 2); g.fill();
+          g.globalAlpha = 0.35; g.fillStyle = '#7f9a55';
+          g.beginPath(); g.arc(x - 0.8 * rr * 0.45, y + 0.3 * rr * 0.45, rr * 0.28, 0, Math.PI * 2); g.fill();
+        }
+        g.restore();
+        g.globalAlpha = 0.35; g.strokeStyle = '#13200f'; g.lineWidth = 2.2; poly(g, gf); g.stroke();   // canopy edge shadow line
+      }
+      g.globalAlpha = 1;
       for (const i of AR.inChunk('parking', cx, cy)) {
         const pf = AR.A.parking[i];
         g.globalAlpha = 0.90; g.fillStyle = '#404652'; poly(g, pf); g.fill();
@@ -349,7 +375,7 @@ export class GroundPainter {
       // baked sprites do — ridge along the longest edge, the sun-facing slope lit and the far slope shaded,
       // shingle courses parallel to the eaves, ridge cap, chimney; near-square footprints get a hip roof;
       // a swept cast shadow down-sun (the bake's SUN, lf_render.js). Large footprints keep flat membrane roofs.
-      const SHINGLE = ['#4d525a', '#5b5f67', '#6a625a', '#585049', '#41464e', '#6e6a63', '#525e69', '#5d5048', '#62666d'];
+      const SHINGLE = ['#5f646c', '#72767d', '#7d7368', '#6b5f55', '#4c5158', '#86817a', '#5f6c78', '#7a5246', '#8a8f95', '#6e5a4c', '#94897a', '#556170'];   // light greys, weathered tan, red-brown, slate blue
       const SUNX = 0.8, SUNY = -0.3, LX = -SUNX, LY = -SUNY;        // shadows fall along SUN; light comes from -SUN
       const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => Math.max(0, Math.min(255, Math.round(v * k)))); return `rgb(${c[0]},${c[1]},${c[2]})`; };
       for (const i of AR.inChunk('buildings', cx, cy)) {
