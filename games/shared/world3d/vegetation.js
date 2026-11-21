@@ -107,9 +107,9 @@ class Forest {
       im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true;
       // bounding sphere of the chunk (three culls InstancedMesh by geometry bounds otherwise)
       const r=Math.hypot(x1-x0,z1-z0)/2+12; im.geometry=geo; im.boundingSphere=new THREE.Sphere(new THREE.Vector3((x0+x1)/2,5,(z0+z1)/2), r);
-      im.castShadow = model!=='woods'; im.receiveShadow=true; im.frustumCulled=true; im.matrixAutoUpdate=false;
+      im.castShadow = model!=='woods' && model!=='shrub';   // cull() narrows this further by distance im.receiveShadow=true; im.frustumCulled=true; im.matrixAutoUpdate=false;
       im.userData.center=new THREE.Vector3((x0+x1)/2,0,(z0+z1)/2); im.userData.r=r;
-      im.userData.near=geo; im.userData.far=(lods&&lods[model])||geo; im.userData.model=model;
+      im.userData.near=geo; im.userData.far=(lods&&lods[model])||geo; im.userData.model=model; im.userData.casts=im.castShadow;
       group.add(im); chunks.push(im); count+=list.length;
     }
     scene.add(group);
@@ -121,51 +121,35 @@ export function vegetationMaterial(T){
   return new THREE.MeshStandardMaterial({ map:T.foliage, alphaTest:0.42, side:THREE.DoubleSide, vertexColors:true, roughness:0.9, metalness:0, envMapIntensity:0.45 });
 }
 
-export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T, greens=[] }){
-  const GREENS=greens;
-  const R=mulberry32(4471);
-  const models=makeModels(), F=new Forest();
-  // occupancy: houses (oriented boxes, padded) via a coarse grid
+// Streamed vegetation: indexes are built up front (cheap); each 400 m chunk's trees are generated + instanced in
+// its own scheduler job (nearest the camera first, chunk-seeded RNG, so output is independent of order).
+// Without a scheduler every chunk is built synchronously (same result).
+export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T, greens=[], scheduler=null, camera=()=>[0,0] }){
+  const models=makeModels(), lods=makeLods(), mat=vegetationMaterial(T);
+  const group=new THREE.Group(); group.name='vegetation'; scene.add(group);
+  const chunks=[]; const stats={ street:0, yard:0, shrubs:0, woods:0, instances:0, chunks:0 };
+  const ck=(x,z)=>Math.floor(x/CHUNK)+','+Math.floor(z/CHUNK);
+  const bucket=(map,k,v)=>{ let l=map.get(k); if(!l) map.set(k,l=[]); l.push(v); };
+  // ---- indexes ----
   const occ=new Map(), OC=20;
-  colliders.forEach((c,i)=>{ const r=Math.hypot(c.hw,c.hd)+3; for(let x=Math.floor((c.cx-r)/OC); x<=Math.floor((c.cx+r)/OC); x++) for(let z=Math.floor((c.cz-r)/OC); z<=Math.floor((c.cz+r)/OC); z++){ const k=x+','+z; if(!occ.has(k)) occ.set(k,[]); occ.get(k).push(c); } });
+  colliders.forEach(c=>{ const r=Math.hypot(c.hw,c.hd)+3; for(let x=Math.floor((c.cx-r)/OC); x<=Math.floor((c.cx+r)/OC); x++) for(let z=Math.floor((c.cz-r)/OC); z<=Math.floor((c.cz+r)/OC); z++) bucket(occ, x+','+z, c); });
   const inHouse=(x,z,pad)=>{ const l=occ.get(Math.floor(x/OC)+','+Math.floor(z/OC)); if(!l) return false;
     for(const c of l){ const dx=x-c.cx, dz=z-c.cz; const lx=dx*c.cos-dz*c.sin, lz=dx*c.sin+dz*c.cos; if(Math.abs(lx)<c.hw+pad && Math.abs(lz)<c.hd+pad) return true; } return false; };
-  const onDrive=(x,z)=>{ for(const d of drives){ const ax=d.a[0],az=d.a[1],bx=d.b[0],bz=d.b[1], vx=bx-ax, vz=bz-az, L2=vx*vx+vz*vz||1; let t=((x-ax)*vx+(z-az)*vz)/L2; if(t<-0.05||t>1.05) continue; const px=ax+vx*t, pz=az+vz*t; if(Math.hypot(x-px,z-pz)<d.w/2+1.2) return true; } return false; };
+  const dgrid=new Map(), DG=20;   // driveways indexed (the old O(drives) scan per tree was most of the build time)
+  for(const d of drives){ const x0=Math.min(d.a[0],d.b[0])-d.w, x1=Math.max(d.a[0],d.b[0])+d.w, z0=Math.min(d.a[1],d.b[1])-d.w, z1=Math.max(d.a[1],d.b[1])+d.w;
+    for(let x=Math.floor(x0/DG); x<=Math.floor(x1/DG); x++) for(let z=Math.floor(z0/DG); z<=Math.floor(z1/DG); z++) bucket(dgrid, x+','+z, d); }
+  const onDrive=(x,z)=>{ const l=dgrid.get(Math.floor(x/DG)+','+Math.floor(z/DG)); if(!l) return false;
+    for(const d of l){ const ax=d.a[0],az=d.a[1], vx=d.b[0]-ax, vz=d.b[1]-az, L2=vx*vx+vz*vz||1; let t=((x-ax)*vx+(z-az)*vz)/L2; if(t<-0.05||t>1.05) continue; if(Math.hypot(x-ax-vx*t,z-az-vz*t)<d.w/2+1.2) return true; } return false; };
   const free=(x,z,pad=1.5)=> !roads.index.paved(x,z) && !roads.index.paved(x+pad,z) && !roads.index.paved(x-pad,z) && !roads.index.paved(x,z+pad) && !roads.index.paved(x,z-pad) && !inHouse(x,z,1.2);
-  const tint=()=>{ const v=0.82+R()*0.3, h=(R()-0.5)*0.12; return [v*(1+h), v, v*(1-h*0.6)]; };
-  const pick=()=>{ const r=R(); return r<0.46?'oak' : r<0.8?'maple' : 'pine'; };
-  let street=0, yard=0, shrubs=0, woods=0;
-
-  // ---- street trees: behind the sidewalk / shoulder on residential + tertiary roads ----
-  for(const r of D.roads){
-    if(/^(motorway|trunk)/.test(r.hw) || r.hw==='service') continue;
-    for(let i=0;i<r.pts.length-1;i++){
-      const [ax,az]=r.pts[i],[bx,bz]=r.pts[i+1], L=Math.hypot(bx-ax,bz-az), nx=-(bz-az)/(L||1), nz=(bx-ax)/(L||1);
-      for(let s=R()*10; s<L; s+=9+R()*10){
-        if(R()>0.55*cfg.treeDensity) continue;
-        const side=R()<0.5?-1:1, off=r.w/2+2.6+R()*5.5, x=ax+(bx-ax)*s/L+nx*off*side, z=az+(bz-az)*s/L+nz*off*side;
-        if(!free(x,z) || onDrive(x,z)) continue;
-        F.add(pick(), x, z, 0.85+R()*0.55, R()*6.28, tint()); street++;
-      }
-    }
-  }
-  // ---- yard trees + foundation shrubs per house ----
-  for(const c of colliders){
-    if(c.hw*c.hd*4>520) continue;
-    const lean = c.lean;
-    const ex=[c.cos,-c.sin], ez=[c.sin,c.cos];
-    const n=lean? (R()<0.5?1:0) : Math.floor(R()*3);
-    for(let k=0;k<n;k++){ const a=R()*6.28, d=Math.hypot(c.hw,c.hd)+3+R()*7, x=c.cx+Math.cos(a)*d, z=c.cz+Math.sin(a)*d;
-      if(!free(x,z,2) || onDrive(x,z)) continue; F.add(pick(), x, z, 0.9+R()*0.6, R()*6.28, tint()); yard++; }
-    // shrubs along the two long walls (full-detail houses only)
-    if(!lean) for(const sg of [1,-1]){ const cnt=Math.floor(c.hw/1.6);
-      for(let k=0;k<cnt;k++){ if(R()<0.45) continue; const lx=-c.hw+0.8+k*(2*c.hw-1.6)/Math.max(1,cnt-1), lz=sg*(c.hd+0.85);
-        const x=c.cx+ex[0]*lx+ez[0]*lz, z=c.cz+ex[1]*lx+ez[1]*lz; if(roads.index.paved(x,z) || onDrive(x,z)) continue;
-        F.add('shrub', x, z, 0.8+R()*0.6, R()*6.28, tint()); shrubs++; } }
-  }
-  // ---- distance-to-road raster (10 m cells, multi-source BFS) for density banding ----
+  const segBy=new Map(), houseBy=new Map(), greenBy=new Map(), allChunks=new Set();
+  for(const r of D.roads){ if(/^(motorway|trunk)/.test(r.hw) || r.hw==='service') continue;
+    for(let i=0;i<r.pts.length-1;i++){ const k=ck((r.pts[i][0]+r.pts[i+1][0])/2, (r.pts[i][1]+r.pts[i+1][1])/2); bucket(segBy,k,[r,i]); allChunks.add(k); } }
+  for(const c of colliders){ if(c.hw*c.hd*4>520) continue; const k=ck(c.cx,c.cz); bucket(houseBy,k,c); allChunks.add(k); }
+  const GB=greens.map(poly=>{ let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9; for(const p of poly){ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); z0=Math.min(z0,p[1]); z1=Math.max(z1,p[1]); } return { poly, x0,x1,z0,z1 }; });
+  for(const g of GB) for(let x=Math.floor(g.x0/CHUNK); x<=Math.floor(g.x1/CHUNK); x++) for(let z=Math.floor(g.z0/CHUNK); z<=Math.floor(g.z1/CHUNK); z++){ const k=x+','+z; bucket(greenBy,k,g); allChunks.add(k); }
+  // ---- distance-to-road raster (10 m, multi-source BFS) for woods density banding ----
   const DC=10; let gx0=1e9,gx1=-1e9,gz0=1e9,gz1=-1e9;
-  for(const poly of GREENS) for(const p of poly){ gx0=Math.min(gx0,p[0]); gx1=Math.max(gx1,p[0]); gz0=Math.min(gz0,p[1]); gz1=Math.max(gz1,p[1]); }
+  for(const g of GB){ gx0=Math.min(gx0,g.x0); gx1=Math.max(gx1,g.x1); gz0=Math.min(gz0,g.z0); gz1=Math.max(gz1,g.z1); }
   for(const r of D.roads) for(const p of r.pts){ gx0=Math.min(gx0,p[0]); gx1=Math.max(gx1,p[0]); gz0=Math.min(gz0,p[1]); gz1=Math.max(gz1,p[1]); }
   const GW=Math.ceil((gx1-gx0)/DC)+2, GH=Math.ceil((gz1-gz0)/DC)+2, dist=new Float32Array(GW*GH).fill(1e9), queue=new Int32Array(GW*GH); let qh=0, qt=0;
   for(const r of D.roads) for(let i=0;i<r.pts.length-1;i++){ const [ax,az]=r.pts[i],[bx,bz]=r.pts[i+1], n=Math.max(1,Math.ceil(Math.hypot(bx-ax,bz-az)/5));
@@ -174,50 +158,64 @@ export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T, gr
     if(i>0 && dist[id-1]>d){ dist[id-1]=d; queue[qt++]=id-1; } if(i<GW-1 && dist[id+1]>d){ dist[id+1]=d; queue[qt++]=id+1; }
     if(j>0 && dist[id-GW]>d){ dist[id-GW]=d; queue[qt++]=id-GW; } if(j<GH-1 && dist[id+GW]>d){ dist[id+GW]=d; queue[qt++]=id+GW; } }
   const roadDist=(x,z)=>{ const i=Math.floor((x-gx0)/DC), j=Math.floor((z-gz0)/DC); return (i<0||j<0||i>=GW||j>=GH)? 1e9 : dist[j*GW+i]; };
-  // spacing by band: dense where you see trunks, sparse + bigger where only the canopy line shows, none past the fog
   const band=(d)=> d<25? {step:9, model:'mix', s:[1.0,0.5]} : d<150? {step:13, model:'woods', s:[1.15,0.5]} : d<400? {step:20, model:'woods', s:[1.6,0.5]} : d<700? {step:30, model:'woods', s:[2.0,0.6]} : null;
-
-  // ---- REAL woods (OSM green polygons): forest floor + trees ----
-  const floorP=[], floorI=[];
-  for(const poly of GREENS){
-    // forest floor decal
-    const contour=poly.map(p=>new THREE.Vector2(p[0],p[1]));
-    if(THREE.ShapeUtils.isClockWise(contour)) contour.reverse();
-    const tris=THREE.ShapeUtils.triangulateShape(contour,[]), base=floorP.length/3;
-    for(const p of contour) floorP.push(p.x, 0.022, p.y);
-    for(const t of tris) floorI.push(base+t[0], base+t[2], base+t[1]);
-    // trees on a jittered grid; dense near roads (seen up close), sparse + tall inside
-    let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9; for(const p of poly){ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); z0=Math.min(z0,p[1]); z1=Math.max(z1,p[1]); }
-    const inside=(x,z)=>{ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const [xi,zi]=poly[i],[xj,zj]=poly[j]; if(((zi>z)!==(zj>z)) && (x<(xj-xi)*(z-zi)/(zj-zi)+xi)) c=!c; } return c; };
-    // walk a 7.5 m lattice; each band keeps the cells on its own coarser lattice
-    const LAT=9;
-    for(let x=x0; x<x1; x+=LAT) for(let z=z0; z<z1; z+=LAT){
-      const b=band(roadDist(x,z)); if(!b) continue;
-      const k=Math.round(b.step/LAT); if(k>1 && ((Math.round((x-x0)/LAT)%k)!==0 || (Math.round((z-z0)/LAT)%k)!==0)) continue;
-      const jx=x+(R()-0.5)*b.step*0.8, jz=z+(R()-0.5)*b.step*0.8;
-      if(!inside(jx,jz) || !free(jx,jz,2)) continue;
-      const model = b.model==='mix' ? (R()<0.15?'pine': R()<0.55?'oak':'maple') : 'woods';
-      F.add(model, jx, jz, b.s[0]+R()*b.s[1], R()*6.28, tint()); woods++;
+  const LAT=9;
+  // ---- forest floor decals (all woods, one mesh) ----
+  { const floorP=[], floorI=[];
+    for(const poly of greens){ const contour=poly.map(p=>new THREE.Vector2(p[0],p[1])); if(THREE.ShapeUtils.isClockWise(contour)) contour.reverse();
+      const tris=THREE.ShapeUtils.triangulateShape(contour,[]), b0=floorP.length/3; for(const p of contour) floorP.push(p.x, 0.022, p.y); for(const t of tris) floorI.push(b0+t[0], b0+t[2], b0+t[1]); }
+    if(floorP.length){ const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(floorP,3));
+      const uv=[]; for(let i=0;i<floorP.length;i+=3) uv.push(floorP[i]*0.25, floorP[i+2]*0.25); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv,2)); g.setIndex(floorI); g.computeVertexNormals();
+      const m=new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map:T.leaf, roughness:1, color:0xbfb8a8 })); m.receiveShadow=true; m.name='forestFloor'; m.matrixAutoUpdate=false; scene.add(m); } }
+  // ---- per-chunk generation ----
+  const pickFrom=(R)=>{ const r=R(); return r<0.46?'oak' : r<0.8?'maple' : 'pine'; };
+  const tintFrom=(R)=>{ const v=0.82+R()*0.3, h=(R()-0.5)*0.12; return [v*(1+h), v, v*(1-h*0.6)]; };
+  function* genChunk(k){
+    const [cxi, czi]=k.split(',').map(Number), x0=cxi*CHUNK, z0=czi*CHUNK, R=mulberry32((cxi*73856093)^(czi*19349663)^4471);
+    const F=new Forest(), add=(m,x,z,s,rot,t)=>F.add(m,x,z,s,rot,t);
+    for(const [r,i] of segBy.get(k)||[]){
+      const [ax,az]=r.pts[i],[bx,bz]=r.pts[i+1], L=Math.hypot(bx-ax,bz-az), nx=-(bz-az)/(L||1), nz=(bx-ax)/(L||1);
+      for(let s=R()*10; s<L; s+=9+R()*10){ if(R()>0.55*cfg.treeDensity) continue;
+        const side=R()<0.5?-1:1, off=r.w/2+2.6+R()*5.5, x=ax+(bx-ax)*s/L+nx*off*side, z=az+(bz-az)*s/L+nz*off*side;
+        if(!free(x,z) || onDrive(x,z)) continue; add(pickFrom(R), x, z, 0.85+R()*0.55, R()*6.28, tintFrom(R)); stats.street++; } }
+    yield;
+    for(const c of houseBy.get(k)||[]){
+      const ex=[c.cos,-c.sin], ez=[c.sin,c.cos], n=Math.floor(R()*3);
+      for(let q=0;q<n;q++){ const a=R()*6.28, d=Math.hypot(c.hw,c.hd)+3+R()*7, x=c.cx+Math.cos(a)*d, z=c.cz+Math.sin(a)*d;
+        if(!free(x,z,2) || onDrive(x,z)) continue; add(pickFrom(R), x, z, 0.9+R()*0.6, R()*6.28, tintFrom(R)); stats.yard++; }
+      for(const sg of [1,-1]){ const cnt=Math.floor(c.hw/1.6);
+        for(let q=0;q<cnt;q++){ if(R()<0.45) continue; const lx=-c.hw+0.8+q*(2*c.hw-1.6)/Math.max(1,cnt-1), lz=sg*(c.hd+0.85);
+          const x=c.cx+ex[0]*lx+ez[0]*lz, z=c.cz+ex[1]*lx+ez[1]*lz; if(roads.index.paved(x,z) || onDrive(x,z)) continue;
+          add('shrub', x, z, 0.8+R()*0.6, R()*6.28, tintFrom(R)); stats.shrubs++; } }
     }
+    yield;
+    for(const g of greenBy.get(k)||[]){
+      const poly=g.poly, inside=(x,z)=>{ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const [xi,zi]=poly[i],[xj,zj]=poly[j]; if(((zi>z)!==(zj>z)) && (x<(xj-xi)*(z-zi)/(zj-zi)+xi)) c=!c; } return c; };
+      const lx0=Math.max(x0, Math.floor(g.x0/LAT)*LAT), lx1=Math.min(x0+CHUNK, g.x1), lz0=Math.max(z0, Math.floor(g.z0/LAT)*LAT), lz1=Math.min(z0+CHUNK, g.z1);
+      for(let x=Math.ceil(lx0/LAT)*LAT; x<lx1; x+=LAT){ for(let z=Math.ceil(lz0/LAT)*LAT; z<lz1; z+=LAT){
+        const b=band(roadDist(x,z)); if(!b) continue;
+        const kk=Math.round(b.step/LAT); if(kk>1 && ((Math.round(x/LAT)%kk)!==0 || (Math.round(z/LAT)%kk)!==0)) continue;
+        const h=mulberry32((Math.round(x/LAT)*2654435761) ^ (Math.round(z/LAT)*40503) ^ 0x77), jx=x+(h()-0.5)*b.step*0.8, jz=z+(h()-0.5)*b.step*0.8;
+        if(!inside(jx,jz) || !free(jx,jz,2)) continue;
+        const model = b.model==='mix' ? (h()<0.15?'pine': h()<0.55?'oak':'maple') : 'woods';
+        add(model, jx, jz, b.s[0]+h()*b.s[1], h()*6.28, tintFrom(h)); stats.woods++; } yield; }
+    }
+    const built=F.build(group, models, mat, lods);
+    for(const im of built.chunks) chunks.push(im);
+    stats.instances+=built.count; stats.chunks+=built.chunks.length;
   }
-  if(floorP.length){
-    const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(floorP,3));
-    const uv=[]; for(let i=0;i<floorP.length;i+=3) uv.push(floorP[i]*0.25, floorP[i+2]*0.25); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv,2));
-    g.setIndex(floorI); g.computeVertexNormals();
-    const m=new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map:T.leaf, roughness:1, color:0xbfb8a8 })); m.receiveShadow=true; m.name='forestFloor'; m.matrixAutoUpdate=false; scene.add(m);
+  const chunkDist=(k)=>{ const [a,b]=k.split(',').map(Number), cp=camera(); return Math.hypot((a+0.5)*CHUNK-cp[0], (b+0.5)*CHUNK-cp[1]); };
+  for(const k of allChunks){
+    if(scheduler) scheduler.add('veg:'+k, ()=>genChunk(k), ()=>chunkDist(k));
+    else { const it=genChunk(k); while(!it.next().done){} }
   }
-
-  const mat=vegetationMaterial(T);
-  const built=F.build(scene, models, mat, makeLods());
-  // distance cull: chunks beyond the fog are skipped entirely (frustum culling handles the sides)
-  const prev=scene.onBeforeRender;
-  const CULL=cfg.vegCullDistance||760, LOD_AT=260;
-  scene.onBeforeRender=function(renderer, sc, camera, rt){
-    if(prev) prev.call(this, renderer, sc, camera, rt);
-    const cp=camera.position;
-    for(const im of built.chunks){ const u=im.userData, d=Math.hypot(u.center.x-cp.x, u.center.z-cp.z) - u.r;
+  // distance cull + LOD swap per chunk (call cull(cameraPosition) each frame)
+  const CULL=cfg.vegCullDistance||760, LOD_AT=260, SHADOW_AT=cfg.vegShadowDistance||140;
+  function cull(cp){
+    for(const im of chunks){ const u=im.userData, d=Math.hypot(u.center.x-cp.x, u.center.z-cp.z) - u.r;
       im.visible = d < (u.model==='shrub'? 300 : CULL);
+      im.castShadow = u.casts && d < SHADOW_AT;   // the sun's shadow box is ±80 m round the player: farther chunks only cost shadow draws
       const g = d > LOD_AT ? u.far : u.near; if(im.geometry!==g) im.geometry=g; }
-  };
-  return { stats:{ street, yard, shrubs, woods, instances:built.count, chunks:built.chunks.length } };
+  }
+  return { stats, cull, group };
 }

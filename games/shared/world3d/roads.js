@@ -25,11 +25,24 @@ export class RoadIndex {
     this.bits=new Uint32Array(Math.ceil(this.W*this.H/32)); }
   set(x,z){ const i=Math.floor((x-this.x0)/this.cell), j=Math.floor((z-this.z0)/this.cell); if(i<0||j<0||i>=this.W||j>=this.H) return; const k=j*this.W+i; this.bits[k>>5]|=1<<(k&31); }
   fillDisc(x,z,r){ const c=this.cell; for(let ox=-r;ox<=r;ox+=c) for(let oz=-r;oz<=r;oz+=c) if(ox*ox+oz*oz<=r*r) this.set(x+ox,z+oz); }
-  fillStroke(pts, hw){ // stamp the paved footprint
-    for(let i=0;i<pts.length-1;i++){ const [ax,az]=pts[i],[bx,bz]=pts[i+1], L=Math.hypot(bx-ax,bz-az), n=Math.max(1,Math.ceil(L/(this.cell*0.7)));
-      const nx=-(bz-az)/(L||1), nz=(bx-ax)/(L||1);
-      for(let s=0;s<=n;s++){ const x=ax+(bx-ax)*s/n, z=az+(bz-az)*s/n;
-        for(let o=-hw;o<=hw;o+=this.cell*0.7) this.set(x+nx*o,z+nz*o); } }
+  fillStroke(pts, hw){ // stamp the paved footprint: exact capsule per segment, cell centres tested in grid space
+    const c=this.cell, W=this.W, H=this.H, bits=this.bits, r2=hw*hw;
+    for(let i=0;i<pts.length-1;i++){ const ax=pts[i][0], az=pts[i][1], bx=pts[i+1][0], bz=pts[i+1][1];
+      const dx=bx-ax, dz=bz-az, L2=dx*dx+dz*dz||1e-9;
+      const i0=Math.max(0,Math.floor((Math.min(ax,bx)-hw-this.x0)/c)), i1=Math.min(W-1,Math.floor((Math.max(ax,bx)+hw-this.x0)/c));
+      const j0=Math.max(0,Math.floor((Math.min(az,bz)-hw-this.z0)/c)), j1=Math.min(H-1,Math.floor((Math.max(az,bz)+hw-this.z0)/c));
+      for(let j=j0;j<=j1;j++){ const z=this.z0+(j+0.5)*c-az, row=j*W;
+        for(let ii=i0;ii<=i1;ii++){ const x=this.x0+(ii+0.5)*c-ax; let t=(x*dx+z*dz)/L2; t=t<0?0:t>1?1:t;
+          const ex=x-dx*t, ez=z-dz*t; if(ex*ex+ez*ez<=r2){ const k=row+ii; bits[k>>5]|=1<<(k&31); } } } }
+  }
+  fillPoly(pts){ // even-odd scanline fill of a polygon (cell centres)
+    const c=this.cell, W=this.W; let zmin=1e9,zmax=-1e9; for(const q of pts){ if(q[1]<zmin) zmin=q[1]; if(q[1]>zmax) zmax=q[1]; }
+    const j0=Math.max(0,Math.floor((zmin-this.z0)/c)), j1=Math.min(this.H-1,Math.floor((zmax-this.z0)/c)), xs=[];
+    for(let j=j0;j<=j1;j++){ const z=this.z0+(j+0.5)*c; xs.length=0;
+      for(let a=0,b=pts.length-1;a<pts.length;b=a++){ const [xa,za]=pts[a],[xb,zb]=pts[b]; if((za>z)!==(zb>z)) xs.push(xa+(z-za)*(xb-xa)/(zb-za)); }
+      xs.sort((p,q)=>p-q);
+      for(let n=0;n+1<xs.length;n+=2){ const i0=Math.max(0,Math.ceil((xs[n]-this.x0)/c-0.5)), i1=Math.min(W-1,Math.floor((xs[n+1]-this.x0)/c-0.5));
+        for(let ii=i0;ii<=i1;ii++){ const k=j*W+ii; this.bits[k>>5]|=1<<(k&31); } } }
   }
   paved(x,z){ const i=Math.floor((x-this.x0)/this.cell), j=Math.floor((z-this.z0)/this.cell); if(i<0||j<0||i>=this.W||j>=this.H) return false; const k=j*this.W+i; return (this.bits[k>>5]>>>(k&31)&1)===1; }
   addSegs(road){
@@ -126,6 +139,7 @@ float gPaint; vec3 gPaintCol; float gWear;`)
 }
 
 export function buildRoads(scene, D, T, B){
+  const _t=performance.now(), T_={}; let _l=_t; const lap=(k)=>{ const n=performance.now(); T_[k]=Math.round(n-_l); _l=n; };
   let bx0=1e9,bx1=-1e9,bz0=1e9,bz1=-1e9;
   for(const r of D.roads) for(const q of r.pts){ bx0=Math.min(bx0,q[0]); bx1=Math.max(bx1,q[0]); bz0=Math.min(bz0,q[1]); bz1=Math.max(bz1,q[1]); }
   for(const p of D.parking) for(const q of p.pts){ bx0=Math.min(bx0,q[0]); bx1=Math.max(bx1,q[0]); bz0=Math.min(bz0,q[1]); bz1=Math.max(bz1,q[1]); }
@@ -133,10 +147,9 @@ export function buildRoads(scene, D, T, B){
   // paved footprints first (all roads, discs, lots) so every later clip sees the complete network
   for(const r of D.roads){ idx.fillStroke(r.pts, r.w/2+0.2); idx.addSegs(r); }
   for(const c of D.cds) idx.fillDisc(c.x, c.z, c.r+0.3);
-  for(const p of D.parking){ const xs=p.pts.map(q=>q[0]), zs=p.pts.map(q=>q[1]);
-    const inPoly=(x,z)=>{ let c=false; for(let i=0,j=p.pts.length-1;i<p.pts.length;j=i++){ const [xi,zi]=p.pts[i],[xj,zj]=p.pts[j]; if(((zi>z)!==(zj>z)) && (x<(xj-xi)*(z-zi)/(zj-zi)+xi)) c=!c; } return c; };
-    for(let x=Math.min(...xs); x<=Math.max(...xs); x+=1.5) for(let z=Math.min(...zs); z<=Math.max(...zs); z+=1.5) if(inPoly(x,z)) idx.set(x,z); }
+  for(const p of D.parking) idx.fillPoly(p.pts);
 
+  lap('index');
   // ---- road surface: one mesh per 900 m tile (one draw each, culled per tile) ----
   const TILE=900, tiles=new Map();
   let P, N, UV, AR, I;
@@ -177,7 +190,7 @@ export function buildRoads(scene, D, T, B){
     geo.setIndex(t.I); geo.computeBoundingSphere();
     const m=new THREE.Mesh(geo, roadMat); m.receiveShadow=true; m.name='roads'; m.matrixAutoUpdate=false; scene.add(m); roadMeshes.push(m);
   }
-  const roadMesh=roadMeshes[0];
+  const roadMesh=roadMeshes[0]; lap('surface');
 
   // ---- curbs + sidewalks (residential), gravel shoulders (collectors / service) ----
   const CURB_H=0.14;
@@ -214,9 +227,10 @@ export function buildRoads(scene, D, T, B){
       swLen+=S[S.length-1].d*2;
     } else if(r.hw!=='service'){
       const prof=[[0,0.05],[0.9,0.025],[1.4,0.0]];
-      sweep(S, +1, prof, 'shoulder', [0,0.6,1], 0xffffff);
-      sweep(S, -1, prof, 'shoulder', [0,0.6,1], 0xffffff);
+      sweep(S, +1, prof, 'shoulder', [0,0.6,1], 0x9c9686);
+      sweep(S, -1, prof, 'shoulder', [0,0.6,1], 0x9c9686);
     }
   }
-  return { index:idx, mesh:roadMesh, meshes:roadMeshes, stats:{ sidewalkKm: +(swLen/1000).toFixed(1), roadTiles: roadMeshes.length } };
+  lap('sweeps');
+  return { index:idx, mesh:roadMesh, meshes:roadMeshes, stats:{ sidewalkKm: +(swLen/1000).toFixed(1), roadTiles: roadMeshes.length, roadTimings:T_ } };
 }

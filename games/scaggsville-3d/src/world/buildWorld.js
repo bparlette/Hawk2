@@ -25,10 +25,12 @@ import { WORLD_DATA } from '../data.js';
 // shared world3d modules (games/shared/world3d/ — reusable by any Hawk2 3D game; see its README)
 import { makeTextures } from '../../../shared/world3d/textures.js';
 import { buildRoads } from '../../../shared/world3d/roads.js';
-import { buildHouses, houseMaterials, buildLitWindows } from '../../../shared/world3d/houses.js';
+import { planHouses, createHouseLOD } from '../../../shared/world3d/houses.js';
+import { createScheduler } from '../../../shared/world3d/scheduler.js';
 import { buildVegetation } from '../../../shared/world3d/vegetation.js';
 import { Buckets } from '../../../shared/world3d/buckets.js';
 import { makeGrassMaterial } from '../../../shared/world3d/ground.js';
+import { ATLAS_REGION, atlasMaterial } from '../../../shared/world3d/atlas.js';
 import { GREENS } from './greens.js';
 
 export const WORLD_CONFIG = {
@@ -38,7 +40,11 @@ export const WORLD_CONFIG = {
   parkedCars: 42,          // ambient parked cars on crew streets / lots
   windowGlow: 0.85,        // fallback only — the active preset's dressing.windowGlow drives lit windows
   houseDetailRadius: 420,  // m from route/stops where houses get window quads
-  houseFullRadius: 700,    // m from the route: full house detail inside, lean textured houses beyond
+  houseTile: 450,          // m: house LOD tile size
+  houseFullIn: 260,        // m from the CAMERA: a tile gets full detail inside this (any neighbourhood, rally or free cruise)
+  houseFullOut: 460,       // m: full detail is released beyond this (hysteresis; memory stays bounded)
+  houseSyncLean: 650,      // m from the spawn: lean houses built before the first frame (the rest stream in)
+  buildSliceMs: 10,        // ms per streaming slice between frames
   vegCullDistance: 760,    // m: vegetation chunks beyond this are not drawn (fog hides them)
 };
 
@@ -191,24 +197,15 @@ export function buildWorld(scene, overrides=null){
   const D=WORLD_DATA;
   const _t0=performance.now(), timings={}; let _tl=_t0; const lap=(k)=>{ const n=performance.now(); timings[k]=Math.round(n-_tl); _tl=n; };
   const tex=makeTextures(); lap('textures');
-  const hm=houseMaterials(tex);
   const mats={
-    ...hm,
-    concrete:new THREE.MeshStandardMaterial({ map:tex.concrete, roughness:0.95, vertexColors:true }),
-    sidewalk:new THREE.MeshStandardMaterial({ map:tex.concrete, roughness:0.93, vertexColors:true }),
-    shoulder:new THREE.MeshStandardMaterial({ map:tex.asphalt, color:0x9c9686, roughness:1, vertexColors:true }),
-    drive:   new THREE.MeshStandardMaterial({ map:tex.concrete, roughness:0.92, vertexColors:true }),
-    glass:   new THREE.MeshStandardMaterial({ color:0x2c3846, roughness:0.25, metalness:0.6 }),
     litwin:  new THREE.MeshBasicMaterial({ vertexColors:true }),
-    pole:    new THREE.MeshStandardMaterial({ color:0x5a4c3e, roughness:1, vertexColors:true }),
-    metal:   new THREE.MeshStandardMaterial({ color:0x8d939a, roughness:0.45, metalness:0.7, vertexColors:true }),
-    mailbox: new THREE.MeshStandardMaterial({ roughness:0.5, metalness:0.3, vertexColors:true }),
     wire:    new THREE.LineBasicMaterial({ color:0x1e2126 }),
     beacon:  new THREE.MeshBasicMaterial({ color:0xffd23f, transparent:true, opacity:0.30, depthWrite:false }),
   };
   scene.environmentIntensity = 0.95;
 
-  const B=new Buckets(900);
+  const B=new Buckets(900, { rect: tex.atlas.rect, region: ATLAS_REGION });   // houses + props: ONE atlas material per tile
+  mats.atlas=atlasMaterial(tex);
   const colliders=[];
   const roadCells=new Map(); // surface grid (host driving semantics, unchanged): "cx,cz" (12 m) -> 'road'|'lot'
   const cellKey=(x,z)=>Math.floor(x/12)+','+Math.floor(z/12);
@@ -235,38 +232,19 @@ export function buildWorld(scene, overrides=null){
   // ---- roads: shader-marked surface, curbs + sidewalks, shoulders ----
   const roads=buildRoads(scene, D, tex, B); lap('roads');
 
-  // ---- houses on the real footprints ----
+  // ---- houses on the real footprints: plan everything now (colliders, drives), build geometry by CAMERA distance ----
+  // lean walls+roof everywhere (near the spawn synchronously, the rest streamed nearest-first); full detail
+  // (doors, garages, porches, trim, chimneys, driveways, mailboxes, lit windows, contact shadows) within
+  // cfg.houseFullIn m of the camera wherever the player is, released beyond cfg.houseFullOut m.
   const routePts=D.route;
-  function nearRoute(x,z,r){
-    for(let i=0;i<routePts.length;i+=3){ const dx=routePts[i][0]-x, dz=routePts[i][1]-z; if(dx*dx+dz*dz<r*r) return true; }
-    return false;
-  }
-  const H=buildHouses({ D, B, roads, rand, cfg, nearRoute }); lap('houses');
-  colliders.push(...H.colliders);
-  const winQuads=H.winQuads;
-  // ---- contact shadow skirts: soft darkening where every house meets the ground (one draw) ----
-  { const tiles=new Map(); let P, Cc;
-    for(const c of H.colliders){ if(c.hw*c.hd*4>4000) continue;
-      const tk=Math.floor(c.cx/900)+','+Math.floor(c.cz/900); if(!tiles.has(tk)) tiles.set(tk,{P:[],C:[]}); ({P, C:Cc}=tiles.get(tk));
-      const ex=[c.cos,-c.sin], ez=[c.sin,c.cos], W=(lx,lz)=>[c.cx+ex[0]*lx+ez[0]*lz, 0.03, c.cz+ex[1]*lx+ez[1]*lz];
-      const ring=[[c.hw,c.hd],[-c.hw,c.hd],[-c.hw,-c.hd],[c.hw,-c.hd]], o=1.7;
-      for(let i=0;i<4;i++){ const a=ring[i], b=ring[(i+1)%4];
-        const ia=W(a[0],a[1]), ib=W(b[0],b[1]), oa=W(a[0]+Math.sign(a[0])*o, a[1]+Math.sign(a[1])*o), ob=W(b[0]+Math.sign(b[0])*o, b[1]+Math.sign(b[1])*o);
-        P.push(...ia,...ib,...ob, ...ia,...ob,...oa); Cc.push(0,0,0,0.42, 0,0,0,0.42, 0,0,0,0, 0,0,0,0.42, 0,0,0,0, 0,0,0,0); } }
-    const csMat=new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, depthWrite:false, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-1, fog:true });
-    for(const t of tiles.values()){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(t.P,3)); g.setAttribute('color',new THREE.BufferAttribute(Uint8Array.from(t.C,v=>Math.round(v*255)),4,true)); g.computeBoundingSphere();
-      const m=new THREE.Mesh(g, csMat); m.name='contactShadows'; m.renderOrder=1; m.matrixAutoUpdate=false; scene.add(m); } }
-  // driveways (garage -> real road) + a mailbox at the kerb
-  const mbPost=new THREE.BoxGeometry(0.09,1.05,0.09); mbPost.translate(0,0.52,0);
-  const mbBox=new THREE.CylinderGeometry(0.15,0.15,0.48,4,1,false,0,Math.PI); mbBox.rotateZ(Math.PI/2); mbBox.rotateY(Math.PI/2); mbBox.translate(0,1.12,0);
-  const mbBase=new THREE.BoxGeometry(0.3,0.16,0.48); mbBase.translate(0,1.06,0);
-  const MBC=['#1f2228','#2a3a52','#f0eee8','#7a1f24'];
-  for(const d of H.drives){
-    ribbon(B,'drive', [d.a,d.b], d.w, 0.08);
-    const vx=d.b[0]-d.a[0], vz=d.b[1]-d.a[1], L=Math.hypot(vx,vz)||1, nx=-vz/L, nz=vx/L;
-    const mx=d.b[0]-vx/L*1.2+nx*(d.w/2+0.7), mz=d.b[1]-vz/L*1.2+nz*(d.w/2+0.7), h=Math.atan2(vx,vz);
-    if(!roads.index.paved(mx,mz)){ B.add('pole', mbPost, mat(mx,0,mz,h), '#c9c2b4'); const c=MBC[Math.floor(rand()*MBC.length)]; B.add('mailbox', mbBox, mat(mx,0,mz,h), c); B.add('mailbox', mbBase, mat(mx,0,mz,h), c); }
-  }
+  const scheduler=createScheduler({ budgetMs: cfg.buildSliceMs });
+  const spawnStop=D.stops[0], camXZ=[spawnStop.sx, spawnStop.sz];
+  const plan=planHouses({ D, roads, tile: cfg.houseTile }); lap('housePlan');
+  colliders.push(...plan.colliders);
+  const houseLOD=createHouseLOD({ scene, plan, roads, atlas:tex.atlas, atlasMat:mats.atlas, scheduler,
+    fullIn:cfg.houseFullIn, fullOut:cfg.houseFullOut, spawn:camXZ, syncLeanRadius:cfg.houseSyncLean });
+  houseLOD.update(camXZ[0], camXZ[1]);
+  lap('housesNearSpawn');
   // ---- Atholton dressing: flag pole + sign ----
   const ath=D.stops[D.stops.length-1];
   B.add('metal', new THREE.CylinderGeometry(0.09,0.12,11,6), mat(ath.hx+14, 5.5, ath.hz+6), '#ffffff');
@@ -327,12 +305,22 @@ export function buildWorld(scene, overrides=null){
   const dome=makeSkyDome(); scene.add(dome);
   scene.fog=new THREE.Fog(WORLD_LIGHTING.fog.color, WORLD_LIGHTING.fog.near, WORLD_LIGHTING.fog.far);
 
-  lap('props'); B.build(scene, mats, { wallSiding:true, wallBrick:true, wallBlank:true, store:true, roof:true, flatRoof:true, trim:true, found:true, chimney:true, door:true, garage:true, pole:true, metal:true, mailbox:true });
-  lap('merge'); const veg=buildVegetation({ scene, roads, colliders, drives:H.drives, D, cfg, T:tex, greens:GREENS }); lap('vegetation');
-  const winMesh = buildLitWindows(scene, winQuads);
-  // initial lit tint from the active preset (the day/night cycle re-tints
-  // this material every frame in-game; static callers keep this look)
+  lap('props'); const n0=scene.children.length; B.build(scene, mats, { atlas:true });
+  // shadow casting by distance: a 900 m tile's bounding sphere overlaps the sun's long shadow frustum from far away,
+  // which cost ~14 shadow draws for props nobody can see the shadow of; only tiles near the camera cast
+  const casters=scene.children.slice(n0).filter(m=>m.castShadow && m.geometry && m.geometry.boundingSphere);
+  lap('merge'); const veg=buildVegetation({ scene, roads, colliders, drives:plan.drives, D, cfg, T:tex, greens:GREENS, scheduler, camera:()=>camXZ }); lap('vegetationIndex');
+  // the streamed window tiles all share the placeholder's material: tint it once (the day/night cycle re-tints it)
+  const winMesh=scene.getObjectByName('litWindows');
   if(winMesh) winMesh.material.color.setScalar(0.16 + 0.84 * Math.min(1, WORLD_LIGHTING.dressing.windowGlow));
+  // one per-frame hook: camera position -> house LOD + vegetation cull + streaming priorities (chains any previous hook)
+  const prevBR=scene.onBeforeRender;
+  scene.onBeforeRender=function(renderer, sc, camera, rt){
+    if(prevBR) prevBR.call(this, renderer, sc, camera, rt);
+    const cp=camera.position; camXZ[0]=cp.x; camXZ[1]=cp.z;
+    houseLOD.update(cp.x, cp.z); veg.cull(cp);
+    for(const m of casters){ const b=m.geometry.boundingSphere; m.castShadow = Math.hypot(b.center.x-cp.x, b.center.z-cp.z) - b.radius < 120; }
+  };
   buildLampGlow(scene, lampPts, WORLD_LIGHTING.dressing.lampGlow);
 
   return {
@@ -344,7 +332,8 @@ export function buildWorld(scene, overrides=null){
     spawn: (()=>{ const s=D.stops[0]; return { x:s.sx, z:s.sz, heading:s.heading }; })(),
     config: cfg,
     lighting: WORLD_LIGHTING,
-    stats: { ...H.stats, ...veg.stats, ...roads.stats, timings, buildMs: Math.round(performance.now()-_t0) },
+    stats: { houses: plan.items.length, ...roads.stats, timings, buildMs: Math.round(performance.now()-_t0), get vegetation(){ return veg.stats; }, get lod(){ return houseLOD.stats; } },
+    streaming: { scheduler, get pending(){ return scheduler.pending; }, idle: ()=>scheduler.idle(), houseLOD },
     target: {
       setStop(stop){ beacon.position.set(stop.sx,23,stop.sz); beaconRing.position.set(stop.sx,0.12,stop.sz); },
       beacon, beaconRing,
