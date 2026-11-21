@@ -179,6 +179,12 @@ export function createGameAudio() {
   const ready = () => !!ctx;
 
   /* ------------------------------ engine ------------------------------ */
+  // CAR_LEVEL: the whole driving soundscape (engine stack, turbo whistle,
+  // tyre/road noise, wind) scaled by this. Cherie, Nov 21, on the live
+  // build: "Volume of car is 90% too loud" — so the car sits at 10% of its
+  // original level. Nothing else routes through these four paths: siren,
+  // party, crowd, stings and UI all connect to master directly, untouched.
+  const CAR_LEVEL = 0.1;
   function applySpeed() {
     if (!ctx || !eng) return;
     const t = ctx.currentTime, v = speed;
@@ -188,12 +194,12 @@ export function createGameAudio() {
     eng.oscs[1].frequency.setTargetAtTime(f * 1.003, t, 0.06);
     eng.oscs[2].frequency.setTargetAtTime(f * 0.5, t, 0.06);
     eng.filter.frequency.setTargetAtTime(300 + v * 1500 + boostCur * 900, t, 0.09);
-    eng.gain.gain.setTargetAtTime(engineOn ? 0.05 + v * 0.075 + boostCur * 0.03 : 0, t, 0.12);
-    if (whistle) whistle.gain.gain.setTargetAtTime(engineOn ? boostCur * 0.045 : 0, t, 0.09);
-    road.gain.gain.setTargetAtTime(engineOn ? Math.pow(v, 1.6) * 0.13 : 0, t, 0.1);
+    eng.gain.gain.setTargetAtTime(engineOn ? (0.05 + v * 0.075 + boostCur * 0.03) * CAR_LEVEL : 0, t, 0.12);
+    if (whistle) whistle.gain.gain.setTargetAtTime(engineOn ? boostCur * 0.045 * CAR_LEVEL : 0, t, 0.09);
+    road.gain.gain.setTargetAtTime(engineOn ? Math.pow(v, 1.6) * 0.13 * CAR_LEVEL : 0, t, 0.1);
     road.filter.frequency.setTargetAtTime(480 + v * 720, t, 0.15);
     const wv = Math.max(0, v - 0.3);
-    wind.gain.gain.setTargetAtTime(engineOn ? wv * wv * 0.34 : 0, t, 0.2);
+    wind.gain.gain.setTargetAtTime(engineOn ? wv * wv * 0.34 * CAR_LEVEL : 0, t, 0.2);
     wind.filter.frequency.setTargetAtTime(320 + v * 880, t, 0.2);
   }
 

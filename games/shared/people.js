@@ -21,6 +21,15 @@
 // ankle, swinging at the hip only — no thigh/shin split, no knee joint,
 // no shorts, no bare legs. The visible two-body-parts connection at the
 // knee is exactly what this rule kills.
+// ONE-PIECE SHIRT (Cherie, Nov 21): the shirt is ONE continuous profile
+// tube, hem to neck opening — no stacked torso/yoke/hem/collar pieces
+// and no seam steps between them; the chest stripe is a band on the
+// shell, and the shoulder flare hides the sleeve tops.
+// LONG SLEEVES (Cherie, Nov 21): sleeves run shoulder to wrist — the
+// elbow bend stays inside overlapping sleeve pieces (long upper sleeve
+// + elbow ball + tapered forearm sleeve), so no gap and no skin band
+// can open at the elbow; only the hand is skin. The short sleeve
+// exposed the elbow exactly the way shorts exposed the knee.
 // buildDriver(row) returns a SEATED driver as ONE merged mesh (1 draw call),
 // same clothing rows — parent it to a vehicle's driverAnchor.
 //   scene.add(p.group);            // faces +Z, ~1.75 m tall, origin at feet
@@ -96,6 +105,21 @@ function tubeGeo(pts, radii, seg = 10, subdiv = 2) {
 // open at any swing angle; the ankle tip tucks into the shoe.
 const PANTS_LEG_PTS = [[0, 0.10, 0], [0, 0.03, 0], [0, -0.10, 0], [0, -0.26, 0], [0, -0.44, 0], [0, -0.62, 0], [0, -0.78, 0], [0, -0.86, 0]];
 const PANTS_LEG_RAD = [0.028, 0.078, 0.076, 0.068, 0.061, 0.055, 0.050, 0.026];
+// ONE-PIECE SHIRT profile in chest-pivot space (path straight up the
+// centre line): hem flare at the waist -> slight waist -> chest ->
+// shoulder flare (covers the shoulder pivots + sleeve tops) -> neck
+// slope -> neck opening. Radii keep the SHIRT RULE's loose hang.
+const SHIRT_PTS = [[0, 0.00, 0], [0, 0.05, 0], [0, 0.12, 0], [0, 0.22, 0], [0, 0.32, 0], [0, 0.40, 0], [0, 0.44, 0], [0, 0.465, 0], [0, 0.49, 0], [0, 0.51, 0], [0, 0.53, 0], [0, 0.55, 0], [0, 0.565, 0]];
+const SHIRT_RAD = [0.156, 0.166, 0.159, 0.153, 0.156, 0.168, 0.188, 0.208, 0.216, 0.196, 0.148, 0.104, 0.090];
+// Chest stripe: the same profile sliced at y 0.32-0.40, radii +0.005 so
+// the band hugs the shell.
+const STRIPE_PTS = [[0, 0.320, 0], [0, 0.36, 0], [0, 0.400, 0]];
+const STRIPE_RAD = [0.161, 0.167, 0.173];
+// LONG-SLEEVE forearm profile in elbow-pivot space: the top tucks ABOVE
+// the pivot (inside the upper sleeve), tapering to the wrist; the cuff
+// end overlaps the hand sphere so no wrist gap can open.
+const FORE_SLEEVE_PTS = [[0, 0.03, 0], [0, -0.03, 0], [0, -0.10, 0], [0, -0.17, 0], [0, -0.235, 0]];
+const FORE_SLEEVE_RAD = [0.054, 0.053, 0.050, 0.046, 0.0415];
 
 export function buildPerson(row = {}) {
   const skin = row.skin ?? 0xe0ac69, shirt = row.shirt ?? 0x707880, pants = row.pants ?? 0x2a3a5e;
@@ -126,20 +150,20 @@ export function buildPerson(row = {}) {
   }
   // torso
   const chest = J.chest = pivot(hips, 0, 0.10, 0);
-  // LOOSE shirt shell: garment volume offset OUTWARD from the torso (wider,
-  // straighter hang), suspended from a shoulder yoke that bridges torso ->
-  // sleeves continuously. The body shape never shows through.
-  const torso = mesh(new THREE.CylinderGeometry(0.168, 0.148, 0.52, 12), M(shirt), 0, 0.28, 0);
-  torso.scale.z = 0.76; chest.add(torso);
-  const yoke = mesh(new THREE.CapsuleGeometry(0.08, 0.26, 3, 10), M(shirt), 0, 0.49, 0);
-  yoke.rotation.z = Math.PI / 2; yoke.scale.set(1, 1, 0.78); chest.add(yoke);    // shoulder bar across both shoulder pivots
-  const hem = mesh(new THREE.CylinderGeometry(0.155, 0.162, 0.07, 12), M(shirt), 0, 0.045, 0);
-  hem.scale.z = 0.76; chest.add(hem);                                            // loose hem over the waistband
-  const collar = mesh(new THREE.CylinderGeometry(0.085, 0.09, 0.045, 10), M(shirt), 0, 0.535, 0);
-  collar.scale.z = 0.8; chest.add(collar);                                       // crew-neck collar ring
+  // ONE-PIECE SHIRT (Cherie, Nov 21): ONE continuous profile tube from
+  // the hem at the waist to the neck opening — the same treatment as
+  // the pants. It replaces the old stack of torso cylinder + shoulder-
+  // yoke capsule + hem cylinder + collar ring, whose joins read as
+  // seams. The profile rolls over the shoulder line (peak r 0.216 at
+  // y 0.49, wider than the shoulder pivots at +/-0.205) so the sleeve
+  // tops tuck UNDER the garment; the loose hang (SHIRT RULE) lives in
+  // the profile radii, and the garment stays on the chest pivot so
+  // breathing/wave/walk poses work exactly as before.
+  const shirt1 = mesh(tubeGeo(SHIRT_PTS, SHIRT_RAD, 16, 3), M(shirt), 0, 0, 0);
+  shirt1.scale.z = 0.76; chest.add(shirt1);
   if (row.stripe) {
-    const stb = mesh(new THREE.CylinderGeometry(0.163, 0.16, 0.075, 12), M(row.stripe, 0.8), 0, 0.36, 0);
-    stb.scale.z = 0.76; chest.add(stb);                                          // chest stripe (on the shell)
+    const stb = mesh(tubeGeo(STRIPE_PTS, STRIPE_RAD, 16, 1), M(row.stripe, 0.8), 0, 0, 0);
+    stb.scale.z = 0.76; chest.add(stb);   // chest band ON the shell — follows the profile, not a structural piece
   }
   chest.add(mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.07, 8), M(skin), 0, 0.57, 0)); // neck
   // head
@@ -165,15 +189,24 @@ export function buildPerson(row = {}) {
   } else if (hairStyle !== 'bald') {
     head.add(mesh(new THREE.SphereGeometry(0.111, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), M(hairC, 0.95), 0, 0.078, -0.004));
   }
-  // arms
+  // arms — LONG SLEEVES (Cherie, Nov 21): the sleeve runs shoulder to
+  // wrist so the elbow bend stays covered the way the pants cover the
+  // knee. Three overlapping shirt pieces and no skin between shoulder
+  // and wrist: (1) the upper sleeve's cylinder reaches the elbow pivot
+  // and its dome wraps past it; (2) an elbow ball centred ON the pivot
+  // — rotation-invariant, it fills the bend wedge at any angle; (3) a
+  // tapered forearm sleeve on the elbow pivot whose top tucks up inside
+  // the upper sleeve and whose cuff overlaps the hand sphere. The old
+  // short-sleeve opening + bare forearm are GONE; only the hand is skin.
+  const foreSleeveGeo = tubeGeo(FORE_SLEEVE_PTS, FORE_SLEEVE_RAD);
   for (const s of [-1, 1]) {
     const nm = s < 0 ? 'L' : 'R';
     const sh = J['shoulder' + nm] = pivot(chest, s * 0.205, 0.47, 0);
-    sh.add(mesh(capsule(0.07, 0.20), M(shirt), 0, -0.145, 0));                     // LOOSE sleeve tube — the arm hangs inside it, yoke covers the joint
-    sh.add(mesh(new THREE.CylinderGeometry(0.072, 0.074, 0.05, 10), M(shirt), 0, -0.285, 0)); // sleeve opening the forearm emerges from
+    sh.add(mesh(capsule(0.07, 0.26), M(shirt), 0, -0.16, 0));                      // upper sleeve — full radius reaches the elbow pivot, dome wraps past it
     const el = J['elbow' + nm] = pivot(sh, 0, -0.29, 0);
-    el.add(mesh(capsule(0.038, 0.18), M(skin, 0.65), 0, -0.12, 0));                // forearm
-    el.add(mesh(new THREE.SphereGeometry(0.042, 8, 8), M(skin, 0.65), 0, -0.27, 0)); // hand
+    el.add(mesh(new THREE.SphereGeometry(0.062, 10, 8), M(shirt), 0, 0, 0));       // elbow ball — fills the bend wedge at any angle
+    el.add(mesh(foreSleeveGeo, M(shirt), 0, 0, 0));                                // forearm sleeve, elbow -> wrist cuff
+    el.add(mesh(new THREE.SphereGeometry(0.042, 8, 8), M(skin, 0.65), 0, -0.27, 0)); // hand (the only skin on the arm)
   }
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   return { group: g, joints: J, row, phase: Math.random() * 10 };
@@ -257,13 +290,14 @@ export function buildDriver(row = {}) {
     parts.push({ geo: geo.index ? geo.toNonIndexed() : geo, hex });
   };
   const cap = (r, len) => new THREE.CapsuleGeometry(r, len, 3, 8);
-  // pelvis + reclined LOOSE shirt shell (offset outward, shoulder yoke,
-  // hem + stripe on the shell — same cut as the standing figure)
+  // pelvis + reclined ONE-PIECE SHIRT (Cherie, Nov 21): the same single
+  // profile tube as the standing figure, recentred on the old torso
+  // cylinder's origin and reclined as ONE piece — replaces the stacked
+  // torso cylinder + yoke capsule + hem cylinder.
   P(new THREE.BoxGeometry(0.33, 0.17, 0.20), pants, 0, -0.03, -0.01);
-  P(new THREE.CylinderGeometry(0.168, 0.148, 0.52, 12), shirt, 0, 0.26, -0.045, -0.20, 0, 0, 1, 1, 0.76);
-  P(cap(0.08, 0.26), shirt, 0, 0.466, -0.087, -0.20, 0, Math.PI / 2, 1, 1, 0.78);
-  P(new THREE.CylinderGeometry(0.155, 0.162, 0.07, 12), shirt, 0, 0.035, 0.005, -0.05, 0, 0, 1, 1, 0.76);
-  if (row.stripe) P(new THREE.CylinderGeometry(0.163, 0.16, 0.075, 12), row.stripe, 0, 0.335, -0.062, -0.20, 0, 0, 1, 1, 0.76);
+  const dShirt = tubeGeo(SHIRT_PTS, SHIRT_RAD, 16, 3); dShirt.translate(0, -0.28, 0);
+  P(dShirt, shirt, 0, 0.26, -0.045, -0.20, 0, 0, 1, 1, 0.76);
+  if (row.stripe) { const dStripe = tubeGeo(STRIPE_PTS, STRIPE_RAD, 16, 1); dStripe.translate(0, -0.36, 0); P(dStripe, row.stripe, 0, 0.335, -0.062, -0.20, 0, 0, 1, 1, 0.76); }
   P(new THREE.CylinderGeometry(0.05, 0.055, 0.07, 8), skin, 0, 0.53, -0.088);
   // head + hair/hat
   const hx = 0, hy = 0.635, hz = -0.098;
@@ -283,11 +317,18 @@ export function buildDriver(row = {}) {
   } else if (row.hairStyle !== 'bald') {
     P(new THREE.SphereGeometry(0.111, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), hairC, hx, hy + 0.004, hz - 0.004);
   }
-  // arms: LOOSE sleeve tube down-forward (yoke covers the shoulder joint),
-  // bare forearm up to the wheel, hands on the rim
+  // arms: LONG SLEEVES (Cherie, Nov 21) — the grip bend is baked into
+  // this mesh, so the elbow gets the same overlapping coverage as the
+  // standing figure: upper sleeve, an elbow ball ON the joint, and a
+  // tapered shirt forearm tube along the old forearm line to the
+  // wrist. Only the hand is skin; the bare forearm is GONE (the dark
+  // gap at its elbow is exactly what Cherie flagged).
   for (const s of [-1, 1]) {
     P(cap(0.068, 0.15), shirt, s * 0.215, 0.315, 0.04, 2.46, 0, 0);
-    P(cap(0.037, 0.20), skin, s * 0.195, 0.26, 0.305, 1.24, 0, 0);
+    P(new THREE.SphereGeometry(0.060, 10, 8), shirt, s * 0.205, 0.208, 0.152);
+    const forePts = [[s * 0.212, 0.190, 0.105], [s * 0.208, 0.200, 0.135], [s * 0.200, 0.222, 0.215], [s * 0.192, 0.258, 0.315], [s * 0.180, 0.292, 0.405], [s * 0.168, 0.312, 0.462]];
+    const foreRad = [0.052, 0.056, 0.053, 0.049, 0.045, 0.040];
+    P(tubeGeo(forePts, foreRad), shirt, 0, 0, 0);
     P(new THREE.SphereGeometry(0.042, 8, 8), skin, s * 0.165, 0.315, 0.478);
   }
   // legs: ONE-PIECE PANTS per side (PANTS RULE above) — a single tapered

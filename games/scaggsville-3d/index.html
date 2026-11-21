@@ -97,6 +97,7 @@ import { CREW_VEHICLES, CREW_PEOPLE } from './src/crew.js';
 import { createCar, stepCar, collide, pursue } from './src/drive.js';
 import { createMissions } from './src/missions.js';
 import { gameAudio } from './src/audio.js';
+import { music } from './src/music.js';
 import { WORLD_DATA } from './src/data.js';
 import { createDayNight } from './src/daynight.js';
 import { createCrowdSystem } from './src/crowd.js';
@@ -604,6 +605,7 @@ addEventListener('resize', ()=>{
 /* ============================== PROOF HOOKS ============================== */
 window.__dbg={ get ready(){ return started; },
   get audio(){ return gameAudio.state(); },
+  get music(){ return music.state(); },
   get cine(){ return cine.state; },
   get state(){ return player? { x:player.x, z:player.z, heading:player.heading, speed:player.speed,
     collected:[...collected], targets:[...targets], followers:followers.length, finished,
