@@ -25,7 +25,7 @@ function crown(R, clusters, crownC, crownR, tint){
       for(const i of [0,1,2,0,2,3]){ const v=vs[i];
         let nx=(v[0]-crownC[0])/crownR, ny=(v[1]-crownC[1])/crownR*0.8+0.45, nz=(v[2]-crownC[2])/crownR; const L=Math.hypot(nx,ny,nz)||1;
         P.push(...v); N.push(nx/L,ny/L,nz/L); UV.push(...uvs[i]);
-        const ao=Math.min(1, 0.5+0.55*((v[1]-(crownC[1]-crownR))/(2*crownR))) * (0.85+0.3*Math.min(1,Math.hypot(v[0]-crownC[0],v[2]-crownC[2])/crownR));
+        const ao=Math.min(1, 0.64+0.44*((v[1]-(crownC[1]-crownR))/(2*crownR))) * (0.90+0.25*Math.min(1,Math.hypot(v[0]-crownC[0],v[2]-crownC[2])/crownR));
         C.push(base.r*ao, base.g*ao, base.b*ao); }
     }
   }

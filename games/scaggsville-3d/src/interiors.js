@@ -576,9 +576,9 @@ export function createInteriors(opts) {
       background:rgba(46,120,200,.88);border-radius:999px;padding:13px 22px;font-size:15px;cursor:pointer;touch-action:none;
       box-shadow:0 4px 14px rgba(0,0,0,.45);text-shadow:0 1px 3px rgba(0,0,0,.5);font-family:inherit;}
     .intBtn:active{filter:brightness(1.4);}
-    #intEnter{left:50%;transform:translateX(-50%);bottom:calc(136px + env(safe-area-inset-bottom));display:none;}
+    #intEnter{left:50%;transform:translateX(-50%);bottom:calc(188px + env(safe-area-inset-bottom));display:none;}
     #intExit{top:calc(86px + env(safe-area-inset-top));right:14px;background:rgba(120,40,40,.85);padding:9px 16px;font-size:13px;display:none;}
-    #intCaption{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(196px + env(safe-area-inset-bottom));
+    #intCaption{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(248px + env(safe-area-inset-bottom));
       width:min(92vw,560px);text-align:center;color:#ffe4b0;background:rgba(27,20,48,.78);border-radius:12px;
       padding:9px 14px;font-size:15px;font-weight:700;line-height:1.35;z-index:1250;pointer-events:none;display:none;}
     #intCaption b{color:#fff;}

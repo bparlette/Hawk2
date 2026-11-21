@@ -86,7 +86,7 @@ function scanVehicle(veh) {
     const m = o.material;
     if (m.isMeshPhysicalMaterial && !m.transparent && (m.clearcoat || 0) >= 0.5 && (m.metalness || 0) >= 0.2) own(o, 'paint');
     else if (m.isMeshPhysicalMaterial && m.transparent) own(o, 'glass');
-    else if (m.isMeshBasicMaterial && m.blending === THREE.AdditiveBlending) own(o, 'glow');
+    else if (m.isMeshBasicMaterial && m.blending === THREE.AdditiveBlending && !o.userData?.isTailGlow) own(o, 'glow');
     else if ((m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) && m.emissive && (m.emissiveIntensity || 0) >= 1.2 && m.emissive.g > 0.3) own(o, 'lens');
     else if (m.isMeshStandardMaterial && !m.transparent && m.color && (m.color.getHex() === 0x181a1e || m.color.getHex() === 0x454a52)) own(o, 'trim');
   });

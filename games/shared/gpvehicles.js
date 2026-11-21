@@ -3309,6 +3309,12 @@ function buildLoftVehicle(row, spec, anchorPos, beamFallback, usePopups) {
     beamColor: row.beamColor !== undefined ? row.beamColor : beamFallback,
     dims: { len: d.length, wid: d.width, wheelR: d.wheelRadius },
     _spin: 0,
+    setLights(opts) {
+      if (loft.setLights) loft.setLights(opts);
+    },
+    setBrake(on) {
+      if (loft.setBrake) loft.setBrake(on);
+    },
     updateWheels(speed, steer, dt) {
       this._spin += (speed * dt) / d.wheelRadius;
       // the loft applies steer directly as pivot yaw; the fleet convention
@@ -3723,6 +3729,8 @@ export function buildVehicle(row) {
     beamColor: row.beamColor !== undefined ? row.beamColor : 0xffd9a8,
     dims: { len: L, wid: W, wheelR: R },
     _spin: 0,
+    setLights() {},
+    setBrake() {},
     updateWheels(speed, steer, dt) {
       this._spin += (speed * dt) / R;
       for (const k of ['fl', 'fr', 'rl', 'rr']) wheels[k].spin.rotation.x = this._spin;

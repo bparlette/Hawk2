@@ -88,7 +88,7 @@ function mat(x,y,z,ry=0,sx=1,sy=1,sz=1){ E.set(0,ry,0); Q.setFromEuler(E); V.set
 const BOX=new THREE.BoxGeometry(1,1,1);
 const PLANE=new THREE.PlaneGeometry(1,1); PLANE.rotateX(-Math.PI/2);
 
-// ---------- sky dome (GLSL, Neon pattern) ----------
+// ---------- sky dome (GLSL, layered painted clouds + night stars) ----------
 const SKY_VERT=`varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
 const SKY_FRAG=`
   varying vec3 vDir; uniform vec3 uSunDir; uniform vec3 uZen; uniform vec3 uMid; uniform vec3 uHor;
@@ -97,10 +97,23 @@ const SKY_FRAG=`
     vec3 col = mix(uHor, uMid, smoothstep(0.0,0.16,h));
     col = mix(col, uZen, smoothstep(0.10,0.55,h));
     float s = max(dot(normalize(vDir), normalize(uSunDir)), 0.0);
-    col += vec3(1.0,0.52,0.24)*pow(s, 90.0)*0.9;    // sun disc glow
-    col += vec3(1.0,0.55,0.26)*pow(s, 7.0)*0.20;    // warm haze around sun
-    float wisp = sin(vDir.x*14.0 + vDir.y*40.0)*sin(vDir.z*11.0 - vDir.y*30.0);
-    col += vec3(1.0,0.8,0.7)*smoothstep(0.55,0.95,wisp)*0.05*smoothstep(0.02,0.2,h);
+    col += vec3(1.0,0.58,0.28)*pow(s, 90.0)*0.95;    // sun disc glow
+    col += vec3(1.0,0.58,0.28)*pow(s, 6.0)*0.24;     // warm haze around sun
+    // Layered painted cloud wisps catching warm horizon/sun tint
+    float c1 = sin(vDir.x*9.0 + vDir.z*5.0 + vDir.y*22.0)*cos(vDir.z*13.0 - vDir.x*7.0 + vDir.y*16.0);
+    float c2 = sin(vDir.x*21.0 - vDir.z*17.0 + vDir.y*34.0)*0.5;
+    float clouds = smoothstep(0.22, 0.88, c1 + c2*0.45) * smoothstep(0.03, 0.24, h) * (1.0 - smoothstep(0.45, 0.85, h));
+    vec3 cloudTint = mix(uHor * 1.12, vec3(1.0, 0.72, 0.56), 0.35 + 0.5*s);
+    float dayFactor = clamp(dot(uZen, vec3(0.3,0.4,0.3)) * 2.2, 0.15, 1.0);
+    col = mix(col, cloudTint, clouds * 0.28 * dayFactor);
+    // Crisp circular starlight pinpoints when zenith goes dark
+    float nightK = clamp(1.0 - dot(uZen, vec3(1.0,1.0,1.0))*1.6, 0.0, 1.0);
+    vec2 suv = vec2(atan(vDir.z, vDir.x) * 44.0, asin(clamp(vDir.y, -1.0, 1.0)) * 44.0);
+    vec2 scell = floor(suv);
+    vec2 sfuv = fract(suv) - 0.5;
+    float sRnd = fract(sin(dot(scell, vec2(127.1, 311.7))) * 43758.5453);
+    float star = step(0.945, sRnd) * smoothstep(0.16, 0.02, length(sfuv)) * smoothstep(0.14, 0.42, h) * nightK;
+    col += vec3(0.85, 0.92, 1.0) * star * 0.95;
     gl_FragColor = vec4(col, 1.0);
   }`;
 export function makeSkyDome(){

@@ -49,6 +49,7 @@ export function createGameAudio() {
   let speed = 0;           // last setSpeed value, 0..1
   let boostTarget = 0, boostCur = 0;   // turbo amount (setBoost), eased in applySpeed
   let whistle = null;      // { gain } — turbo whistle, gain follows boostCur
+  let screech = null;      // { filter, gain } — continuous tyre screech loop during drift/slip
   let volume = 0.9, muted = false;
   const party = { timer: null, step: 0, nextTime: 0, runId: 0 };
 
@@ -125,6 +126,12 @@ export function createGameAudio() {
     const tG = ctx.createGain(); tG.gain.value = 0;
     loop(white).connect(tF); tF.connect(tG); tG.connect(master);
     whistle = { gain: tG };
+
+    // tyre screech: high-Q resonant bandpass white noise (gain 0 unless slipping/drifting)
+    const scF = ctx.createBiquadFilter(); scF.type = 'bandpass'; scF.frequency.value = 1280; scF.Q.value = 6.5;
+    const scG = ctx.createGain(); scG.gain.value = 0;
+    loop(white).connect(scF); scF.connect(scG); scG.connect(master);
+    screech = { filter: scF, gain: scG };
 
     // siren: triangle swept by an LFO through a bandpass (gain 0 until on)
     const sG = ctx.createGain(); sG.gain.value = 0;
@@ -296,6 +303,35 @@ export function createGameAudio() {
       if (!ready()) return;
       sirenOn = !!on;
       sirenNodes.gain.gain.setTargetAtTime(on ? 0.085 : 0, ctx.currentTime, on ? 0.35 : 0.15);
+    },
+    setScreech(level) {
+      if (!ready() || !screech) return;
+      const v = engineOn ? Math.max(0, Math.min(1, level || 0)) : 0;
+      const t = ctx.currentTime;
+      screech.gain.gain.setTargetAtTime(v > 0.08 ? v * 0.14 * CAR_LEVEL : 0, t, 0.05);
+      screech.filter.frequency.setTargetAtTime(1080 + v * 480, t, 0.08);
+    },
+    crash(intensity = 0.6) {
+      if (!ready()) return;
+      const k = Math.max(0.15, Math.min(1, intensity || 0.6));
+      const t = ctx.currentTime;
+      burst(240 + k * 280, 0.9, 0.24 * k, 0.22 + k * 0.14);
+      burst(1850, 2.2, 0.11 * k, 0.12, 'bandpass');
+      const o = ctx.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(115, t);
+      o.frequency.exponentialRampToValueAtTime(36, t + 0.18);
+      env(o, 0.004, 0.28 * k, 0.2, t);
+      o.start(t); o.stop(t + 0.25);
+    },
+    stunt() {
+      if (!ready()) return;
+      const t = ctx.currentTime;
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => note(f, t + i * 0.055, 0.18, 0.075));
+    },
+    horn() {
+      if (!ready()) return;
+      const t = ctx.currentTime;
+      for (const f of [392, 494]) note(f, t, 0.16, 0.055, 'sawtooth', 1450);
     },
     partyMusic,
     crowdMurmur(level) {

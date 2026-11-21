@@ -265,6 +265,95 @@ function getGlowTex() {
   return _glowTex;
 }
 
+// Soft contact shadow oval under every car
+let _shadowTex = null;
+function getShadowTex() {
+  if (_shadowTex) return _shadowTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 18, 64, 64, 62);
+  gr.addColorStop(0, 'rgba(6,8,14,0.82)');
+  gr.addColorStop(0.55, 'rgba(6,8,14,0.52)');
+  gr.addColorStop(1, 'rgba(6,8,14,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 128, 128);
+  _shadowTex = new THREE.CanvasTexture(c);
+  return _shadowTex;
+}
+
+// Merge static child meshes grouped by Material to slash draw calls (~160 -> ~16)
+function mergeStaticByMaterial(root, skipSet = new Set()) {
+  root.updateMatrixWorld(true);
+  const buckets = new Map();
+  const toRemove = [];
+
+  function walk(obj, insideSkip) {
+    const skip = insideSkip || skipSet.has(obj);
+    if (obj.isMesh && !skip && !obj.userData?.noMerge) {
+      const mat = obj.material;
+      let g = obj.geometry;
+      if (g && g.attributes && g.attributes.position && mat) {
+        g = g.index ? g.toNonIndexed() : g.clone();
+        g.applyMatrix4(obj.matrixWorld);
+        if (!g.attributes.normal) g.computeVertexNormals();
+        if (!buckets.has(mat)) buckets.set(mat, { geos: [], castShadow: false, receiveShadow: false });
+        const b = buckets.get(mat);
+        b.geos.push(g);
+        if (obj.castShadow) b.castShadow = true;
+        if (obj.receiveShadow) b.receiveShadow = true;
+        toRemove.push(obj);
+      }
+      return;
+    }
+    if (skip) return;
+    for (const ch of [...obj.children]) walk(ch, false);
+  }
+  walk(root, false);
+
+  for (const m of toRemove) {
+    if (m.parent) m.parent.remove(m);
+    if (m.geometry) m.geometry.dispose();
+  }
+
+  for (const [mat, b] of buckets.entries()) {
+    const geos = b.geos;
+    if (!geos.length) continue;
+    let total = 0;
+    let anyColor = false;
+    for (const g of geos) {
+      total += g.attributes.position.count;
+      if (g.attributes.color) anyColor = true;
+    }
+    const pos = new Float32Array(total * 3);
+    const nor = new Float32Array(total * 3);
+    const uv = new Float32Array(total * 2);
+    const col = anyColor ? new Float32Array(total * 3) : null;
+    let o = 0;
+    for (const g of geos) {
+      const n = g.attributes.position.count;
+      pos.set(g.attributes.position.array, o * 3);
+      nor.set(g.attributes.normal.array, o * 3);
+      if (g.attributes.uv) uv.set(g.attributes.uv.array, o * 2);
+      if (col) {
+        if (g.attributes.color) col.set(g.attributes.color.array, o * 3);
+        else col.fill(1, o * 3, (o + n) * 3);
+      }
+      o += n;
+      g.dispose();
+    }
+    const merged = new THREE.BufferGeometry();
+    merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    merged.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    if (col) merged.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const mesh = new THREE.Mesh(merged, mat);
+    mesh.castShadow = b.castShadow;
+    mesh.receiveShadow = b.receiveShadow;
+    root.add(mesh);
+  }
+}
+
 // Apply optional longitudinal two-tone split vertex colors (e.g., white front -> maroon rear)
 function applySplitPaintVertexColors(geo, paintSpec) {
   if (!paintSpec || !paintSpec.split) return;
@@ -1263,6 +1352,7 @@ function buildFrontFascia(spec, mats) {
       const pool = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 4.4), beamMat);
       pool.rotation.x = -Math.PI / 2;
       pool.position.set(s * pp.xOffset * 1.12, 0.018, zFront + 2.35);
+      pool.userData.noMerge = true;
       group.add(pool);
 
       popupControl.pivots.push(piv);
@@ -1703,6 +1793,9 @@ function buildWheel(spec, mats, side) {
   hub.position.x = side * (W * 0.43);
   spinPivot.add(hub);
 
+  // Merge tire, rim spokes, hub, and drum per spinPivot (~14 draws -> 3 per wheel)
+  mergeStaticByMaterial(spinPivot);
+
   return { steerPivot, spinPivot };
 }
 
@@ -1831,13 +1924,18 @@ export function buildLoftedCar(userSpec = {}) {
       clearcoat: 0.9,
     }),
     tailLens: new THREE.MeshPhysicalMaterial({
-      color: 0xa8161a,
-      emissive: 0x5c0608,
-      emissiveIntensity: 0.45,
+      color: 0xc41a1e,
+      emissive: 0xb81014,
+      emissiveIntensity: 0.95,
       roughness: 0.16,
       clearcoat: 0.9,
     }),
-    reverseLens: new THREE.MeshStandardMaterial({ color: 0xd8dce2, roughness: 0.25 }),
+    reverseLens: new THREE.MeshStandardMaterial({
+      color: 0xd8dce2,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.0,
+      roughness: 0.25,
+    }),
     chrome: new THREE.MeshStandardMaterial({ color: 0xd0d6de, roughness: 0.20, metalness: 0.88 }),
     tire: new THREE.MeshStandardMaterial({ color: spec.wheels.tireColor ?? 0x16171b, roughness: 0.90 }),
     rim: new THREE.MeshStandardMaterial({ color: spec.wheels.rimColor ?? 0xd0d6de, roughness: 0.26, metalness: 0.78 }),
@@ -1870,6 +1968,66 @@ export function buildLoftedCar(userSpec = {}) {
     wheelObjs.push({ ...w, front: wd.front });
   }
 
+  // Merge all static body/trim/fascia/glass/interior sub-meshes by Material (~130 draws -> ~16!)
+  const skipMerge = new Set([
+    ...wheelObjs.map((w) => w.steerPivot),
+    ...(front.popupControl.pivots || []),
+  ]);
+  mergeStaticByMaterial(group, skipMerge);
+
+  // Soft ground contact shadow under the chassis (grounds the car onto asphalt)
+  const contactMat = new THREE.MeshBasicMaterial({
+    map: getShadowTex(),
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+  });
+  const contactShadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(spec.dims.width * 1.18, spec.dims.length * 1.06),
+    contactMat
+  );
+  contactShadow.rotation.x = -Math.PI / 2;
+  contactShadow.position.set(0, 0.082, 0);
+  contactShadow.renderOrder = 1;
+  contactShadow.userData.noMerge = true;
+  group.add(contactShadow);
+
+  // Dynamic rear taillight halo cards (warm ruby glow at night + bright red flare on braking!)
+  const tailGlowMat = new THREE.MeshBasicMaterial({
+    color: 0xff2626,
+    map: getGlowTex(),
+    transparent: true,
+    opacity: 0.45,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.FrontSide,
+    fog: false,
+  });
+  const stRear = spec.bodyStations[0];
+  const tp = spec.rearFascia.tailPanel;
+  const tailGlowW = tp.style === 'vertical' ? 0.34 : 0.62;
+  const tailGlowH = tp.style === 'vertical' ? 0.44 : 0.32;
+  const tailGlowX = tp.style === 'vertical'
+    ? (stRear.wBelt - (tp.lampW || 0.14) * 0.5)
+    : Math.max(0.45, stRear.wBelt * 0.62);
+  for (const s of [-1, 1]) {
+    const gm = new THREE.Mesh(new THREE.PlaneGeometry(tailGlowW, tailGlowH), tailGlowMat);
+    gm.position.set(s * tailGlowX, tp.y, stRear.z - 0.065);
+    gm.rotation.y = Math.PI;
+    gm.renderOrder = 3;
+    gm.userData.noMerge = true;
+    gm.userData.isTailGlow = true;
+    group.add(gm);
+  }
+
+  function setLights({ brake = false, reverse = false, nightK = 0.5 } = {}) {
+    mats.tailLens.emissiveIntensity = brake ? 2.9 : (0.75 + nightK * 0.75);
+    tailGlowMat.opacity = brake ? 0.85 : (0.28 + nightK * 0.35);
+    mats.reverseLens.emissiveIntensity = reverse ? 1.8 : 0.0;
+  }
+
   return {
     group,
     spec,
@@ -1878,6 +2036,10 @@ export function buildLoftedCar(userSpec = {}) {
     popups: front.popupControl,
     setPopups(val) {
       if (front.popupControl.set) front.popupControl.set(val);
+    },
+    setLights,
+    setBrake(on) {
+      setLights({ brake: !!on });
     },
     updateWheels(speedMps, steerRad = 0, dt = 0.016) {
       const dRot = (speedMps * dt) / Math.max(0.05, spec.dims.wheelRadius);

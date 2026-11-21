@@ -11,22 +11,28 @@
   #game{position:fixed;inset:0;}
   canvas{display:block;}
   #hud{position:fixed;inset:0;pointer-events:none;z-index:1100;}
-  #speed{position:absolute;top:calc(10px + env(safe-area-inset-top));left:14px;color:#fff;
-    font-size:15px;font-weight:700;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
-  #speed b{font-size:30px;font-weight:800;}
-  #rally{position:absolute;top:calc(48px + env(safe-area-inset-top));left:14px;color:#ffd9a0;
-    font-size:13px;font-weight:800;letter-spacing:.1em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
-  #title{position:absolute;top:calc(10px + env(safe-area-inset-top));right:14px;color:#fff;opacity:.85;
-    font-size:13px;font-weight:800;letter-spacing:.22em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
-  #nav{position:absolute;top:calc(44px + env(safe-area-inset-top));right:16px;width:64px;text-align:center;color:#fff;}
-  #arrow{display:inline-block;font-size:34px;color:#ffd23f;text-shadow:0 2px 8px rgba(0,0,0,.6);transition:transform .12s linear;}
-  #navdist{font-size:12px;font-weight:800;letter-spacing:.05em;text-shadow:0 1px 4px rgba(0,0,0,.8);}
-  #target{position:absolute;left:50%;top:15%;transform:translateX(-50%);color:#fff;text-align:center;width:94%;
-    font-size:15px;font-weight:700;text-shadow:0 1px 5px rgba(0,0,0,.9);pointer-events:none;}
+  #speed{position:absolute;top:calc(8px + env(safe-area-inset-top));left:12px;color:#fff;
+    font-size:14px;font-weight:700;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #speed b{font-size:28px;font-weight:800;}
+  #rally{position:absolute;top:calc(42px + env(safe-area-inset-top));left:12px;color:#ffd9a0;
+    font-size:12px;font-weight:800;letter-spacing:.1em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #title{position:absolute;top:calc(8px + env(safe-area-inset-top));right:12px;color:#fff;opacity:.85;
+    font-size:12px;font-weight:800;letter-spacing:.2em;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  #wanted{position:absolute;top:calc(25px + env(safe-area-inset-top));right:12px;color:rgba(255,255,255,.22);
+    font-size:16px;font-weight:900;letter-spacing:2px;text-shadow:0 1px 6px rgba(0,0,0,.85);opacity:0;transition:opacity .2s;}
+  #scoreHud{position:absolute;top:calc(47px + env(safe-area-inset-top));right:12px;text-align:right;color:#fff;
+    font-size:13px;font-weight:800;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.85);}
+  #comboPill{display:none;margin-left:5px;padding:1px 6px;border-radius:6px;background:rgba(255,188,36,.94);
+    color:#141824;font-size:11px;font-weight:900;vertical-align:1px;}
+  #nav{position:absolute;top:calc(74px + env(safe-area-inset-top));right:12px;width:58px;text-align:center;color:#fff;}
+  #arrow{display:inline-block;font-size:30px;color:#ffd23f;text-shadow:0 2px 8px rgba(0,0,0,.6);transition:transform .12s linear;}
+  #navdist{font-size:11px;font-weight:800;letter-spacing:.05em;text-shadow:0 1px 4px rgba(0,0,0,.8);}
+  #target{position:absolute;left:50%;top:calc(180px + env(safe-area-inset-top));transform:translateX(-50%);color:#fff;text-align:center;width:94%;
+    font-size:13px;font-weight:700;text-shadow:0 1px 5px rgba(0,0,0,.9);pointer-events:none;}
   #target span{background:rgba(10,14,26,.55);border-radius:8px;padding:3px 10px;}
-  #street{position:absolute;left:50%;top:calc(15% + 32px);transform:translateX(-50%);color:#ffd9a0;text-align:center;width:94%;
-    font-size:13px;font-weight:800;letter-spacing:.05em;text-shadow:0 1px 5px rgba(0,0,0,.9);pointer-events:none;}
-  #street span{background:rgba(10,14,26,.55);border-radius:8px;padding:3px 10px;}
+  #street{position:absolute;left:50%;top:calc(206px + env(safe-area-inset-top));transform:translateX(-50%);color:#ffd9a0;text-align:center;width:94%;
+    font-size:11.5px;font-weight:800;letter-spacing:.05em;text-shadow:0 1px 5px rgba(0,0,0,.9);pointer-events:none;}
+  #street span{background:rgba(10,14,26,.55);border-radius:8px;padding:2px 9px;}
   #street:empty{display:none;}
   #banner{position:absolute;left:50%;top:34%;transform:translateX(-50%) scale(.9);color:#fff;text-align:center;
     font-size:26px;font-weight:900;letter-spacing:.03em;text-shadow:0 3px 14px rgba(0,0,0,.75);opacity:0;
@@ -43,12 +49,15 @@
     display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:1200;touch-action:none;
     text-shadow:0 1px 3px rgba(0,0,0,.5);box-shadow:0 4px 14px rgba(0,0,0,.4);}
   .btn small{font-size:9px;letter-spacing:.12em;font-weight:700;opacity:.9;}
-  #btnA{right:26px;bottom:calc(30px + env(safe-area-inset-bottom));width:92px;height:92px;font-size:21px;background:rgba(46,160,80,.8);}
-  #btnB{right:132px;bottom:calc(22px + env(safe-area-inset-bottom));width:66px;height:66px;font-size:14px;background:rgba(220,50,50,.65);}
-  #btnT{right:212px;bottom:calc(26px + env(safe-area-inset-bottom));width:66px;height:66px;font-size:19px;background:rgba(255,150,40,.55);}
-  #btnT svg{position:absolute;inset:-7px;width:80px;height:80px;pointer-events:none;transform:rotate(-90deg);}
+  #btnA{right:22px;bottom:calc(28px + env(safe-area-inset-bottom));width:88px;height:88px;font-size:20px;background:rgba(46,160,80,.8);}
+  #btnB{right:122px;bottom:calc(20px + env(safe-area-inset-bottom));width:64px;height:64px;font-size:14px;background:rgba(220,50,50,.65);}
+  #btnT{right:196px;bottom:calc(24px + env(safe-area-inset-bottom));width:64px;height:64px;font-size:18px;background:rgba(255,150,40,.55);}
+  #btnT svg{position:absolute;inset:-7px;width:calc(100% + 14px);height:calc(100% + 14px);pointer-events:none;transform:rotate(-90deg);}
   #btnT circle{fill:none;stroke:rgba(255,150,50,.95);stroke-width:4;stroke-linecap:round;}
-  #btnMute{right:49px;bottom:calc(136px + env(safe-area-inset-bottom));width:48px;height:48px;font-size:20px;background:rgba(16,20,36,.55);}
+  #btnMute{right:18px;bottom:calc(130px + env(safe-area-inset-bottom));width:44px;height:44px;font-size:18px;background:rgba(16,20,36,.55);}
+  #btnCam{right:70px;bottom:calc(130px + env(safe-area-inset-bottom));width:44px;height:44px;font-size:11px;letter-spacing:.04em;background:rgba(16,20,36,.6);}
+  #btnFoot{right:122px;bottom:calc(130px + env(safe-area-inset-bottom));height:44px;padding:0 14px;border-radius:22px;
+    font-size:11px;letter-spacing:.06em;background:rgba(24,32,54,.72);white-space:nowrap;}
   .btn.on{filter:brightness(1.5);transform:scale(.94);}
   /* ---- pick your player ---- */
   #pick{position:fixed;inset:0;z-index:1300;background:linear-gradient(180deg, rgba(16,14,34,.88), rgba(30,20,44,.92));
@@ -71,6 +80,8 @@
   <div id="speed"><b>0</b> km/h</div>
   <div id="rally">RALLY 0/7</div>
   <div id="title">SCAGGSVILLE 3D</div>
+  <div id="wanted">☆☆☆☆☆</div>
+  <div id="scoreHud"><span id="scoreVal">$0</span><span id="comboPill"></span></div>
   <div id="nav"><div id="arrow">⬆</div><div id="navdist"></div></div>
   <div id="target"><span></span></div>
   <div id="street"><span></span></div>
@@ -81,6 +92,8 @@
 <div class="btn" id="btnB">B<small>BRAKE</small></div>
 <div class="btn" id="btnT"><svg viewBox="0 0 80 80"><circle id="turboRing" cx="40" cy="40" r="36"/></svg>»<small>TURBO</small></div>
 <div class="btn" id="btnA">A<small>GAS</small></div>
+<div class="btn" id="btnFoot">EXIT</div>
+<div class="btn" id="btnCam">CAM</div>
 <div class="btn" id="btnMute">🔊</div>
 <div id="pick"></div>
 
@@ -90,7 +103,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { buildWorld, applyWorldEnvMap, WORLD_LIGHTING } from './src/world/buildWorld.js';
-import { buildVehicle } from '../shared/gpvehicles.js';
+import { buildVehicle, VEHICLE_ROWS } from '../shared/gpvehicles.js';
 import { buildPerson, buildDriver, poseIdle, poseWave, poseWalk } from '../shared/people.js';
 import { makeParkedFleet } from './src/fleet.js';
 import { CREW_VEHICLES, CREW_PEOPLE } from './src/crew.js';
@@ -105,6 +118,12 @@ import { streetLabel } from './src/street.js';
 import { createInteriors } from './src/interiors.js';
 import { createCineCam } from './src/cinecam.js';
 import { mountGarage, buildCustomVehicle } from './src/garage.js';
+import { createFX } from './src/fx.js';
+import { createTraffic } from './src/traffic.js';
+import { createProps } from './src/props.js';
+import { createWanted } from './src/wanted.js';
+import { createOnFoot } from './src/onfoot.js';
+import { createMinimap } from './src/minimap.js';
 
 /* ============================== RENDERER / SCENE ============================== */
 const L = WORLD_LIGHTING;
@@ -154,6 +173,14 @@ const lightRig = { renderer, scene, sun, hemi, ambient: amb, dome,
 const crowd = createCrowdSystem(scene, world);
 crowd.spawnAmbient();
 
+// GTA V / Palm City gameplay layers: pooled FX/skids, live AI traffic,
+// breakable props + stunt ramps, 1-5* Howard County PD, on-foot + carjack, radar.
+const fx = createFX(scene);
+const traffic = createTraffic(scene, world, WORLD_DATA);
+const props = createProps(scene, world, WORLD_DATA);
+const wanted = createWanted(scene, world, WORLD_DATA);
+const minimap = createMinimap(WORLD_DATA, document.body);
+
 /* ============================== GAME STATE ============================== */
 const HOUSEHOLDS = [
   { stop:'brad',    label:'Brad',                 cars:['brad'] },
@@ -173,7 +200,7 @@ const interiors = createInteriors({ scene, camera, stops: stopById, surfaceAt: w
   heroRow: ()=> CREW_PEOPLE[HOUSEHOLDS.find(h=>h.stop===playerStop).cars[0]] });
 
 let started=false, finished=false, startTime=0, elapsed=0;
-let playerStop='brad';
+let playerStop='brad', playerCarId='brad', playerAvatarId='brad';
 let targets=[];           // household stop ids still to visit, in order
 let collected=new Set();
 let player=null, playerVeh=null, playerBeam=null;
@@ -183,6 +210,8 @@ const people=[];          // {p, stopId, carId, mode, tx, tz, phase} crew figure
 const trail=[];           // breadcrumb {x,z,d} player path, oldest first
 let trailDist=0, lastTrailPt=null;
 let missions=null;   // Lane D (src/missions.js): fake-cop + night party
+let score=0, combo=0, comboTimer=0, comboLabel='', driftScoreAcc=0, shakeAmt=0;
+let camMode=0;       // 0 = Close GTA, 1 = Wide, 2 = Hood
 
 // Lamar's burning Mustang at Atholton (finale set piece)
 const ath=stopById['atholton'];
@@ -229,6 +258,19 @@ function seatDriver(veh, carId){
   veh.driverAnchor.add(d.group);
   veh._driver = d;
 }
+const onfoot = createOnFoot({ scene, world, CREW_PEOPLE, CREW_VEHICLES, VEHICLE_ROWS, buildPerson, buildVehicle, seatDriver });
+function attachBeam(veh){
+  if(!veh) return;
+  if(!playerBeam){
+    playerBeam = new THREE.SpotLight(veh.beamColor ?? 0xffd9a8, L.beamIntensity ?? 200, 55, 0.62, 0.55, 1.1);
+  } else {
+    playerBeam.color.setHex(veh.beamColor ?? 0xffd9a8);
+  }
+  const len = veh.dims?.len ?? 4.5;
+  playerBeam.position.set(0, 0.72, len / 2 - 0.2);
+  playerBeam.target.position.set(0, 0, len / 2 + 18);
+  veh.group.add(playerBeam); veh.group.add(playerBeam.target);
+}
 function parkCrewCars(){
   for(const hh of HOUSEHOLDS){
     if(hh.stop===playerStop) continue;
@@ -255,7 +297,7 @@ const pickEl=document.getElementById('pick');
 // replaces the card grid. Game HUD + driving buttons stay hidden until
 // the rally starts (the stage owns the screen until then).
 document.getElementById('hud').style.display='none';
-for(const id of ['btnA','btnB','btnT','btnMute']) document.getElementById(id).style.display='none';
+for(const id of ['btnA','btnB','btnT','btnMute','btnCam','btnFoot']) document.getElementById(id).style.display='none';
 const garage = mountGarage(pickEl, { households: HOUSEHOLDS, stops: stopById, environment: scene.environment,
   onStart: (stopId, custom)=> startGame(stopId, custom) });
 window.__garage = garage;
@@ -267,21 +309,22 @@ function startGame(stopId, custom){
   playerStop=stopId;
   pickEl.style.display='none';
   document.getElementById('hud').style.display='';
-  for(const id of ['btnA','btnB','btnT','btnMute']) document.getElementById(id).style.display='';
+  for(const id of ['btnA','btnB','btnT','btnMute','btnCam','btnFoot']) document.getElementById(id).style.display='';
   const s=stopById[stopId];
   player=createCar(s.sx, s.sz, s.heading);
   const myCar = HOUSEHOLDS.find(h=>h.stop===stopId).cars[0];
+  playerCarId = myCar;
+  playerAvatarId = myCar;
   playerVeh=buildCustomVehicle(myCar, custom);   // the garage car, exactly as customized on the stage
+  playerVeh.group.rotation.order='YXZ';
   scene.add(playerVeh.group);
   // headlight beam — the module throws the pool decal on the road; this is
   // the actual light that lifts the wet asphalt ahead of the car at dusk.
   // Its colour comes from the picked car's row (Brad yellow, Brian blue).
   // Intensity follows the lighting preset: full at blue hour, softer in
   // golden hour when the sun is still doing the work.
-  const beam = playerBeam = new THREE.SpotLight(playerVeh.beamColor ?? 0xffd9a8, L.beamIntensity ?? 200, 55, 0.62, 0.55, 1.1);
-  beam.position.set(0, 0.72, playerVeh.dims.len / 2 - 0.2);
-  beam.target.position.set(0, 0, playerVeh.dims.len / 2 + 18);
-  playerVeh.group.add(beam); playerVeh.group.add(beam.target);
+  attachBeam(playerVeh);
+  minimap.show();
   spawnFigure(myCar, stopId, s.sx+2.6, s.sz+2.0, s.sx, s.sz);
   const pf=people[people.length-1];
   if(pf){ pf.mode='walk'; pf.tx=s.sx+Math.cos(s.heading)*1.8; pf.tz=s.sz-Math.sin(s.heading)*1.8; } // to the driver's door, then in
@@ -300,7 +343,20 @@ const keys={}; let joyActive=false, joyId=null, joyOX=0, joyOY=0, joyX=0, joyY=0
 function latchTouch(){ touchMode=true; }
 window.addEventListener('touchstart', latchTouch, { passive:true });
 window.addEventListener('pointerdown', e=>{ if(e.pointerType==='touch'||e.pointerType==='pen') latchTouch(); }, { passive:true });
-window.addEventListener('keydown', e=>{ keys[e.code]=true; if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault(); });
+let proofInput = null;
+window.addEventListener('keydown', e=>{
+  keys[e.code]=true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if(!e.repeat){
+    const enterBtnEl = document.getElementById('intEnter');
+    const goInVisible = enterBtnEl && enterBtnEl.style.display !== 'none' && enterBtnEl.style.display !== '';
+    if(e.code==='KeyF') toggleOnFoot();
+    else if(e.code==='KeyE' && !goInVisible) toggleOnFoot();
+    else if(e.code==='KeyC') cycleCamera();
+    else if(e.code==='KeyH') gameAudio.horn();
+    else if(e.code==='KeyT') cycleTime();
+  }
+});
 window.addEventListener('keyup', e=>{ keys[e.code]=false; });
 const zone=document.getElementById('stickZone'), sBase=document.getElementById('stickBase'), sKnob=document.getElementById('stickKnob');
 zone.addEventListener('pointerdown', e=>{
@@ -326,35 +382,136 @@ function bindBtn(id, set){
   el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off);
 }
 bindBtn('btnA', v=>{ btnA=v; }); bindBtn('btnB', v=>{ btnB=v; }); bindBtn('btnT', v=>{ btnT=v; });
-const muteBtn=document.getElementById('btnMute');
+const muteBtn=document.getElementById('btnMute'),
+      camBtn=document.getElementById('btnCam'),
+      footBtn=document.getElementById('btnFoot');
 muteBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation();
   muteBtn.textContent = gameAudio.toggleMute()? '🔇' : '🔊'; });
+camBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); cycleCamera(); });
+footBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); toggleOnFoot(); });
 document.addEventListener('gesturestart', e=>e.preventDefault());
 document.addEventListener('dblclick', e=>e.preventDefault());
 document.addEventListener('contextmenu', e=>e.preventDefault());
 
 function pollInput(){
-  let steer=0, throttle=0, brake=false, boost=false;
+  let steer=0, throttle=0, brake=false, boost=false, handbrake=false;
   if(keys['KeyA']||keys['ArrowLeft']) steer-=1;
   if(keys['KeyD']||keys['ArrowRight']) steer+=1;
   if(keys['KeyW']||keys['ArrowUp']) throttle+=1;
   if(keys['KeyS']||keys['ArrowDown']) brake=true;
   if(keys['ShiftLeft']||keys['ShiftRight']) boost=true;
-  if(joyActive) steer+=joyX;
+  if(keys['Space']) handbrake=true;
+  if(joyActive){
+    steer+=joyX;
+    if(onfoot.state.active){
+      if(joyY < -0.18) throttle = Math.max(throttle, -joyY);
+      if(joyY > 0.25) brake = true;
+    }
+  }
   if(btnA) throttle=1;
   if(btnB) brake=true;
   if(btnT) boost=true;
-  return { steer:THREE.MathUtils.clamp(steer,-1,1), throttle, brake, boost };
+  if(proofInput){
+    if(proofInput.steer!==undefined) steer=proofInput.steer;
+    if(proofInput.throttle!==undefined) throttle=proofInput.throttle;
+    if(proofInput.brake!==undefined) brake=!!proofInput.brake;
+    if(proofInput.boost!==undefined) boost=!!proofInput.boost;
+    if(proofInput.handbrake!==undefined) handbrake=!!proofInput.handbrake;
+  }
+  steer = THREE.MathUtils.clamp(steer,-1,1);
+  if(touchMode && !onfoot.state.active && brake && Math.abs(steer)>0.55 && player && Math.abs(player.speed)>12){
+    handbrake = true;
+  }
+  return { steer, throttle, brake, boost, handbrake };
 }
 
-/* ============================== HUD ============================== */
+/* ============================== HUD & ACTIONS ============================== */
 const speedEl=document.querySelector('#speed b'), rallyEl=document.getElementById('rally'),
       targetEl=document.querySelector('#target span'), bannerEl=document.getElementById('banner'),
       arrowEl=document.getElementById('arrow'), navdistEl=document.getElementById('navdist'),
       streetEl=document.getElementById('street'), streetSpan=document.querySelector('#street span'),
-      turboRingEl=document.getElementById('turboRing');
+      turboRingEl=document.getElementById('turboRing'),
+      wantedEl=document.getElementById('wanted'), scoreValEl=document.getElementById('scoreVal'),
+      comboPillEl=document.getElementById('comboPill');
 const TURBO_RING_C = 2*Math.PI*36; // svg ring circumference (r=36)
 if(turboRingEl){ turboRingEl.style.strokeDasharray=TURBO_RING_C; turboRingEl.style.strokeDashoffset=0; }
+function addScore(pts, label=''){
+  if(!pts) return;
+  combo = Math.min(12, combo + 1);
+  score += Math.round(pts * combo);
+  comboTimer = 4.0;
+  if(label) comboLabel = label;
+}
+function syncFootLabels(){
+  const aSmall=document.querySelector('#btnA small');
+  const tSmall=document.querySelector('#btnT small');
+  if(onfoot.state.active){
+    if(aSmall) aSmall.textContent='WALK';
+    if(tSmall) tSmall.textContent='RUN';
+  } else {
+    if(aSmall) aSmall.textContent='GAS';
+    if(tSmall) tSmall.textContent='TURBO';
+  }
+}
+const CAM_NAMES = ['CLOSE GTA', 'WIDE', 'HOOD'];
+function cycleCamera(){
+  if(!started || interiors.active) return;
+  camMode = (camMode + 1) % 3;
+  cine.cancel();
+  gameAudio.uiTap();
+  showBanner('CAMERA: '+CAM_NAMES[camMode], '', 900);
+}
+const TIME_CYCLE = ['golden', 'dusk', 'night', null];
+let timeCycleIdx = 0;
+function cycleTime(){
+  if(!started) return;
+  timeCycleIdx = (timeCycleIdx + 1) % TIME_CYCLE.length;
+  const tName = TIME_CYCLE[timeCycleIdx];
+  daynight.setPhase(tName);
+  gameAudio.uiTap();
+  showBanner('TIME: '+(tName ? tName.toUpperCase() : 'AUTO RALLY'), '', 900);
+}
+function toggleOnFoot(){
+  if(!started || interiors.active || !player) return false;
+  if(!onfoot.state.active){
+    if(Math.abs(player.speed) > 4.8 || player.airborne){
+      showBanner('SLOW DOWN', 'Brake under 17 km/h to step out', 1100);
+      return false;
+    }
+    const ok = onfoot.exitCar(player, playerVeh, playerCarId, playerAvatarId);
+    if(ok){
+      cine.cancel();
+      gameAudio.engineStop();
+      gameAudio.setScreech(0);
+      gameAudio.setBoost(0);
+      gameAudio.uiTap();
+      syncFootLabels();
+      return true;
+    }
+    return false;
+  } else {
+    const target = onfoot.state.nearestTarget;
+    if(!target){ showBanner('NO CAR NEARBY', 'Walk close to a car to hop in', 1100); return false; }
+    const res = onfoot.enterVehicle(target, {
+      parkedVehs, player, driverAvatarId: playerAvatarId, wanted,
+      onHijack: tc => {
+        addScore(150, 'CARJACK!');
+        showBanner('RIDE JACKED', tc.name+' · Howard County PD alerted!', 2100);
+      }
+    });
+    if(res){
+      playerVeh = res.veh;
+      playerCarId = res.carId;
+      playerVeh.group.rotation.order = 'YXZ';
+      attachBeam(playerVeh);
+      gameAudio.engineStart();
+      gameAudio.uiTap();
+      syncFootLabels();
+      return true;
+    }
+    return false;
+  }
+}
 let bannerTimer=null;
 function showBanner(main, sub, hold=2600){
   bannerEl.innerHTML=main+(sub? `<small>${sub}</small>`:'');
@@ -433,7 +590,7 @@ function checkArrivals(){
   }
 }
 
-/* ============================== CAMERA (Bunny Hop settlement) ============================== */
+/* ============================== CAMERA (GTA V + Bunny Hop settlement) ============================== */
 let camYaw=null, camPos=new THREE.Vector3(), fovCur=60, overheadMode=false;
 function updateCamera(dt){
   if(overheadMode){
@@ -442,20 +599,58 @@ function updateCamera(dt){
     if(camera.fov!==55){ camera.fov=55; camera.updateProjectionMatrix(); }
     return;
   }
-  if(camYaw===null){ camYaw=player.heading; camPos.set(player.x-Math.sin(camYaw)*7.4, 2.6, player.z-Math.cos(camYaw)*7.4); }
-  let dh=player.heading-camYaw;
-  while(dh>Math.PI) dh-=2*Math.PI; while(dh<-Math.PI) dh+=2*Math.PI;
-  camYaw += dh * Math.min(1, dt*3.2);                       // lazy yaw
-  const dist=8.6, height=2.7;
-  const tx=player.x-Math.sin(camYaw)*dist, tz=player.z-Math.cos(camYaw)*dist;
-  const k=Math.min(1, dt*7);
-  camPos.x+=(tx-camPos.x)*k; camPos.z+=(tz-camPos.z)*k; camPos.y+=(height-camPos.y)*Math.min(1,dt*5);
-  camera.position.copy(camPos);
-  const look=new THREE.Vector3(player.x+Math.sin(player.heading)*6.5, 1.12, player.z+Math.cos(player.heading)*6.5);
-  camera.up.set(0,1,0);                                     // roll inheritance 0: horizon stays level
-  camera.lookAt(look);
-  const targetFov=60+Math.min(1, Math.abs(player.speed)/41)*7+(player.boosting? 3.5 : 0); // turbo breathe, same language
-  fovCur+=(targetFov-fovCur)*Math.min(1,dt*3);
+  if(onfoot.state.active){
+    if(camYaw===null) camYaw=player.heading;
+    if(onfoot.state.speed>0.5 && !keys['KeyS'] && !keys['ArrowDown']){
+      let dh=player.heading-camYaw;
+      while(dh>Math.PI) dh-=2*Math.PI; while(dh<-Math.PI) dh+=2*Math.PI;
+      camYaw += dh * Math.min(1, dt*2.0);
+    }
+    const dist=4.6, height=2.15;
+    const tx=player.x-Math.sin(camYaw)*dist, tz=player.z-Math.cos(camYaw)*dist;
+    const k=Math.min(1, dt*8);
+    camPos.x+=(tx-camPos.x)*k; camPos.z+=(tz-camPos.z)*k; camPos.y+=(height-camPos.y)*Math.min(1,dt*6);
+    camera.position.copy(camPos);
+    camera.up.set(0,1,0);
+    camera.lookAt(player.x, 1.25, player.z);
+    fovCur+=(60-fovCur)*Math.min(1,dt*4);
+    if(Math.abs(fovCur-camera.fov)>0.05){ camera.fov=fovCur; camera.updateProjectionMatrix(); }
+    return;
+  }
+  if(camMode===2){ // Hood cam
+    const visYaw=player.heading+(player.driftAngle||0);
+    camYaw=visYaw;
+    camPos.set(player.x+Math.sin(visYaw)*0.55, player.y+1.18, player.z+Math.cos(visYaw)*0.55);
+    camera.position.copy(camPos);
+    if(shakeAmt>0.005){
+      camera.position.x+=(Math.random()-0.5)*shakeAmt*0.45;
+      camera.position.y+=(Math.random()-0.5)*shakeAmt*0.35;
+    }
+    camera.up.set(0,1,0);
+    camera.lookAt(player.x+Math.sin(visYaw)*22, player.y+0.95, player.z+Math.cos(visYaw)*22);
+  } else {
+    if(camYaw===null){ camYaw=player.heading; camPos.set(player.x-Math.sin(camYaw)*7.4, 2.45, player.z-Math.cos(camYaw)*7.4); }
+    let dh=player.heading-camYaw;
+    while(dh>Math.PI) dh-=2*Math.PI; while(dh<-Math.PI) dh+=2*Math.PI;
+    camYaw += dh * Math.min(1, dt*(camMode===1? 3.2 : 3.6));
+    const dist = camMode===1 ? 10.6 : 7.4;
+    const height = (camMode===1 ? 3.6 : 2.45) + (player.y||0)*0.65;
+    const tx=player.x-Math.sin(camYaw)*dist, tz=player.z-Math.cos(camYaw)*dist;
+    const k=Math.min(1, dt*7.5);
+    camPos.x+=(tx-camPos.x)*k; camPos.z+=(tz-camPos.z)*k; camPos.y+=(height-camPos.y)*Math.min(1,dt*5);
+    camera.position.copy(camPos);
+    if(shakeAmt>0.005){
+      camera.position.x+=(Math.random()-0.5)*shakeAmt;
+      camera.position.y+=(Math.random()-0.5)*shakeAmt*0.7;
+      camera.position.z+=(Math.random()-0.5)*shakeAmt;
+    }
+    const lookFwd = camMode===1 ? 6.5 : 7.2;
+    const look=new THREE.Vector3(player.x+Math.sin(player.heading)*lookFwd, (player.y||0)*0.5+1.12, player.z+Math.cos(player.heading)*lookFwd);
+    camera.up.set(0,1,0);                                     // roll inheritance 0: horizon stays level
+    camera.lookAt(look);
+  }
+  const targetFov=60+Math.min(1, Math.abs(player.speed)/42)*8+(player.boosting? 4.0 : 0); // turbo breathe
+  fovCur+=(targetFov-fovCur)*Math.min(1,dt*3.5);
   if(Math.abs(fovCur-camera.fov)>0.05){ camera.fov=fovCur; camera.updateProjectionMatrix(); }
 }
 
@@ -465,6 +660,8 @@ let physAcc=0;
 let rallyProgress=0, streetT=0, lastStreet='', lastRingCharge=-1; // Lane A loop state
 let approachLatch=false; // Lane E: approachEnd fires once per approach
 let _btnHidden=false;    // Lane B polish: driving-button visibility latch
+let prevRL=null, prevRR=null, smokeAcc=0, turboAcc=0;
+let lastStars=-1, lastScore=-1, lastComboText='', lastFootText='', lastFootBg='', lastFootOp='';
 function animate(){
   requestAnimationFrame(animate);
   const dt=Math.min(clock.getDelta(), 0.06);
@@ -476,40 +673,124 @@ function animate(){
     speed: player? Math.abs(player.speed) : 0, steer: _inp? _inp.steer : 0,
     up: !!_inp && (!!keys['KeyW'] || !!keys['ArrowUp'] || joyY < -0.55),
     down: !!_inp && (!!keys['KeyS'] || !!keys['ArrowDown'] || joyY > 0.55) });
-  // Lane B polish: the driving buttons (A/B/TURBO) hide while inside a house
+  // Lane B polish: the driving/action buttons & minimap hide while inside a house
   if(interiors.active!==_btnHidden){ _btnHidden=interiors.active; const dsp=_btnHidden? 'none' : '';
-    for(const id of ['btnA','btnB','btnT']) document.getElementById(id).style.display=dsp; }
+    for(const id of ['btnA','btnB','btnT','btnCam','btnFoot']) document.getElementById(id).style.display=dsp;
+    if(_btnHidden) minimap.hide(); else if(started) minimap.show();
+  }
   if(started && player && !interiors.active){
-    physAcc+=dt;
-    const input = missions ? missions.modInput(pollInput()) : pollInput();
+    const rawInput = pollInput();
+    const input = missions ? missions.modInput(rawInput) : rawInput;
+    const nightK = Math.max(0, Math.min(1, (daynight.phase - 0.30) / 0.55));
     // Lane E: throttling out of an arrival beat starts the takeoff
     // pull-back (finale ends the leg program; households roll on)
-    if(input.throttle>0.3 && cine.state.phase.startsWith('arrive')) cine.takeoff(finished? { nextLeg:false } : undefined);
-    while(physAcc>=1/60){
-      stepCar(player, input, 1/60, world.surfaceAt(player.x, player.z));
-      collide(player, world.colliders);
-      physAcc-=1/60;
+    if(!onfoot.state.active && input.throttle>0.3 && cine.state.phase.startsWith('arrive')) cine.takeoff(finished? { nextLeg:false } : undefined);
+
+    if(onfoot.state.active){
+      prevRL=prevRR=null;
+      onfoot.update(dt, input, camYaw ?? player.heading, player, poseIdle, poseWalk, {
+        parkedVehs, followers, traffic, playerCarId
+      });
+      gameAudio.setSpeed(0);
+      gameAudio.setScreech(0);
+    } else {
+      physAcc+=dt;
+      while(physAcc>=1/60){
+        stepCar(player, input, 1/60, world.surfaceAt(player.x, player.z));
+        collide(player, world.colliders);
+        physAcc-=1/60;
+      }
+      const visYaw = player.heading + (player.driftAngle || 0);
+      playerVeh.group.position.set(player.x, player.y || 0, player.z);
+      playerVeh.group.rotation.set(player.pitch || 0, visYaw, player.roll || 0);
+      playerVeh.updateWheels(player.speed, player.steerVis, dt);
+      if(playerVeh.setLights) playerVeh.setLights({
+        brake: !!input.brake || !!input.handbrake,
+        reverse: player.speed < -0.4,
+        nightK
+      });
+      gameAudio.setSpeed(Math.abs(player.speed)/42);
+      gameAudio.setScreech(player.slip || 0);
+
+      // Rear-wheel skidmarks, drift smoke/dust & turbo exhaust sparks/flames
+      const fwdX = Math.sin(visYaw), fwdZ = Math.cos(visYaw);
+      const rightX = -Math.cos(visYaw), rightZ = Math.sin(visYaw);
+      const rearZ = (playerVeh.dims?.len ?? 4.4) * 0.31, halfW = 0.78;
+      const rx = player.x - fwdX * rearZ, rz = player.z - fwdZ * rearZ;
+      const rlx = rx - rightX * halfW, rlz = rz - rightZ * halfW;
+      const rrx = rx + rightX * halfW, rrz = rz + rightZ * halfW;
+
+      if(!player.airborne && (player.slip || 0) > 0.25){
+        if(prevRL && prevRR){
+          fx.addSkid(prevRL.x, prevRL.z, rlx, rlz, player.slip);
+          fx.addSkid(prevRR.x, prevRR.z, rrx, rrz, player.slip);
+        }
+        prevRL = { x:rlx, z:rlz }; prevRR = { x:rrx, z:rrz };
+        smokeAcc += dt;
+        if(smokeAcc >= 0.04){
+          smokeAcc = 0;
+          const sSide = Math.random()<0.5 ? -1 : 1;
+          fx.emit(player.offroad? 'dust' : 'smoke', rx + rightX*halfW*sSide, 0.22, rz + rightZ*halfW*sSide,
+            (Math.random()-0.5)*1.6, 0.9+Math.random()*1.1, (Math.random()-0.5)*1.6,
+            0.55 + player.slip*0.45, 0.55 + player.slip*0.35);
+        }
+      } else {
+        prevRL = prevRR = null;
+      }
+
+      if(player.boosting){
+        turboAcc += dt;
+        if(turboAcc >= 0.03){
+          turboAcc = 0;
+          const exX = rx - rightX*0.42 - fwdX*0.72, exZ = rz - rightZ*0.42 - fwdZ*0.72;
+          fx.emit('turbo', exX, (player.y||0)+0.32, exZ,
+            -fwdX*7+(Math.random()-0.5)*1.2, 0.4, -fwdZ*7+(Math.random()-0.5)*1.2, 0.42, 0.26);
+          if(Math.random()<0.45) fx.emit('flame', exX, (player.y||0)+0.32, exZ, -fwdX*5, 0.5, -fwdZ*5, 0.32, 0.18);
+        }
+      }
+
+      if((player.hitImpulse || 0) > 0.12){
+        shakeAmt = Math.max(shakeAmt, player.hitImpulse * 0.42);
+        fx.burst('spark', player.x + fwdX*1.5, 0.72, player.z + fwdZ*1.5, 9, 6.5, 0.24, 0.42);
+        gameAudio.crash(player.hitImpulse);
+        player.hitImpulse = 0;
+      }
+      if((player.justLanded || 0) > 0.2){
+        shakeAmt = Math.max(shakeAmt, player.justLanded * 0.38);
+        fx.burst('dust', player.x, 0.35, player.z, 12, 6, 0.55, 0.55);
+        gameAudio.crash(0.35);
+        if((player.airTime || 0) > 0.45) addScore(Math.round(player.airTime * 250), 'STUNT AIR!');
+        player.airTime = 0;
+      }
+      if(player.drifting){
+        driftScoreAcc += dt * Math.abs(player.speed);
+        if(driftScoreAcc >= 8){ driftScoreAcc = 0; addScore(25, 'DRIFT'); }
+      } else {
+        driftScoreAcc = 0;
+      }
+
+      // breadcrumb trail for the convoy
+      if(!lastTrailPt || Math.hypot(player.x-lastTrailPt.x, player.z-lastTrailPt.z)>1.4){
+        if(lastTrailPt) trailDist+=Math.hypot(player.x-lastTrailPt.x, player.z-lastTrailPt.z);
+        lastTrailPt={x:player.x, z:player.z, d:trailDist};
+        trail.push(lastTrailPt);
+        if(trail.length>4000) trail.splice(0, trail.length-4000);
+      }
     }
-    // breadcrumb trail for the convoy
-    if(!lastTrailPt || Math.hypot(player.x-lastTrailPt.x, player.z-lastTrailPt.z)>1.4){
-      if(lastTrailPt) trailDist+=Math.hypot(player.x-lastTrailPt.x, player.z-lastTrailPt.z);
-      lastTrailPt={x:player.x, z:player.z, d:trailDist};
-      trail.push(lastTrailPt);
-      if(trail.length>4000) trail.splice(0, trail.length-4000);
-    }
+
     // convoy followers retrace the trail
     followers.forEach((f, i)=>{
       if (f.missionHold) return;   // Lane D has the wheel (fake-cop beat)
       const back=(i+1)*13.5, want=trailDist-back;
       let tp=trail[0];
       for(let j=trail.length-1;j>=0;j--){ if(trail[j].d<=want){ tp=trail[j]; break; } }
-      const gap=Math.hypot(f.state.x-player.x, f.state.z-player.z);
       const dist=pursue(f.state, tp.x, tp.z, dt, world.surfaceAt(f.state.x, f.state.z), { arriveDist:26 });
       if(dist<2.2 && Math.abs(player.speed)<0.4) f.state.speed*=0.8;
       collide(f.state, world.colliders);
       f.veh.group.position.set(f.state.x, 0, f.state.z);
       f.veh.group.rotation.y=f.state.heading;
       f.veh.updateWheels(f.state.speed, f.state.steerVis, dt);
+      if(f.veh.setLights) f.veh.setLights({ brake:false, reverse:false, nightK });
     });
     // crew figures: idle at their houses, wave when you're headed their way,
     // walk to their car when they join, player figure gets in at first throttle
@@ -520,7 +801,7 @@ function animate(){
       if(person.mode==='walk'){
         const dx=person.tx-P.position.x, dz=person.tz-P.position.z, dd=Math.hypot(dx,dz);
         if(dd<0.7){ person.mode='gone'; scene.remove(P);
-          if(person.stopId===playerStop) seatDriver(playerVeh, person.carId);
+          if(person.stopId===playerStop){ if(!onfoot.state.active) seatDriver(playerVeh, person.carId); }
           else { const f=followers.find(f=>f.carId===person.carId); if(f) seatDriver(f.veh, person.carId); }
           continue; }
         P.rotation.y=Math.atan2(dx,dz);
@@ -533,21 +814,82 @@ function animate(){
         poseIdle(person.p, tNow);
       }
     }
-    playerVeh.group.position.set(player.x, 0, player.z);
-    playerVeh.group.rotation.y=player.heading;
-    playerVeh.updateWheels(player.speed, player.steerVis, dt);
-    gameAudio.setSpeed(Math.abs(player.speed)/41);   // 41 = CAR.topSpeed in drive.js
+
+    // Live GTA World: AI Traffic, Breakables + Stunt Ramps, Howard County PD & FX
+    traffic.update(dt, player, fx, gameAudio, {
+      onNearMiss: () => addScore(100, 'NEAR MISS!'),
+      onTrafficHit: imp => { if(imp > 14) wanted.addHeat(14, 'HIT & RUN'); }
+    });
+    props.update(dt, player, fx, gameAudio, {
+      onPropSmash: it => {
+        addScore(it.kind==='hydrant'? 75 : 40, it.kind==='hydrant'? 'HYDRANT GEYSER!' : 'SMASH!');
+        if(it.kind==='hydrant') wanted.addHeat(10, 'VANDALISM');
+        else if(props.stats().broken % 4 === 0) wanted.addHeat(8, 'RECKLESS DRIVING');
+      },
+      onRampLaunch: () => {
+        addScore(200, 'STUNT LAUNCH!');
+        showBanner('STUNT JUMP!', 'Send it over Scaggsville!', 1300);
+      }
+    });
+    wanted.update(dt, player, fx, gameAudio, {
+      onEscape: st => {
+        addScore(st * 250, 'ESCAPED PD!');
+        showBanner('ESCAPED!', 'Lost Howard County PD (+$'+(st*250)+')', 2400);
+      },
+      onBusted: () => {
+        combo = 0; comboTimer = 0;
+        player.speed = 0; player.vLat = 0;
+        showBanner('BUSTED!', 'Howard County PD let you off with a warning — keep rallying!', 2800);
+      }
+    });
+    fx.updateMustangFire(dt, ath.hx+16, ath.hz+14, camera.position.x, camera.position.z);
+    fx.update(dt, camera);
+
     checkArrivals();
     if (missions) missions.update(dt, hostState());
     // Lane E seam: the cinematic module owns the camera while a beat is
     // running; on release it leaves a handoff the chase cam adopts, so
     // the return lands exactly on the pose the chase cam would have had.
-    const cineOwned = cine.update(dt, { player, input });
+    const cineOwned = onfoot.state.active ? false : cine.update(dt, { player, input });
     if (cine.handoff){ const h=cine.handoff; camYaw=h.yaw; camPos.copy(h.pos); fovCur=h.fov; cine.handoff=null; }
     else if (cineOwned){ camYaw = cine.state.shadow.yaw; }   // keep the HUD arrow honest while cine owns the cam
     if (!cineOwned) updateCamera(dt);
-    // HUD
+
+    // HUD & Combo decay (DOM updated only on change)
+    shakeAmt *= Math.exp(-9 * dt);
+    if(comboTimer > 0){
+      comboTimer -= dt;
+      if(comboTimer <= 0){ combo = 0; comboLabel = ''; }
+    }
     speedEl.textContent=Math.round(Math.abs(player.speed)*3.6);
+    if(score !== lastScore){ lastScore=score; scoreValEl.textContent='$'+score.toLocaleString(); }
+    const cText = combo > 1 ? `×${combo} ${comboLabel}` : (combo === 1 && comboTimer > 0 && comboLabel ? comboLabel : '');
+    if(cText !== lastComboText){
+      lastComboText = cText;
+      comboPillEl.textContent = cText;
+      comboPillEl.style.display = cText ? 'inline-block' : 'none';
+    }
+    const stStars = wanted.state.stars;
+    if(stStars !== lastStars){
+      lastStars = stStars;
+      wantedEl.textContent = '★'.repeat(stStars) + '☆'.repeat(5 - stStars);
+      wantedEl.style.opacity = stStars > 0 ? '1' : '0';
+    }
+    if(stStars > 0){
+      const redSide = Math.sin(wanted.state.flashPhase) > 0;
+      wantedEl.style.color = redSide ? '#ff525e' : '#66b8ff';
+    }
+    let fTxt='EXIT', fBg='rgba(24,32,54,.72)', fOp='1';
+    if(onfoot.state.active){
+      if(onfoot.state.nearestTarget){ fTxt='GET IN'; fBg='rgba(46,160,80,.82)'; }
+      else { fTxt='ON FOOT'; fBg='rgba(24,32,54,.65)'; fOp='0.65'; }
+    } else if(Math.abs(player.speed)>4.8 || player.airborne){
+      fOp='0.45';
+    }
+    if(fTxt!==lastFootText){ lastFootText=fTxt; footBtn.textContent=fTxt; }
+    if(fBg!==lastFootBg){ lastFootBg=fBg; footBtn.style.background=fBg; }
+    if(fOp!==lastFootOp){ lastFootOp=fOp; footBtn.style.opacity=fOp; }
+
     const t=currentTargetStop();
     const d=Math.hypot(player.x-t.sx, player.z-t.sz);
     // Lane E: feed the approach descent from the same distance the HUD
@@ -558,6 +900,11 @@ function animate(){
     navdistEl.textContent = d>=1000? (d/1000).toFixed(2)+' km' : Math.round(d)+' m';
     const bearing=Math.atan2(t.sx-player.x, t.sz-player.z);
     let rel=bearing-camYaw; arrowEl.style.transform=`rotate(${rel}rad)`;
+    minimap.update(dt, {
+      px:player.x, pz:player.z, camYaw:camYaw ?? player.heading,
+      targetStop:t, followers, cops:wanted.cops, ramps:props.ramps,
+      wantedStars:wanted.state.stars, flashPhase:wanted.state.flashPhase
+    });
     // sun shadow follows the player; sky dome too
     sun.position.set(player.x+sunDir.x*300, sunDir.y*300+40, player.z+sunDir.z*300);
     sun.target.position.set(player.x, 0, player.z); sun.target.updateMatrixWorld();
@@ -567,7 +914,7 @@ function animate(){
     // elapsed time, whichever is further along (nominal full rally ~9 min)
     rallyProgress = finished? 1 : Math.max(collected.size/7, Math.min(1, (performance.now()-startTime)/540000));
     // Lane A: headlight beam follows the cycle (soft at golden, full at night)
-    if(playerBeam) playerBeam.intensity = daynight.current.beamIntensity;
+    if(playerBeam) playerBeam.intensity = onfoot.state.active ? daynight.current.beamIntensity*0.35 : daynight.current.beamIntensity;
     // Lane A: turbo charge ring (2D precedent) + engine-note hook —
     // audio.js setBoost is real (the turbo whistle); the guard stays so
     // an audio module without it could never break the loop
@@ -575,7 +922,7 @@ function animate(){
       lastRingCharge=player.charge;
       turboRingEl.style.strokeDashoffset=(TURBO_RING_C*(1-player.charge)).toFixed(1);
     }
-    if(typeof gameAudio.setBoost==='function') gameAudio.setBoost(player.boosting? 1:0);
+    if(typeof gameAudio.setBoost==='function') gameAudio.setBoost(!onfoot.state.active && player.boosting? 1:0);
     // Lane A: current-street readout (2D L10 wording), refreshed ~4/sec,
     // DOM touched only when the text actually changes
     streetT-=dt;
@@ -611,10 +958,15 @@ window.__dbg={ get ready(){ return started; },
     driverSeated: !!(playerVeh && playerVeh._driver),
     phase: daynight.phase, phaseName: daynight.phaseName, timeLocked: daynight.locked,
     street: lastStreet, boosting: !!player.boosting, charge: player.charge,
+    stars: wanted.state.stars, score, combo, onFoot: onfoot.state.active,
+    drifting: !!player.drifting, slip: player.slip,
+    trafficCount: traffic.cars.filter(c=>c.active).length,
+    propsBroken: props.stats().broken, camMode,
     crowd: crowd.stats(), interior: interiors.stats() } : null; } };
 window.__proof={
   start(id){ startGame(id||'brad'); },
-  teleport(x,z,heading){ if(player){ player.x=x; player.z=z; if(heading!==undefined) player.heading=heading; player.speed=0;
+  teleport(x,z,heading){ if(player){ player.x=x; player.z=z; if(heading!==undefined) player.heading=heading;
+    player.speed=0; player.vLat=0; player.vy=0; player.y=0; player.airborne=false; prevRL=prevRR=null;
     trail.length=0; trailDist=0; lastTrailPt=null; camYaw=null; } },
   overhead(on){ overheadMode=!!on; if(!on){ camera.fov=60; camera.updateProjectionMatrix(); } },
   routePt(f){ const r=world.route; const i=Math.min(r.length-5, Math.floor(r.length*f)); const p=r[i], q=r[i+4];
@@ -628,6 +980,12 @@ window.__proof={
   partyAnchors(id){ return interiors.partyAnchors(id); },
   setTime(v){ daynight.setPhase(v); },   // Lane A: name | 0..1 | null (unlock)
   street(){ return lastStreet; },
+  spawnCop(stars=2){ return wanted.addHeat(stars * 25, 'PROOF'); },
+  clearWanted(){ wanted.clear(); },
+  toggleFoot(){ return toggleOnFoot(); },
+  skipCine(){ cine.cancel(); },
+  setCam(m){ camMode=(m|0)%3; cine.cancel(); },
+  setInput(obj){ proofInput=obj || null; },
 };
 window.__missions = missions;
 window.__crowd = crowd;   // Lane A seam for the party lane (spawnCrowd/clearCrowd)
