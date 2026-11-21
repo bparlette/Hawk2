@@ -24,9 +24,17 @@
     font-size:13px;font-weight:800;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.85);}
   #comboPill{display:none;margin-left:5px;padding:1px 6px;border-radius:6px;background:rgba(255,188,36,.94);
     color:#141824;font-size:11px;font-weight:900;vertical-align:1px;}
-  #nav{position:absolute;top:calc(74px + env(safe-area-inset-top));right:12px;width:58px;text-align:center;color:#fff;}
-  #arrow{display:inline-block;font-size:30px;color:#ffd23f;text-shadow:0 2px 8px rgba(0,0,0,.6);transition:transform .12s linear;}
-  #navdist{font-size:11px;font-weight:800;letter-spacing:.05em;text-shadow:0 1px 4px rgba(0,0,0,.8);}
+  /* DIRECTIONS — the original 2D Scaggsville pair (lf_compass.js orbiting
+     compass arrow + drawMissionHud's screen-edge arrow, main.js): a small gold
+     chevron orbits the car pointing at the next stop; when the stop is far a
+     bigger chevron rides the screen edge with a "Name · 0.0 mi" label under
+     it. Gold #ffd25c with the dark-plum #2a1430 outline, exactly as in 2D. */
+  #navOrbit{position:absolute;left:0;top:0;width:30px;height:30px;margin:-15px 0 0 -15px;pointer-events:none;visibility:hidden;
+    filter:drop-shadow(0 2px 5px rgba(0,0,0,.55));will-change:transform;}
+  #navEdge{position:absolute;left:0;top:0;width:42px;height:42px;pointer-events:none;visibility:hidden;will-change:transform;}
+  #navEdgeArrow{width:42px;height:42px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55));}
+  #navEdgeLabel{position:absolute;top:45px;left:50%;transform:translateX(-50%);font-size:11.5px;font-weight:800;
+    letter-spacing:.03em;color:#fff1d8;white-space:nowrap;text-shadow:0 1px 4px rgba(0,0,0,.9),0 0 8px rgba(0,0,0,.55);}
   #target{position:absolute;left:50%;top:calc(180px + env(safe-area-inset-top));transform:translateX(-50%);color:#fff;text-align:center;width:94%;
     font-size:13px;font-weight:700;text-shadow:0 1px 5px rgba(0,0,0,.9);pointer-events:none;}
   #target span{background:rgba(10,14,26,.55);border-radius:8px;padding:3px 10px;}
@@ -100,7 +108,8 @@
   <div id="title">SCAGGSVILLE 3D</div>
   <div id="wanted">☆☆☆☆☆</div>
   <div id="scoreHud"><span id="scoreVal">$0</span><span id="comboPill"></span></div>
-  <div id="nav"><div id="arrow">⬆</div><div id="navdist"></div></div>
+  <div id="navOrbit"><svg viewBox="0 0 40 40" width="30" height="30"><path d="M20 4 L33.5 31 L20 24 L6.5 31 Z" fill="#ffd25c" stroke="#2a1430" stroke-width="2.4" stroke-linejoin="round"/></svg></div>
+  <div id="navEdge"><div id="navEdgeArrow"><svg viewBox="0 0 40 40" width="42" height="42"><path d="M20 4 L33.5 31 L20 24 L6.5 31 Z" fill="#ffd25c" stroke="#2a1430" stroke-width="2.4" stroke-linejoin="round"/></svg></div><div id="navEdgeLabel"></div></div>
   <div id="target"><span></span></div>
   <div id="street"><span></span></div>
   <div id="banner"></div>
@@ -531,12 +540,14 @@ function pollInput(){
 /* ============================== HUD & ACTIONS ============================== */
 const speedEl=document.querySelector('#speed b'), rallyEl=document.getElementById('rally'),
       targetEl=document.querySelector('#target span'), bannerEl=document.getElementById('banner'),
-      arrowEl=document.getElementById('arrow'), navdistEl=document.getElementById('navdist'),
+      navOrbitEl=document.getElementById('navOrbit'), navEdgeEl=document.getElementById('navEdge'),
+      navEdgeArrowEl=document.getElementById('navEdgeArrow'), navEdgeLabelEl=document.getElementById('navEdgeLabel'),
       streetEl=document.getElementById('street'), streetSpan=document.querySelector('#street span'),
       turboRingEl=document.getElementById('turboRing'),
       wantedEl=document.getElementById('wanted'), scoreValEl=document.getElementById('scoreVal'),
       comboPillEl=document.getElementById('comboPill'), legHudEl=document.getElementById('legHud');
 const TURBO_RING_C = 2*Math.PI*36; // svg ring circumference (r=36)
+const _navV = new THREE.Vector3(); let lastNavLabel='';   // directions pair scratch
 if(turboRingEl){ turboRingEl.style.strokeDasharray=TURBO_RING_C; turboRingEl.style.strokeDashoffset=0; }
 function addScore(pts, label=''){
   if(!pts) return;
@@ -795,7 +806,7 @@ function animate(){
     down: !!_inp && (!!keys['KeyS'] || !!keys['ArrowDown'] || joyY > 0.55) });
   // Lane B polish: the driving/action buttons, driving HUD & minimap hide while inside a house
   if(interiors.active!==_btnHidden){ _btnHidden=interiors.active; const dsp=_btnHidden? 'none' : '';
-    for(const id of ['btnA','btnB','btnT','btnCam','btnFoot','btnRadio','btnTraffic','target','street','nav']) {
+    for(const id of ['btnA','btnB','btnT','btnCam','btnFoot','btnRadio','btnTraffic','target','street','navOrbit','navEdge']) {
       const el=document.getElementById(id); if(el) el.style.display=dsp;
     }
     const rToast=document.getElementById('radioToast'); if(rToast && _btnHidden) rToast.style.opacity='0';
@@ -1076,9 +1087,34 @@ function animate(){
     if(d<=220) cine.approach(1-THREE.MathUtils.clamp((d-17)/203, 0, 1));
     if(d<=20 && !approachLatch){ approachLatch=true; cine.approachEnd(); }
     if(d>60) approachLatch=false;
-    navdistEl.textContent = d>=1000? (d/1000).toFixed(2)+' km' : Math.round(d)+' m';
+    // DIRECTIONS (2D Scaggsville precedent): a gold chevron orbits the car at
+    // 104 px pointing at the target (lf_compass.js COMPASS.radius), and when
+    // the target is far a bigger chevron rides the screen edge with a
+    // "Name · 0.0 mi" label (drawMissionHud). Hidden inside the 20 m arrival
+    // range, on foot, and once the rally is finished (unless the night-party
+    // target is live) — the 2D rule: nothing worth pointing at, no arrow.
     const bearing=Math.atan2(t.sx-player.x, t.sz-player.z);
-    let rel=bearing-camYaw; arrowEl.style.transform=`rotate(${rel}rad)`;
+    const rel=bearing-(camYaw ?? player.heading);
+    const navOn = !onfoot.state.active && d>20 && (!finished || (missions && missions.navStop && missions.navStop()));
+    if(navOn){
+      const dirX=Math.sin(rel), dirY=-Math.cos(rel);
+      _navV.set(player.x, 1.2, player.z).project(camera);
+      const carX = _navV.z<1? (_navV.x*0.5+0.5)*innerWidth : innerWidth/2;
+      const carY = _navV.z<1? (-_navV.y*0.5+0.5)*innerHeight : innerHeight*0.55;
+      navOrbitEl.style.transform=`translate(${carX+dirX*104}px,${carY+dirY*104}px) rotate(${rel}rad)`;
+      if(navOrbitEl.style.visibility!=='visible') navOrbitEl.style.visibility='visible';
+      if(d>100){
+        const ex=innerWidth/2 + dirX*(innerWidth/2-42), ey=innerHeight/2 + dirY*(innerHeight/2-118);
+        navEdgeEl.style.transform=`translate(${ex}px,${ey}px) translate(-50%,-50%)`;
+        navEdgeArrowEl.style.transform=`rotate(${rel}rad)`;
+        const lbl=`${householdLabel(t.id)} · ${(d/1609.34).toFixed(1)} mi`;
+        if(lbl!==lastNavLabel){ lastNavLabel=lbl; navEdgeLabelEl.textContent=lbl; }
+        if(navEdgeEl.style.visibility!=='visible') navEdgeEl.style.visibility='visible';
+      } else if(navEdgeEl.style.visibility!=='hidden') navEdgeEl.style.visibility='hidden';
+    } else {
+      if(navOrbitEl.style.visibility!=='hidden') navOrbitEl.style.visibility='hidden';
+      if(navEdgeEl.style.visibility!=='hidden') navEdgeEl.style.visibility='hidden';
+    }
     const raceCp = activities.active && activities.active.kind==='race' ? activities.active.cps[activities.active.cpIdx] : null;
     minimap.update(dt, {
       px:player.x, pz:player.z, camYaw:camYaw ?? player.heading,
