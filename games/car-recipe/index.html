@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Photo-to-Game-Car Recipe — description → photos → fitted game asset</title>
+<meta name="description" content="The complete recipe an AI can execute: turn a one-line car description into a photo-fitted procedural game car — photo hunt, ruler grids, spec, verify loop, compare-sheet gate, fleet integration, and parking it in the Fleet Drive mini game.">
+<style>
+  :root{ --bg:#0b0f16; --panel:#131a26; --panel2:#0f1520; --line:#26324a; --text:#e8edf5; --muted:#9fb0c7; --accent:#ffc44d; --blue:#5ea0ff; --green:#7dd87d; }
+  *{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.55; }
+  .wrap{ max-width:860px; margin:0 auto; padding:20px 16px 64px; }
+  h1{ font-size:26px; line-height:1.25; margin:8px 0 6px; }
+  h2{ font-size:20px; margin:34px 0 8px; padding-top:18px; border-top:1px solid var(--line); }
+  h3{ font-size:16px; margin:18px 0 6px; }
+  p, li{ font-size:15px; }
+  .sub{ color:var(--muted); font-size:15px; margin:0 0 14px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:14px 0; }
+  .warn{ border-color:#6b5320; background:#1d1808; }
+  code{ background:#0a0e14; border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:13px; word-break:break-word; }
+  pre{ background:#0a0e14; border:1px solid var(--line); border-radius:10px; padding:12px; overflow-x:auto; font-size:12.5px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+  pre code{ background:none; border:none; padding:0; }
+  table{ width:100%; border-collapse:collapse; margin:10px 0; font-size:14px; }
+  th, td{ border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; }
+  th{ background:var(--panel); }
+  a{ color:var(--blue); }
+  img.shot{ width:100%; height:auto; border:1px solid var(--line); border-radius:10px; display:block; margin:10px 0 4px; }
+  .cap{ color:var(--muted); font-size:13px; margin:0 0 12px; }
+  .step{ color:var(--accent); }
+  .gate{ border-color:#7a2d2d; background:#1d0f0f; }
+  ul, ol{ padding-left:22px; }
+  li{ margin:4px 0; }
+  .foot{ color:var(--muted); font-size:13px; margin-top:40px; border-top:1px solid var(--line); padding-top:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🚗 Photo-to-Game-Car Recipe</h1>
+<p class="sub">Description → photos → fitted game asset. The complete pipeline an AI can execute from scratch to turn a one-line car description into a procedural Three.js game car that measurably matches the real car — no Blender, no hand modelling. Proven end-to-end on 2026-11-20 across an 11-car fleet photo harvest and two fully fitted cars.</p>
+
+<div class="card">
+<h3 style="margin-top:0">The tooling</h3>
+<ul>
+<li><code>gpcar_loft.js</code> — the generic procedural car builder: one continuous multi-station loft body, strip-lofted greenhouse, fascia stacks, working pop-up headlights, wheels. A car is a <strong>spec</strong> (a JSON data object) fed to <code>buildLoftedCar(spec)</code>. Public copies ship inside the worked-example folders below (e.g. <a href="https://bparlette.github.io/Hawk2/games/scaggsville-3d/bakeoff-celica/gpcar_loft.js">the Celica bake-off's copy</a>).</li>
+<li><code>fit_car.py</code> — zero-dependency Python 3 CLI (headless Chrome): <code>analyze</code> lays calibrated ruler grids over your photos; <code>verify</code> renders your spec at the photos' angles and stitches side-by-side sheets. It lives with the builder in the <em>gamepress</em> kit (<code>kit/gpcar_loft.js</code> + <code>tools/car-fitter/</code>) — ask the page owner for the kit, or work from a bake-off folder's builder copy plus any headless-Chrome screenshot script.</li>
+<li>Builder conventions: <code>+Z</code> forward, <code>+Y</code> up, <code>+X</code> driver-left, <strong>1 unit = 1 metre</strong>.</li>
+</ul>
+</div>
+
+<h2><span class="step">Step 0</span> — Input: the one-line description + canon overrides</h2>
+<p>You start with exactly this, nothing more:</p>
+<div class="card"><strong>Year, make, model, trim, colour.</strong> Example: “1987 Toyota Celica GT, blue, pop-up headlights, blue headlight beams.”</div>
+<p>Before hunting photos, write down the <strong>canon overrides</strong> — the facts that beat anything the photos show. Photos prove <em>shape</em>; canon decides <em>presentation</em>:</p>
+<ul>
+<li><strong>Paint</strong> — the in-game colour or scheme, even when every reference photo is a different colour. A two-tone fade is specified as endpoints + axis (the Camaro below: white holds from the nose to the windshield line, full maroon by the rear — a <strong>front-to-back</strong> fade along the car's length, never a top/bottom split).</li>
+<li><strong>Beam colour</strong> — headlight colour is part of the spec from the start (house spec: hero yellow <code>0xffb800</code>, the Celica's blue <code>0x0066ff</code>, default warm white <code>0xffd9a8</code>; lens emissiveIntensity 3.4, front halo cards opacity 0.95 FrontSide only, road pool opacity 0.34, rear untouched). Never ship stock lamps and fix them later.</li>
+<li><strong>Special states</strong> — pop-up headlights (up <em>and</em> down), cop light bar, underglow, T-tops, burnt/wrecked condition. Each changes geometry, so each must be photographed or explicitly described.</li>
+</ul>
+<p>If the description and the only available photos disagree on year or generation, that is a decision point for the human — not a detail to smooth over (see Step 1).</p>
+
+<h2><span class="step">Step 1</span> — Photo hunt: find the angles before touching the tooling</h2>
+<h3>Where to look, in the order that worked</h3>
+<ol>
+<li><strong>Auction and dealer listings of one single car</strong> — Hemmings, Bring a Trailer, Cars &amp; Bids, dealer turntable shoots. A single-car listing shoot is gold: every angle is the <em>same car</em>, same trim, same wheels, often 1920×1280 or better, downloadable from the listing's image CDN.</li>
+<li><strong>Wikimedia Commons</strong> — good for common cars, provenance recorded free.</li>
+<li>Specialist archives as a fallback. If a listing's CDN blocks every download route, record it as a lead in SOURCES.md and move on — do not settle for thumbnails.</li>
+</ol>
+<h3>Required angle set (the file names the tooling expects)</h3>
+<table>
+<tr><th>File</th><th>Why it's required</th></tr>
+<tr><td><code>front34.jpg</code></td><td>Hero angle; nose taper, fender shoulders, lamp wrap</td></tr>
+<tr><td><code>side.jpg</code></td><td>The money shot: wheelbase, overhangs, beltline, glass rake</td></tr>
+<tr><td><code>rear34.jpg</code></td><td>Hatch/deck slope, tail panel, rear stance</td></tr>
+<tr><td><code>front.jpg</code></td><td>Width, tumblehome, full front fascia stack</td></tr>
+<tr><td><code>rear.jpg</code></td><td>Tail-panel segmentation, plate width (your rear ruler)</td></tr>
+<tr><td><code>detail-headlights-up.jpg</code></td><td>Mandatory if the car has pop-ups: pods up <strong>and lit</strong></td></tr>
+<tr><td><code>detail-wheel.jpg</code></td><td>Spoke count/style, rim-to-tyre ratio, side markers</td></tr>
+</table>
+<p><strong>Minimum useful resolution:</strong> ~1280 px on the long edge. Below that, the ruler grids in Step 2 stop being trustworthy for fascia details.</p>
+<h3>Provenance discipline — a SOURCES.md in every car's folder</h3>
+<ul>
+<li>Source listing/site, seller, date downloaded, and a per-file table (file → angle → source image ID where the CDN gives one). The exact car photographed: year, trim, mileage, VIN when listed.</li>
+<li><strong>Trim/generation caveats, stated plainly.</strong> Real examples from the fleet harvest: the Celica set is a <strong>GT-S</strong> standing in for the GT — same T160 shell, so usable, and the SOURCES.md says so. The Mercury Tracer set turned out to be the <strong>1997–99 third generation, not the 1991–96 car</strong> in the fleet entry — flagged as an open question for the owner, <em>not</em> silently modelled. The Cavalier set is base trim with <strong>unpainted grey bumpers</strong> — a painted-bumper model would be the wrong car.</li>
+<li><strong>One car, one shoot.</strong> Never mix angles from different cars or listings into one reference set; a set that mixes cars fits nothing.</li>
+<li>A wrong-generation or wrong-trim set gets <strong>FLAGGED, never silently used</strong>.</li>
+<li>The photos' paint colour is data about the <em>photographed</em> car only. Canon paint (Step 0) always wins.</li>
+</ul>
+
+<h2><span class="step">Step 2</span> — Analyze: ruler grids and what to measure</h2>
+<pre><code>python3 fit_car.py analyze \
+  --photos /path/to/car-real/my-car \
+  --out /path/to/work-dir</code></pre>
+<p>Outputs <code>grid-side.png</code>, <code>grid-front.png</code>, <code>grid-rear.png</code> (photos overlaid with 5% minor / 10% major ruler grids) and a starter <code>car-spec.json</code>.</p>
+<p><strong>Your rulers</strong> — photos have no scale bar, so the car provides two:</p>
+<ul>
+<li><strong>Wheel/tyre outer diameter</strong> — the primary ruler, from the side view. ≈ 0.60–0.64 m for 80s coupes/sedans, 0.68–0.76 m for trucks/SUVs. Measure it in grid units, derive metres-per-unit, and every other measurement follows. The wheel close-up also gives the rim-to-tyre ratio (the Celica fit used 0.68 — measured, not guessed).</li>
+<li><strong>Licence-plate width</strong> — the rear ruler (a US plate is 0.305 m wide). The winning Celica tail panel was measured off plate width.</li>
+</ul>
+<p><strong>Measure, in this order:</strong></p>
+<ol>
+<li>From the side grid: length, wheelbase, front/rear wheel positions, wheel radius; then trace 7–10 <strong>body stations</strong> (position, bottom/belt/deck heights) from rear bumper to nose; then the <strong>greenhouse</strong> trace — windshield rake, roof length and height, B-pillar position, hatch slope. Set z = 0 at the car's midpoint, y = 0 at the tyre ground-contact line.</li>
+<li>From the front grid: overall width, per-station widths and crown (tumblehome), and the <strong>front fascia stack</strong> in vertical order — hood line → grille/lamp band → bumper + rub strip → lower intake → chin spoiler. The stack <em>rhythm</em> matters more than any single part.</li>
+<li>From the rear grid: rear widths, <strong>tail-panel segmentation</strong> (how many lamp sections, where the black centre panel and plate recess sit, where the amber outers end), spoiler, exhaust position.</li>
+<li>From the 3/4 views: plan-view nose/tail taper, corner-lamp wrap, fender shoulders, glass tint contrast.</li>
+</ol>
+
+<h2><span class="step">Step 3</span> — Spec: authoring the car for the loft builder</h2>
+<p>The spec is one JSON object. <strong>The schema is <code>DEFAULT_CAR_SPEC</code> at the top of <code>gpcar_loft.js</code></strong> — every field is commented inline; read it there. Do not expect <code>analyze</code>'s starter spec to carry you: it contains dimensions and paint only, so author the full spec against <code>DEFAULT_CAR_SPEC</code> yourself.</p>
+<ul>
+<li><code>meta</code>, <code>dims</code> — identity + the Step 2 measurements.</li>
+<li><code>paint</code> — colour, clearcoat/roughness, and <code>paint.split</code> for a longitudinal two-tone <strong>vertex-colour fade</strong> (no textures, no UVs; baked into geometry, survives clearcoat).</li>
+<li><code>bodyStations</code> — the loft. This <em>is</em> the silhouette; wheel arches are carved into the loft, never bolted on.</li>
+<li><code>greenhouse</code> — glass lofted on the same stations as the body so it never floats or overlaps. Glass spec: rear glass opacity ~0.84–0.88, front/side ~0.52–0.62, darker at the rear; always judge glass with an interior tub behind it. Options include a body-coloured sail pillar and T-tops.</li>
+<li><code>frontFascia</code> — grille, corner lamps, lower intake, chin spoiler, and <em>either</em> working pop-ups (both states, with lamp/beam colours) <em>or</em> fixed recessed lamp pockets (the Camaro pattern: quad pockets, painted nose bridge, fog lamps in the grille slot, signals outboard).</li>
+<li><code>rearFascia</code> — tail panel (styled variants include a Camaro grid), spoiler/wing, exhaust, mud flaps.</li>
+<li><code>trim</code> — side rub strip, rocker skirt, door handles, side markers, hood louvers where the real car has them.</li>
+<li><code>wheels</code> — spoke count/style, rim ratio, rim and tyre colours.</li>
+</ul>
+<div class="card warn"><strong>⚠️ Trap field:</strong> <code>frontFascia.popups.ySurface</code> exists in the schema but is <strong>never read by the builder</strong> — pod height is sampled from the body stations. A fitting AI can burn a whole verify round on it. Set pod height via the stations at the pod's position.</div>
+
+<h2><span class="step">Step 4</span> — Verify loop: iterate against the photos</h2>
+<pre><code>python3 fit_car.py verify \
+  --spec /path/to/car-spec.json \
+  --photos /path/to/car-real/my-car \
+  --out /path/to/out-dir \
+  --mode studio</code></pre>
+<p>Outputs a render per angle, a side-by-side compare per angle (real photo left, your fit right), and a master compare sheet.</p>
+<ul>
+<li><strong>Up to 3 rounds.</strong> Judge each round at full size against the photos. Round 1 fixes stations/greenhouse; later rounds fix fascia and trim.</li>
+<li><strong>Judging checklist, in order:</strong> (1) side — arches, overhangs, nose height, windshield angle, roof length, hatch slope, tail height. (2) front — fascia stack rhythm; the <strong>chin tucks <em>under</em> the bumper</strong> (a chin projecting forward as a visible tray lip is the classic miss); pop-up pods sit <strong>flush and low</strong>, not tall blocks; glass darkness vs the photos. (3) rear — <strong>tail-panel segmentation</strong>; simplified red blocks are the classic miss.</li>
+<li>Shared ceilings not to chase: the builder's amber lens material renders pale peach under studio light in <em>every</em> fit; mirrors are builder-black in every fit.</li>
+<li>The compare panes use <code>object-fit: cover</code>, so pane <em>fill</em> differs between photo and render — <strong>judge shape, not frame fill</strong>.</li>
+<li>Expect ~2–5 minutes per verify on a software-GL machine; fully unattended. On a Linux box with no system Chrome, the tool's Chrome lookup only tries macOS app paths and <code>google-chrome</code>/<code>chromium</code> on PATH — a one-line wrapper on PATH pointing at Playwright's headless shell with <code>--no-sandbox</code> fixes it with <strong>zero edits to the tool</strong> (proven in the second-AI run).</li>
+</ul>
+
+<h2><span class="step">Step 5</span> — The side-by-side compare: the shipping gate</h2>
+<div class="card gate">
+<p style="margin-top:0">The verify loop produces the sheet; this step is the <strong>formal judgement</strong> of it — a gate, not a formality.</p>
+<ol>
+<li>Render the <strong>matched-angle compare sheet</strong>: your fitted car against the real photos at the <strong>same six angles</strong> (front 3/4 pop-ups down · side profile · rear 3/4 · straight front pop-ups down · straight front pop-ups up &amp; lit · straight rear), in the <strong>same harness and lighting</strong> for every column.</li>
+<li><strong>View it full-size and judge it before anything ships.</strong> Nothing integrates — no fleet row, no game — until the sheet has been looked at, full-size, against the Step 4 checklist. A sheet that was generated but never viewed is not a passed gate.</li>
+<li><strong>One column per fit.</strong> When more than one AI fits the same car, the sheet gains a column per fit — <code>REAL | AI-1 | AI-2</code> — all rendered through the identical harness, and the scorecard is written angle by angle (who wins the rear, who wins the front, where it's a tie).</li>
+<li>The human picks the winner (or the parts of each). Only the winning spec goes on to Step 6.</li>
+</ol>
+</div>
+<img class="shot" src="https://bparlette.github.io/Hawk2/games/scaggsville-3d/bakeoff-celica-moth/compare-sheet-3col.png" alt="Three-way compare sheet: real Celica photo, Neon's fit, Moth's fit, six matched angles">
+<p class="cap">The three-way Celica sheet — REAL | NEON | MOTH, six matched angles, one harness. Scorecard: rear → Moth (measured tail panel); front → Neon (chin tuck); side + pop-ups → tie.</p>
+
+<h2><span class="step">Step 6</span> — Game asset: from proof sheet to the fleet</h2>
+<ol>
+<li><strong>Route the car's row through the loft builder</strong> in the shared fleet module. The car's data row carries its spec; every other car's row stays byte-identical.</li>
+<li><strong>Keep the fleet interface intact:</strong> wheels array, <code>updateWheels(speed, steer, dt)</code> (mind the steer sign convention), a <code>driverAnchor</code> so the seated driver figure sits correctly, and <code>setPopups()</code> where the car has them.</li>
+<li><strong>Beams are per-row data</strong>, applied by the shared lamp treatment — lens emissive 3.4, FrontSide halo 0.95, road pool 0.34, rear untouched.</li>
+<li><strong>Cost note:</strong> a loft car is ~170 draw calls / ~14k tris. That's a <strong>hero-car</strong> budget — the player's car and named crew cars, yes; background traffic, no.</li>
+<li>Verify in-game, not just in the viewer: full lineup render with zero errors, plus a capture of the car <em>in the game world with its driver seated</em>, before calling it integrated.</li>
+</ol>
+
+<h2><span class="step">Step 7</span> — Worked examples (live)</h2>
+<h3>Rigg's Celica — 1987 Toyota Celica GT (T160), blue, blue beams</h3>
+<p>Photo set: 1986 GT-S liftback turntable shoot (GT-S = same shell; caveat in SOURCES.md).</p>
+<ul>
+<li><a href="https://bparlette.github.io/Hawk2/games/scaggsville-3d/bakeoff-celica/">Neon's fit — interactive viewer</a> (the one that went into the fleet)</li>
+<li><a href="https://bparlette.github.io/Hawk2/games/scaggsville-3d/bakeoff-celica-moth/">Second AI's independent fit — interactive viewer</a> (same tooling, same photos, run cold from the docs)</li>
+<li><a href="https://bparlette.github.io/Hawk2/games/scaggsville-3d/bakeoff-celica-moth/compare-sheet-3col.png">Three-way sheet (REAL | NEON | MOTH)</a></li>
+</ul>
+<h3>Brad's Camaro — 1987 Chevrolet Camaro IROC-Z, white→maroon fade, yellow beams</h3>
+<p>Photo set: Hemmings turntable shoot of a 3,800-mile car (burgundy car; the canon fade applies on top). Built with the template's muscle-car extensions: split fade paint, fixed recessed lamp pockets, sail pillar + T-tops, hood louvers, grid tail panel, wing spoiler, IROC five-spoke wheels.</p>
+<ul>
+<li><a href="https://bparlette.github.io/Hawk2/games/bunny-hop/bakeoff-brad/loft.html">Loft viewer</a></li>
+<li><a href="https://bparlette.github.io/Hawk2/games/bunny-hop/bakeoff-brad/fitter-out/compare-sheet.png">Five-angle side-by-side sheet</a></li>
+</ul>
+<img class="shot" src="https://bparlette.github.io/Hawk2/games/bunny-hop/bakeoff-brad/camaro-dusk-beams.png" alt="The fitted Camaro at dusk with its yellow beams on">
+<p class="cap">The fitted Camaro at dusk, beams on — 169 draw calls, 13,732 tris, zero Blender.</p>
+
+<h2><span class="step">Step 8</span> — Gotchas (each one cost real time on 2026-11-20)</h2>
+<ul>
+<li><strong>Git connectors corrupt binary files</strong> — write paths that take text strings will mangle PNGs. Compare sheets and hero images go up by browser web-upload or stay out of git. Text (specs, code, docs) pushes normally.</li>
+<li><strong>A push is not proof.</strong> After every push, read the file back and compare byte size + a changed string — a stale local snapshot can land the old file while reporting success.</li>
+<li><strong>A deploy is not live until the served bytes say so.</strong> Pages hosting lags minutes, and a single fetch during propagation can return a stale copy — re-fetch before declaring anything “not live”, and verify the served file before declaring it live.</li>
+<li><strong>Branch is not main.</strong> Check which branch a collaborator's push landed on before calling anything shipped.</li>
+<li><strong>Parallel builders, same file = clobber.</strong> Re-base onto the current tip and diff before pushing.</li>
+<li><strong>A visible anomaly is a stop-and-check, never a footnote</strong> — in a compare sheet, in a render, anywhere. If it looks wrong, it is wrong until proven otherwise.</li>
+</ul>
+
+<h2><span class="step">Step 9</span> — Park it in the mini game</h2>
+<div class="card">
+<p style="margin-top:0"><strong>Final step — the recipe isn't done until the car is in the lot.</strong></p>
+<p>Every completed fitted car gets added to <strong>Fleet Drive</strong>, the mini game at <a href="https://bparlette.github.io/Hawk2/games/fleet-drive/">Hawk2 <code>games/fleet-drive/</code></a> (built on the Bunny Hop world — same street, canal and bridge). The lot is where fitted cars live once they're done: parked in a row, and <strong>drivable</strong> — walk up, get in, drive it.</p>
+<ul>
+<li>A car enters the game as <strong>one data entry: <code>{ name, spec }</code></strong> — the display name plus the exact spec object that passed the Step 5 compare gate. No re-modelling, no second copy of the geometry code: Fleet Drive builds every car in the lot from its spec through the same loft builder.</li>
+<li>Canon presentation travels with the spec — paint/fade and beam colour are already in it (Steps 0 and 3), so the parked car is the approved car.</li>
+<li>Adding a car = appending its <code>{ name, spec }</code> entry to the lot's car list, then verifying it appears in the row, parked, with beams and pop-up state working — and that it drives.</li>
+<li>A fitted, gated, fleet-integrated car that never got parked is unfinished work.</li>
+</ul>
+</div>
+
+<h2>Starter prompt — hand this to your AI</h2>
+<pre><code>Build me a game car from photos using the photo-to-game-car recipe.
+
+THE CAR: &lt;YEAR&gt; &lt;MAKE&gt; &lt;MODEL&gt; &lt;TRIM&gt;, &lt;COLOUR&gt;.
+CANON OVERRIDES (these beat the photos): paint = &lt;paint or fade spec&gt;;
+headlight beam colour = &lt;hex or "default warm white"&gt;;
+special states = &lt;pop-ups / light bar / underglow / none&gt;.
+
+RECIPE: follow the photo-to-game-car recipe page
+(https://bparlette.github.io/Hawk2/games/car-recipe/ — full text in the
+gamepress repo as docs/PHOTO-TO-GAME-CAR-RECIPE.md; tooling:
+kit/gpcar_loft.js + tools/car-fitter/). In order:
+1. Hunt a single-car photo set with the required angles (front 3/4, side,
+   rear 3/4, straight front, straight rear, pop-ups-up if it has them,
+   wheel close-up). Write SOURCES.md with provenance and any
+   trim/generation caveats. If the only set is the wrong generation or
+   trim, FLAG it and stop for my decision — never use it silently.
+2. Run fit_car.py analyze; measure with the wheel diameter as your ruler
+   (plate width at the rear).
+3. Author the full spec against DEFAULT_CAR_SPEC in gpcar_loft.js
+   (beware the dead popups.ySurface field).
+4. Run fit_car.py verify and iterate up to 3 rounds against the judging
+   checklist. Then render the matched-angle compare sheet (my car vs the
+   real photos, same six angles, same harness/lighting; one column per
+   fit if more than one AI fits it) and show it to me full-size. Nothing
+   integrates until the sheet has been viewed and approved.
+5. Only after I approve the sheet, integrate the spec into the fleet
+   module, keeping the fleet interface (wheels, updateWheels,
+   driverAnchor, beams per row), and show me the car in-game with its
+   driver seated.
+6. Finally, park it in the mini game: add one { name, spec } entry to
+   Fleet Drive (Hawk2 games/fleet-drive/) and verify the car sits in the
+   lot and drives. The job isn't done until the car is in the lot.
+Photos prove shape; my canon paint and beams win. A visible anomaly in
+any sheet is a stop-and-check, never a footnote.</code></pre>
+
+<p class="foot">Photo-to-Game-Car Recipe · Written 2026-11-20 from the Scaggsville fleet build (Neon's car-fitter tooling, Moth's second-AI run, braidpairlette's Mac pushes). Canonical text: gamepress <code>docs/PHOTO-TO-GAME-CAR-RECIPE.md</code>; companion: <code>docs/CAR-BUILD-LESSONS.md</code>.</p>
+
+</div>
+</body>
+</html>
