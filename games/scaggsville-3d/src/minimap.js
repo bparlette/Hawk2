@@ -55,7 +55,7 @@ export function createMinimap(D, parent = document.body) {
     if (timer > 0) return;
     timer = 0.05; // 20 Hz smooth & ultra-cheap
 
-    const { px, pz, camYaw, targetStop, followers = [], cops = [], ramps = [], wantedStars = 0, flashPhase = 0 } = state;
+    const { px, pz, camYaw, targetStop, followers = [], cops = [], ramps = [], flares = [], raceCp = null, wantedStars = 0, flashPhase = 0 } = state;
 
     // Wanted border pulse (GTA V classic red/blue radar flash)
     if (wantedStars > 0) {
@@ -123,12 +123,27 @@ export function createMinimap(D, parent = document.body) {
       ctx.stroke();
     }
 
-    // 3. Stunt Ramps (orange diamond pips)
+    // 3. Stunt Ramps (orange pips) + Side Activities (purple races / cyan drift zones)
     ctx.fillStyle = '#ff9922';
     for (const rm of ramps) {
       if (Math.hypot(rm.x - px, rm.z - pz) > RANGE) continue;
       const [rx, ry] = toRadar(rm.x, rm.z);
       ctx.fillRect(rx - 3.5, ry - 3.5, 7, 7);
+    }
+    for (const fl of flares) {
+      if (Math.hypot(fl.x - px, fl.z - pz) > RANGE * 1.1) continue;
+      const [rx, ry] = toRadar(fl.x, fl.z);
+      ctx.fillStyle = fl.kind === 'race' ? '#c864ff' : '#38e0ff';
+      ctx.beginPath();
+      ctx.moveTo(rx, ry - 6); ctx.lineTo(rx + 6, ry); ctx.lineTo(rx, ry + 6); ctx.lineTo(rx - 6, ry);
+      ctx.closePath(); ctx.fill();
+    }
+    if (raceCp) {
+      const [rx, ry] = toRadar(raceCp.x, raceCp.z);
+      const d = Math.hypot(rx - CX, ry - CY);
+      const sc = d > 96 ? 96 / d : 1;
+      ctx.strokeStyle = '#ff66ff'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(CX + (rx - CX) * sc, CY + (ry - CY) * sc, 7, 0, Math.PI * 2); ctx.stroke();
     }
 
     // 4. Convoy Followers (cyan dots)

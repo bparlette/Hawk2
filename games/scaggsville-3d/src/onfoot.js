@@ -17,10 +17,14 @@ export function createOnFoot(ctx) {
   const state = {
     active: false,
     x: 0,
+    y: 0,
+    vy: 0,
     z: 0,
     heading: 0,
     speed: 0,
     phase: 0,
+    onRoof: false,
+    rollTimer: 0,
     avatar: null,
     avatarId: null,
     // Record of all parked vehicles placed in the world when player swaps rides
@@ -52,6 +56,8 @@ export function createOnFoot(ctx) {
 
     // Leave active car parked at its exact spot
     if (playerVeh) {
+      playerVeh.group.position.set(player.x, 0, player.z);
+      playerVeh.group.rotation.set(0, player.heading, 0);
       if (playerVeh._driver) playerVeh._driver.group.visible = false;
       playerVeh.setLights && playerVeh.setLights({ brake: false, reverse: false, nightK: 0.2 });
       state.leftCars.push({
@@ -66,14 +72,18 @@ export function createOnFoot(ctx) {
     // Spawn player's dressed avatar beside driver's door (+X left side)
     const av = ensureAvatar(initialAvatarId || playerCarId);
     const ch = Math.cos(player.heading), sh = Math.sin(player.heading);
-    state.x = player.x + ch * 1.45;
-    state.z = player.z - sh * 1.45;
+    state.x = player.x + ch * 1.55;
+    state.y = 0;
+    state.vy = 0;
+    state.z = player.z - sh * 1.55;
     state.heading = player.heading;
     state.speed = 0;
     state.phase = 0;
+    state.onRoof = false;
+    state.rollTimer = 0;
     state.active = true;
     av.group.position.set(state.x, 0, state.z);
-    av.group.rotation.y = state.heading;
+    av.group.rotation.set(0, state.heading, 0);
     av.group.visible = true;
 
     player.onFoot = true;
@@ -82,7 +92,7 @@ export function createOnFoot(ctx) {
     return true;
   }
 
-  function findNearestVehicle({ parkedVehs, followers, traffic, playerCarId }) {
+  function findNearestVehicle({ parkedVehs, followers, traffic, wanted, playerCarId }) {
     let best = null;
     let bestD = 5.4;
 
@@ -110,7 +120,20 @@ export function createOnFoot(ctx) {
       }
     }
 
-    // 3. Live AI traffic cars (nearby or slowed/stopped — GTA carjack!)
+    // 3. Active Howard County Police Cruisers (GTA cop-car hijack!)
+    if (wanted && wanted.cops) {
+      for (let i = 0; i < wanted.cops.length; i++) {
+        const cop = wanted.cops[i];
+        if (!cop.active) continue;
+        const d = Math.hypot(cop.state.x - state.x, cop.state.z - state.z);
+        if (d < bestD + 0.8) {
+          bestD = d;
+          best = { kind: 'cop', cop, x: cop.state.x, z: cop.state.z, heading: cop.state.heading, name: 'Howard County PD Cruiser', dist: d };
+        }
+      }
+    }
+
+    // 4. Live AI traffic cars (nearby or slowed/stopped — GTA carjack!)
     if (traffic && traffic.cars) {
       for (const tc of traffic.cars) {
         if (!tc.active || tc.hijacked) continue;
@@ -142,6 +165,25 @@ export function createOnFoot(ctx) {
       chosenCarId = target.carId;
       // Leave it parked? No, player is taking it — seat player's avatar or car owner
       delete parkedVehs[target.carId];
+    } else if (target.kind === 'cop') {
+      const cop = target.cop;
+      cop.active = false;
+      cop.meshObj.group.visible = false;
+      chosenVeh = buildVehicle({
+        ...VEHICLE_ROWS.sedanGrey,
+        paint: 0xf0f4f8,
+        paint2: 0x162442,
+        twoTone: 'band',
+        lightBar: true,
+        name: 'Howard County PD Cruiser',
+      });
+      chosenVeh.isCopCar = true;
+      chosenVeh.group.position.set(cop.state.x, 0, cop.state.z);
+      chosenVeh.group.rotation.y = cop.state.heading;
+      scene.add(chosenVeh.group);
+      chosenCarId = 'hcpd_cruiser';
+      if (wanted) wanted.addHeat(30, 'COP CAR STOLEN!');
+      if (onHijack) onHijack({ name: 'Howard County PD Cruiser', isCopCar: true });
     } else if (target.kind === 'traffic') {
       const tc = target.trafficCar;
       tc.hijacked = true;
@@ -181,20 +223,73 @@ export function createOnFoot(ctx) {
     return { veh: chosenVeh, carId: chosenCarId };
   }
 
+  function collectVehicleBoxes(deps) {
+    const boxes = [];
+    for (const lc of state.leftCars) boxes.push({ x: lc.x, z: lc.z, h: lc.heading, hw: 1.02, hl: 2.35, roofH: 1.24 });
+    if (deps?.parkedVehs) {
+      for (const veh of Object.values(deps.parkedVehs)) {
+        const p = veh.group.position;
+        boxes.push({ x: p.x, z: p.z, h: veh.group.rotation.y, hw: 1.02, hl: 2.35, roofH: 1.24 });
+      }
+    }
+    if (deps?.traffic?.cars) {
+      for (const tc of deps.traffic.cars) {
+        if (tc.active && !tc.hijacked && Math.hypot(tc.x - state.x, tc.z - state.z) < 12) {
+          boxes.push({ x: tc.x, z: tc.z, h: tc.heading, hw: 0.98, hl: 2.25, roofH: 1.22 });
+        }
+      }
+    }
+    if (deps?.wanted?.cops) {
+      for (const cop of deps.wanted.cops) {
+        if (cop.active && Math.hypot(cop.state.x - state.x, cop.state.z - state.z) < 12) {
+          boxes.push({ x: cop.state.x, z: cop.state.z, h: cop.state.heading, hw: 1.02, hl: 2.35, roofH: 1.28 });
+        }
+      }
+    }
+    return boxes;
+  }
+
+  let vaultLatch = false;
+  function triggerVaultOrRoll(deps) {
+    if (!state.active || state.rollTimer > 0) return false;
+    const boxes = collectVehicleBoxes(deps);
+    for (const b of boxes) {
+      if (Math.hypot(b.x - state.x, b.z - state.z) < 2.85 && !state.onRoof) {
+        state.x += (b.x - state.x) * 0.42;
+        state.z += (b.z - state.z) * 0.42;
+        state.y = b.roofH;
+        state.vy = 2.6;
+        state.onRoof = true;
+        return 'vault';
+      }
+    }
+    state.rollTimer = 0.36;
+    return 'roll';
+  }
+
   function update(dt, input, camYaw, player, poseIdle, poseWalk, deps) {
     if (!state.active || !state.avatar) return;
+
+    if (input.handbrake) {
+      if (!vaultLatch) { vaultLatch = true; triggerVaultOrRoll(deps); }
+    } else {
+      vaultLatch = false;
+    }
 
     // Camera-relative GTA movement
     const moveFwd = (input.throttle || 0) - (input.brake ? 1 : 0);
     const moveRight = input.steer || 0;
     const mag = Math.hypot(moveFwd, moveRight);
 
-    if (mag > 0.12) {
+    if (state.rollTimer > 0) {
+      state.rollTimer = Math.max(0, state.rollTimer - dt);
+      const rollSpd = 8.8;
+      state.x += Math.sin(state.heading) * rollSpd * dt;
+      state.z += Math.cos(state.heading) * rollSpd * dt;
+      state.speed = rollSpd;
+    } else if (mag > 0.12) {
       const nFwd = moveFwd / mag, nRight = moveRight / mag;
-      // Camera looks along (sin(camYaw), cos(camYaw)); screen-right is (cos(camYaw), -sin(camYaw))
-      // Wait: world +heading moves along (sin h, cos h). Turning right subtracts from heading.
       const sx = Math.sin(camYaw), cz = Math.cos(camYaw);
-      const rx = -cz, rz = sx; // wait check right vector of forward(sx, cz): cross((sx,0,cz), (0,1,0)) = (-cz, 0, sx)? Let's verify: forward=(0,0,1) -> +Z south, up=(0,1,0). In THREE right-handed: +X is left or right? If cam is behind car looking +Z, screen right is -X = (-cz, sx)!
       const wx = sx * nFwd - cz * nRight;
       const wz = cz * nFwd + sx * nRight;
       const moveH = Math.atan2(wx, wz);
@@ -205,12 +300,6 @@ export function createOnFoot(ctx) {
       state.z += wz * state.speed * dt;
       state.heading = moveH;
 
-      // Keep pedestrian out of building walls
-      const pTmp = { x: state.x, z: state.z, speed: state.speed, vLat: 0 };
-      collide(pTmp, world.colliders, 0.45);
-      state.x = pTmp.x;
-      state.z = pTmp.z;
-
       state.phase += dt * (input.boost ? 12.5 : 8.5);
       poseWalk(state.avatar, state.phase);
     } else {
@@ -218,10 +307,60 @@ export function createOnFoot(ctx) {
       poseIdle(state.avatar, performance.now() / 1000);
     }
 
-    state.avatar.group.position.set(state.x, 0, state.z);
-    state.avatar.group.rotation.y = state.heading;
+    // Keep pedestrian out of building walls
+    const pTmp = { x: state.x, z: state.z, speed: state.speed, vLat: 0 };
+    collide(pTmp, world.colliders, 0.45);
+    state.x = pTmp.x;
+    state.z = pTmp.z;
+
+    // Solid vehicle body collision + roof-standing physics!
+    const boxes = collectVehicleBoxes(deps);
+    let supportY = 0;
+    for (const b of boxes) {
+      const dx = state.x - b.x, dz = state.z - b.z;
+      const ch = Math.cos(b.h), sh = Math.sin(b.h);
+      const lx = dx * ch - dz * sh;
+      const lz = dx * sh + dz * ch;
+      const rx = b.hw + 0.28, rz = b.hl + 0.28;
+      if (Math.abs(lx) < rx && Math.abs(lz) < rz) {
+        if (state.y >= b.roofH - 0.35) {
+          supportY = Math.max(supportY, b.roofH);
+        } else {
+          // Push smoothly outside the nearest side of the car
+          const penX = rx - Math.abs(lx), penZ = rz - Math.abs(lz);
+          let nlx = lx, nlz = lz;
+          if (penX < penZ) nlx = Math.sign(lx || 1) * rx;
+          else nlz = Math.sign(lz || 1) * rz;
+          state.x = b.x + nlx * ch + nlz * sh;
+          state.z = b.z - nlx * sh + nlz * ch;
+        }
+      }
+    }
+
+    // Vertical gravity & roof drop
+    if (state.y > supportY || state.vy > 0) {
+      state.vy -= 18 * dt;
+      state.y += state.vy * dt;
+      if (state.y <= supportY) {
+        state.y = supportY;
+        state.vy = 0;
+      }
+    } else {
+      state.y = supportY;
+      state.vy = 0;
+    }
+    state.onRoof = state.y > 0.5;
+
+    const baseWalkBob = state.avatar.group.position.y || 0;
+    state.avatar.group.position.set(state.x, state.y + baseWalkBob, state.z);
+    state.avatar.group.rotation.set(
+      state.rollTimer > 0 ? ((0.36 - state.rollTimer) / 0.36) * Math.PI * 2 : 0,
+      state.heading,
+      0
+    );
 
     player.x = state.x;
+    player.y = state.y;
     player.z = state.z;
     player.heading = state.heading;
     player.speed = state.speed;
@@ -229,5 +368,5 @@ export function createOnFoot(ctx) {
     findNearestVehicle(deps);
   }
 
-  return { state, exitCar, enterVehicle, update };
+  return { state, exitCar, enterVehicle, triggerVaultOrRoll, update };
 }

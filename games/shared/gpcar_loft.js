@@ -2022,10 +2022,37 @@ export function buildLoftedCar(userSpec = {}) {
     group.add(gm);
   }
 
+  // Subtle warm amber interior dashboard gauge glow (visible through glass at dusk/night)
+  const ghSpec = spec.greenhouse || {};
+  const dashGlowMat = new THREE.MeshBasicMaterial({
+    color: 0xffa43b,
+    transparent: true,
+    opacity: 0.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    fog: false,
+  });
+  const dashGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(Math.min(1.05, spec.dims.width * 0.56), 0.14),
+    dashGlowMat
+  );
+  dashGlow.position.set(0, (spec.bodyStations[2]?.yBelt ?? 0.85) + 0.06, (ghSpec.zFrontBase ?? 0.65) - 0.14);
+  dashGlow.rotation.x = -0.35;
+  dashGlow.renderOrder = 2;
+  dashGlow.userData.noMerge = true;
+  dashGlow.userData.isTailGlow = true;
+  group.add(dashGlow);
+
   function setLights({ brake = false, reverse = false, nightK = 0.5 } = {}) {
     mats.tailLens.emissiveIntensity = brake ? 2.9 : (0.75 + nightK * 0.75);
     tailGlowMat.opacity = brake ? 0.85 : (0.28 + nightK * 0.35);
     mats.reverseLens.emissiveIntensity = reverse ? 1.8 : 0.0;
+    dashGlowMat.opacity = Math.max(0, Math.min(0.68, (nightK - 0.12) * 0.82));
+  }
+
+  function setRoadLift(liftY = 0) {
+    contactShadow.position.y = Math.max(0.014, 0.082 - liftY);
   }
 
   return {
@@ -2038,6 +2065,7 @@ export function buildLoftedCar(userSpec = {}) {
       if (front.popupControl.set) front.popupControl.set(val);
     },
     setLights,
+    setRoadLift,
     setBrake(on) {
       setLights({ brake: !!on });
     },

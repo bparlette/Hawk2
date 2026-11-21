@@ -3312,6 +3312,9 @@ function buildLoftVehicle(row, spec, anchorPos, beamFallback, usePopups) {
     setLights(opts) {
       if (loft.setLights) loft.setLights(opts);
     },
+    setRoadLift(y) {
+      if (loft.setRoadLift) loft.setRoadLift(y);
+    },
     setBrake(on) {
       if (loft.setBrake) loft.setBrake(on);
     },
@@ -3730,6 +3733,7 @@ export function buildVehicle(row) {
     dims: { len: L, wid: W, wheelR: R },
     _spin: 0,
     setLights() {},
+    setRoadLift() {},
     setBrake() {},
     updateWheels(speed, steer, dt) {
       this._spin += (speed * dt) / R;

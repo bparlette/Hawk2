@@ -44,9 +44,11 @@ const ALBUM_LEN_GUESS = 6683;     // measured (yt-dlp, android_vr client):
                                   // (getDuration) at runtime
 
 export function createMusic() {
+  let silenced = false;
   const api = {
     started: false, ready: false, playing: false, noSignal: false,
     failed: false, current: null, albumStart: null, vol: 0, state,
+    setSilenced(flag) { silenced = !!flag; },
     next() { // the same advance onState runs on ENDED (also a skip hook)
       if (api.current === 'first' || api.current === 'album') playAlbum();
     },
@@ -168,7 +170,7 @@ export function createMusic() {
       tickTimer = setInterval(() => {
         if (!player || !api.ready) return;
         try {
-          if (gameAudio.isMuted()) { if (!player.isMuted || !player.isMuted()) player.mute(); }
+          if (gameAudio.isMuted() || silenced) { if (!player.isMuted || !player.isMuted()) player.mute(); }
           else if (player.isMuted && player.isMuted()) player.unMute();
         } catch (_) {}
         if (api.vol !== goal) {

@@ -29,6 +29,7 @@ import * as THREE from 'three';
 import { buildPerson, poseIdle, poseWalk } from '../../shared/people.js'; // Lane A fix: was '../shared/' (404, killed the whole module graph)
 import { CREW_PEOPLE } from './crew.js';
 import { HOUSE_INTERIORS, STOP_INTERIOR, DOOR_BEATS } from './interiors-data.js';
+import { createMiniGames } from './minigames.js';
 
 export const STAGE_Y = -42;              // stage origin height (under the map)
 const DEPTH = 6.2;                       // stage depth (back wall .. open front)
@@ -219,6 +220,11 @@ function buildStage(stop, data) {
       put(BOX, cx, f.z - 0.015, 0, r.floorc, 0, 0, 0, wdt, 0.05, DEPTH);                        // floor surface in the room's floorc
       put(BOX, cx, f.z + rh / 2, BACK_Z + 0.04, r.wall, 0, 0, 0, wdt, rh, 0.16);                 // back wall in the room's wall colour
       put(BOX, cx, f.z + 0.09, WALL_FACE + 0.02, 0x2e2620, 0, 0, 0, wdt, 0.18, 0.05);            // baseboard
+      // GTA cutaway architectural polish: crisp crown molding, chair rail & soft wall-base AO
+      put(BOX, cx, f.z + rh - 0.07, WALL_FACE + 0.03, 0xf2ece0, 0, 0, 0, wdt, 0.10, 0.06);       // crown molding
+      const railCol = new THREE.Color(r.wall).multiplyScalar(0.86).getHex();
+      put(BOX, cx, f.z + 0.94, WALL_FACE + 0.015, railCol, 0, 0, 0, wdt, 0.05, 0.03);            // wainscot chair rail
+      shad.add(PLANE, xf(cx, f.z + 0.014, WALL_FACE + 0.35, -Math.PI / 2, 0, 0, wdt, 0.72, 1), 0x000000); // baseboard floor AO
     }
     // room dividers (back portion only — the front stays open for the camera)
     const rs = data.rooms.filter(r => r.floor === f.id).sort((a, b) => a.x0 - b.x0);
@@ -227,13 +233,26 @@ function buildStage(stop, data) {
       const c = new THREE.Color(rs[i].wall).multiplyScalar(0.82).getHex();
       put(BOX, bx, f.z + rh / 2, BACK_Z + 1.35, c, 0, 0, 0, 0.14, rh, 2.7);
     }
-    // two warm lights per floor (quarter points) — one centre light left
-    // the back-wall props at both ends crushed to black in the basement
+    // two rich ceiling lights per floor + visible fixture domes & soft light-wash cones
+    const isBasement = f.id === 'lower';
     for (const fx of [0.28, 0.72]) {
-      const pl = new THREE.PointLight(0xffc98a, 36, 14, 1.7);
-      pl.position.set(lx(f.x0 + (f.x1 - f.x0) * fx), f.z + ceil - 0.35, 0.4);
+      const lxPos = lx(f.x0 + (f.x1 - f.x0) * fx);
+      const isArcadeZone = isBasement && data.id === 'kosack' && fx < 0.5;
+      const lCol = isArcadeZone ? 0x8eb8ff : (isBasement ? 0xffbe7a : 0xffd6a0);
+      const pl = new THREE.PointLight(lCol, isBasement ? 44 : 40, 15, 1.55);
+      pl.position.set(lxPos, f.z + ceil - 0.32, 0.55);
       group.add(pl); dyn.lights.push(pl);
+      put(CYL, lxPos, f.z + ceil - 0.06, -0.5, 0x3b3532, 0, 0, 0, 0.38, 0.08, 0.38);            // fixture trim
+      putB(SPH, lxPos, f.z + ceil - 0.13, -0.5, lCol, 0, 0, 0, 0.28, 0.14, 0.28);                // glowing glass globe
     }
+  }
+  // glowing interactive floor rings at playable PLAY / GRAB BEER spots
+  for (const sp of (data.spots || [])) {
+    if (sp.act === 'EXIT') continue;
+    const sf = floors[sp.floor];
+    if (!sf) continue;
+    const ringCol = sp.act === 'PLAY' ? 0x48d6ff : 0xffc845;
+    putB(CIRC, lx(sp.x), sf.z + 0.028, LANE_Z - 0.15, ringCol, -Math.PI / 2, 0, 0, 1.05, 1.05, 1);
   }
 
   // stairs at links (drawn from the lower floor, ascending toward the upper
@@ -502,11 +521,11 @@ function buildStage(stop, data) {
   const amb = new THREE.AmbientLight(0xffe2c0, 1.1);
   group.add(amb); dyn.lights.push(amb);
 
-  const stdMesh = std.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 }));
+  const stdMesh = std.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.74, metalness: 0.06 }));
   dyn.mats.push(stdMesh.material); group.add(stdMesh);
   const basicMesh = basic.build(new THREE.MeshBasicMaterial({ vertexColors: true }));
   dyn.mats.push(basicMesh.material); group.add(basicMesh);
-  const shadMesh = shad.build(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3, depthWrite: false }));
+  const shadMesh = shad.build(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.34, depthWrite: false }));
   dyn.mats.push(shadMesh.material); group.add(shadMesh);
 
   return { group, dyn, floors, topY, botY };
@@ -564,9 +583,16 @@ function standFigure(S, row, floorId, x, z = LANE_Z - 0.35, faceY = 0) {
 
 // ---------- the factory ----------
 export function createInteriors(opts) {
-  const { scene, camera, stops } = opts;
+  const { scene, camera, stops, gameAudio, onMiniGameReward } = opts;
   const heroRow = opts.heroRow || (() => CREW_PEOPLE.brad);
   const surfaceAt = opts.surfaceAt || null;
+  const minigames = createMiniGames({
+    gameAudio,
+    onReward: r => {
+      if (onMiniGameReward) onMiniGameReward(r);
+      if (r && r.label) showCaption(`<b>${r.label}</b>`, 2.6);
+    },
+  });
 
   // ----- module-owned DOM -----
   const style = document.createElement('style');
@@ -577,6 +603,7 @@ export function createInteriors(opts) {
       box-shadow:0 4px 14px rgba(0,0,0,.45);text-shadow:0 1px 3px rgba(0,0,0,.5);font-family:inherit;}
     .intBtn:active{filter:brightness(1.4);}
     #intEnter{left:50%;transform:translateX(-50%);bottom:calc(188px + env(safe-area-inset-bottom));display:none;}
+    #intAct{left:50%;transform:translateX(-50%);bottom:calc(136px + env(safe-area-inset-bottom));background:rgba(46,160,80,.92);display:none;}
     #intExit{top:calc(86px + env(safe-area-inset-top));right:14px;background:rgba(120,40,40,.85);padding:9px 16px;font-size:13px;display:none;}
     #intCaption{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(248px + env(safe-area-inset-bottom));
       width:min(92vw,560px);text-align:center;color:#ffe4b0;background:rgba(27,20,48,.78);border-radius:12px;
@@ -588,6 +615,7 @@ export function createInteriors(opts) {
   document.head.appendChild(style);
   const fadeEl = document.createElement('div'); fadeEl.id = 'intFade'; document.body.appendChild(fadeEl);
   const enterBtn = document.createElement('button'); enterBtn.className = 'intBtn'; enterBtn.id = 'intEnter'; document.body.appendChild(enterBtn);
+  const actBtn = document.createElement('button'); actBtn.className = 'intBtn'; actBtn.id = 'intAct'; document.body.appendChild(actBtn);
   const exitBtn = document.createElement('button'); exitBtn.className = 'intBtn'; exitBtn.id = 'intExit'; exitBtn.textContent = '✕ LEAVE'; document.body.appendChild(exitBtn);
   const captionEl = document.createElement('div'); captionEl.id = 'intCaption'; document.body.appendChild(captionEl);
   const hintEl = document.createElement('div'); hintEl.id = 'intHint';
@@ -619,10 +647,30 @@ export function createInteriors(opts) {
   const beats = {};          // door-beat runtime state per stop id
   for (const id of Object.keys(DOOR_BEATS)) beats[id] = { mom: null, boots: null, armed: true, playing: false, seqT: 0, fired: new Set() };
 
+  let activeSpot = null;
+  const spotCd = new Map();
+  function triggerSpot(sp) {
+    if (!sp || !S || minigames.active) return;
+    if (sp.act === 'PLAY') {
+      if (sp.src === 'arcade') minigames.openArcade();
+      else if (sp.src === 'genesis') minigames.openBoxing();
+    } else if (sp.act === 'GRAB BEER') {
+      const key = `${S.data.id}:${sp.floor}:${sp.x}`;
+      const now = performance.now();
+      if ((spotCd.get(key) || 0) > now) { showCaption('Already grabbed one here — hit another spot!', 1.8); return; }
+      spotCd.set(key, now + 6000);
+      if (gameAudio?.arrival) gameAudio.arrival();
+      if (onMiniGameReward) onMiniGameReward({ cash: 75, turboRefill: true, label: 'COLD ONE! +$75 · TURBO FULL' });
+      showCaption('<b>🍺 Cold one secured!</b> Turbo 100% · +$75', 2.4);
+    }
+  }
   enterBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (promptStop) enter(promptStop); });
+  actBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); triggerSpot(activeSpot); });
   exitBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); exit(); });
   window.addEventListener('keydown', e => {
+    if (minigames.active) return;
     if (e.code === 'KeyE') { if (S) exit(); else if (promptStop) enter(promptStop); }
+    if ((e.code === 'Space' || e.code === 'Enter') && S && activeSpot) { e.preventDefault(); triggerSpot(activeSpot); }
     if (e.code === 'Escape' && S) exit();
   });
 
@@ -714,6 +762,9 @@ export function createInteriors(opts) {
     S = null;
     exitBtn.style.display = 'none';
     hintEl.style.display = 'none';
+    minigames.close();
+    activeSpot = null;
+    actBtn.style.display = 'none';
     cap.queue.length = 0; cap.until = 0; captionEl.style.display = 'none';
     camera.fov = 60; camera.updateProjectionMatrix();
   }
@@ -748,6 +799,7 @@ export function createInteriors(opts) {
     return false;
   }
   function updateInterior(dt, frame) {
+    if (minigames.active) return;
     S.t += dt;
     const data = S.data, H = S.hero, lx = v => v - data.width / 2;
     // hero
@@ -780,12 +832,22 @@ export function createInteriors(opts) {
       let dr = targetRot - H.p.group.rotation.y;
       while (dr > Math.PI) dr -= 2 * Math.PI; while (dr < -Math.PI) dr += 2 * Math.PI;
       H.p.group.rotation.y += dr * Math.min(1, dt * 10);
-      // interaction spots: a quiet caption names the spot's act
-      if (S.t > S.spotAt + 5) {
-        for (const sp of (data.spots || [])) {
-          if (sp.floor === H.floor && Math.abs(H.x - sp.x) < 0.55 && sp.act !== 'EXIT') {
-            showCaption(`<b>${sp.act}</b>`, 1.5); S.spotAt = S.t; break;
-          }
+      // interaction spots: show playable mini-game / beer action button
+      let foundSpot = null;
+      for (const sp of (data.spots || [])) {
+        if (sp.floor === H.floor && Math.abs(H.x - sp.x) < 0.85 && sp.act !== 'EXIT') {
+          foundSpot = sp; break;
+        }
+      }
+      if (foundSpot !== activeSpot) {
+        activeSpot = foundSpot;
+        if (activeSpot) {
+          actBtn.textContent = activeSpot.act === 'PLAY'
+            ? (activeSpot.src === 'genesis' ? '🥊 PLAY HOLYFIELD BOXING' : '🕹️ PLAY ARCADE')
+            : '🍺 GRAB BEER';
+          actBtn.style.display = 'block';
+        } else {
+          actBtn.style.display = 'none';
         }
       }
       if (!S.doorHintDone && data.door.floor === H.floor && Math.abs(H.x - data.door.x) < 0.9) {
@@ -1013,6 +1075,9 @@ export function createInteriors(opts) {
   }
   return {
     tick, enter, exit, partyAnchors, stageOrigin, stats, debugSetHero,
+    openMiniGame(kind) { if (kind === 'genesis') minigames.openBoxing(); else minigames.openArcade(); },
+    closeMiniGame() { minigames.close(); },
+    get miniGameActive() { return minigames.active; },
     get active() { return !!S; },
   };
 }

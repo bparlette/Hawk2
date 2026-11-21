@@ -166,6 +166,13 @@ export function createDayNight() {
       if (rig.scene) {
         if (rig.scene.fog) { rig.scene.fog.color.copy(C.fog.color); rig.scene.fog.near = C.fog.near; rig.scene.fog.far = C.fog.far; }
         rig.scene.environmentIntensity = C.envIntensity;
+        if (rig.envMaps) {
+          const envKey = phase < 0.48 ? 'golden' : (phase < 0.78 ? 'dusk' : 'night');
+          if (rig._envKey !== envKey && rig.envMaps[envKey]) {
+            rig._envKey = envKey;
+            rig.scene.environment = rig.envMaps[envKey];
+          }
+        }
       }
       if (rig.dome) {
         const u = rig.dome.material.uniforms;

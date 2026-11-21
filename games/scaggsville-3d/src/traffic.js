@@ -217,7 +217,8 @@ export function createTraffic(scene, world, D) {
         if (!a || !b) {
           c.dir *= -1;
         } else {
-          const laneOff = Math.min(2.2, Math.max(1.2, (c.road.w || 6.5) * 0.24));
+          const pullOver = !!(playerCar.sirenActive && dPlayer < 46);
+          const laneOff = Math.min(2.2, Math.max(1.2, (c.road.w || 6.5) * 0.24)) + (pullOver ? 1.85 : 0);
           const segH = Math.atan2(b[0] - a[0], b[1] - a[1]);
           const tx = b[0] + Math.cos(segH) * laneOff;
           const tz = b[1] - Math.sin(segH) * laneOff;
@@ -233,7 +234,8 @@ export function createTraffic(scene, world, D) {
             while (dh > Math.PI) dh -= Math.PI * 2;
             while (dh < -Math.PI) dh += Math.PI * 2;
             c.heading += dh * Math.min(1, dt * 6);
-            c.speed += (c.targetSpeed - c.speed) * Math.min(1, dt * 2.5);
+            const wantSpd = pullOver ? 2.4 : c.targetSpeed;
+            c.speed += (wantSpd - c.speed) * Math.min(1, dt * (pullOver ? 4.5 : 2.5));
             c.x += Math.sin(c.heading) * c.speed * dt;
             c.z += Math.cos(c.heading) * c.speed * dt;
           }

@@ -128,13 +128,49 @@ export function makeSkyDome(){
   return dome;
 }
 export function applyWorldEnvMap(renderer, scene){
-  // PMREM from a throwaway scene holding only the sky dome: free reflections, 0 draws in game.
+  // Bake 3 lightweight PMREM sky cubemaps (golden / dusk / night) so car
+  // clearcoat & glass reflect the real sky as the day/night cycle advances.
   const pmrem=new THREE.PMREMGenerator(renderer);
   const s=new THREE.Scene(); const d=makeSkyDome(); s.add(d);
-  const rt=pmrem.fromScene(s, 0.04);
-  scene.environment=rt.texture;
-  d.geometry.dispose(); pmrem.dispose();
-  return rt;
+  const u=d.material.uniforms;
+  const bake=(sky, dir)=>{
+    u.uZen.value.set(...sky.zen); u.uMid.value.set(...sky.mid); u.uHor.value.set(...sky.hor);
+    u.uSunDir.value.set(...dir).normalize();
+    return pmrem.fromScene(s, 0.04).texture;
+  };
+  const envMaps={
+    golden: bake(LIGHTING_PRESETS.golden.sky, LIGHTING_PRESETS.golden.sun.dir),
+    dusk:   bake(LIGHTING_PRESETS.dusk.sky,   LIGHTING_PRESETS.dusk.sun.dir),
+    night:  bake({ zen:[0.02,0.03,0.08], mid:[0.05,0.08,0.16], hor:[0.10,0.14,0.24] }, [-0.3,0.22,-0.8]),
+  };
+  scene.environment=envMaps.golden;
+  d.geometry.dispose(); d.material.dispose(); pmrem.dispose();
+  return envMaps;
+}
+
+function makeHorizonHills(){
+  // Distant rolling Howard County ridge ring (1 draw call, blends into fog)
+  const segs=72, rInner=680, rOuter=1550;
+  const pos=[], col=[], idx=[];
+  const baseC=new THREE.Color(0x4b5c42), ridgeC=new THREE.Color(0x3a4d3f), mistC=new THREE.Color(0x526478);
+  for(let i=0;i<=segs;i++){
+    const a=(i/segs)*Math.PI*2, ca=Math.cos(a), sa=Math.sin(a);
+    const h1=24 + Math.sin(a*3+0.4)*14 + Math.cos(a*7-1.1)*9 + Math.sin(a*13)*5;
+    const h2=46 + Math.sin(a*4-0.8)*20 + Math.cos(a*9+0.6)*12 + Math.sin(a*17)*6;
+    pos.push(ca*rInner, -2, sa*rInner,  ca*(rInner+240), h1, sa*(rInner+240),  ca*rOuter, h2, sa*rOuter);
+    col.push(baseC.r,baseC.g,baseC.b,  ridgeC.r,ridgeC.g,ridgeC.b,  mistC.r,mistC.g,mistC.b);
+    if(i<segs){
+      const b=i*3, n=(i+1)*3;
+      idx.push(b,b+1,n, n,b+1,n+1,  b+1,b+2,n+1, n+1,b+2,n+2);
+    }
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
+  g.setIndex(idx); g.computeVertexNormals();
+  const m=new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:1.0, metalness:0.0, side:THREE.DoubleSide }));
+  m.name='horizonHills'; m.frustumCulled=false; m.receiveShadow=false;
+  return m;
 }
 
 // ---------- geometry helpers ----------
@@ -314,8 +350,9 @@ export function buildWorld(scene, overrides=null){
   const beaconRing=new THREE.Mesh(new THREE.RingGeometry(3.4,4.3,28), new THREE.MeshBasicMaterial({color:0xffd23f, transparent:true, opacity:0.85, side:THREE.DoubleSide}));
   beaconRing.rotation.x=-Math.PI/2; beaconRing.position.set(D.stops[1].sx, 0.12, D.stops[1].sz); scene.add(beaconRing);
 
-  // sky + fog
+  // sky + rolling horizon hills + fog
   const dome=makeSkyDome(); scene.add(dome);
+  const hills=makeHorizonHills(); scene.add(hills);
   scene.fog=new THREE.Fog(WORLD_LIGHTING.fog.color, WORLD_LIGHTING.fog.near, WORLD_LIGHTING.fog.far);
 
   lap('props'); const n0=scene.children.length; B.build(scene, mats, { atlas:true });
@@ -326,12 +363,14 @@ export function buildWorld(scene, overrides=null){
   // the streamed window tiles all share the placeholder's material: tint it once (the day/night cycle re-tints it)
   const winMesh=scene.getObjectByName('litWindows');
   if(winMesh) winMesh.material.color.setScalar(0.16 + 0.84 * Math.min(1, WORLD_LIGHTING.dressing.windowGlow));
-  // one per-frame hook: camera position -> house LOD + vegetation cull + streaming priorities (chains any previous hook)
+  // one per-frame hook: camera position -> house LOD + vegetation cull + wind + streaming priorities
   const prevBR=scene.onBeforeRender;
   scene.onBeforeRender=function(renderer, sc, camera, rt){
     if(prevBR) prevBR.call(this, renderer, sc, camera, rt);
     const cp=camera.position; camXZ[0]=cp.x; camXZ[1]=cp.z;
+    hills.position.set(cp.x, 0, cp.z);
     houseLOD.update(cp.x, cp.z); veg.cull(cp);
+    if(veg.setWindTime) veg.setWindTime(performance.now()*0.001);
     for(const m of casters){ const b=m.geometry.boundingSphere; m.castShadow = Math.hypot(b.center.x-cp.x, b.center.z-cp.z) - b.radius < 120; }
   };
   // Night-lighting pass: glow points along the non-route streets too (pools +

@@ -72,13 +72,53 @@ function deciduous(seed, { trunkH, crownY, rx, ry, n, rMin, rMax, branches=3, ti
   parts.push(crown(R, dome(R, n, crownY, rx, ry, rMin, rMax), [0,crownY,0], Math.max(rx,ry), tint));
   return merge(parts);
 }
+function volumetricShrub(seed){
+  // Multi-lobe shaded volumetric foliage bush (no crossed-card X seams under headlights!)
+  const R=mulberry32(seed), parts=[];
+  const lobes=[[0,0.46,0,0.62],[0.42,0.36,0.16,0.46],[-0.38,0.34,-0.14,0.44],[0.12,0.38,-0.34,0.42],[-0.16,0.36,0.34,0.40]];
+  const base=new THREE.Color('#b8cca4');
+  for(const [lx,ly,lz,r] of lobes){
+    const g=new THREE.IcosahedronGeometry(r, 1).toNonIndexed();
+    const p=g.attributes.position;
+    for(let i=0;i<p.count;i++){
+      const vx=p.getX(i)*(0.88+R()*0.24), vy=p.getY(i)*(0.74+R()*0.22), vz=p.getZ(i)*(0.88+R()*0.24);
+      p.setXYZ(i, lx+vx, Math.max(0.02, ly+vy), lz+vz);
+    }
+    g.computeVertexNormals();
+    const n=p.count, uv=new Float32Array(n*2), c=new Float32Array(n*3);
+    for(let i=0;i<n;i++){
+      const py=p.getY(i), ao=Math.min(1, 0.56+0.55*py);
+      uv[i*2]=U_LEAF[0]+((i%3)*0.18+0.12); uv[i*2+1]=0.25+((i%3)*0.22);
+      c[i*3]=base.r*ao; c[i*3+1]=base.g*ao; c[i*3+2]=base.b*ao;
+    }
+    g.setAttribute('uv', new THREE.BufferAttribute(uv,2));
+    g.setAttribute('color', new THREE.BufferAttribute(c,3));
+    parts.push(g);
+  }
+  return merge(parts);
+}
+function grassTuft(seed){
+  const R=mulberry32(seed), P=[], N=[], UV=[], C=[];
+  const base=new THREE.Color('#9cb47e');
+  for(let k=0;k<3;k++){
+    const a=k/3*Math.PI + R()*0.3, ca=Math.cos(a), sa=Math.sin(a), w=0.22, h=0.34+R()*0.14;
+    const vs=[[-ca*w,0,-sa*w],[ca*w,0,sa*w],[ca*w*0.55,h,sa*w*0.55],[-ca*w*0.55,h,-sa*w*0.55]];
+    const uvs=[[U_LEAF[0]+0.05,0],[U_LEAF[0]+0.35,0],[U_LEAF[0]+0.35,0.65],[U_LEAF[0]+0.05,0.65]];
+    for(const i of [0,1,2,0,2,3]){
+      P.push(...vs[i]); N.push(0,1,0); UV.push(...uvs[i]);
+      const ao=i<2?0.55:1.05; C.push(base.r*ao, base.g*ao, base.b*ao);
+    }
+  }
+  return geo(P,N,UV,C);
+}
 function makeModels(){
   return {
     oak:   deciduous(11, { trunkH:3.0, crownY:5.0, rx:2.6, ry:1.9, n:9, rMin:1.3, rMax:1.9, branches:3 }),
     maple: deciduous(21, { trunkH:3.4, crownY:5.8, rx:2.0, ry:2.5, n:8, rMin:1.1, rMax:1.7, branches:3, tint:'#f2ffe6' }),
     pine:  merge([ cyl([0,0,0],[0,3,0],0.24,0.16,6), coneG(2.3,3.4,1.6,31), coneG(1.8,3.0,3.6,32), coneG(1.25,2.6,5.6,33), coneG(0.7,2.0,7.4,34) ]),
     woods: deciduous(41, { trunkH:5.2, crownY:7.6, rx:2.9, ry:2.4, n:7, rMin:1.6, rMax:2.3, branches:2, tint:'#e6f0dc' }),
-    shrub: merge([ crown(mulberry32(51), [[0,0.6,0,0.75],[0.55,0.5,0.2,0.6],[-0.45,0.45,-0.15,0.55]], [0,0.5,0], 0.9, '#cfe0c4') ]),
+    shrub: volumetricShrub(51),
+    tuft:  grassTuft(59),
   };
 }
 // low-poly stand-ins for distant chunks (fewer cards, same silhouette)
@@ -107,7 +147,7 @@ class Forest {
       im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true;
       // bounding sphere of the chunk (three culls InstancedMesh by geometry bounds otherwise)
       const r=Math.hypot(x1-x0,z1-z0)/2+12; im.geometry=geo; im.boundingSphere=new THREE.Sphere(new THREE.Vector3((x0+x1)/2,5,(z0+z1)/2), r);
-      im.castShadow = model!=='woods' && model!=='shrub';   // cull() narrows this further by distance im.receiveShadow=true; im.frustumCulled=true; im.matrixAutoUpdate=false;
+      im.castShadow = model!=='woods' && model!=='shrub' && model!=='tuft';   // cull() narrows this further by distance im.receiveShadow=true; im.frustumCulled=true; im.matrixAutoUpdate=false;
       im.userData.center=new THREE.Vector3((x0+x1)/2,0,(z0+z1)/2); im.userData.r=r;
       im.userData.near=geo; im.userData.far=(lods&&lods[model])||geo; im.userData.model=model; im.userData.casts=im.castShadow;
       group.add(im); chunks.push(im); count+=list.length;
@@ -117,8 +157,25 @@ class Forest {
   }
 }
 
+const _windUniform = { value: 0 };
 export function vegetationMaterial(T){
-  return new THREE.MeshStandardMaterial({ map:T.foliage, alphaTest:0.42, side:THREE.DoubleSide, vertexColors:true, roughness:0.9, metalness:0, envMapIntensity:0.45 });
+  const m = new THREE.MeshStandardMaterial({ map:T.foliage, alphaTest:0.42, side:THREE.DoubleSide, vertexColors:true, roughness:0.9, metalness:0, envMapIntensity:0.45 });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uWindT = _windUniform;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWindT;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+  float swayW = smoothstep(1.2, 6.5, position.y);
+  #ifdef USE_INSTANCING
+    float wPhase = instanceMatrix[3][0] * 0.13 + instanceMatrix[3][2] * 0.11;
+  #else
+    float wPhase = position.x * 0.2 + position.z * 0.2;
+  #endif
+  transformed.x += sin(uWindT * 1.45 + wPhase) * 0.16 * swayW;
+  transformed.z += cos(uWindT * 1.15 + wPhase * 1.3) * 0.11 * swayW;`);
+  };
+  m.customProgramCacheKey = () => 'sv3d-veg-wind-v1';
+  return m;
 }
 
 // Streamed vegetation: indexes are built up front (cheap); each 400 m chunk's trees are generated + instanced in
@@ -177,7 +234,10 @@ export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T, gr
       const [ax,az]=r.pts[i],[bx,bz]=r.pts[i+1], L=Math.hypot(bx-ax,bz-az), nx=-(bz-az)/(L||1), nz=(bx-ax)/(L||1);
       for(let s=R()*10; s<L; s+=9+R()*10){ if(R()>0.55*cfg.treeDensity) continue;
         const side=R()<0.5?-1:1, off=r.w/2+2.6+R()*5.5, x=ax+(bx-ax)*s/L+nx*off*side, z=az+(bz-az)*s/L+nz*off*side;
-        if(!free(x,z) || onDrive(x,z)) continue; add(pickFrom(R), x, z, 0.85+R()*0.55, R()*6.28, tintFrom(R)); stats.street++; } }
+        if(!free(x,z) || onDrive(x,z)) continue; add(pickFrom(R), x, z, 0.85+R()*0.55, R()*6.28, tintFrom(R)); stats.street++; }
+      for(let s=R()*6; s<L; s+=7+R()*7){
+        const side=R()<0.5?-1:1, off=r.w/2+0.7+R()*1.2, x=ax+(bx-ax)*s/L+nx*off*side, z=az+(bz-az)*s/L+nz*off*side;
+        if(!free(x,z,0.4) || onDrive(x,z)) continue; add('tuft', x, z, 0.7+R()*0.55, R()*6.28, tintFrom(R)); } }
     yield;
     for(const c of houseBy.get(k)||[]){
       const ex=[c.cos,-c.sin], ez=[c.sin,c.cos], n=Math.floor(R()*3);
@@ -213,9 +273,9 @@ export function buildVegetation({ scene, roads, colliders, drives, D, cfg, T, gr
   const CULL=cfg.vegCullDistance||760, LOD_AT=260, SHADOW_AT=cfg.vegShadowDistance||140;
   function cull(cp){
     for(const im of chunks){ const u=im.userData, d=Math.hypot(u.center.x-cp.x, u.center.z-cp.z) - u.r;
-      im.visible = d < (u.model==='shrub'? 300 : CULL);
+      im.visible = d < (u.model==='tuft'? 120 : u.model==='shrub'? 300 : CULL);
       im.castShadow = u.casts && d < SHADOW_AT;   // the sun's shadow box is ±80 m round the player: farther chunks only cost shadow draws
       const g = d > LOD_AT ? u.far : u.near; if(im.geometry!==g) im.geometry=g; }
   }
-  return { stats, cull, group };
+  return { stats, cull, group, setWindTime(t){ _windUniform.value = t; } };
 }

@@ -69,6 +69,11 @@
   #btnCam{right:70px;bottom:calc(130px + env(safe-area-inset-bottom));width:44px;height:44px;font-size:11px;letter-spacing:.04em;background:rgba(16,20,36,.6);}
   #btnFoot{right:122px;bottom:calc(130px + env(safe-area-inset-bottom));height:44px;padding:0 14px;border-radius:22px;
     font-size:11px;letter-spacing:.06em;background:rgba(24,32,54,.72);white-space:nowrap;}
+  #btnRadio{right:18px;bottom:calc(184px + env(safe-area-inset-bottom));width:44px;height:44px;font-size:18px;background:rgba(16,20,36,.58);}
+  #btnCrew{right:70px;bottom:calc(184px + env(safe-area-inset-bottom));height:44px;padding:0 11px;border-radius:22px;
+    font-size:10px;letter-spacing:.05em;background:rgba(46,96,190,.78);white-space:nowrap;display:none;}
+  #btnAct{left:50%;transform:translateX(-50%);bottom:calc(242px + env(safe-area-inset-bottom));height:42px;padding:0 16px;
+    border-radius:21px;font-size:12px;letter-spacing:.06em;background:rgba(148,58,225,.9);white-space:nowrap;display:none;}
   .btn.on{filter:brightness(1.5);transform:scale(.94);}
   /* ---- pick your player ---- */
   #pick{position:fixed;inset:0;z-index:1300;background:linear-gradient(180deg, rgba(16,14,34,.88), rgba(30,20,44,.92));
@@ -108,6 +113,9 @@
 <div class="btn" id="btnFoot">EXIT</div>
 <div class="btn" id="btnCam">CAM</div>
 <div class="btn" id="btnMute">🔊</div>
+<div class="btn" id="btnRadio">📻</div>
+<div class="btn" id="btnCrew">CREW ⇄</div>
+<div class="btn" id="btnAct">🏁 RACE</div>
 <div id="pick"></div>
 
 <script type="importmap">
@@ -137,6 +145,8 @@ import { createProps } from './src/props.js';
 import { createWanted } from './src/wanted.js';
 import { createOnFoot } from './src/onfoot.js';
 import { createMinimap } from './src/minimap.js';
+import { createRadio } from './src/radio.js';
+import { createActivities } from './src/activities.js';
 
 /* ============================== RENDERER / SCENE ============================== */
 const L = WORLD_LIGHTING;
@@ -160,7 +170,7 @@ const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 7000
 const cine = createCineCam({ camera });
 
 const world = buildWorld(scene);
-applyWorldEnvMap(renderer, scene);
+const envMaps = applyWorldEnvMap(renderer, scene);
 
 // Lane A: the day/night cycle owns the live lighting — it starts on the
 // golden preset (first paint unchanged) and walks the rally golden -> dusk
@@ -178,7 +188,7 @@ scene.add(hemi);
 const amb = new THREE.AmbientLight(L.ambient.color, L.ambient.intensity);
 scene.add(amb);
 const dome = scene.getObjectByName('skyDome');
-const lightRig = { renderer, scene, sun, hemi, ambient: amb, dome,
+const lightRig = { renderer, scene, sun, hemi, ambient: amb, dome, envMaps,
   windows: scene.getObjectByName('litWindows'), lampGlow: scene.getObjectByName('lampGlow') };
 
 // Lane A: pedestrians + crowd system (instanced; the party lane consumes
@@ -193,6 +203,13 @@ const traffic = createTraffic(scene, world, WORLD_DATA);
 const props = createProps(scene, world, WORLD_DATA);
 const wanted = createWanted(scene, world, WORLD_DATA);
 const minimap = createMinimap(WORLD_DATA, document.body);
+const radio = createRadio({ music, gameAudio });
+const activities = createActivities({
+  scene, world, D: WORLD_DATA, buildVehicle, CREW_VEHICLES,
+  showBanner: (...a) => showBanner(...a),
+  addScore: (...a) => addScore(...a),
+  gameAudio,
+});
 
 /* ============================== GAME STATE ============================== */
 const HOUSEHOLDS = [
@@ -209,8 +226,12 @@ const stopById = {}; for(const s of WORLD_DATA.stops) stopById[s.id]=s;
 // Lane B: house cutaways/interiors (src/interiors.js) — built on entry at
 // the house you're visiting, disposed on exit; Lazaris + Grant get their
 // canon door-mom staging instead of an interior.
-const interiors = createInteriors({ scene, camera, stops: stopById, surfaceAt: world.surfaceAt,
-  heroRow: ()=> CREW_PEOPLE[HOUSEHOLDS.find(h=>h.stop===playerStop).cars[0]] });
+const interiors = createInteriors({ scene, camera, stops: stopById, surfaceAt: world.surfaceAt, gameAudio,
+  heroRow: ()=> CREW_PEOPLE[HOUSEHOLDS.find(h=>h.stop===playerStop).cars[0]],
+  onMiniGameReward: r => {
+    if(r?.cash) addScore(r.cash, r.label || 'HOUSE BONUS');
+    if(r?.turboRefill && player) player.charge = 1;
+  } });
 
 let started=false, finished=false, startTime=0, elapsed=0;
 let playerStop='brad', playerCarId='brad', playerAvatarId='brad';
@@ -311,7 +332,7 @@ const pickEl=document.getElementById('pick');
 // replaces the card grid. Game HUD + driving buttons stay hidden until
 // the rally starts (the stage owns the screen until then).
 document.getElementById('hud').style.display='none';
-for(const id of ['btnA','btnB','btnT','btnMute','btnCam','btnFoot']) document.getElementById(id).style.display='none';
+for(const id of ['btnA','btnB','btnT','btnMute','btnCam','btnFoot','btnRadio','btnCrew','btnAct']) document.getElementById(id).style.display='none';
 const garage = mountGarage(pickEl, { households: HOUSEHOLDS, stops: stopById, environment: scene.environment,
   onStart: (stopId, custom)=> startGame(stopId, custom) });
 window.__garage = garage;
@@ -323,7 +344,7 @@ function startGame(stopId, custom){
   playerStop=stopId;
   pickEl.style.display='none';
   document.getElementById('hud').style.display='';
-  for(const id of ['btnA','btnB','btnT','btnMute','btnCam','btnFoot']) document.getElementById(id).style.display='';
+  for(const id of ['btnA','btnB','btnT','btnMute','btnCam','btnFoot','btnRadio']) document.getElementById(id).style.display='';
   const s=stopById[stopId];
   player=createCar(s.sx, s.sz, s.heading);
   const myCar = HOUSEHOLDS.find(h=>h.stop===stopId).cars[0];
@@ -359,6 +380,41 @@ function latchTouch(){ touchMode=true; }
 window.addEventListener('touchstart', latchTouch, { passive:true });
 window.addEventListener('pointerdown', e=>{ if(e.pointerType==='touch'||e.pointerType==='pen') latchTouch(); }, { passive:true });
 let proofInput = null;
+function handleHornOrAction(){
+  if(!started || interiors.active || !player) return;
+  if(activities.nearbyFlare && !onfoot.state.active){
+    activities.startNearby(player);
+    return;
+  }
+  if(playerVeh && playerVeh.isCopCar && !onfoot.state.active){
+    player.sirenActive = !player.sirenActive;
+    gameAudio.siren(player.sirenActive);
+    showBanner(player.sirenActive ? '🚨 HCPD SIREN ON' : 'SIREN OFF', player.sirenActive ? 'Traffic pulls over ahead!' : '', 1100);
+    return;
+  }
+  gameAudio.horn();
+}
+let crewSwapCam = null; // { t, dur, fromX, fromZ, toX, toZ }
+function switchCrew(){
+  if(!started || interiors.active || onfoot.state.active || !followers.length) return false;
+  const f = followers.shift();
+  const oldState = player, oldVeh = playerVeh, oldCarId = playerCarId;
+  const oldName = (CREW_VEHICLES[oldCarId]?.name) || oldVeh?.row?.name || 'Crew Car';
+  followers.push({ state: oldState, veh: oldVeh, name: oldName, carId: oldCarId });
+  crewSwapCam = { t: 0, dur: 0.65, fromX: oldState.x, fromZ: oldState.z, toX: f.state.x, toZ: f.state.z };
+  player = f.state;
+  playerVeh = f.veh;
+  playerCarId = f.carId;
+  playerAvatarId = CREW_PEOPLE[f.carId] ? f.carId : playerAvatarId;
+  playerVeh.group.rotation.order = 'YXZ';
+  attachBeam(playerVeh);
+  prevRL = prevRR = null;
+  camYaw = player.heading;
+  cine.cancel();
+  gameAudio.uiTap();
+  showBanner('CREW SWITCH', 'Now driving ' + (CREW_VEHICLES[playerCarId]?.name || playerCarId), 1400);
+  return true;
+}
 window.addEventListener('keydown', e=>{
   keys[e.code]=true;
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
@@ -368,8 +424,10 @@ window.addEventListener('keydown', e=>{
     if(e.code==='KeyF') toggleOnFoot();
     else if(e.code==='KeyE' && !goInVisible) toggleOnFoot();
     else if(e.code==='KeyC') cycleCamera();
-    else if(e.code==='KeyH') gameAudio.horn();
+    else if(e.code==='KeyH') handleHornOrAction();
     else if(e.code==='KeyT') cycleTime();
+    else if(e.code==='KeyR') radio.cycle();
+    else if(e.code==='KeyQ') switchCrew();
   }
 });
 window.addEventListener('keyup', e=>{ keys[e.code]=false; });
@@ -399,11 +457,17 @@ function bindBtn(id, set){
 bindBtn('btnA', v=>{ btnA=v; }); bindBtn('btnB', v=>{ btnB=v; }); bindBtn('btnT', v=>{ btnT=v; });
 const muteBtn=document.getElementById('btnMute'),
       camBtn=document.getElementById('btnCam'),
-      footBtn=document.getElementById('btnFoot');
+      footBtn=document.getElementById('btnFoot'),
+      radioBtn=document.getElementById('btnRadio'),
+      crewBtn=document.getElementById('btnCrew'),
+      actBtn=document.getElementById('btnAct');
 muteBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation();
   muteBtn.textContent = gameAudio.toggleMute()? '🔇' : '🔊'; });
 camBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); cycleCamera(); });
 footBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); toggleOnFoot(); });
+radioBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); radio.cycle(); });
+crewBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); switchCrew(); });
+actBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); handleHornOrAction(); });
 document.addEventListener('gesturestart', e=>e.preventDefault());
 document.addEventListener('dblclick', e=>e.preventDefault());
 document.addEventListener('contextmenu', e=>e.preventDefault());
@@ -691,23 +755,28 @@ let physAcc=0;
 let rallyProgress=0, streetT=0, lastStreet='', lastRingCharge=-1; // Lane A loop state
 let approachLatch=false; // Lane E: approachEnd fires once per approach
 let _btnHidden=false;    // Lane B polish: driving-button visibility latch
-let prevRL=null, prevRR=null, smokeAcc=0, turboAcc=0;
-let lastStars=-1, lastScore=-1, lastComboText='', lastFootText='', lastFootBg='', lastFootOp='', lastLegText='';
+let prevRL=null, prevRR=null, smokeAcc=0, turboAcc=0, roadLift=0;
+let lastStars=-1, lastScore=-1, lastComboText='', lastFootText='', lastFootBg='', lastFootOp='', lastLegText='', lastActText='', lastCrewVis=false;
 function animate(){
   requestAnimationFrame(animate);
-  const dt=Math.min(clock.getDelta(), 0.06);
+  const rawDt=Math.min(clock.getDelta(), 0.06);
+  const dt = rawDt * (activities.timeScale || 1.0);
   // Lane B: interiors tick every frame (entry prompts + door-mom beats
   // outside; the cutaway itself inside). While the player is inside a
   // house, the interior owns input + camera and the driving sim rests.
   const _inp = (started && player) ? pollInput() : null;
-  interiors.tick(dt, { started: !!started, x: player? player.x : 0, z: player? player.z : 0,
+  interiors.tick(rawDt, { started: !!started, x: player? player.x : 0, z: player? player.z : 0,
     speed: player? Math.abs(player.speed) : 0, steer: _inp? _inp.steer : 0,
     up: !!_inp && (!!keys['KeyW'] || !!keys['ArrowUp'] || joyY < -0.55),
     down: !!_inp && (!!keys['KeyS'] || !!keys['ArrowDown'] || joyY > 0.55) });
-  // Lane B polish: the driving/action buttons & minimap hide while inside a house
+  // Lane B polish: the driving/action buttons, driving HUD & minimap hide while inside a house
   if(interiors.active!==_btnHidden){ _btnHidden=interiors.active; const dsp=_btnHidden? 'none' : '';
-    for(const id of ['btnA','btnB','btnT','btnCam','btnFoot']) document.getElementById(id).style.display=dsp;
-    if(_btnHidden) minimap.hide(); else if(started) minimap.show();
+    for(const id of ['btnA','btnB','btnT','btnCam','btnFoot','btnRadio','target','street','nav']) {
+      const el=document.getElementById(id); if(el) el.style.display=dsp;
+    }
+    const rToast=document.getElementById('radioToast'); if(rToast && _btnHidden) rToast.style.opacity='0';
+    if(_btnHidden){ crewBtn.style.display='none'; actBtn.style.display='none'; minimap.hide(); }
+    else if(started) minimap.show();
   }
   if(started && player && !interiors.active){
     const rawInput = pollInput();
@@ -720,7 +789,7 @@ function animate(){
     if(onfoot.state.active){
       prevRL=prevRR=null;
       onfoot.update(dt, input, camYaw ?? player.heading, player, poseIdle, poseWalk, {
-        parkedVehs, followers, traffic, playerCarId
+        parkedVehs, followers, traffic, wanted, playerCarId
       });
       gameAudio.setSpeed(0);
       gameAudio.setScreech(0);
@@ -731,15 +800,25 @@ function animate(){
         collide(player, world.colliders);
         physAcc-=1/60;
       }
+      const targetLift = player.offroad ? 0 : 0.066;
+      roadLift += (targetLift - roadLift) * Math.min(1, dt * 14);
       const visYaw = player.heading + (player.driftAngle || 0);
-      playerVeh.group.position.set(player.x, player.y || 0, player.z);
+      playerVeh.group.position.set(player.x, (player.y || 0) + roadLift, player.z);
       playerVeh.group.rotation.set(player.pitch || 0, visYaw, player.roll || 0);
+      if(playerVeh.setRoadLift) playerVeh.setRoadLift(roadLift);
       playerVeh.updateWheels(player.speed, player.steerVis, dt);
       if(playerVeh.setLights) playerVeh.setLights({
         brake: !!input.brake || !!input.handbrake,
         reverse: player.speed < -0.4,
         nightK
       });
+      // Flash roof lightbar if driving a stolen Howard County PD cruiser with siren on
+      if(playerVeh.isCopCar && playerVeh.lightBar){
+        const blink = Math.sin(performance.now() * 0.015) > 0;
+        const ch = playerVeh.lightBar.children;
+        if(ch[1] && ch[1].material) ch[1].material.emissiveIntensity = player.sirenActive ? (blink ? 4.0 : 0.2) : 0.4;
+        if(ch[2] && ch[2].material) ch[2].material.emissiveIntensity = player.sirenActive ? (blink ? 0.2 : 4.0) : 0.4;
+      }
       gameAudio.setSpeed(Math.abs(player.speed)/42);
       gameAudio.setScreech(player.slip || 0);
 
@@ -859,8 +938,14 @@ function animate(){
       },
       onRampLaunch: () => {
         addScore(200, 'STUNT LAUNCH!');
-        showBanner('STUNT JUMP!', 'Send it over Scaggsville!', 1300);
+        activities.triggerStunt(player);
+        showBanner('STUNT JUMP!', 'Send it over Scaggsville!', 1200);
       }
+    });
+    activities.update(rawDt, player, nightK);
+    radio.update(rawDt, {
+      street: lastStreet, speed: player.speed, stars: wanted.state.stars,
+      onFoot: onfoot.state.active, carName: (CREW_VEHICLES[playerCarId]?.name) || playerVeh?.row?.name
     });
     wanted.update(dt, player, fx, gameAudio, {
       onEscape: st => {
@@ -878,13 +963,26 @@ function animate(){
 
     checkArrivals();
     if (missions) missions.update(dt, hostState());
-    // Lane E seam: the cinematic module owns the camera while a beat is
-    // running; on release it leaves a handoff the chase cam adopts, so
-    // the return lands exactly on the pose the chase cam would have had.
-    const cineOwned = onfoot.state.active ? false : cine.update(dt, { player, input });
+    // Lane E seam: stunt cam / crew sky-hop cam / cine cam / standard GTA chase cam
+    let specialCam = false;
+    if(crewSwapCam){
+      crewSwapCam.t += rawDt / crewSwapCam.dur;
+      const k = Math.min(1, crewSwapCam.t);
+      const ease = k * k * (3 - 2 * k);
+      const arcY = 2.6 + Math.sin(k * Math.PI) * 26;
+      const cx = crewSwapCam.fromX + (crewSwapCam.toX - crewSwapCam.fromX) * ease;
+      const cz = crewSwapCam.fromZ + (crewSwapCam.toZ - crewSwapCam.fromZ) * ease;
+      camera.position.set(cx - Math.sin(player.heading)*7.4, arcY, cz - Math.cos(player.heading)*7.4);
+      camera.up.set(0,1,0); camera.lookAt(cx, 1.0, cz);
+      specialCam = true;
+      if(k >= 1){ crewSwapCam = null; camYaw = player.heading; camPos.copy(camera.position); }
+    } else if(activities.stuntActive){
+      specialCam = activities.updateStuntCamera(rawDt, camera, player);
+    }
+    const cineOwned = (onfoot.state.active || specialCam) ? false : cine.update(dt, { player, input });
     if (cine.handoff){ const h=cine.handoff; camYaw=h.yaw; camPos.copy(h.pos); fovCur=h.fov; cine.handoff=null; }
     else if (cineOwned){ camYaw = cine.state.shadow.yaw; }   // keep the HUD arrow honest while cine owns the cam
-    if (!cineOwned) updateCamera(dt);
+    if (!cineOwned && !specialCam) updateCamera(dt);
 
     // HUD & Combo decay (DOM updated only on change)
     shakeAmt *= Math.exp(-9 * dt);
@@ -922,6 +1020,19 @@ function animate(){
     if(fTxt!==lastFootText){ lastFootText=fTxt; footBtn.textContent=fTxt; }
     if(fBg!==lastFootBg){ lastFootBg=fBg; footBtn.style.background=fBg; }
     if(fOp!==lastFootOp){ lastFootOp=fOp; footBtn.style.opacity=fOp; }
+    const showCrew = followers.length > 0 && !onfoot.state.active;
+    if(showCrew !== lastCrewVis){ lastCrewVis=showCrew; crewBtn.style.display=showCrew? 'flex' : 'none'; }
+    let aTxt = '';
+    if(!onfoot.state.active && activities.nearbyFlare){
+      aTxt = (activities.nearbyFlare.kind==='race'? '🏁 RACE: ' : '💨 DRIFT: ') + activities.nearbyFlare.name;
+    } else if(!onfoot.state.active && playerVeh && playerVeh.isCopCar){
+      aTxt = player.sirenActive ? '🚨 SIREN OFF [H]' : '🚨 SIREN ON [H]';
+    }
+    if(aTxt !== lastActText){
+      lastActText = aTxt;
+      actBtn.textContent = aTxt;
+      actBtn.style.display = aTxt ? 'flex' : 'none';
+    }
 
     const t=currentTargetStop();
     const d=Math.hypot(player.x-t.sx, player.z-t.sz);
@@ -933,9 +1044,11 @@ function animate(){
     navdistEl.textContent = d>=1000? (d/1000).toFixed(2)+' km' : Math.round(d)+' m';
     const bearing=Math.atan2(t.sx-player.x, t.sz-player.z);
     let rel=bearing-camYaw; arrowEl.style.transform=`rotate(${rel}rad)`;
+    const raceCp = activities.active && activities.active.kind==='race' ? activities.active.cps[activities.active.cpIdx] : null;
     minimap.update(dt, {
       px:player.x, pz:player.z, camYaw:camYaw ?? player.heading,
       targetStop:t, followers, cops:wanted.cops, ramps:props.ramps,
+      flares:activities.flares, raceCp,
       wantedStars:wanted.state.stars, flashPhase:wanted.state.flashPhase
     });
     // sun shadow follows the player; sky dome too
@@ -994,6 +1107,10 @@ window.__dbg={ get ready(){ return started; },
     stars: wanted.state.stars, heat: Math.round(wanted.state.heat), score, combo, onFoot: onfoot.state.active,
     leg: Math.min(7, collected.size+1), legTime: +(((performance.now()-legStart)/1000).toFixed(1)),
     legTimes: legTimes.map(t=>+t.toFixed(1)), totalTime: +(((performance.now()-startTime)/1000).toFixed(1)),
+    onRoof: onfoot.state.onRoof, isCopCar: !!(playerVeh && playerVeh.isCopCar),
+    sirenActive: !!(player && player.sirenActive),
+    radioStation: radio.current.id, stuntActive: activities.stuntActive,
+    activity: activities.active ? activities.active.kind : null,
     drifting: !!player.drifting, slip: player.slip,
     trafficCount: traffic.cars.filter(c=>c.active).length,
     propsBroken: props.stats().broken, camMode,
@@ -1012,12 +1129,18 @@ window.__proof={
   exitHouse(){ interiors.exit(); },
   houseHero(x, floor){ return interiors.debugSetHero(x, floor); },
   inside(){ return interiors.active; },
+  openMiniGame(kind){ interiors.openMiniGame(kind); },
+  closeMiniGame(){ interiors.closeMiniGame(); },
   partyAnchors(id){ return interiors.partyAnchors(id); },
   setTime(v){ daynight.setPhase(v); },   // Lane A: name | 0..1 | null (unlock)
   street(){ return lastStreet; },
   spawnCop(stars=2){ return wanted.addHeat(stars * 25, 'PROOF'); },
   clearWanted(){ wanted.clear(); },
   toggleFoot(){ return toggleOnFoot(); },
+  vaultOrRoll(){ return onfoot.triggerVaultOrRoll({ parkedVehs, followers, traffic, wanted, playerCarId }); },
+  cycleRadio(){ return radio.cycle(); },
+  startActivity(id){ return activities.startById(id, player); },
+  switchCrew(){ return switchCrew(); },
   skipCine(){ cine.cancel(); },
   setCam(m){ camMode=(m|0)%3; cine.cancel(); },
   setInput(obj){ proofInput=obj || null; },

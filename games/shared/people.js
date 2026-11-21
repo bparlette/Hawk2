@@ -41,6 +41,26 @@
 import * as THREE from 'three';
 
 const matCache = new Map();
+let _personShadowMat = null;
+function getPersonShadowMat() {
+  if (_personShadowMat) return _personShadowMat;
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const gr = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+  gr.addColorStop(0, 'rgba(6,8,14,0.68)');
+  gr.addColorStop(0.58, 'rgba(6,8,14,0.34)');
+  gr.addColorStop(1, 'rgba(6,8,14,0)');
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  _personShadowMat = new THREE.MeshBasicMaterial({
+    map: t, transparent: true, opacity: 0.85, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -1,
+  });
+  return _personShadowMat;
+}
 function M(hex, rough = 0.85) {
   if (!matCache.has(hex)) matCache.set(hex, new THREE.MeshStandardMaterial({ color: hex, roughness: rough, metalness: 0.02 }));
   return matCache.get(hex);
@@ -209,6 +229,15 @@ export function buildPerson(row = {}) {
     el.add(mesh(new THREE.SphereGeometry(0.042, 8, 8), M(skin, 0.65), 0, -0.27, 0)); // hand (the only skin on the arm)
   }
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  const sm = getPersonShadowMat();
+  if (sm) {
+    const sh = new THREE.Mesh(new THREE.PlaneGeometry(0.76, 0.76), sm);
+    sh.rotation.x = -Math.PI / 2;
+    sh.position.y = 0.082;
+    sh.renderOrder = 1;
+    sh.castShadow = false;
+    g.add(sh);
+  }
   return { group: g, joints: J, row, phase: Math.random() * 10 };
 }
 
