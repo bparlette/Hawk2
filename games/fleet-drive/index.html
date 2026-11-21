@@ -506,7 +506,7 @@ function angleLerp(a, b, t){
 function stepPerson(dt, now){
   let mx = 0, mz = 0;
   const fx = Math.sin(camYawS), fz = Math.cos(camYawS);       // camera forward on the ground
-  const rx = Math.cos(camYawS), rz = -Math.sin(camYawS);      // camera right
+  const rx = -Math.cos(camYawS), rz = Math.sin(camYawS);      // camera right (screen-right; sign fixed Nov 20 — was inverted, D/A + stick X walked screen-reversed)
   let fwd = 0, str = 0;
   if (keys['KeyW'] || keys['ArrowUp']) fwd += 1;
   if (keys['KeyS'] || keys['ArrowDown']) fwd -= 1;
