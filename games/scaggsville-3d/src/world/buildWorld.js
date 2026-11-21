@@ -28,17 +28,24 @@ export const WORLD_CONFIG = {
   poleSpacing: 34,         // m between utility poles along the route
   lampSpacing: 68,         // m between streetlights along the route
   parkedCars: 42,          // ambient parked cars on crew streets / lots
-  windowGlow: 0.85,        // fraction of windows lit at dusk
+  windowGlow: 0.85,        // fallback only — the active preset's dressing.windowGlow drives lit windows
   houseDetailRadius: 420,  // m from route/stops where houses get window quads
 };
 
 export const LIGHTING_PRESETS = {
-  golden: { // the original golden-hour look
-    renderer: { toneMapping: 'ACESFilmic', exposure: 1.15, outputColorSpace: 'SRGB' },
-    sun: { color: 0xffb38a, intensity: 2.35, dir: [-0.58, 0.30, 0.42] }, // low WSW sun: shadows rake ahead-left driving north
-    hemi: { sky: 0xa0c8f6, ground: 0x60586c, intensity: 1.5 },
-    ambient: { color: 0x5c74a2, intensity: 0.9 },
-    fog: { color: 0x8d82a3, near: 60, far: 620 },
+  golden: { // GOLDEN HOUR — one hour before sunset (Cherie, Nov 20): the
+    // sun is still well up (~25 deg) and warm gold, the sky stays blue
+    // overhead and only warms near the horizon, shadows are long but not
+    // sunset-long, and the dusk dressing is off — windows dark, street
+    // lamps not yet on, headlight beams a soft presence, not the show.
+    renderer: { toneMapping: 'ACESFilmic', exposure: 1.18, outputColorSpace: 'SRGB' },
+    sun: { color: 0xffbe78, intensity: 2.6, dir: [-0.58, 0.34, 0.42] }, // WSW sun ~25 deg up: shadows rake ahead-left driving north
+    hemi: { sky: 0x9ec2f2, ground: 0x77624e, intensity: 1.35 },
+    ambient: { color: 0x87a3cc, intensity: 0.65 },
+    fog: { color: 0xd9b48c, near: 80, far: 700 },
+    sky: { zen: [0.22, 0.42, 0.74], mid: [0.47, 0.62, 0.85], hor: [0.99, 0.76, 0.47] },
+    dressing: { windowGlow: 0.12, lampGlow: 0.0 },
+    beamIntensity: 90,
   },
   dusk: { // BLUE HOUR — the GTA VI reference grade (Nov 20): deep blue
     // ambient, a low warm sun remnant, lit windows + streetlight pools
@@ -48,9 +55,12 @@ export const LIGHTING_PRESETS = {
     hemi: { sky: 0x46689e, ground: 0x2e3038, intensity: 1.7 },
     ambient: { color: 0x3d5a8c, intensity: 1.0 },
     fog: { color: 0x35496b, near: 60, far: 640 },
+    sky: { zen: [0.10, 0.20, 0.46], mid: [0.27, 0.42, 0.68], hor: [0.97, 0.55, 0.30] },
+    dressing: { windowGlow: 0.85, lampGlow: 0.42 },
+    beamIntensity: 200,
   },
 };
-export const WORLD_LIGHTING = LIGHTING_PRESETS.dusk;
+export const WORLD_LIGHTING = LIGHTING_PRESETS.golden;
 
 // ---------- deterministic RNG ----------
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
@@ -136,14 +146,11 @@ const PLANE=new THREE.PlaneGeometry(1,1); PLANE.rotateX(-Math.PI/2);
 // ---------- sky dome (GLSL, Neon pattern) ----------
 const SKY_VERT=`varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
 const SKY_FRAG=`
-  varying vec3 vDir; uniform vec3 uSunDir;
+  varying vec3 vDir; uniform vec3 uSunDir; uniform vec3 uZen; uniform vec3 uMid; uniform vec3 uHor;
   void main(){
     float h = clamp(vDir.y, -0.08, 1.0);
-    vec3 zen = vec3(0.10,0.20,0.46);
-    vec3 mid = vec3(0.27,0.42,0.68);
-    vec3 hor = vec3(0.97,0.55,0.30);
-    vec3 col = mix(hor, mid, smoothstep(0.0,0.16,h));
-    col = mix(col, zen, smoothstep(0.10,0.55,h));
+    vec3 col = mix(uHor, uMid, smoothstep(0.0,0.16,h));
+    col = mix(col, uZen, smoothstep(0.10,0.55,h));
     float s = max(dot(normalize(vDir), normalize(uSunDir)), 0.0);
     col += vec3(1.0,0.52,0.24)*pow(s, 90.0)*0.9;    // sun disc glow
     col += vec3(1.0,0.55,0.26)*pow(s, 7.0)*0.20;    // warm haze around sun
@@ -152,8 +159,11 @@ const SKY_FRAG=`
     gl_FragColor = vec4(col, 1.0);
   }`;
 export function makeSkyDome(){
+  const sky = WORLD_LIGHTING.sky || LIGHTING_PRESETS.dusk.sky;
   const m=new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite:false, fog:false,
-    uniforms:{ uSunDir:{ value:new THREE.Vector3(...WORLD_LIGHTING.sun.dir).normalize() } },
+    uniforms:{ uSunDir:{ value:new THREE.Vector3(...WORLD_LIGHTING.sun.dir).normalize() },
+      uZen:{ value:new THREE.Vector3(...sky.zen) }, uMid:{ value:new THREE.Vector3(...sky.mid) },
+      uHor:{ value:new THREE.Vector3(...sky.hor) } },
     vertexShader:SKY_VERT, fragmentShader:SKY_FRAG });
   const dome=new THREE.Mesh(new THREE.SphereGeometry(3000, 24, 14), m);
   dome.name='skyDome'; dome.frustumCulled=false; dome.renderOrder=-10;
@@ -229,6 +239,10 @@ function flatPoly(bucket, key, pts, y, color){
 // ---------- main build ----------
 export function buildWorld(scene, overrides=null){
   const cfg=Object.assign({}, WORLD_CONFIG, overrides||{});
+  // lit-window fraction follows the active lighting preset (dusk dressing)
+  // unless a caller explicitly overrides it
+  if(!overrides || overrides.windowGlow===undefined)
+    cfg.windowGlow = WORLD_LIGHTING.dressing.windowGlow;
   const D=WORLD_DATA;
   const tex=makeTextures();
   const mats={
@@ -442,7 +456,7 @@ export function buildWorld(scene, overrides=null){
 
   B.build(scene, mats, { walls:true, roofs:true, trunk:true, foliage:true, pole:true });
   buildWindows(scene, winQuads);
-  buildLampGlow(scene, lampPts);
+  buildLampGlow(scene, lampPts, WORLD_LIGHTING.dressing.lampGlow);
 
   return {
     groundAt: (x,z)=>0,
@@ -461,10 +475,12 @@ export function buildWorld(scene, overrides=null){
   };
 }
 
-function buildLampGlow(scene, pts){
+function buildLampGlow(scene, pts, opacity=0.42){
   // streetlight dressing at blue hour, ONE merged additive mesh: a warm pool
   // on the wet road under each lamp + a crossed halo card at the lamp head.
-  if(!pts.length) return;
+  // Opacity comes from the active preset — at golden hour the lamps are
+  // not on yet, so the mesh is skipped entirely.
+  if(!pts.length || opacity<=0.01) return;
   const c=document.createElement('canvas'); c.width=c.height=128;
   const g2=c.getContext('2d');
   const gr=g2.createRadialGradient(64,64,2,64,64,64);
@@ -492,7 +508,7 @@ function buildLampGlow(scene, pts){
   geo.setAttribute('normal', new THREE.BufferAttribute(nor,3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uv,2));
   geo.setAttribute('color', new THREE.BufferAttribute(col,3));
-  const mesh=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map:tex, vertexColors:true, transparent:true, opacity:0.42, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, fog:false }));
+  const mesh=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map:tex, vertexColors:true, transparent:true, opacity, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, fog:false }));
   mesh.renderOrder=2; mesh.matrixAutoUpdate=false; mesh.name='lampGlow'; scene.add(mesh);
 }
 
