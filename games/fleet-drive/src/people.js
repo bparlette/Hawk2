@@ -51,15 +51,21 @@ export function buildPerson(row = {}) {
   for (const s of [-1, 1]) {
     const nm = s < 0 ? 'L' : 'R';
     const hip = J['hip' + nm] = pivot(hips, s * 0.095, -0.03, 0);
+    const knee = J['knee' + nm] = pivot(hip, 0, -0.44, 0); // pivot kept for the pose programs; the one-piece pant leg is not split here
     if (row.shorts) {
       hip.add(mesh(capsule(0.066, 0.13), M(pants), 0, -0.115, 0));                 // shorts leg (fabric)
       hip.add(mesh(capsule(0.05, 0.10), M(skin, 0.65), 0, -0.315, 0));             // bare thigh below the hem
+      knee.add(mesh(capsule(0.057, 0.30), M(skin, 0.7), 0, -0.20, 0));            // bare shin
+      knee.add(mesh(new THREE.BoxGeometry(0.095, 0.07, 0.24), M(shoes), 0, -0.415, 0.045)); // shoe
     } else {
-      hip.add(mesh(capsule(0.072, 0.30), M(pants), 0, -0.21, 0));                  // loose trouser thigh — a real leg tube
+      // ONE-PIECE PANT LEG (Cherie, Nov 20): a single tapered tube, hip to
+      // ankle, in the pants colour — no thigh/shin split, so no joint or
+      // seam can open mid-stride. The top tucks up inside the pelvis block
+      // so the hip seam never shows; the whole leg swings at the hip pivot
+      // and the shoe rides with it.
+      hip.add(mesh(new THREE.CylinderGeometry(0.080, 0.054, 0.88, 10), M(pants), 0, -0.415, 0));
+      hip.add(mesh(new THREE.BoxGeometry(0.095, 0.07, 0.24), M(shoes), 0, -0.855, 0.045)); // shoe
     }
-    const knee = J['knee' + nm] = pivot(hip, 0, -0.44, 0);
-    knee.add(mesh(capsule(0.057, 0.30), M(row.shorts ? skin : pants, 0.7), 0, -0.20, 0)); // shin (bare only if shorts)
-    knee.add(mesh(new THREE.BoxGeometry(0.095, 0.07, 0.24), M(shoes), 0, -0.415, 0.045)); // shoe
   }
   // torso
   const chest = J.chest = pivot(hips, 0, 0.10, 0);
