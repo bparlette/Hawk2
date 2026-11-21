@@ -14,15 +14,28 @@ export const CAR = {
   dragK: 0.011,         // quadratic drag -> terminal ~ topSpeed on road
   rollK: 2.1,           // rolling resistance
   steerMax: 0.62,       // rad at standstill, tapers with speed
+  // TURBO (2D Scaggsville precedent: hold-to-boost, charge ring on the
+  // button): while held with charge left, top speed scales up and an extra
+  // shove of acceleration lands; charge drains in ~3.5 s, regens in ~6 s.
+  boostTopMul: 1.7,     // 41 -> ~70 m/s cap while boosting
+  boostAccel: 1.25,     // extra accel as a multiple of CAR.accel
+  boostDragMul: 0.32,   // drag cut so ~1.5x top speed is actually reachable
+  boostDrain: 1/5,      // charge per second while boosting (5 s of boost)
+  boostRegen: 1/7,      // charge per second while not boosting
 };
 
 export function createCar(x, z, heading){
-  return { x, z, heading, speed: 0, steerVis: 0, offroad: false };
+  return { x, z, heading, speed: 0, steerVis: 0, offroad: false, charge: 1, boosting: false };
 }
 
 export function stepCar(car, input, dt, surface){
-  const top = surface==='grass'? CAR.topSpeedGrass : CAR.topSpeed;
+  let top = surface==='grass'? CAR.topSpeedGrass : CAR.topSpeed;
   car.offroad = surface==='grass';
+  // turbo state (followers/AI never pass input.boost, so they never boost)
+  if(car.charge===undefined){ car.charge=1; car.boosting=false; }
+  car.boosting = !!(input.boost && input.throttle>0 && car.charge>0.02);
+  if(car.boosting){ car.charge=Math.max(0, car.charge - CAR.boostDrain*dt); top*=CAR.boostTopMul; }
+  else car.charge=Math.min(1, car.charge + CAR.boostRegen*dt);
   // steering: taper with speed
   const sf = 1/(1+Math.abs(car.speed)*0.055);
   const steer = input.steer * CAR.steerMax * sf;
@@ -32,8 +45,9 @@ export function stepCar(car, input, dt, surface){
   if(input.brake && car.speed > 0.5) a -= CAR.brakeDecel;
   else if(input.brake && car.speed <= 0.5) a -= CAR.accel*0.6;        // reverse
   else a += input.throttle * CAR.accel;
+  if(car.boosting) a += input.throttle * CAR.accel * CAR.boostAccel;
   a -= car.speed * CAR.rollK * 0.12;
-  a -= Math.sign(car.speed) * car.speed * car.speed * CAR.dragK * (surface==='grass'? 2.6 : 1);
+  a -= Math.sign(car.speed) * car.speed * car.speed * CAR.dragK * (surface==='grass'? 2.6 : 1) * (car.boosting? CAR.boostDragMul : 1);
   car.speed += a * dt;
   if(car.speed > top) car.speed = Math.max(top, car.speed - 26*dt);
   if(car.speed < -CAR.reverseMax) car.speed = -CAR.reverseMax;

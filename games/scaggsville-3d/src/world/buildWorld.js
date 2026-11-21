@@ -243,6 +243,12 @@ export function buildWorld(scene, overrides=null){
   // unless a caller explicitly overrides it
   if(!overrides || overrides.windowGlow===undefined)
     cfg.windowGlow = WORLD_LIGHTING.dressing.windowGlow;
+  // Lane A (day/night cycle): window QUADS are baked at the max fraction any
+  // preset wants lit (0.85) and the 'litWindows' mesh material colour is the
+  // live dimmer — dark tint = unlit windows by day/golden hour, full colour
+  // = lit at dusk/night. Static callers (preview) get the active preset's
+  // tint set at build time below, so their look is unchanged.
+  const bakeGlow = Math.max(cfg.windowGlow, 0.85);
   const D=WORLD_DATA;
   const tex=makeTextures();
   const mats={
@@ -350,7 +356,7 @@ export function buildWorld(scene, overrides=null){
     if(!isSchool && (b.hero || nearRoute(cx,cz,cfg.houseDetailRadius))){
       const floors=storeys, per=Math.max(2, Math.floor(hw/1.9));
       for(let f=0;f<floors;f++) for(let wi=0;wi<per;wi++){
-        if(rand()>cfg.windowGlow) continue;
+        if(rand()>bakeGlow) continue;
         const lx=-hw+ (wi+0.5)*(2*hw/per), y=1.5+f*3.0;
         for(const side of [1,-1]){
           const wx=cx + Math.cos(ry)*lx + Math.sin(ry)*(hd+0.03)*side;
@@ -455,7 +461,10 @@ export function buildWorld(scene, overrides=null){
   scene.fog=new THREE.Fog(WORLD_LIGHTING.fog.color, WORLD_LIGHTING.fog.near, WORLD_LIGHTING.fog.far);
 
   B.build(scene, mats, { walls:true, roofs:true, trunk:true, foliage:true, pole:true });
-  buildWindows(scene, winQuads);
+  const winMesh = buildWindows(scene, winQuads);
+  // initial lit tint from the active preset (the day/night cycle re-tints
+  // this material every frame in-game; static callers keep this look)
+  if(winMesh) winMesh.material.color.setScalar(0.16 + 0.84 * Math.min(1, WORLD_LIGHTING.dressing.windowGlow));
   buildLampGlow(scene, lampPts, WORLD_LIGHTING.dressing.lampGlow);
 
   return {
@@ -478,9 +487,11 @@ export function buildWorld(scene, overrides=null){
 function buildLampGlow(scene, pts, opacity=0.42){
   // streetlight dressing at blue hour, ONE merged additive mesh: a warm pool
   // on the wet road under each lamp + a crossed halo card at the lamp head.
-  // Opacity comes from the active preset — at golden hour the lamps are
-  // not on yet, so the mesh is skipped entirely.
-  if(!pts.length || opacity<=0.01) return;
+  // Lane A: the mesh is ALWAYS built (when lamps exist) and its opacity /
+  // visibility is the live control — the day/night cycle fades it from 0 at
+  // golden hour up through dusk/night. Static callers pass the active
+  // preset's opacity (0 at golden -> mesh hidden, look unchanged).
+  if(!pts.length) return;
   const c=document.createElement('canvas'); c.width=c.height=128;
   const g2=c.getContext('2d');
   const gr=g2.createRadialGradient(64,64,2,64,64,64);
@@ -509,7 +520,7 @@ function buildLampGlow(scene, pts, opacity=0.42){
   geo.setAttribute('uv', new THREE.BufferAttribute(uv,2));
   geo.setAttribute('color', new THREE.BufferAttribute(col,3));
   const mesh=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map:tex, vertexColors:true, transparent:true, opacity, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, fog:false }));
-  mesh.renderOrder=2; mesh.matrixAutoUpdate=false; mesh.name='lampGlow'; scene.add(mesh);
+  mesh.renderOrder=2; mesh.matrixAutoUpdate=false; mesh.name='lampGlow'; mesh.visible = opacity>0.01; scene.add(mesh);
 }
 
 function makePrism(w, d, h){
@@ -553,6 +564,7 @@ function buildWindows(scene, quads){
   g.setAttribute('color', new THREE.Float32BufferAttribute(colors,3));
   g.setIndex(idx); g.computeVertexNormals();
   const m=new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors:true, side: THREE.DoubleSide }));
-  m.matrixAutoUpdate=false; scene.add(m);
+  m.matrixAutoUpdate=false; m.name='litWindows'; scene.add(m);
+  return m;
 }
 export default buildWorld;

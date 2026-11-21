@@ -16,14 +16,19 @@
 // body — garment volume offset outward from the torso, hanging from a
 // shoulder yoke; sleeves are loose tubes connecting shoulder to arm with
 // NO visible gap and no detached shoulder puffs; the body's and arm's
-// shape must not show through the shirt. (A shorts option exists in the
-// module, but the Scaggsville crew wears full pants — Cherie, Nov 20.)
+// shape must not show through the shirt.
+// PANTS RULE (Cherie, Nov 20): legs are ONE-PIECE tapered pants, hip to
+// ankle, swinging at the hip only — no thigh/shin split, no knee joint,
+// no shorts, no bare legs. The visible two-body-parts connection at the
+// knee is exactly what this rule kills.
 // buildDriver(row) returns a SEATED driver as ONE merged mesh (1 draw call),
 // same clothing rows — parent it to a vehicle's driverAnchor.
 //   scene.add(p.group);            // faces +Z, ~1.75 m tall, origin at feet
 //   // per frame: poseWave(p, t) / poseWalk(p, phase) / poseIdle(p, t)
 //
-// Pivots: hips, chest, head, shoulderL/R, elbowL/R, hipL/R, kneeL/R.
+// Pivots: hips, chest, head, shoulderL/R, elbowL/R, hipL/R, ankleL/R
+// (the ankle carries only the shoe, below the pant cuff).
+// (kneeL/R survive as EMPTY groups — pose-code compat only, no geometry.)
 import * as THREE from 'three';
 
 const matCache = new Map();
@@ -39,27 +44,85 @@ function pivot(parent, x, y, z) {
 }
 const capsule = (r, len, seg = 8) => new THREE.CapsuleGeometry(r, len, 3, seg);
 
+// One-piece tapered tube along a point path — the PANTS LEG builder.
+// Rings are interpolated between control points (pts/radii pairs); ring
+// frames come from the path tangent with a fixed reference axis (both leg
+// paths used here run in the YZ plane, so X is always a valid ring axis).
+// Smooth-shaded, single geometry: there is no segment boundary anywhere
+// along the leg for a seam to show at.
+function tubeGeo(pts, radii, seg = 10, subdiv = 2) {
+  const rings = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    for (let j = (i === 0 ? 0 : 1); j <= subdiv; j++) {
+      const t = j / subdiv;
+      rings.push({
+        c: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t],
+        r: radii[i] + (radii[i + 1] - radii[i]) * t,
+      });
+    }
+  }
+  const pos = [];
+  const T = new THREE.Vector3(), U = new THREE.Vector3(), V = new THREE.Vector3(), C = new THREE.Vector3();
+  const ringIdx = rings.map((ring, ri) => {
+    const prev = rings[Math.max(0, ri - 1)].c, next = rings[Math.min(rings.length - 1, ri + 1)].c;
+    T.set(next[0] - prev[0], next[1] - prev[1], next[2] - prev[2]).normalize();
+    const ref = Math.abs(T.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+    V.crossVectors(T, ref).normalize(); U.crossVectors(V, T).normalize();
+    C.set(ring.c[0], ring.c[1], ring.c[2]);
+    const out = [];
+    for (let k = 0; k < seg; k++) {
+      const a = (k / seg) * Math.PI * 2, ca = Math.cos(a) * ring.r, sa = Math.sin(a) * ring.r;
+      out.push(pos.length / 3);
+      pos.push(C.x + U.x * ca + V.x * sa, C.y + U.y * ca + V.y * sa, C.z + U.z * ca + V.z * sa);
+    }
+    return out;
+  });
+  const idx = [];
+  for (let ri = 0; ri < ringIdx.length - 1; ri++) {
+    for (let k = 0; k < seg; k++) {
+      const a = ringIdx[ri][k], b = ringIdx[ri][(k + 1) % seg], c = ringIdx[ri + 1][k], d = ringIdx[ri + 1][(k + 1) % seg];
+      idx.push(a, b, c, b, d, c);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+// Standing pants leg in hip-pivot space: ONE tapered piece, hip -> ankle.
+// The top extends ABOVE the pivot (inside the pelvis block) so no gap can
+// open at any swing angle; the ankle tip tucks into the shoe.
+const PANTS_LEG_PTS = [[0, 0.10, 0], [0, 0.03, 0], [0, -0.10, 0], [0, -0.26, 0], [0, -0.44, 0], [0, -0.62, 0], [0, -0.78, 0], [0, -0.86, 0]];
+const PANTS_LEG_RAD = [0.028, 0.078, 0.076, 0.068, 0.061, 0.055, 0.050, 0.026];
+
 export function buildPerson(row = {}) {
   const skin = row.skin ?? 0xe0ac69, shirt = row.shirt ?? 0x707880, pants = row.pants ?? 0x2a3a5e;
   const hairC = row.hair ?? 0x241a12, shoes = row.shoes ?? 0x232327;
   const g = new THREE.Group();
   const J = {};
 
-  // legs first (hips at 0.92)
+  // legs first (hips at 0.92) — ONE-PIECE PANTS (PANTS RULE above): a
+  // single tapered leg per side from hip to ankle, swinging at the hip
+  // only. The old row.shorts branch is REMOVED — everyone wears full
+  // pants, so there is no hem, no bare leg, and no knee joint to read.
   const hips = J.hips = pivot(g, 0, 0.92, 0);
   hips.add(mesh(new THREE.BoxGeometry(0.33, 0.17, 0.20), M(pants), 0, 0.02, 0)); // pelvis (loose trouser seat)
+  const pantsLegGeo = tubeGeo(PANTS_LEG_PTS, PANTS_LEG_RAD);
   for (const s of [-1, 1]) {
     const nm = s < 0 ? 'L' : 'R';
     const hip = J['hip' + nm] = pivot(hips, s * 0.095, -0.03, 0);
-    if (row.shorts) {
-      hip.add(mesh(capsule(0.066, 0.13), M(pants), 0, -0.115, 0));                 // shorts leg (fabric)
-      hip.add(mesh(capsule(0.05, 0.10), M(skin, 0.65), 0, -0.315, 0));             // bare thigh below the hem
-    } else {
-      hip.add(mesh(capsule(0.072, 0.30), M(pants), 0, -0.21, 0));                  // loose trouser thigh — a real leg tube
-    }
-    const knee = J['knee' + nm] = pivot(hip, 0, -0.44, 0);
-    knee.add(mesh(capsule(0.057, 0.30), M(row.shorts ? skin : pants, 0.7), 0, -0.20, 0)); // shin (bare only if shorts)
-    knee.add(mesh(new THREE.BoxGeometry(0.095, 0.07, 0.24), M(shoes), 0, -0.415, 0.045)); // shoe
+    hip.add(mesh(pantsLegGeo, M(pants), 0, 0, 0));                               // the whole pant leg, one piece
+    // the SHOE rides an ankle pivot (below the pant cuff — not a leg
+    // segment) so a seated pose can plant the foot flat while the pant
+    // leg angles whole from the hip; walking leaves it at 0, rigid.
+    const ank = J['ankle' + nm] = pivot(hip, 0, -0.855, 0.045);
+    ank.add(mesh(new THREE.BoxGeometry(0.095, 0.07, 0.24), M(shoes), 0, 0, 0));  // shoe
+    // RETIRED knee pivot: an EMPTY group, kept only so pose code that
+    // still writes knee rotations (interiors.js poseSit) harmlessly
+    // no-ops instead of throwing. It carries NO geometry — never add any.
+    J['knee' + nm] = pivot(hip, 0, -0.44, 0);
   }
   // torso
   const chest = J.chest = pivot(hips, 0, 0.10, 0);
@@ -124,6 +187,7 @@ function reset(p) {
   J.elbowL.rotation.set(0, 0, 0); J.elbowR.rotation.set(0, 0, 0);
   J.hipL.rotation.set(0, 0, 0); J.hipR.rotation.set(0, 0, 0);
   J.kneeL.rotation.set(0, 0, 0); J.kneeR.rotation.set(0, 0, 0);
+  J.ankleL.rotation.set(0, 0, 0); J.ankleR.rotation.set(0, 0, 0);
   p.group.position.y = 0;
 }
 export function poseIdle(p, t) {
@@ -146,10 +210,9 @@ export function poseWave(p, t) {
 }
 export function poseWalk(p, phase) {
   reset(p);
-  const J = p.joints, s = Math.sin(phase), c = Math.cos(phase);
+  const J = p.joints, s = Math.sin(phase);
   J.hipL.rotation.x = s * 0.52; J.hipR.rotation.x = -s * 0.52;
-  J.kneeL.rotation.x = Math.max(0, -c) * 0.75 + 0.05;
-  J.kneeR.rotation.x = Math.max(0, c) * 0.75 + 0.05;
+  // no knee bend — the pant leg is one piece and swings whole from the hip
   J.shoulderL.rotation.x = -s * 0.42; J.shoulderR.rotation.x = s * 0.42;
   J.elbowL.rotation.x = -0.25; J.elbowR.rotation.x = -0.25;
   J.chest.rotation.x = 0.06;
@@ -158,8 +221,8 @@ export function poseWalk(p, phase) {
 // ---- seated driver: ONE merged vertex-colored mesh (1 draw call), posed
 // behind the wheel. Origin at the driver's hip point, facing +Z; the host
 // parents it to a vehicle's driverAnchor and scales it by veh.driverScale.
-// Same clothing rows as the standing figures: shirt + sleeves, trousers or
-// shorts, hat. Hands land on the wheel rim (wheel centre ≈ dy +0.32,
+// Same clothing rows as the standing figures: shirt + sleeves, trousers,
+// hat. Hands land on the wheel rim (wheel centre ≈ dy +0.32,
 // dz +0.50 from the hips — the gpvehicles interior standard).
 const _dm4 = new THREE.Matrix4(), _dq = new THREE.Quaternion(), _de = new THREE.Euler(), _dv = new THREE.Vector3(), _ds = new THREE.Vector3();
 function _dxf(x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
@@ -227,16 +290,15 @@ export function buildDriver(row = {}) {
     P(cap(0.037, 0.20), skin, s * 0.195, 0.26, 0.305, 1.24, 0, 0);
     P(new THREE.SphereGeometry(0.042, 8, 8), skin, s * 0.165, 0.315, 0.478);
   }
-  // legs: thighs forward, shins down to the pedals, shoes
+  // legs: ONE-PIECE PANTS per side (PANTS RULE above) — a single tapered
+  // tube bent ONCE along the seated path hip -> knee -> ankle, built as
+  // one geometry (not thigh + shin capsules). Same outer envelope as the
+  // old two-capsule leg, so feet stay on the pedal line and nothing new
+  // clips the seat or dash. The row.shorts branch is gone here too.
   for (const s of [-1, 1]) {
-    if (row.shorts) {
-      P(cap(0.066, 0.10), pants, s * 0.095, -0.04, 0.085, Math.PI / 2, 0, 0);
-      P(cap(0.05, 0.08), skin, s * 0.095, -0.055, 0.235, Math.PI / 2, 0, 0);
-      P(cap(0.047, 0.18), skin, s * 0.095, -0.18, 0.33, Math.PI - 0.24, 0, 0);
-    } else {
-      P(cap(0.072, 0.22), pants, s * 0.095, -0.045, 0.14, Math.PI / 2, 0, 0);
-      P(cap(0.056, 0.18), pants, s * 0.095, -0.18, 0.33, Math.PI - 0.24, 0, 0);
-    }
+    const legPts = [[s * 0.095, 0.005, -0.035], [s * 0.095, -0.028, 0.03], [s * 0.095, -0.045, 0.16], [s * 0.095, -0.045, 0.30], [s * 0.095, -0.17, 0.345], [s * 0.095, -0.30, 0.365], [s * 0.095, -0.325, 0.375]];
+    const legRad = [0.026, 0.080, 0.071, 0.062, 0.055, 0.047, 0.018];
+    P(tubeGeo(legPts, legRad), pants, 0, 0, 0);
     P(new THREE.BoxGeometry(0.095, 0.07, 0.24), shoes, s * 0.095, -0.335, 0.40);
   }
   const m = new THREE.Mesh(_mergeColored(parts), DRIVER_MAT);
