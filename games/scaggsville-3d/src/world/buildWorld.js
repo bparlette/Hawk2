@@ -58,7 +58,7 @@ export const LIGHTING_PRESETS = {
     sun: { color: 0xffbe78, intensity: 2.6, dir: [-0.58, 0.34, 0.42] }, // WSW sun ~25 deg up: shadows rake ahead-left driving north
     hemi: { sky: 0x9ec2f2, ground: 0x77624e, intensity: 1.35 },
     ambient: { color: 0x87a3cc, intensity: 0.65 },
-    fog: { color: 0xd9b48c, near: 80, far: 700 },
+    fog: { color: 0xe2ab74, near: 110, far: 600 },
     sky: { zen: [0.22, 0.42, 0.74], mid: [0.47, 0.62, 0.85], hor: [0.99, 0.76, 0.47] },
     dressing: { windowGlow: 0.12, lampGlow: 0.0 },
     beamIntensity: 90,
@@ -70,7 +70,7 @@ export const LIGHTING_PRESETS = {
     sun: { color: 0xff9a5e, intensity: 1.85, dir: [-0.58, 0.16, 0.42] },
     hemi: { sky: 0x46689e, ground: 0x2e3038, intensity: 1.7 },
     ambient: { color: 0x3d5a8c, intensity: 1.0 },
-    fog: { color: 0x35496b, near: 60, far: 640 },
+    fog: { color: 0x3d5076, near: 85, far: 580 },
     sky: { zen: [0.10, 0.20, 0.46], mid: [0.27, 0.42, 0.68], hor: [0.97, 0.55, 0.30] },
     dressing: { windowGlow: 0.85, lampGlow: 0.42 },
     beamIntensity: 200,
