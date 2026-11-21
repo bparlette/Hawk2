@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Gamepress Car-Fitter Verification Viewer</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #e8eaee; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #hud {
+    position: fixed; top: 10px; left: 10px; padding: 8px 12px; border-radius: 10px;
+    background: rgba(15, 20, 30, 0.82); color: #eef2f8; font-size: 12px; line-height: 1.4;
+    backdrop-filter: blur(8px); pointer-events: none;
+  }
+  #hud .title { font-weight: 700; color: #7cc4ff; letter-spacing: 0.04em; text-transform: uppercase; font-size: 11px; }
+  #controls {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 96vw;
+  }
+  button {
+    border: 1px solid rgba(255,255,255,0.2); background: rgba(15,20,30,0.82); color: #eef2f8;
+    padding: 6px 11px; border-radius: 999px; font-size: 12px; cursor: pointer;
+  }
+  button.active { background: #1e6fd9; border-color: #7cc4ff; color: #fff; font-weight: 600; }
+  body.clean #hud, body.clean #controls { display: none; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="hud">
+  <div class="title" id="carTitle">Car-Fitter Viewer</div>
+  <div id="stats">Loading spec…</div>
+</div>
+<div id="controls">
+  <button data-view="front34">Front 3/4</button>
+  <button data-view="side">Side</button>
+  <button data-view="rear34">Rear 3/4</button>
+  <button data-view="front">Front</button>
+  <button data-view="rear">Rear</button>
+  <button id="btnPopups">Pop-ups: DOWN</button>
+  <button id="btnMode">Light: Studio</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { buildLoftedCar, DEFAULT_CAR_SPEC } from './gpcar_loft.js';
+
+const params = new URLSearchParams(location.search);
+if (params.get('clean') === '1') document.body.classList.add('clean');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.1, 100);
+
+// Studio turntable & dusk street lighting presets
+const hemi = new THREE.HemisphereLight(0xffffff, 0x8a909a, 1.1);
+scene.add(hemi);
+const keyLight = new THREE.DirectionalLight(0xfffaf2, 1.85);
+keyLight.position.set(5, 8, 6);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.camera.near = 1;
+keyLight.shadow.camera.far = 25;
+keyLight.shadow.camera.left = -4;
+keyLight.shadow.camera.right = 4;
+keyLight.shadow.camera.top = 4;
+keyLight.shadow.camera.bottom = -4;
+scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0xdce8ff, 0.9);
+fillLight.position.set(-6, 4, -5);
+scene.add(fillLight);
+
+// Turntable floor
+const floorMat = new THREE.MeshStandardMaterial({ color: 0xd8dce2, roughness: 0.55, metalness: 0.05 });
+const floor = new THREE.Mesh(new THREE.CylinderGeometry(3.35, 3.45, 0.12, 64), floorMat);
+floor.position.y = -0.06;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const outerFloor = new THREE.Mesh(
+  new THREE.PlaneGeometry(40, 40),
+  new THREE.MeshStandardMaterial({ color: 0xe6e8ec, roughness: 0.78 })
+);
+outerFloor.rotation.x = -Math.PI / 2;
+outerFloor.position.y = -0.121;
+outerFloor.receiveShadow = true;
+scene.add(outerFloor);
+
+// Simple PMREM studio reflection environment so clearcoat paint & glass catch highlights
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envScene = new THREE.Scene();
+envScene.background = new THREE.Color(0xcbd3df);
+const stripMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+for (const [x, y, z] of [[0, 6, 0], [5, 5, 4], [-5, 5, -3]]) {
+  const s = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 1.2), stripMat);
+  s.position.set(x, y, z);
+  envScene.add(s);
+}
+scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+
+let lightMode = params.get('mode') === 'dusk' ? 'dusk' : 'studio';
+function applyLighting() {
+  if (lightMode === 'dusk') {
+    scene.background = new THREE.Color(0x1b2238);
+    hemi.color.setHex(0x8aa2d8);
+    hemi.groundColor.setHex(0x1f2433);
+    hemi.intensity = 0.75;
+    keyLight.color.setHex(0xffb478);
+    keyLight.intensity = 1.4;
+    fillLight.color.setHex(0x4b74c9);
+    fillLight.intensity = 0.6;
+    floorMat.color.setHex(0x2b303c);
+    outerFloor.material.color.setHex(0x1e222e);
+    document.getElementById('btnMode').textContent = 'Light: Dusk';
+  } else {
+    scene.background = new THREE.Color(0xebeef2);
+    hemi.color.setHex(0xffffff);
+    hemi.groundColor.setHex(0x9ca2ac);
+    hemi.intensity = 1.15;
+    keyLight.color.setHex(0xfffaf2);
+    keyLight.intensity = 1.8;
+    fillLight.color.setHex(0xdce8ff);
+    fillLight.intensity = 0.95;
+    floorMat.color.setHex(0xd4d8de);
+    outerFloor.material.color.setHex(0xe4e7ec);
+    document.getElementById('btnMode').textContent = 'Light: Studio';
+  }
+}
+applyLighting();
+
+// Camera presets matched to standard dealer turntable shoots (+X = driver left, +Z = front)
+const VIEWS = {
+  front34: { pos: [4.55, 1.38, 4.55], target: [0, 0.58, 0.06], fov: 30 },
+  side:    { pos: [7.80, 0.88, 0.00], target: [0, 0.60, 0.00], fov: 26 },
+  rear34:  { pos: [4.45, 1.42, -4.65], target: [0, 0.60, -0.05], fov: 30 },
+  front:   { pos: [0.00, 0.88, 5.45], target: [0, 0.58, 0.00], fov: 28 },
+  rear:    { pos: [0.00, 0.90, -5.45], target: [0, 0.60, 0.00], fov: 28 },
+  wheel:   { pos: [2.85, 0.62, 1.40], target: [0.65, 0.48, 1.18], fov: 32 },
+};
+
+let currentView = params.get('view') || 'front34';
+let viewScale = 1.0, targetBaseY = 0.60;
+let orbitTheta = Math.atan2(3.85, 3.85), orbitPhi = 1.3, orbitR = 5.6;
+let isOrbit = false;
+function setView(name) {
+  const v = VIEWS[name] || VIEWS.front34;
+  currentView = name;
+  isOrbit = false;
+  camera.fov = v.fov;
+  camera.updateProjectionMatrix();
+  camera.position.set(v.pos[0] * viewScale, v.pos[1] * viewScale, v.pos[2] * viewScale);
+  camera.lookAt(v.target[0], targetBaseY, v.target[2]);
+  document.querySelectorAll('[data-view]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.view === name);
+  });
+}
+
+// Simple mouse drag orbit
+let dragging = false, lastX = 0, lastY = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  if (!isOrbit) {
+    const p = camera.position;
+    orbitR = Math.hypot(p.x, p.y - 0.62, p.z);
+    orbitTheta = Math.atan2(p.x, p.z);
+    orbitPhi = Math.acos(Math.max(-1, Math.min(1, (p.y - 0.62) / orbitR)));
+    isOrbit = true;
+  }
+});
+window.addEventListener('pointerup', () => { dragging = false; });
+window.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  orbitTheta -= (e.clientX - lastX) * 0.008;
+  orbitPhi = Math.max(0.25, Math.min(1.52, orbitPhi - (e.clientY - lastY) * 0.006));
+  lastX = e.clientX; lastY = e.clientY;
+  camera.position.set(
+    Math.sin(orbitPhi) * Math.sin(orbitTheta) * orbitR,
+    0.62 + Math.cos(orbitPhi) * orbitR,
+    Math.sin(orbitPhi) * Math.cos(orbitTheta) * orbitR
+  );
+  camera.lookAt(0, 0.62, 0);
+});
+
+// Load car spec from URL param or default
+async function loadSpec() {
+  const specUrl = params.get('spec') || './car-spec.json';
+  if (specUrl === 'default') return DEFAULT_CAR_SPEC;
+  const res = await fetch(specUrl);
+  if (!res.ok) throw new Error(`Failed to fetch spec: ${specUrl}`);
+  return await res.json();
+}
+
+const spec = await loadSpec();
+const car = buildLoftedCar(spec);
+scene.add(car.group);
+viewScale = Math.max(1.0, (spec.dims?.length || 4.4) / 4.35, (spec.dims?.height || 1.26) / 1.35);
+targetBaseY = (spec.dims?.height || 1.26) * 0.48;
+
+let popupsUp = params.get('popups') === '1';
+car.setPopups(popupsUp ? 1 : 0);
+document.getElementById('btnPopups').textContent = `Pop-ups: ${popupsUp ? 'UP' : 'DOWN'}`;
+
+document.getElementById('btnPopups').addEventListener('click', () => {
+  popupsUp = !popupsUp;
+  car.setPopups(popupsUp ? 1 : 0);
+  document.getElementById('btnPopups').textContent = `Pop-ups: ${popupsUp ? 'UP' : 'DOWN'}`;
+});
+document.getElementById('btnMode').addEventListener('click', () => {
+  lightMode = lightMode === 'studio' ? 'dusk' : 'studio';
+  applyLighting();
+});
+document.querySelectorAll('[data-view]').forEach((b) => {
+  b.addEventListener('click', () => setView(b.dataset.view));
+});
+
+setView(currentView);
+renderer.render(scene, camera);
+document.getElementById('carTitle').textContent = spec.meta?.name || 'Fitted Procedural Car';
+document.getElementById('stats').textContent =
+  `Draw calls: ${renderer.info.render.calls} · Tris: ${renderer.info.render.triangles.toLocaleString()} · Pop-ups: ${popupsUp ? 'UP' : 'DOWN'}`;
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
