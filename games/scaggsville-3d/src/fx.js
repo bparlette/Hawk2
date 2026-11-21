@@ -19,9 +19,9 @@ function makePuffTexture() {
 const KINDS = {
   smoke:     { color: 0xd4dae2, grow: 1.9, gravity: -1.4, drag: 1.8 }, // expanding white tire smoke
   dust:      { color: 0xa89268, grow: 1.6, gravity: 1.5,  drag: 2.2 }, // off-road dirt & jump landing dust
-  spark:     { color: 0xffd24a, grow: -0.6, gravity: 14.0, drag: 0.6 }, // crash / scrape sparks
-  flame:     { color: 0xff6a1a, grow: 0.4, gravity: -4.5, drag: 1.2 }, // turbo flame & Mustang blaze
-  turbo:     { color: 0x6ac8ff, grow: 0.3, gravity: -1.0, drag: 2.5 }, // blue-orange nitro flash
+  spark:     { color: 0xffd24a, grow: -0.6, gravity: 14.0, drag: 0.6, hdr: 2.2 }, // crash / scrape / ember sparks (blooms!)
+  flame:     { color: 0xff6a1a, grow: 0.4, gravity: -4.5, drag: 1.2, hdr: 1.8 }, // turbo flame
+  turbo:     { color: 0x6ac8ff, grow: 0.3, gravity: -1.0, drag: 2.5, hdr: 1.6 }, // blue-orange nitro flash
   water:     { color: 0xbbeaff, grow: 1.3, gravity: 9.8,  drag: 0.9 }, // smashed hydrant water plume
   darksmoke: { color: 0x26282e, grow: 2.5, gravity: -2.4, drag: 1.1 }, // dark oil/fire column over Mustang
 };
@@ -131,6 +131,7 @@ export function createFX(scene) {
     p.gravity = spec.gravity;
     p.drag = spec.drag;
     _c.setHex(spec.color);
+    if (spec.hdr) _c.multiplyScalar(spec.hdr);
     p.r = _c.r; p.g = _c.g; p.b = _c.b;
     pMesh.setColorAt(pCursor === 0 ? MAX_PARTICLES - 1 : pCursor - 1, _c);
     if (pMesh.instanceColor) pMesh.instanceColor.needsUpdate = true;

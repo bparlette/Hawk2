@@ -119,7 +119,10 @@
 <div id="pick"></div>
 
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
 </script>
 <script type="module">
 import * as THREE from 'three';
@@ -147,6 +150,7 @@ import { createOnFoot } from './src/onfoot.js';
 import { createMinimap } from './src/minimap.js';
 import { createRadio } from './src/radio.js';
 import { createActivities } from './src/activities.js';
+import { createPost } from './src/post.js';
 
 /* ============================== RENDERER / SCENE ============================== */
 const L = WORLD_LIGHTING;
@@ -162,6 +166,7 @@ document.getElementById('game').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 7000);
+const post = createPost({ renderer, scene, camera });
 
 // Lane E: cinematic camera (src/cinecam.js) — owns the camera for the
 // depart sweep / above cruise / approach descent / arrival beats. The
@@ -1084,14 +1089,15 @@ function animate(){
   daynight.update(dt, rallyProgress);
   daynight.applyTo(lightRig);
   crowd.update(dt, performance.now()/1000);
-  if(!started && garage){ garage.update(dt, performance.now()/1000); garage.render(renderer); }
-  else renderer.render(scene, camera);
+  if(!started && garage){ garage.update(dt, performance.now()/1000); post.render(garage.scene, garage.camera, rawDt); }
+  else post.render(scene, camera, rawDt, { dome, interior: interiors.active });
 }
 animate();
 
 addEventListener('resize', ()=>{
   camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  post.setSize(innerWidth, innerHeight);
 });
 
 /* ============================== PROOF HOOKS ============================== */
@@ -1099,6 +1105,7 @@ window.__dbg={ get ready(){ return started; },
   get audio(){ return gameAudio.state(); },
   get music(){ return music.state(); },
   get cine(){ return cine.state; },
+  get post(){ return post.stats(); },
   get state(){ return player? { x:player.x, z:player.z, heading:player.heading, speed:player.speed,
     collected:[...collected], targets:[...targets], followers:followers.length, finished,
     driverSeated: !!(playerVeh && playerVeh._driver),
@@ -1144,6 +1151,7 @@ window.__proof={
   skipCine(){ cine.cancel(); },
   setCam(m){ camMode=(m|0)%3; cine.cancel(); },
   setInput(obj){ proofInput=obj || null; },
+  setBloom(on){ post.setBloom(on); },
 };
 window.__missions = missions;
 window.__crowd = crowd;   // Lane A seam for the party lane (spawnCrowd/clearCrowd)

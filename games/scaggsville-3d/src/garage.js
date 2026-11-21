@@ -446,6 +446,8 @@ export function mountGarage(pickEl, opts) {
 
   show(0);
   return {
+    scene: stage.scene,
+    camera: stage.camera,
     update(dt, t) { if (!launched) stage.update(dt, t); },
     render(renderer) { if (!launched) stage.render(renderer); },
     selection() { return { stop: households[idx].stop, carId: curCarId, custom: { ...custom() } }; },

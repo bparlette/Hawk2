@@ -91,7 +91,7 @@ const PLANE=new THREE.PlaneGeometry(1,1); PLANE.rotateX(-Math.PI/2);
 // ---------- sky dome (GLSL, layered painted clouds + night stars) ----------
 const SKY_VERT=`varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
 const SKY_FRAG=`
-  varying vec3 vDir; uniform vec3 uSunDir; uniform vec3 uZen; uniform vec3 uMid; uniform vec3 uHor;
+  varying vec3 vDir; uniform vec3 uSunDir; uniform vec3 uZen; uniform vec3 uMid; uniform vec3 uHor; uniform float uLinearSky;
   void main(){
     float h = clamp(vDir.y, -0.08, 1.0);
     vec3 col = mix(uHor, uMid, smoothstep(0.0,0.16,h));
@@ -114,6 +114,8 @@ const SKY_FRAG=`
     float sRnd = fract(sin(dot(scell, vec2(127.1, 311.7))) * 43758.5453);
     float star = step(0.945, sRnd) * smoothstep(0.16, 0.02, length(sfuv)) * smoothstep(0.14, 0.42, h) * nightK;
     col += vec3(0.85, 0.92, 1.0) * star * 0.95;
+    col = min(col, vec3(1.04)); // stay below selective bloom threshold (1.12)
+    if (uLinearSky > 0.5) col = pow(max(col, vec3(0.0)), vec3(2.2));
     gl_FragColor = vec4(col, 1.0);
   }`;
 export function makeSkyDome(){
@@ -121,7 +123,7 @@ export function makeSkyDome(){
   const m=new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite:false, fog:false,
     uniforms:{ uSunDir:{ value:new THREE.Vector3(...WORLD_LIGHTING.sun.dir).normalize() },
       uZen:{ value:new THREE.Vector3(...sky.zen) }, uMid:{ value:new THREE.Vector3(...sky.mid) },
-      uHor:{ value:new THREE.Vector3(...sky.hor) } },
+      uHor:{ value:new THREE.Vector3(...sky.hor) }, uLinearSky:{ value:0.0 } },
     vertexShader:SKY_VERT, fragmentShader:SKY_FRAG });
   const dome=new THREE.Mesh(new THREE.SphereGeometry(3000, 24, 14), m);
   dome.name='skyDome'; dome.frustumCulled=false; dome.renderOrder=-10;
@@ -444,9 +446,11 @@ function buildLampGlow(scene, pts, opacity=0.42, streetPts=[], porchPts=[]){
   const Q2=new THREE.Quaternion(), E2=new THREE.Euler(), V2=new THREE.Vector3(), S2=new THREE.Vector3(1,1,1);
   const put=(src,x,y,z,tint)=>{ E2.set(0,0,0); Q2.setFromEuler(E2); V2.set(x,y,z); const gg=src.clone(); gg.applyMatrix4(new THREE.Matrix4().compose(V2,Q2,S2)); geos.push(gg.index?gg.toNonIndexed():gg); tints.push(tint); };
   const T_LAMP=new THREE.Color(0xffb46a), T_STREET=new THREE.Color(0xd9903f), T_PORCH=new THREE.Color(0xffc98a);
-  for(const [x,z] of pts){ put(poolG, x, 0.075, z, T_LAMP); put(glowA, x, 7.28, z, T_LAMP); put(glowB, x, 7.28, z, T_LAMP); }
-  for(const [x,z] of streetPts){ put(poolStreet, x, 0.075, z, T_STREET); put(glowSA, x, 6.2, z, T_STREET); put(glowSB, x, 6.2, z, T_STREET); }
-  for(const [x,z] of porchPts){ put(poolPorch, x, 0.09, z, T_PORCH); put(glowPA, x, 2.7, z, T_PORCH); put(glowPB, x, 2.7, z, T_PORCH); }
+  // Streetlight & porch globes cross selective bloom threshold (>1.12) while ground road pools stay unbloomed
+  const T_LAMP_G=T_LAMP.clone().multiplyScalar(2.1), T_STREET_G=T_STREET.clone().multiplyScalar(1.9), T_PORCH_G=T_PORCH.clone().multiplyScalar(2.0);
+  for(const [x,z] of pts){ put(poolG, x, 0.075, z, T_LAMP); put(glowA, x, 7.28, z, T_LAMP_G); put(glowB, x, 7.28, z, T_LAMP_G); }
+  for(const [x,z] of streetPts){ put(poolStreet, x, 0.075, z, T_STREET); put(glowSA, x, 6.2, z, T_STREET_G); put(glowSB, x, 6.2, z, T_STREET_G); }
+  for(const [x,z] of porchPts){ put(poolPorch, x, 0.09, z, T_PORCH); put(glowPA, x, 2.7, z, T_PORCH_G); put(glowPB, x, 2.7, z, T_PORCH_G); }
   let total=0; for(const g of geos) total+=g.attributes.position.count;
   const pos=new Float32Array(total*3), nor=new Float32Array(total*3), uv=new Float32Array(total*2), col=new Float32Array(total*3);
   let o=0;

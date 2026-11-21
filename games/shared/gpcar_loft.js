@@ -2045,9 +2045,9 @@ export function buildLoftedCar(userSpec = {}) {
   group.add(dashGlow);
 
   function setLights({ brake = false, reverse = false, nightK = 0.5 } = {}) {
-    mats.tailLens.emissiveIntensity = brake ? 2.9 : (0.75 + nightK * 0.75);
+    mats.tailLens.emissiveIntensity = brake ? 3.5 : (0.75 + nightK * 1.15);
     tailGlowMat.opacity = brake ? 0.85 : (0.28 + nightK * 0.35);
-    mats.reverseLens.emissiveIntensity = reverse ? 1.8 : 0.0;
+    mats.reverseLens.emissiveIntensity = reverse ? 2.1 : 0.0;
     dashGlowMat.opacity = Math.max(0, Math.min(0.68, (nightK - 0.12) * 0.82));
   }
 
