@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+# osm_areas.py — task L10: the real BUILDING FOOTPRINTS + area landuse from the same OSM tiles as
+# tools/osm_fetch.py, projected to world units (10/m, the graph's projection) -> data/areas.json:
+#   buildings: [[x0,y0,x1,y1,...], ...]   every building=* outline, true shape and place (ints, units)
+#   parking:   lot outlines (amenity=parking)        green: park / wood / grass / pitch / golf outlines
+#   heroes:    the footprint under each crew house (roster.json) and each named POI — task L8's hero tier
+#              (drawn bigger + crisper; everything else is the faded background tier)
+#   python3 tools/osm_areas.py [--tiles DIR]          (from games/laurel-fulton/)
+import os, sys, json, math, xml.etree.ElementTree as ET
+import sys as _s, os as _o; _s.path.insert(0, _o.path.dirname(_o.path.abspath(__file__))); import world_cfg
+ROOT = world_cfg.root()
+a = sys.argv[1:]; TILES = a[a.index('--tiles') + 1] if '--tiles' in a else '/tmp/lf_osm_tiles'
+LAT0, LON0 = world_cfg.LAT0, world_cfg.LON0
+KX, KY, U = math.cos(math.radians(LAT0)) * 111320.0, 110540.0, 10.0
+proj = lambda lat, lon: (round((lon - LON0) * KX * U), round(-(lat - LAT0) * KY * U))
+nodes, ways, rels, allways = {}, {}, [], {}
+for f in sorted(os.listdir(TILES)):
+    if not f.endswith('.osm'): continue
+    root = ET.parse(os.path.join(TILES, f)).getroot()
+    for nd in root.iter('node'): nodes[nd.get('id')] = (float(nd.get('lat')), float(nd.get('lon')))
+    for r in root.iter('relation'):                     # L5 fix: buildings mapped as MULTIPOLYGON relations (big schools, malls) —
+        t = {x.get('k'): x.get('v') for x in r.iter('tag')}   # stage 1 skipped these, so Atholton HS showed a 172 m2 shed
+        if t.get('type') == 'multipolygon' and 'building' in t: rels.append([(m.get('role'), m.get('ref')) for m in r.iter('member') if m.get('type') == 'way'])
+    for w in root.iter('way'):
+        allways[w.get('id')] = [x.get('ref') for x in w.iter('nd')]
+        tags = {t.get('k'): t.get('v') for t in w.iter('tag')}
+        if 'building' in tags or tags.get('amenity') == 'parking' or tags.get('leisure') in ('park', 'pitch', 'golf_course', 'playground') or tags.get('landuse') in ('grass', 'forest', 'meadow', 'recreation_ground') or tags.get('natural') == 'wood':
+            ways[w.get('id')] = (tags, [x.get('ref') for x in w.iter('nd')])
+out = {'buildings': [], 'parking': [], 'green': [], 'heroes': []}
+bid = {}
+for wid, (tags, refs) in ways.items():
+    if len(refs) < 4 or refs[0] != refs[-1] or not all(r in nodes for r in refs): continue
+    flat = [v for r in refs[:-1] for v in proj(*nodes[r])]
+    if 'building' in tags: bid[wid] = len(out['buildings']); out['buildings'].append(flat)
+    elif tags.get('amenity') == 'parking': out['parking'].append(flat)
+    else: out['green'].append(flat)
+def stitch(parts):                                      # join open member ways end to end into closed rings
+    rings, parts = [], [p[:] for p in parts]
+    while parts:
+        cur = parts.pop(0)
+        while cur[0] != cur[-1]:
+            for i, q in enumerate(parts):
+                if q[0] == cur[-1]: cur += q[1:]; parts.pop(i); break
+                if q[-1] == cur[-1]: cur += q[::-1][1:]; parts.pop(i); break
+            else: break
+        if cur[0] == cur[-1] and len(cur) > 3: rings.append(cur)
+    return rings
+for mem in rels:                                         # each OUTER ring of a building relation is a footprint (courtyards: data/roof.json)
+    for refs in stitch([allways[w] for role, w in mem if role == 'outer' and w in allways]):
+        if all(r in nodes for r in refs): out['buildings'].append([v for r in refs[:-1] for v in proj(*nodes[r])])
+def inside(px, py, f):
+    n, c = len(f) // 2, False
+    for i in range(n):
+        x1, y1, x2, y2 = f[2 * i], f[2 * i + 1], f[2 * ((i + 1) % n)], f[2 * ((i + 1) % n) + 1]
+        if (y1 > py) != (y2 > py) and px < (x2 - x1) * (py - y1) / (y2 - y1) + x1: c = not c
+    return c
+def footprint_at(x, y, maxd=300):
+    best, bi = 1e18, None
+    for i, f in enumerate(out['buildings']):
+        cx, cy = sum(f[0::2]) / (len(f) // 2), sum(f[1::2]) / (len(f) // 2)
+        if abs(cx - x) > 2000 or abs(cy - y) > 2000: continue
+        if inside(x, y, f): return i
+        d = math.hypot(cx - x, cy - y)
+        if d < best: best, bi = d, i
+    return bi if best < maxd else None
+R = json.load(open(os.path.join(ROOT, 'data', 'roster.json')))
+G = json.load(open(os.path.join(ROOT, 'data', 'graph.json')))
+seen = set()
+for p in R['people']:
+    if not p.get('active') or p.get('at'): continue
+    i = footprint_at(*p['house'])
+    if i is not None and i not in seen: seen.add(i); out['heroes'].append({'b': i, 'who': R.get('houses', {}).get(p['id'], p['name']), 'kind': 'home'})
+P = json.load(open(os.path.join(ROOT, 'data', 'osm_places.json')))['elements']
+CITYF = os.path.join(ROOT, 'data', 'city.json')
+for name in ([q['name'] for q in json.load(open(CITYF))['pois']] if os.path.exists(CITYF) else ['Ledo Pizza', 'Atholton High School', 'Reservoir High School']):
+    q = next((q for q in P if q['tags'].get('name') == name), None)
+    if not q: continue
+    i = footprint_at(*proj(q['lat'], q['lon']), maxd=1500)
+    if i is not None and i not in seen: seen.add(i); out['heroes'].append({'b': i, 'who': name, 'kind': 'poi'})
+json.dump(out, open(os.path.join(ROOT, 'data', 'areas.json'), 'w'), separators=(',', ':'))
+print(f"{len(out['buildings'])} building footprints, {len(out['parking'])} parking lots, {len(out['green'])} green areas, heroes: {[h['who'] for h in out['heroes']]}")
