@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Bodycam Corridor — procedural Three.js sample</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#000; overflow:hidden; touch-action:none;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; -webkit-user-select:none; user-select:none; }
+  #gl { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  /* ---------- bodycam overlay ---------- */
+  #ui { position:fixed; inset:0; pointer-events:none; color:#e8f0e6; z-index:10;
+    text-shadow:0 0 4px rgba(0,0,0,.9), 0 0 1px #000; }
+  .tl { position:absolute; top:14px; left:16px; font-size:13px; letter-spacing:.14em; line-height:1.5; }
+  .tl .big { font-size:15px; font-weight:700; }
+  .tr { position:absolute; top:14px; right:16px; text-align:right; font-size:13px; letter-spacing:.12em; line-height:1.5; }
+  #rec { display:inline-block; width:10px; height:10px; border-radius:50%; background:#ff2d20;
+    box-shadow:0 0 8px #ff2d20; margin-right:6px; vertical-align:1px; animation:blink 1.2s steps(1) infinite; }
+  @keyframes blink { 0%,55% {opacity:1} 56%,100% {opacity:.12} }
+  .bl { position:absolute; left:16px; bottom:16px; font-size:13px; letter-spacing:.12em; line-height:1.5; }
+  .batt { display:inline-block; width:26px; height:11px; border:1.5px solid #cfd8cc; vertical-align:-1px; margin-right:7px; position:relative; }
+  .batt i { position:absolute; inset:1.5px; background:#9fe870; display:block; transform-origin:left; }
+  .batt::after { content:""; position:absolute; right:-5px; top:2.5px; width:3px; height:5px; background:#cfd8cc; }
+  .br { position:absolute; right:16px; bottom:16px; font-size:11px; letter-spacing:.12em; text-align:right; }
+  .meter { display:flex; align-items:center; gap:5px; justify-content:flex-end; margin-top:3px; }
+  .segs { display:flex; gap:1.5px; }
+  .segs i { width:4px; height:9px; background:rgba(220,235,215,.16); display:block; }
+  .segs i.on { background:#9fe870; }
+  .segs i.on.hot { background:#ffb02e; }
+  .segs i.on.max { background:#ff2d20; }
+  #hold { position:absolute; left:50%; bottom:12%; transform:translateX(-50%); font-size:13px;
+    letter-spacing:.3em; color:#ffd76a; display:none; }
+  #hint { position:absolute; left:50%; bottom:6%; transform:translateX(-50%); font-size:11px;
+    letter-spacing:.18em; color:rgba(230,240,225,.75); white-space:nowrap; transition:opacity 1.2s; }
+  /* ---------- grain / vignette / fade ---------- */
+  #grain { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:20; opacity:.5; mix-blend-mode:overlay; }
+  #vig { position:fixed; inset:0; pointer-events:none; z-index:21;
+    background:radial-gradient(ellipse at 50% 46%, transparent 52%, rgba(0,0,0,.38) 82%, rgba(0,0,0,.78) 100%); }
+  #fade { position:fixed; inset:0; background:#000; pointer-events:none; z-index:22; opacity:1; transition:none; }
+  @media (max-width:480px){
+    .tl { font-size:11px; letter-spacing:.07em; top:10px; left:11px; }
+    .tl .big { font-size:12.5px; }
+    .tr { font-size:11px; letter-spacing:.06em; top:10px; right:11px; }
+    .bl { font-size:11px; left:11px; bottom:11px; }
+    .br { right:11px; bottom:11px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="ui">
+  <div class="tl"><span class="big">BODYCAM&nbsp;V2.4</span><br>UNIT 2210 · NIGHT PATROL</div>
+  <div class="tr"><span id="rec"></span>REC&nbsp;&nbsp;<span id="clock">----/--/-- --:--:--</span><br>CAM 07 · LEVEL B1</div>
+  <div class="bl"><span class="batt"><i id="battfill"></i></span><span id="battpct">87%</span><br><span style="opacity:.75">GPS · SUBLEVEL — NO FIX</span></div>
+  <div class="br">AUDIO
+    <div class="meter">L <span class="segs" id="mL"></span></div>
+    <div class="meter">R <span class="segs" id="mR"></span></div>
+  </div>
+  <div id="hold">&#10073;&#10073; HOLD</div>
+  <div id="hint">DRAG TO LOOK · TAP TO HOLD</div>
+</div>
+<canvas id="grain" width="390" height="844"></canvas>
+<div id="vig"></div>
+<div id="fade"></div>
+
+<script type="importmap">{ "imports": { "three": "./three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ================================================================
+   BODYCAM CORRIDOR — a technique sample.
+   1) Geometry: 100% procedural (boxes / cylinders / extrusions of
+      code), zero modeled or external 3D assets.
+   2) Textures: 100% generated on <canvas> in code — concrete grime,
+      graffiti, rust, the vending-machine face, the night skyline.
+      No image files are loaded, ever.
+   3) Presentation: a DOM bodycam overlay (REC, live clock, battery,
+      audio meters) + film grain + vignette sells it as found footage.
+   ================================================================ */
+
+// ---------- deterministic RNG (so frame-stepped capture is stable) ----------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const sstep=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+const bump=(t,a,b)=>sstep(a,a+1.4,t)*(1-sstep(b-1.4,b,t));
+
+// ---------- canvas texture helpers ----------
+function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return[c,c.getContext('2d')];}
+function speckle(x,w,h,n,rng,cols,aMax){for(let i=0;i<n;i++){x.fillStyle=cols[(rng()*cols.length)|0];x.globalAlpha=rng()*aMax;x.fillRect(rng()*w,rng()*h,1+rng()*2,1+rng()*2);}x.globalAlpha=1;}
+function blotches(x,w,h,n,rng,col,aMax,rMin,rMax){for(let i=0;i<n;i++){const r=rMin+rng()*(rMax-rMin),gx=rng()*w,gy=rng()*h;const g=x.createRadialGradient(gx,gy,0,gx,gy,r);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');x.globalAlpha=aMax*(0.4+rng()*0.6);x.fillStyle=g;x.fillRect(gx-r,gy-r,r*2,r*2);}x.globalAlpha=1;}
+function streaks(x,w,h,n,rng){for(let i=0;i<n;i++){const sx=rng()*w,sw=2+rng()*7,sl=h*(0.25+rng()*0.7);const g=x.createLinearGradient(0,0,0,sl);g.addColorStop(0,'rgba(18,16,12,0.20)');g.addColorStop(1,'rgba(18,16,12,0)');x.fillStyle=g;x.save();x.translate(sx,0);x.fillRect(0,0,sw,sl);x.restore();}}
+function cracks(x,w,h,n,rng){x.strokeStyle='rgba(10,10,10,0.4)';for(let i=0;i<n;i++){x.lineWidth=0.8+rng();x.beginPath();let px=rng()*w,py=rng()*h*0.5;x.moveTo(px,py);const segs=4+(rng()*6|0);for(let s=0;s<segs;s++){px+=(rng()-0.5)*36;py+=rng()*30;x.lineTo(px,py);}x.stroke();}}
+function tex(c,rx=1,ry=1){const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t;}
+
+// ---------- the generated texture set ----------
+function concreteTex(base,seed,stain=1){const[c,x]=cnv(512,512);const rng=mulberry32(seed);
+  x.fillStyle=base;x.fillRect(0,0,512,512);
+  speckle(x,512,512,9000,rng,['#000000','#ffffff','#2e2c28','#8f8b80'],0.07);
+  blotches(x,512,512,16,rng,'rgba(20,18,14,1)',0.16*stain,40,150);
+  blotches(x,512,512,8,rng,'rgba(96,88,70,1)',0.10*stain,30,90);
+  streaks(x,512,512,26,rng); cracks(x,512,512,6,rng);
+  x.fillStyle='rgba(0,0,0,0.16)';x.fillRect(0,255,512,2);x.fillRect(0,0,2,512);          // panel seams
+  const g=x.createLinearGradient(0,380,0,512);g.addColorStop(0,'rgba(8,8,6,0)');g.addColorStop(1,'rgba(8,8,6,0.5)');
+  x.fillStyle=g;x.fillRect(0,380,512,132);                                              // ground-line grime
+  return c;}
+function floorTexF(){const[c,x]=cnv(512,512);const rng=mulberry32(77);
+  x.fillStyle='#43444a';x.fillRect(0,0,512,512);
+  speckle(x,512,512,12000,rng,['#000','#fff','#23242a','#5d5e55'],0.09);
+  blotches(x,512,512,20,rng,'rgba(10,10,10,1)',0.22,30,130);
+  blotches(x,512,512,7,rng,'rgba(70,66,50,1)',0.14,20,70);
+  x.strokeStyle='rgba(12,12,14,0.85)';x.lineWidth=3;                                    // expansion joints
+  for(let i=0;i<=2;i++){x.beginPath();x.moveTo(i*256,0);x.lineTo(i*256,512);x.stroke();x.beginPath();x.moveTo(0,i*256);x.lineTo(512,i*256);x.stroke();}
+  x.strokeStyle='rgba(200,200,200,0.05)';for(let i=0;i<26;i++){x.lineWidth=1+rng()*2;x.beginPath();const sx=rng()*512,sy=rng()*512;x.moveTo(sx,sy);x.arc(sx,sy,10+rng()*40,rng()*3,rng()*2+1);x.stroke();}
+  return c;}
+function ceilTexF(){const[c,x]=cnv(512,512);const rng=mulberry32(31);
+  x.fillStyle='#333336';x.fillRect(0,0,512,512);
+  speckle(x,512,512,7000,rng,['#000','#cfcfcf'],0.06);
+  x.strokeStyle='rgba(10,10,10,0.7)';x.lineWidth=2;
+  for(let i=0;i<=4;i++){x.beginPath();x.moveTo(i*128,0);x.lineTo(i*128,512);x.stroke();x.beginPath();x.moveTo(0,i*128);x.lineTo(512,i*128);x.stroke();}
+  for(let i=0;i<5;i++){const gx=rng()*512,gy=rng()*512;x.strokeStyle='rgba(120,90,50,0.35)';for(let r=6;r<34;r+=7){x.beginPath();x.arc(gx,gy,r,0,6.29);x.stroke();}}  // water rings
+  return c;}
+function rustTexF(){const[c,x]=cnv(256,256);const rng=mulberry32(99);
+  x.fillStyle='#5d4a3a';x.fillRect(0,0,256,256);
+  blotches(x,256,256,30,rng,'rgba(146,84,32,1)',0.5,10,60);
+  blotches(x,256,256,22,rng,'rgba(60,36,20,1)',0.5,6,40);
+  speckle(x,256,256,4000,rng,['#2a1a0e','#a86a34','#7c4c22'],0.16);
+  return c;}
+function graffitiTexF(seed,cols){const[c,x]=cnv(512,256);const rng=mulberry32(seed);
+  x.clearRect(0,0,512,256);x.lineCap='round';
+  const tag=(ox,oy,s,col)=>{x.strokeStyle=col;x.globalAlpha=0.88;
+    for(let k=0;k<7;k++){x.lineWidth=5+rng()*7;x.beginPath();let px=ox+k*s*0.55,py=oy+(rng()-0.5)*s*0.3;x.moveTo(px,py);
+      x.bezierCurveTo(px+s*0.2,py-s*(0.4+rng()*0.5),px+s*0.4,py+s*(0.3+rng()*0.4),px+s*0.55,py+(rng()-0.5)*s*0.4);x.stroke();}
+    x.lineWidth=3;x.beginPath();x.moveTo(ox-8,oy+s*0.55);x.lineTo(ox+s*3.6,oy+s*0.4);x.stroke();     // underline slash
+    for(let d=0;d<5;d++){const dx=ox+rng()*s*3.4;x.globalAlpha=0.4;x.fillStyle=col;x.fillRect(dx,oy+s*0.4,2.5,14+rng()*30);} // drips
+    x.globalAlpha=1;};
+  tag(40,80,52,cols[0]); tag(180,150,40,cols[1]); tag(330,60,34,cols[0]);
+  x.globalAlpha=0.75;x.strokeStyle=cols[1];x.lineWidth=4;x.beginPath();x.arc(430,170,34,0.4,5.4);x.stroke();x.globalAlpha=1; // loop mark
+  return c;}
+function vendingTexF(){const[c,x]=cnv(256,512);const rng=mulberry32(7);
+  x.fillStyle='#6d1013';x.fillRect(0,0,256,512);
+  const g0=x.createLinearGradient(0,0,256,0);g0.addColorStop(0,'rgba(255,255,255,0.10)');g0.addColorStop(0.5,'rgba(255,255,255,0)');g0.addColorStop(1,'rgba(0,0,0,0.25)');x.fillStyle=g0;x.fillRect(0,0,256,512);
+  x.fillStyle='#b81d24';x.fillRect(10,12,236,58);                                        // sign band
+  x.fillStyle='#fff';x.font='900 34px Arial';x.textAlign='center';x.fillText('CHILL·POP',128,54);
+  x.font='700 11px Arial';x.fillStyle='#ffd9d9';x.fillText('I C E   C O L D',128,84);
+  x.fillStyle='#0b0e12';x.fillRect(18,98,150,300);                                       // glass case
+  const gg=x.createLinearGradient(0,98,0,398);gg.addColorStop(0,'rgba(160,210,255,0.20)');gg.addColorStop(1,'rgba(160,210,255,0.03)');x.fillStyle=gg;x.fillRect(18,98,150,300);
+  const canCols=['#d23c2a','#e8a13a','#3f9e4d','#3a6fd8','#c9ced6','#7a4fd0','#d2672a'];
+  for(let r=0;r<5;r++)for(let col=0;col<4;col++){const cx=28+col*35,cy=112+r*56;          // can rows
+    x.fillStyle=canCols[(r*4+col)%canCols.length];x.beginPath();x.roundRect(cx,cy,26,44,5);x.fill();
+    x.fillStyle='rgba(255,255,255,0.5)';x.fillRect(cx+3,cy+4,5,36);
+    x.fillStyle='rgba(0,0,0,0.35)';x.fillRect(cx,cy+34,26,10);}
+  x.fillStyle='rgba(255,255,255,0.10)';x.fillRect(18,398,150,4);
+  x.fillStyle='#1a0505';x.fillRect(182,98,58,120);                                       // selector panel
+  for(let i=0;i<3;i++){x.fillStyle=i?'#3ddc5a':'#ffcf3f';x.beginPath();x.arc(211,124+i*34,8,0,6.29);x.fill();}
+  x.fillStyle='#0a0a0a';x.fillRect(182,240,58,26);x.fillStyle='#9fb4c0';x.font='700 12px Arial';x.fillText('1.50',211,257);
+  x.fillStyle='#12060a';x.fillRect(18,420,222,58);x.fillStyle='rgba(255,255,255,0.13)';x.fillRect(26,428,206,8); // dispenser
+  x.strokeStyle='rgba(0,0,0,0.5)';for(let i=0;i<7;i++){x.beginPath();x.moveTo(30,492);x.lineTo(226,492);x.stroke();x.translate(0,0);} // vent hint
+  speckle(x,256,512,900,rng,['#000','#ffb0a0'],0.10);
+  return c;}
+function skylineTexF(){const[c,x]=cnv(1024,512);const rng=mulberry32(4242);
+  const sky=x.createLinearGradient(0,0,0,512);sky.addColorStop(0,'#04060f');sky.addColorStop(0.7,'#0a1626');sky.addColorStop(1,'#0d1a2c');
+  x.fillStyle=sky;x.fillRect(0,0,1024,512);
+  for(let i=0;i<130;i++){x.fillStyle='rgba(255,255,255,'+(0.25+rng()*0.6)+')';x.fillRect(rng()*1024,rng()*220,1.4,1.4);} // stars
+  const mg=x.createRadialGradient(880,74,4,880,74,60);mg.addColorStop(0,'rgba(235,240,255,0.95)');mg.addColorStop(0.25,'rgba(200,215,255,0.35)');mg.addColorStop(1,'rgba(200,215,255,0)');
+  x.fillStyle=mg;x.fillRect(800,0,180,180);x.fillStyle='#e8edf7';x.beginPath();x.arc(880,74,17,0,6.29);x.fill();          // moon
+  const layer=(base,col,winA)=>{let bx=-10;while(bx<1030){const bw=40+rng()*90,bh=120+rng()*300;x.fillStyle=col;x.fillRect(bx,base-bh,bw,bh);
+    for(let wy=base-bh+10;wy<base-12;wy+=13)for(let wx=bx+6;wx<bx+bw-7;wx+=11){if(rng()<0.30){x.fillStyle=rng()<0.6?'rgba(255,214,150,'+winA+')':'rgba(180,210,255,'+winA+')';x.fillRect(wx,wy,5,7);}}
+    if(rng()<0.5){x.fillStyle='rgba(255,60,50,0.9)';x.fillRect(bx+bw/2,base-bh-5,3,3);} bx+=bw+4+rng()*22;}};
+  layer(512,'#0a1220',0.55); layer(512,'#05080f',0.85);
+  const hz=x.createLinearGradient(0,420,0,512);hz.addColorStop(0,'rgba(20,34,54,0)');hz.addColorStop(1,'rgba(20,34,54,0.55)');x.fillStyle=hz;x.fillRect(0,420,1024,92);
+  return c;}
+function crateTexF(){const[c,x]=cnv(256,256);const rng=mulberry32(55);
+  x.fillStyle='#6b543a';x.fillRect(0,0,256,256);
+  speckle(x,256,256,2600,rng,['#3d2d1a','#8a6f47','#201708'],0.14);
+  x.strokeStyle='rgba(30,20,8,0.8)';x.lineWidth=5;for(let i=0;i<=4;i++){x.beginPath();x.moveTo(0,i*64);x.lineTo(256,i*64);x.stroke();}
+  x.lineWidth=10;x.strokeRect(5,5,246,246);x.beginPath();x.moveTo(5,5);x.lineTo(251,251);x.moveTo(251,5);x.lineTo(5,251);x.stroke();
+  return c;}
+function glowTexF(){const[c,x]=cnv(128,128);const g=x.createRadialGradient(64,64,2,64,64,62);
+  g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(0.35,'rgba(255,255,255,0.32)');g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g;x.fillRect(0,0,128,128);return c;}
+function spillTexF(){const[c,x]=cnv(128,128);const g=x.createLinearGradient(0,0,0,128);
+  g.addColorStop(0,'rgba(255,255,255,0.85)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,128,128);return c;}
+
+// ---------- renderer / scene ----------
+const canvas=document.getElementById('gl');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.22;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x020304);
+scene.fog=new THREE.FogExp2(0x030405,0.045);
+const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,0.08,120);
+
+scene.add(new THREE.HemisphereLight(0x2a3a52,0x0a0a0c,0.72));
+// the camera's own LED — a faint cool spill that lifts whatever the lens faces,
+// the way a real bodycam light does. Rides with the camera every frame.
+const camLight=new THREE.PointLight(0xbfd0e0,2.4,7.5,2); scene.add(camLight);
+
+// ---------- materials ----------
+const wallMat  =new THREE.MeshStandardMaterial({map:tex(concreteTex('#76736a',11),6,1),roughness:0.96});
+const wallMat2 =new THREE.MeshStandardMaterial({map:tex(concreteTex('#6b6f6e',23),3,1),roughness:0.96});
+const roomWallMat=new THREE.MeshStandardMaterial({map:tex(concreteTex('#5f6258',37,1.3),3,1),roughness:0.97});
+const floorMat =new THREE.MeshStandardMaterial({map:tex(floorTexF(),2,16),roughness:0.94});
+const ceilMat  =new THREE.MeshStandardMaterial({map:tex(ceilTexF(),3,16),roughness:0.98});
+const rustMat  =new THREE.MeshStandardMaterial({map:tex(rustTexF(),2,1),roughness:0.62,metalness:0.55});
+const darkMetal=new THREE.MeshStandardMaterial({color:0x2c2f33,roughness:0.55,metalness:0.6});
+const crateMat =new THREE.MeshStandardMaterial({map:tex(crateTexF()),roughness:0.9});
+const rubbleMat=new THREE.MeshStandardMaterial({map:tex(concreteTex('#55534e',61),1,1),roughness:1});
+const glowTex=tex(glowTexF()); glowTex.wrapS=glowTex.wrapT=THREE.ClampToEdgeWrapping;
+const spillTex=tex(spillTexF()); spillTex.wrapS=spillTex.wrapT=THREE.ClampToEdgeWrapping;
+
+function box(w,h,d,mat,x,y,z,ry=0){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.rotation.y=ry;scene.add(m);return m;}
+function glowSprite(color,scale,x,y,z,opacity=0.55){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending}));s.scale.set(scale,scale,1);s.position.set(x,y,z);scene.add(s);return s;}
+function spill(color,w,l,x,z,ry,opacity=0.16){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,l),new THREE.MeshBasicMaterial({map:spillTex,color,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending}));m.rotation.x=-Math.PI/2;m.rotation.z=ry;m.position.set(x,0.012,z);scene.add(m);return m;}
+
+// ---------- corridor shell: x in [-1.7,1.7], z in [+4,-44], height 3.3 ----------
+const H=3.3, W2=1.7;
+{ const fl=new THREE.Mesh(new THREE.PlaneGeometry(W2*2+0.04,52),floorMat); fl.rotation.x=-Math.PI/2; fl.position.set(0,0,-20); scene.add(fl);
+  const ce=new THREE.Mesh(new THREE.PlaneGeometry(W2*2,49),ceilMat); ce.rotation.x=Math.PI/2; ce.position.set(0,H,-20); scene.add(ce);
+  box(0.2,H,49,wallMat,-W2-0.1,H/2,-20);                       // left wall (windows sit proud of it)
+  box(0.2,H,16.8,wallMat,W2+0.1,H/2,-3.8);                     // right wall, before side-room opening
+  box(0.2,H,27.2,wallMat,W2+0.1,H/2,-30.4);                    // right wall, after opening
+  box(0.2,0.7,4.6,wallMat,W2+0.1,H-0.35,-14.5);                // lintel over side-room opening
+  box(W2*2+0.4,H,0.2,wallMat2,0,H/2,-44.1);                    // end wall
+  box(W2*2+0.4,H,0.2,wallMat2,0,H/2,4.6);                      // back wall (behind camera start)
+}
+// skirting shadow line + wall base grime strip
+box(3.42,0.16,48.6,new THREE.MeshStandardMaterial({color:0x17171a,roughness:1}),0,0.08,-20);
+
+// ---------- windows (left) with the generated skyline beyond ----------
+const skyMat=new THREE.MeshBasicMaterial({map:tex(skylineTexF())});
+{ const sky=new THREE.Mesh(new THREE.PlaneGeometry(34,4.4),skyMat); sky.position.set(-4.4,1.9,-19); sky.rotation.y=Math.PI/2; scene.add(sky);
+  const frameMat=new THREE.MeshStandardMaterial({color:0x14161a,roughness:0.6,metalness:0.4});
+  for(let i=0;i<5;i++){ const z=-8-i*5;
+    box(0.1,2.0,1.7,frameMat,-W2-0.05,1.75,z);                   // dark backer = frame border around the pane
+    const pane=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.8),new THREE.MeshBasicMaterial());
+    pane.position.set(-W2+0.028,1.75,z); pane.rotation.y=Math.PI/2;
+    // slice the skyline per window by cloning texture with offset
+    pane.material.map=skyMat.map.clone(); pane.material.map.needsUpdate=true;
+    pane.material.map.repeat.set(0.16,0.55); pane.material.map.offset.set(0.08+i*0.17,0.28); pane.material.map.wrapS=pane.material.map.wrapT=THREE.RepeatWrapping;
+    scene.add(pane);
+    box(0.06,1.8,0.07,frameMat,-W2+0.035,1.75,z);                // mullion
+  }
+  spill(0x4a6f9e,3.2,26,-0.9,-19,Math.PI/2,0.10);               // moonlight spill along the floor
+}
+
+// ---------- ceiling pipes + pendant lamp ----------
+{ const pipeG=new THREE.CylinderGeometry(0.09,0.09,47,10);
+  for(const [px,r] of [[-0.95,0.09],[-0.68,0.055],[0.95,0.07]]){
+    const p=new THREE.Mesh(pipeG,rustMat); p.scale.set(r/0.09,1,r/0.09); p.rotation.x=Math.PI/2; p.position.set(px,3.08,-20); scene.add(p);}
+  for(const z of [-6,-20,-34]){ const d=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.9,8),rustMat);
+    d.position.set(0.95,2.7,z); scene.add(d);}                    // drops
+  // valve wheel on the right drop near z=-20
+  const wheel=new THREE.Group();
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(0.17,0.022,8,20),new THREE.MeshStandardMaterial({color:0x8e2320,roughness:0.5,metalness:0.5}));
+  wheel.add(rim);
+  for(let i=0;i<3;i++){ const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.32,6),rim.material);
+    sp.rotation.z=i*Math.PI/3; wheel.add(sp);}
+  wheel.position.set(1.45,2.15,-20); wheel.rotation.y=Math.PI/2; scene.add(wheel);
+  // pendant lamp, mid-corridor
+  const cord=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.55,6),darkMetal); cord.position.set(0,3.02,-10); scene.add(cord);
+  const shade=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.24,0.18,14,1,true),darkMetal); shade.position.set(0,2.72,-10); scene.add(shade);
+  const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.05,10,8),new THREE.MeshBasicMaterial({color:0xffd9a3})); bulb.position.set(0,2.64,-10); scene.add(bulb);
+  glowSprite(0xffb36b,1.6,0,2.62,-10,0.5);
+  spill(0xffb36b,3.0,4.6,0,-10,0,0.13);
+}
+const pendantLight=new THREE.PointLight(0xffb36b,26,15,2); pendantLight.position.set(0,2.55,-10); scene.add(pendantLight);
+
+// ---------- graffiti decals ----------
+function graffiti(seed,cols,w,h,x,y,z,ry){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),
+  new THREE.MeshStandardMaterial({map:tex(graffitiTexF(seed,cols)),transparent:true,roughness:0.95,polygonOffset:true,polygonOffsetFactor:-1}));
+  m.position.set(x,y,z); m.rotation.y=ry; scene.add(m); return m;}
+graffiti(5,['#e8483f','#39c2d7'],2.6,1.3, W2-0.02,1.6,-6, -Math.PI/2);
+graffiti(9,['#f2b035','#7ee83f'],2.2,1.1,-W2+0.02,1.5,-21.5, Math.PI/2);
+graffiti(13,['#39c2d7','#e8483f'],2.8,1.4, W2-0.02,1.7,-36, -Math.PI/2);
+
+// ---------- vending machine (right wall, z=-24.5) ----------
+let vendGlow;
+{ const body=box(0.72,1.92,1.15,new THREE.MeshStandardMaterial({color:0x5d0d10,roughness:0.42,metalness:0.25}),1.32,0.96,-24.5);
+  const faceTexC=vendingTexF();
+  const face=new THREE.Mesh(new THREE.PlaneGeometry(1.08,1.86),
+    new THREE.MeshStandardMaterial({map:tex(faceTexC),emissive:0xffffff,emissiveMap:tex(faceTexC),emissiveIntensity:0.85,roughness:0.35}));
+  face.position.set(0.955,0.96,-24.5); face.rotation.y=-Math.PI/2; scene.add(face);
+  vendGlow=glowSprite(0xff352b,2.4,0.8,1.2,-24.5,0.34);
+  spill(0xff352b,2.6,2.2,0.6,-24.5,Math.PI/2,0.13);
+  const vl=new THREE.PointLight(0xff2d22,7,6,2); vl.position.set(0.6,1.3,-24.5); scene.add(vl);
+}
+
+// ---------- side room (right, opening z in [-16.8,-12.2], x out to 6.4) ----------
+let fluorLight, fluorTube;
+{ const fl=new THREE.Mesh(new THREE.PlaneGeometry(4.7,6.4),floorMat); fl.rotation.x=-Math.PI/2; fl.position.set(4.05,0.001,-14.5); scene.add(fl);
+  box(0.2,H,6.4,roomWallMat,6.5,H/2,-14.5);
+  box(4.9,H,0.2,roomWallMat,4.05,H/2,-17.6);
+  box(4.9,H,0.2,roomWallMat,4.05,H/2,-11.4);
+  const ce=new THREE.Mesh(new THREE.PlaneGeometry(4.9,6.4),ceilMat); ce.rotation.x=Math.PI/2; ce.position.set(4.05,H,-14.5); scene.add(ce);
+  // fluorescent fixture
+  box(1.3,0.07,0.24,darkMetal,4.1,3.12,-14.5);
+  fluorTube=new THREE.Mesh(new THREE.BoxGeometry(1.16,0.045,0.15),new THREE.MeshBasicMaterial({color:0xd9ecff}));
+  fluorTube.position.set(4.1,3.07,-14.5); scene.add(fluorTube);
+  glowSprite(0xbfdcff,2.6,4.1,3.0,-14.5,0.4);
+  fluorLight=new THREE.PointLight(0xcfe4ff,22,11,2); fluorLight.position.set(4.1,2.8,-14.5); scene.add(fluorLight);
+  spill(0xcfe4ff,3.4,2.6,2.2,-14.5,Math.PI/2,0.12);              // light spilling into the corridor
+  // barrels (instanced) + crates + wall pipes
+  const barrelG=new THREE.CylinderGeometry(0.3,0.3,0.92,14);
+  const barrels=new THREE.InstancedMesh(barrelG,new THREE.MeshStandardMaterial({map:tex(rustTexF(),1,1),roughness:0.6,metalness:0.45,color:0x9fb4ba}),3);
+  const M=new THREE.Matrix4();
+  [[5.7,-16.6],[5.05,-16.9],[5.75,-15.75]].forEach((p,i)=>{M.makeRotationY(i*1.3);M.setPosition(p[0],0.46,p[1]);barrels.setMatrixAt(i,M);});
+  scene.add(barrels);
+  box(0.85,0.85,0.85,crateMat,2.6,0.425,-16.9); box(0.7,0.7,0.7,crateMat,2.65,1.2,-16.85); box(0.9,0.6,0.7,crateMat,5.9,0.3,-12.2);
+  [[2.5,-17.35],[2.85,-17.12]].forEach(([py,zz])=>{ const p=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,4.4,8),rustMat);
+    p.rotation.z=Math.PI/2; p.position.set(4.05,py,zz); scene.add(p); });
+}
+
+// ---------- end-of-corridor lit doorway + exit sign ----------
+{ const door=new THREE.Mesh(new THREE.PlaneGeometry(1.15,2.25),new THREE.MeshBasicMaterial({color:0xffe9c4}));
+  door.position.set(-0.6,1.13,-43.98); scene.add(door);
+  box(1.3,2.4,0.08,darkMetal,-0.6,1.2,-44.02);
+  door.position.z=-43.96;
+  glowSprite(0xffdf9e,3.4,-0.6,1.3,-43.4,0.5);
+  const el=new THREE.PointLight(0xffe2b0,16,11,2); el.position.set(-0.6,1.6,-42.6); scene.add(el);
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.2),new THREE.MeshBasicMaterial({color:0xffffff}));
+  sign.position.set(-0.6,2.62,-43.95); scene.add(sign);
+  const st=(()=>{const[c,x]=cnv(128,40);x.fillStyle='#1d7a3a';x.fillRect(0,0,128,40);x.fillStyle='#eaffea';x.font='900 26px Arial';x.textAlign='center';x.fillText('EXIT',64,30);return tex(c);})();
+  sign.material.map=st; sign.material.needsUpdate=true;
+}
+
+// ---------- rubble & debris (instanced) ----------
+{ const rng=mulberry32(2024);
+  const rubble=new THREE.InstancedMesh(new THREE.BoxGeometry(0.16,0.1,0.14),rubbleMat,130);
+  const M=new THREE.Matrix4(),Q=new THREE.Quaternion(),E=new THREE.Euler(),S=new THREE.Vector3(),P=new THREE.Vector3();
+  for(let i=0;i<130;i++){
+    const side=rng()<0.72?(rng()<0.5?-1:1)*(1.05+rng()*0.55):(rng()-0.5)*1.6;
+    P.set(side,0.03+rng()*0.05,3-rng()*46);
+    E.set(rng()*0.6,rng()*Math.PI,rng()*0.6); Q.setFromEuler(E);
+    const s=0.5+rng()*1.6; S.set(s,s*(0.6+rng()*0.7),s);
+    M.compose(P,Q,S); rubble.setMatrixAt(i,M);
+  }
+  scene.add(rubble);
+  // fallen ceiling panel + a couple of slabs
+  const panel=box(1.1,0.04,1.1,ceilMat,-0.7,0.35,-18); panel.rotation.set(0.5,0.4,0.25);
+  const slab=box(0.9,0.14,0.6,rubbleMat,1.0,0.07,-30.5); slab.rotation.y=0.7;
+  const slab2=box(0.6,0.1,0.45,rubbleMat,-1.1,0.05,-27.2); slab2.rotation.y=-0.4;
+  // fallen pipe section across the floor
+  const fp=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,1.7,9),rustMat);
+  fp.rotation.set(0,0.3,Math.PI/2); fp.position.set(-0.5,0.06,-33.5); scene.add(fp);
+}
+
+// ---------- dust motes ----------
+let dustGeo, dustBase;
+{ const rng=mulberry32(88); const N=240; dustBase=new Float32Array(N*3);
+  for(let i=0;i<N;i++){ dustBase[i*3]=(rng()-0.5)*3; dustBase[i*3+1]=0.2+rng()*2.9; dustBase[i*3+2]=3-rng()*46; }
+  dustGeo=new THREE.BufferGeometry();
+  dustGeo.setAttribute('position',new THREE.BufferAttribute(dustBase.slice(),3));
+  const dot=(()=>{const[c,x]=cnv(32,32);const g=x.createRadialGradient(16,16,1,16,16,15);g.addColorStop(0,'rgba(255,255,255,0.9)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,32,32);return tex(c);})();
+  const pts=new THREE.Points(dustGeo,new THREE.PointsMaterial({size:0.02,map:dot,transparent:true,opacity:0.45,depthWrite:false,color:0xcfe0ee}));
+  scene.add(pts);
+}
+
+
+// ---------- camera path: ~30 s loop, a pure function of t ----------
+const LOOP=30;
+const _tgt=new THREE.Vector3(), _pos=new THREE.Vector3();
+function flick(t,seed){ const n=Math.sin(Math.floor(t*11)*127.1+seed*311.7)*43758.5453; return n-Math.floor(n); }
+function poseAt(t){
+  const u=t/LOOP;                                   // 0..1 along the walk
+  const z=2.5-42*sstep(0,1,u)*1.0 - 0 ;             // 2.5 -> -39.5 (sstep eases ends; mid pace ~1.4 m/s)
+  const zz=2.5-42*u;                                // keep near-linear: blend
+  const pz=z*0.25+zz*0.75;
+  const px=0.32*Math.sin(t*0.5)*Math.sin(u*Math.PI);
+  const bobY=0.032*Math.sin(t*Math.PI*2*1.75)+0.012*Math.sin(t*Math.PI*2*3.5+1.3);
+  const py=1.62+bobY;
+  _pos.set(px,py,pz);
+  // look target: ahead, with a glance into the side room, then at the vending machine
+  const wRoom=bump(t,8.5,15), wVend=bump(t,18.5,24);
+  const bx=px*0.35, by=1.48+0.3*bobY, bz=pz-7;
+  let tx=bx,ty=by,tz=bz;
+  tx=tx*(1-wRoom)+4.3*wRoom;  ty=ty*(1-wRoom)+1.35*wRoom; tz=tz*(1-wRoom)+(-14.5)*wRoom;
+  tx=tx*(1-wVend)+0.95*wVend; ty=ty*(1-wVend)+1.15*wVend; tz=tz*(1-wVend)+(-24.5)*wVend;
+  const wEnd=sstep(26,30,t); ty=ty*(1-wEnd)+1.7*wEnd;
+  _tgt.set(tx,ty,tz);
+  return {pos:_pos,tgt:_tgt,roll:0.011*Math.sin(t*0.9)+0.006*Math.sin(t*Math.PI*2*1.75+0.6)};
+}
+
+// ---------- bodycam overlay: clock / battery / meters / grain ----------
+const clockEl=document.getElementById('clock'), battEl=document.getElementById('battpct'), battFill=document.getElementById('battfill');
+const t0=Date.now();
+function tickClock(){
+  const d=new Date();
+  const p=n=>String(n).padStart(2,'0');
+  clockEl.textContent=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  const pct=Math.max(3,87-Math.floor((Date.now()-t0)/180000));
+  battEl.textContent=pct+'%'; battFill.style.transform=`scaleX(${pct/100})`;
+}
+tickClock(); setInterval(tickClock,250);
+const mL=document.getElementById('mL'), mR=document.getElementById('mR');
+for(const m of [mL,mR]) for(let i=0;i<12;i++){ const s=document.createElement('i'); m.appendChild(s); }
+let lvL=0.3, lvR=0.26;
+function tickMeters(){
+  lvL=clamp(lvL+(Math.random()-0.52)*0.24,0.06,0.92); lvR=clamp(lvR+(Math.random()-0.52)*0.24,0.05,0.88);
+  for(const [m,lv] of [[mL,lvL],[mR,lvR]]){ const n=Math.round(lv*12);
+    [...m.children].forEach((s,i)=>{ s.className=i<n?('on'+(i>9?' max':i>7?' hot':'')):''; }); }
+}
+setInterval(tickMeters,110);
+// film grain — regenerated noise, seeded per frame in step mode
+const gCan=document.getElementById('grain'), gtx=gCan.getContext('2d');
+function drawGrain(seed){
+  const w=gCan.width,h=gCan.height,img=gtx.createImageData(w,h),d=img.data,rng=mulberry32(seed);
+  for(let i=0;i<d.length;i+=4){ const v=(rng()*255)|0; d[i]=d[i+1]=d[i+2]=v; d[i+3]=26; }
+  gtx.putImageData(img,0,0);
+}
+drawGrain(1); let grainTimer=0;
+
+// ---------- interaction: drag to look, tap to hold ----------
+let yawOff=0,pitchOff=0,yawT=0,pitchT=0,dragging=false,downX=0,downY=0,downT=0,moved=0,paused=false;
+const holdEl=document.getElementById('hold'), hintEl=document.getElementById('hint');
+let audioCtx=null;
+function startAudio(){
+  if(audioCtx) { audioCtx.resume&&audioCtx.resume(); return; }
+  try{
+    if(navigator.audioSession) navigator.audioSession.type='playback';
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const len=2*audioCtx.sampleRate, buf=audioCtx.createBuffer(1,len,audioCtx.sampleRate), ch=buf.getChannelData(0);
+    let last=0; for(let i=0;i<len;i++){ const w=Math.random()*2-1; last=(last+0.02*w)/1.02; ch[i]=last*3.2; }   // brown-ish noise
+    const src=audioCtx.createBufferSource(); src.buffer=buf; src.loop=true;
+    const lp=audioCtx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=320;
+    const g=audioCtx.createGain(); g.gain.value=0.012;
+    const hum=audioCtx.createOscillator(); hum.frequency.value=59; const hg=audioCtx.createGain(); hg.gain.value=0.004;
+    src.connect(lp).connect(g).connect(audioCtx.destination); hum.connect(hg).connect(audioCtx.destination);
+    src.start(); hum.start();
+  }catch(e){ /* audio is a bonus; stay silent */ }
+}
+addEventListener('pointerdown',e=>{ dragging=true; moved=0; downX=e.clientX; downY=e.clientY; downT=performance.now(); startAudio(); });
+addEventListener('pointermove',e=>{ if(!dragging) return;
+  const dx=e.clientX-downX, dy=e.clientY-downY; moved=Math.max(moved,Math.hypot(dx,dy));
+  yawT=clamp(-dx*0.0035,-1.15,1.15); pitchT=clamp(-dy*0.003,-0.5,0.55); });
+addEventListener('pointerup',e=>{ dragging=false;
+  if(moved<7 && performance.now()-downT<350){ paused=!paused; holdEl.style.display=paused?'block':'none'; }
+  setTimeout(()=>{ if(!dragging){ yawT=0; pitchT=0; } },1600); });
+setTimeout(()=>hintEl.style.opacity='0',6000);
+
+// ---------- main loop + deterministic step mode ----------
+const fadeEl=document.getElementById('fade');
+let simT=0, lastNow=performance.now(), stepMode=false;
+function updateScene(t){
+  const p=poseAt(t%LOOP);
+  camera.position.copy(p.pos);
+  camera.lookAt(p.tgt);
+  yawOff+=(yawT-yawOff)*0.12; pitchOff+=(pitchT-pitchOff)*0.12;
+  camera.rotateY(yawOff); camera.rotateX(pitchOff); camera.rotateZ(p.roll);
+  camLight.position.copy(p.pos); camLight.position.y-=0.12;
+  // light flicker — deterministic in t so stepped frames match realtime
+  const f1=flick(t,1); pendantLight.intensity=26*(f1>0.965?0.35:0.9+0.1*Math.sin(t*47)+0.05*Math.sin(t*31));
+  const f2=flick(t,2); fluorLight.intensity=22*(f2>0.94?0.45:0.94+0.06*Math.sin(t*53));
+  fluorTube.material.color.setRGB(0.85,0.93,1).multiplyScalar(f2>0.94?0.4:1);
+  vendGlow.material.opacity=0.3+0.05*Math.sin(t*2.3);
+  // dust drift
+  const pos=dustGeo.attributes.position.array;
+  for(let i=0;i<pos.length;i+=3){ pos[i]=dustBase[i]+0.08*Math.sin(t*0.24+i); pos[i+1]=dustBase[i+1]+0.06*Math.sin(t*0.17+i*1.7); pos[i+2]=dustBase[i+2]; }
+  dustGeo.attributes.position.needsUpdate=true;
+  // loop fade: in from black at the head, out to black at the tail
+  const lt=t%LOOP; fadeEl.style.opacity=String(clamp(Math.max(1-sstep(0,0.9,lt), sstep(29.1,30,lt)),0,1));
+}
+function frame(now){
+  requestAnimationFrame(frame);
+  if(stepMode) return;
+  const dt=Math.min(0.05,(now-lastNow)/1000); lastNow=now;
+  if(!paused) simT+=dt;
+  updateScene(simT);
+  renderer.render(scene,camera);
+  grainTimer+=dt; if(grainTimer>0.09){ grainTimer=0; drawGrain((Math.random()*1e9)|0); }
+}
+requestAnimationFrame(frame);
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+// step-mode hooks for deterministic capture (gamepress short-capture pattern)
+window.__renderAt=t=>{ stepMode=true; simT=t; updateScene(t); drawGrain(1000+Math.floor(t*12)); renderer.render(scene,camera); };
+window.__dbg=()=>({ calls:renderer.info.render.calls, tris:renderer.info.render.triangles,
+  t:simT, paused, pos:camera.position.toArray().map(v=>+v.toFixed(2)) });
+</script>
+</body>
+</html>
