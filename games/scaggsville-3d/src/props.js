@@ -42,7 +42,7 @@ export function createProps(scene, world, D) {
     const L = Math.hypot(bx - ax, bz - az);
     if (L < 4) continue;
     acc += L;
-    if (acc < 38) continue;
+    if (acc < 30) continue;
     acc = 0;
 
     const nx = -(bz - az) / L, nz = (bx - ax) / L;
@@ -60,11 +60,33 @@ export function createProps(scene, world, D) {
     else if (roll < 0.88) kind = 'sign';
     else kind = 'hydrant';
 
-    if (items.length < 320) {
+    if (items.length < 430) {
       const idx = counts[kind]++;
       items.push({
         kind, idx, x: px, y: 0, z: pz,
         ry: Math.atan2(nx * -side, nz * -side),
+        rx: 0, rz: 0, vx: 0, vy: 0, vz: 0, vrx: 0, vrz: 0,
+        broken: false, resting: false, waterTimer: 0, waterAcc: 0,
+      });
+    }
+  }
+
+  // Stop clusters: extra breakables ringing each crew house + the school, so every
+  // rally arrival/departure has smashables in play (route bias, not world stripping).
+  for (const s of (D.stops || [])) {
+    for (let k = 0; k < 6 && items.length < 470; k++) {
+      const a = rand() * Math.PI * 2, r = 10 + rand() * 18;
+      const px = s.sx + Math.cos(a) * r, pz = s.sz + Math.sin(a) * r;
+      if (world.surfaceAt(px, pz) !== 'grass') continue;
+      let clash = false;
+      for (const it of items) { const dx = it.x - px, dz = it.z - pz; if (dx * dx + dz * dz < 7) { clash = true; break; } }
+      if (clash) continue;
+      const roll = rand();
+      const kind = roll < 0.34 ? 'mailbox' : roll < 0.62 ? 'trashcan' : roll < 0.82 ? 'cone' : 'sign';
+      const idx = counts[kind]++;
+      items.push({
+        kind, idx, x: px, y: 0, z: pz,
+        ry: rand() * Math.PI * 2,
         rx: 0, rz: 0, vx: 0, vy: 0, vz: 0, vrx: 0, vrz: 0,
         broken: false, resting: false, waterTimer: 0, waterAcc: 0,
       });

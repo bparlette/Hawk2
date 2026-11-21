@@ -126,6 +126,8 @@ float gPaint; vec3 gPaintCol; float gWear;`)
     for(int k=1;k<4;k++){ if(float(k)>=lanes) break;
       float lxk = -width*0.5 + float(k)*laneW;
       paintW += band(abs(x-lxk), 0.0, 0.08) * step(mod(dist, 12.0), 3.0) * fade; }
+  } else if(width>6.0){                        // residential street: worn dashed yellow centre line
+    paintY += band(ax, 0.0, 0.085) * step(mod(dist, 9.0), 3.2) * fade * 0.55;
   }
   gPaint = clamp(paintY+paintW, 0.0, 1.0) * gWear;
   gPaintCol = paintY > paintW ? vec3(0.93, 0.70, 0.16) : vec3(0.92, 0.93, 0.92);
@@ -134,7 +136,7 @@ float gPaint; vec3 gPaintCol; float gWear;`)
       .replace('#include <roughnessmap_fragment>', `float roughnessFactor = roughness * (0.88 + 0.22*mac) - 0.08*wheel;
   roughnessFactor = mix(roughnessFactor, 0.42, gPaint);`);
   };
-  m.customProgramCacheKey=()=>'sv3d-road-v1';
+  m.customProgramCacheKey=()=>'sv3d-road-v2';
   return m;
 }
 

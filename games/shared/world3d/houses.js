@@ -217,6 +217,11 @@ export function buildHouse(B, it, level, out={ winQuads:[], contact:[] }, roads=
     const d=it.drive, vx=d.b[0]-d.a[0], vz=d.b[1]-d.a[1], L=Math.hypot(vx,vz)||1, nx=-vz/L, nz=vx/L, hw2=d.w/2;
     quad(B,'drive', [d.a[0]+nx*hw2,0.08,d.a[1]+nz*hw2],[d.a[0]-nx*hw2,0.08,d.a[1]-nz*hw2],[d.b[0]-nx*hw2,0.08,d.b[1]-nz*hw2],[d.b[0]+nx*hw2,0.08,d.b[1]+nz*hw2],
       [0,0],[1,0],[1,L*0.14],[0,L*0.14], '#ffffff', [(d.a[0]+d.b[0])/2,-1,(d.a[1]+d.b[1])/2]);
+    // kerb apron: flared concrete lip over the last stretch to the road, at sidewalk-top
+    // height (0.15 vs the drive's 0.08) so the driveway reads unbroken across the walk band
+    const ab=[d.b[0]-vx/L*2.6, d.b[1]-vz/L*2.6], aw2=hw2+0.65;
+    quad(B,'drive', [ab[0]+nx*aw2,0.15,ab[1]+nz*aw2],[ab[0]-nx*aw2,0.15,ab[1]-nz*aw2],[d.b[0]-nx*aw2,0.15,d.b[1]-nz*aw2],[d.b[0]+nx*aw2,0.15,d.b[1]+nz*aw2],
+      [0,0],[1,0],[1,0.4],[0,0.4], '#ffffff', [(ab[0]+d.b[0])/2,-1,(ab[1]+d.b[1])/2]);
     const mx=d.b[0]-vx/L*1.2+nx*(hw2+0.7), mz=d.b[1]-vz/L*1.2+nz*(hw2+0.7), h=Math.atan2(vx,vz);
     if(!roads || !roads.index.paved(mx,mz)){ const M=new THREE.Matrix4().compose(new THREE.Vector3(mx,0,mz), new THREE.Quaternion().setFromEuler(new THREE.Euler(0,h,0)), new THREE.Vector3(1,1,1));
       const c=MBC[Math.floor(rD()*MBC.length)]; B.add('pole', MB_POST, M, '#c9c2b4'); B.add('mailbox', MB_BOX, M, c); B.add('mailbox', MB_BASE, M, c); }

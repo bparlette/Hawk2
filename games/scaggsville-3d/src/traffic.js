@@ -139,9 +139,20 @@ export function createTraffic(scene, world, D) {
     return true;
   }
 
+  // Route-corridor edges: spawn bias so the rally legs feel trafficked, not empty.
+  const routePts = D.route || [];
+  const routeEdges = spawnEdges.filter(e => {
+    for (let i = 0; i < routePts.length; i += 3) {
+      const dx = routePts[i][0] - e.mx, dz = routePts[i][1] - e.mz;
+      if (dx * dx + dz * dz < 900) return true;
+    }
+    return false;
+  });
+
   function spawnAround(c, px, pz) {
     for (let tries = 0; tries < 24; tries++) {
-      const e = spawnEdges[Math.floor(Math.random() * spawnEdges.length)];
+      const pool = (routeEdges.length && Math.random() < 0.65) ? routeEdges : spawnEdges;
+      const e = pool[Math.floor(Math.random() * pool.length)];
       const d = Math.hypot(e.mx - px, e.mz - pz);
       if (d >= 52 && d <= 260) {
         if (placeCarOnEdge(c, e, px, pz)) return true;

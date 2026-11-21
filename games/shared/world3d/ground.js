@@ -16,10 +16,12 @@ export function makeGrassMaterial(tex){
   vec3 lush=vec3(0.82,0.92,0.70), dry=vec3(1.16,1.02,0.66), dark=vec3(0.68,0.78,0.60);
   vec3 tone=mix(lush, dry, smoothstep(0.42,0.72,m1));
   tone=mix(tone, dark, smoothstep(0.55,0.85,m2)*0.6);
+  float m3=texture2D(uMacro, wp/23.0+0.77).r;   // parcel-scale lawn variation (one yard greener, next drier)
+  tone *= 0.93 + 0.14*smoothstep(0.30,0.75,m3);
   vec3 gc=g*tone;
   gc=mix(vec3(dot(gc, vec3(0.299,0.587,0.114))), gc, 0.74);   // late-summer Maryland, not golf-course green
   diffuseColor.rgb *= gc;`);
   };
-  m.customProgramCacheKey=()=>'sv3d-grass-v2';
+  m.customProgramCacheKey=()=>'sv3d-grass-v3';
   return m;
 }
