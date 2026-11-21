@@ -25,7 +25,7 @@ Extraction: `research/extract.py` (rerunnable) → `src/data.js` (397 KB).
   lat/lon deltas between roster stops; the graph file's "10" label is wrong).
 - **Route**: Dijkstra shortest path over the real road graph:
   Brad → Floyds → Jason → Grant → Lazaris → Rigg → Kosack → Atholton HS,
-  **22.78 km** of real roads (stored ordered since Nov 21, `tools/rebuild_route.py`; it was the right streets in jumbled order, 46.9 km end to end, labelled 23.09 km).
+  **22.94 km** of real roads (stored ordered since Nov 21, `tools/rebuild_route.py`; it was the right streets in jumbled order, 46.9 km end to end, labelled 23.09 km).
 - **Kept geometry**: 1,165 roads / 2,027 buildings / 8 parking polygons /
   36 cul-de-sacs within a corridor of the route and the crew streets.
   Polylines simplified at 1.2 m tolerance — simplified, never moved.
@@ -183,7 +183,7 @@ convoy drives the same real roads the player drove.
 ## Proofs
 
 - `tools/proof.mjs` — node: steps the real drive code along the real
-  22.78 km route with the full convoy; asserts every stop triggers in
+  22.94 km route with the full convoy; asserts every stop triggers in
   rally order and the run finishes at Atholton.
 - `tools/verify.mjs` — headless Chromium (SwiftShader): zero page errors,
   pick-screen → drive → collect → finish via `__proof` hooks, screenshots
