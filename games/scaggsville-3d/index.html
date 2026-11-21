@@ -104,6 +104,7 @@ import { createCrowdSystem } from './src/crowd.js';
 import { streetLabel } from './src/street.js';
 import { createInteriors } from './src/interiors.js';
 import { createCineCam } from './src/cinecam.js';
+import { mountGarage, buildCustomVehicle } from './src/garage.js';
 
 /* ============================== RENDERER / SCENE ============================== */
 const L = WORLD_LIGHTING;
@@ -250,30 +251,27 @@ function parkCrewCars(){
 
 /* ============================== PICK YOUR PLAYER ============================== */
 const pickEl=document.getElementById('pick');
-{
-  let html='<h1>SCAGGSVILLE 3D</h1><h2>PICK YOUR PLAYER</h2>'+
-    '<div class="sub">Blue hour in Fulton, MD — the real streets, the real houses. '+
-    'Start at your house, rally the whole crew, and roll into Atholton High. Lamar\'s Mustang is already on fire.</div>';
-  for(const hh of HOUSEHOLDS){
-    const s=stopById[hh.stop];
-    const carNames=hh.cars.map(c=>CREW_VEHICLES[c].name).join(' · ');
-    html+=`<div class="card" data-stop="${hh.stop}"><div><div class="nm">${hh.label}</div><div class="st">${s.street.toUpperCase()}</div></div><div class="car">${carNames}</div></div>`;
-  }
-  html+='<div class="foot">Left stick / WASD steers · A = gas · B = brake &amp; reverse<br>Built on the real Laurel/Fulton map (OpenStreetMap via the original Scaggsville data).</div>';
-  pickEl.innerHTML=html;
-  pickEl.querySelectorAll('.card').forEach(c=>c.addEventListener('pointerdown', e=>{ e.preventDefault(); startGame(c.dataset.stop); }));
-}
+// Garage chooser (src/garage.js): turntable stage + customize panel
+// replaces the card grid. Game HUD + driving buttons stay hidden until
+// the rally starts (the stage owns the screen until then).
+document.getElementById('hud').style.display='none';
+for(const id of ['btnA','btnB','btnT','btnMute']) document.getElementById(id).style.display='none';
+const garage = mountGarage(pickEl, { households: HOUSEHOLDS, stops: stopById, environment: scene.environment,
+  onStart: (stopId, custom)=> startGame(stopId, custom) });
+window.__garage = garage;
 
-function startGame(stopId){
+function startGame(stopId, custom){
   // audio unlock: startGame runs synchronously inside the pick-card
   // pointerdown, so this is inside the user gesture (iOS rule).
   gameAudio.unlock(); gameAudio.engineStart(); gameAudio.uiTap();
   playerStop=stopId;
   pickEl.style.display='none';
+  document.getElementById('hud').style.display='';
+  for(const id of ['btnA','btnB','btnT','btnMute']) document.getElementById(id).style.display='';
   const s=stopById[stopId];
   player=createCar(s.sx, s.sz, s.heading);
   const myCar = HOUSEHOLDS.find(h=>h.stop===stopId).cars[0];
-  playerVeh=buildVehicle(CREW_VEHICLES[myCar]);
+  playerVeh=buildCustomVehicle(myCar, custom);   // the garage car, exactly as customized on the stage
   scene.add(playerVeh.group);
   // headlight beam — the module throws the pool decal on the road; this is
   // the actual light that lifts the wet asphalt ahead of the car at dusk.
@@ -593,7 +591,8 @@ function animate(){
   daynight.update(dt, rallyProgress);
   daynight.applyTo(lightRig);
   crowd.update(dt, performance.now()/1000);
-  renderer.render(scene, camera);
+  if(!started && garage){ garage.update(dt, performance.now()/1000); garage.render(renderer); }
+  else renderer.render(scene, camera);
 }
 animate();
 
