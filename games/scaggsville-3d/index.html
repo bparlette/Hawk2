@@ -217,7 +217,7 @@ let camMode=0;       // 0 = Close GTA, 1 = Wide, 2 = Hood
 const ath=stopById['atholton'];
 const lamarVeh = buildVehicle(CREW_VEHICLES.lamar);
 lamarVeh.group.position.set(ath.hx+16, 0, ath.hz+14); lamarVeh.group.rotation.y=0.7; scene.add(lamarVeh.group);
-const fireLight = new THREE.PointLight(0xff6a22, 60, 26, 1.8);
+const fireLight = new THREE.PointLight(0xffb84d, 13, 18, 1.8); // dim ember-gold glow (canon: no orange flame light)
 fireLight.position.set(ath.hx+16, 1.6, ath.hz+14); scene.add(fireLight);
 
 // ambient parked cars near the crew streets (merged fleet, 3 draws)
@@ -909,7 +909,7 @@ function animate(){
     sun.position.set(player.x+sunDir.x*300, sunDir.y*300+40, player.z+sunDir.z*300);
     sun.target.position.set(player.x, 0, player.z); sun.target.updateMatrixWorld();
     if(dome){ dome.position.set(player.x, 0, player.z); }
-    fireLight.intensity=52+Math.sin(performance.now()*0.021)*10+Math.sin(performance.now()*0.047)*7;
+    fireLight.intensity=11.5+Math.sin(performance.now()*0.021)*2.2+Math.sin(performance.now()*0.047)*1.6;
     // Lane A: rally progress for the day/night cycle — stops collected and
     // elapsed time, whichever is further along (nominal full rally ~9 min)
     rallyProgress = finished? 1 : Math.max(collected.size/7, Math.min(1, (performance.now()-startTime)/540000));

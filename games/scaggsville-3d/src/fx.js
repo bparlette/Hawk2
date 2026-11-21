@@ -160,8 +160,8 @@ export function createFX(scene) {
     fireAcc += dt;
     while (fireAcc >= 0.065) {
       fireAcc -= 0.065;
-      emit('flame', mx + (Math.random() - 0.5) * 0.85, 0.92, mz + (Math.random() - 0.5) * 0.85,
-        (Math.random() - 0.5) * 0.8, 2.2 + Math.random() * 1.8, (Math.random() - 0.5) * 0.8, 0.75, 0.55);
+      // Canon (locked): dark smoke + gold-orange ember sparks ONLY — no flame
+      // puffs on Lamar's Mustang. The 'flame' kind remains for turbo exhaust.
       emit('darksmoke', mx + (Math.random() - 0.5) * 0.6, 1.45, mz + (Math.random() - 0.5) * 0.6,
         (Math.random() - 0.5) * 1.1, 3.2 + Math.random() * 1.6, (Math.random() - 0.5) * 1.1, 1.15, 2.2);
       if (Math.random() < 0.45) {
