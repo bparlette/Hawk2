@@ -29,7 +29,7 @@ export function createMinimap(D, parent = document.body) {
   const ctx = canvas.getContext('2d');
 
   // Index road segments by 180m grid cell for O(1) nearby queries
-  const CELL = 180;
+  const CELL = 90;
   const grid = new Map();
   for (const r of D.roads || []) {
     if (!r.pts || r.pts.length < 2) continue;
@@ -68,7 +68,7 @@ export function createMinimap(D, parent = document.body) {
     }
 
     const W = 228, H = 228, CX = 114, CY = 114;
-    const RANGE = 190; // meters from center to edge
+    const RANGE = 95; // meters from center to edge
     const SCALE = (W * 0.5) / RANGE;
 
     ctx.clearRect(0, 0, W, H);

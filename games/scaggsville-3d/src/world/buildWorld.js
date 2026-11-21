@@ -35,17 +35,17 @@ import { GREENS } from './greens.js';
 
 export const WORLD_CONFIG = {
   treeDensity: 1.0,        // multiplier on scattered trees
-  poleSpacing: 34,         // m between utility poles along the route
-  lampSpacing: 68,         // m between streetlights along the route
+  poleSpacing: 17,         // m between utility poles along the route
+  lampSpacing: 34,         // m between streetlights along the route
   parkedCars: 42,          // ambient parked cars on crew streets / lots
   windowGlow: 0.85,        // fallback only — the active preset's dressing.windowGlow drives lit windows
-  houseDetailRadius: 420,  // m from route/stops where houses get window quads
+  houseDetailRadius: 210,  // m from route/stops where houses get window quads
   houseTile: 450,          // m: house LOD tile size
-  houseFullIn: 260,        // m from the CAMERA: a tile gets full detail inside this (any neighbourhood, rally or free cruise)
-  houseFullOut: 460,       // m: full detail is released beyond this (hysteresis; memory stays bounded)
-  houseSyncLean: 650,      // m from the spawn: lean houses built before the first frame (the rest stream in)
+  houseFullIn: 130,        // m from the CAMERA: a tile gets full detail inside this (any neighbourhood, rally or free cruise)
+  houseFullOut: 230,       // m: full detail is released beyond this (hysteresis; memory stays bounded)
+  houseSyncLean: 325,      // m from the spawn: lean houses built before the first frame (the rest stream in)
   buildSliceMs: 10,        // ms per streaming slice between frames
-  vegCullDistance: 760,    // m: vegetation chunks beyond this are not drawn (fog hides them)
+  vegCullDistance: 380,    // m: vegetation chunks beyond this are not drawn (fog hides them)
 };
 
 export const LIGHTING_PRESETS = {
@@ -58,7 +58,7 @@ export const LIGHTING_PRESETS = {
     sun: { color: 0xffbe78, intensity: 2.6, dir: [-0.58, 0.34, 0.42] }, // WSW sun ~25 deg up: shadows rake ahead-left driving north
     hemi: { sky: 0x9ec2f2, ground: 0x77624e, intensity: 1.35 },
     ambient: { color: 0x87a3cc, intensity: 0.65 },
-    fog: { color: 0xe2ab74, near: 110, far: 600 },
+    fog: { color: 0xe2ab74, near: 55, far: 300 },
     sky: { zen: [0.22, 0.42, 0.74], mid: [0.47, 0.62, 0.85], hor: [0.99, 0.76, 0.47] },
     dressing: { windowGlow: 0.12, lampGlow: 0.0 },
     beamIntensity: 90,
@@ -70,7 +70,7 @@ export const LIGHTING_PRESETS = {
     sun: { color: 0xff9a5e, intensity: 1.85, dir: [-0.58, 0.16, 0.42] },
     hemi: { sky: 0x46689e, ground: 0x2e3038, intensity: 1.7 },
     ambient: { color: 0x3d5a8c, intensity: 1.0 },
-    fog: { color: 0x3d5076, near: 85, far: 580 },
+    fog: { color: 0x3d5076, near: 43, far: 290 },
     sky: { zen: [0.10, 0.20, 0.46], mid: [0.27, 0.42, 0.68], hor: [0.97, 0.55, 0.30] },
     dressing: { windowGlow: 0.85, lampGlow: 0.42 },
     beamIntensity: 200,

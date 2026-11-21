@@ -42,7 +42,7 @@ export function createProps(scene, world, D) {
     const L = Math.hypot(bx - ax, bz - az);
     if (L < 4) continue;
     acc += L;
-    if (acc < 30) continue;
+    if (acc < 15) continue;
     acc = 0;
 
     const nx = -(bz - az) / L, nz = (bx - ax) / L;

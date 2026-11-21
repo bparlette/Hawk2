@@ -156,7 +156,7 @@ export function createTraffic(scene, world, D) {
   const routeEdges = spawnEdges.filter(e => {
     for (let i = 0; i < routePts.length; i += 3) {
       const dx = routePts[i][0] - e.mx, dz = routePts[i][1] - e.mz;
-      if (dx * dx + dz * dz < 900) return true;
+      if (dx * dx + dz * dz < 225) return true; // x0.5 world: 15 m route corridor (was 30 m)
     }
     return false;
   });
@@ -166,7 +166,7 @@ export function createTraffic(scene, world, D) {
       const pool = (routeEdges.length && Math.random() < 0.65) ? routeEdges : spawnEdges;
       const e = pool[Math.floor(Math.random() * pool.length)];
       const d = Math.hypot(e.mx - px, e.mz - pz);
-      if (d >= 52 && d <= 260) {
+      if (d >= 26 && d <= 130) { // x0.5 world: spawn ring halved (was 52-260 m)
         if (placeCarOnEdge(c, e, px, pz)) return true;
       }
     }
@@ -205,7 +205,7 @@ export function createTraffic(scene, world, D) {
       }
 
       const dPlayer = Math.hypot(c.x - px, c.z - pz);
-      if (dPlayer > 310) {
+      if (dPlayer > 155) { // x0.5 world: despawn distance halved (was 310 m)
         c.active = false;
         spawnAround(c, px, pz);
         syncInstance(c, i);

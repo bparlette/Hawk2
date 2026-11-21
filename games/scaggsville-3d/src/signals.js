@@ -61,7 +61,7 @@ function findMajorJunctions(D) {
     const cx = main.x, cz = main.z;
     const isMajorCross = /^(primary|secondary|tertiary)/.test(cross.r.hw || '');
     const rd = nearRoute(cx, cz);
-    if (!isMajorCross && rd > 40) continue;
+    if (!isMajorCross && rd > 20) continue;
 
     const pts = main.r.pts;
     const a = pts[Math.max(0, main.i - 1)], b = pts[Math.min(pts.length - 1, main.i + 1)];
@@ -78,7 +78,7 @@ function findMajorJunctions(D) {
   cands.sort((a, b) => a.score - b.score);
   const picked = [];
   for (const c of cands) {
-    if (picked.some(p => Math.hypot(p.x - c.x, p.z - c.z) < 160)) continue;
+    if (picked.some(p => Math.hypot(p.x - c.x, p.z - c.z) < 80)) continue;
     picked.push({
       id: picked.length,
       x: c.x, z: c.z,

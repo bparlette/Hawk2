@@ -27,7 +27,7 @@ export const DAY_PRESET = { // mid-morning: bright, high sun, lamps off
   sun: { color: 0xfff1d8, intensity: 3.1, dir: [-0.45, 0.78, 0.35] },
   hemi: { sky: 0xbfdcff, ground: 0x8a7f6a, intensity: 1.15 },
   ambient: { color: 0xdceaff, intensity: 0.55 },
-  fog: { color: 0xcfe0ee, near: 150, far: 820 },
+  fog: { color: 0xcfe0ee, near: 75, far: 410 },
   sky: { zen: [0.25, 0.50, 0.95], mid: [0.55, 0.75, 0.98], hor: [0.85, 0.92, 1.00] },
   dressing: { windowGlow: 0.0, lampGlow: 0.0 },
   beamIntensity: 30,
@@ -45,7 +45,7 @@ export const NIGHT_PRESET = { // full night: moonlight remnant, streetlamps +
   sun: { color: 0x93a7d4, intensity: 0.38, dir: [-0.58, 0.30, 0.42] }, // moon near where the sun set
   hemi: { sky: 0x3a4f78, ground: 0x232833, intensity: 0.80 },
   ambient: { color: 0x41537a, intensity: 0.72 },
-  fog: { color: 0x1e2a44, near: 70, far: 460 },
+  fog: { color: 0x1e2a44, near: 35, far: 230 },
   sky: { zen: [0.012, 0.025, 0.070], mid: [0.050, 0.090, 0.200], hor: [0.160, 0.130, 0.160] },
   dressing: { windowGlow: 1.0, lampGlow: 0.85 },
   beamIntensity: 260,
