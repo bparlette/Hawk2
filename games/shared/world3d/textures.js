@@ -190,5 +190,55 @@ export function makeTextures(){
     for(let i=0;i<2500;i++){ const v=LR(); g.fillStyle=`rgba(${40+v*40},${70+v*50},${36+v*20},0.7)`; g.fillRect(448+LR()*64, LR()*s, 1, 4+LR()*6); }
     T.foliage=tex(c,{repeat:false}); T.foliage.premultiplyAlpha=false; }
 
+  T.atlas = makeAtlas(T);
   return T;
+}
+
+// ---------- one-material atlas for every house / prop surface ----------
+// Colour atlas (sRGB) + MR atlas (R = paint mask, G = roughness, B = metalness), shelf-packed with wrapped
+// gutters. Geometry carries metre-scaled UVs plus a per-vertex rect (aRect); the shader wraps the UV inside the
+// rect with fract() and samples with textureGrad so mip selection follows the unwrapped UV (no seams).
+function makeAtlas(T){
+  const solid=(w,h,col)=>{ const c=canvas(w,h), g=c.getContext('2d'); g.fillStyle=col; g.fillRect(0,0,w,h); return c; };
+  const mrFrom=(src, maskCv, rough, metal=0, glassRough=null)=>{   // build an MR tile from a mask canvas + roughness rule
+    const w=src.width, h=src.height, c=canvas(w,h), g=c.getContext('2d'), out=g.createImageData(w,h);
+    const sc=src.getContext('2d').getImageData(0,0,w,h).data, mk=maskCv? maskCv.getContext('2d').getImageData(0,0,w,h).data : null;
+    for(let i=0;i<out.data.length;i+=4){
+      const r=sc[i], gg=sc[i+1], b=sc[i+2], glass = glassRough!==null && b>r+8 && (r+gg+b)<330;
+      out.data[i]= mk? mk[i] : 255; out.data[i+1]=Math.round((glass? glassRough : rough)*255); out.data[i+2]=Math.round(metal*255); out.data[i+3]=255; }
+    g.putImageData(out,0,0); return c; };
+  const doorMask=(()=>{ const c=canvas(128,256), g=c.getContext('2d'); g.fillStyle='#000'; g.fillRect(0,0,128,256); g.fillStyle='#fff'; g.fillRect(14,14,100,242); return c; })();
+  const asphaltSmall=(()=>{ const c=canvas(256), g=c.getContext('2d'); g.drawImage(T.asphalt.image,0,0,256,256); return c; })();
+  const shingleSmall=(()=>{ const c=canvas(256), g=c.getContext('2d'); g.drawImage(T.shingle.image,0,0,256,256); return c; })();
+  const R={
+    siding:  [T.siding.image,      mrFrom(T.siding.image, T.sidingMask.image, 0.9, 0, 0.12)],
+    brick:   [T.brick.image,       mrFrom(T.brick.image, T.brickMask.image, 0.95, 0, 0.12)],
+    blank:   [T.sidingBlank.image, mrFrom(T.sidingBlank.image, null, 0.88)],
+    shingle: [shingleSmall,        mrFrom(shingleSmall, null, 0.93)],
+    concrete:[T.concrete.image,    mrFrom(T.concrete.image, null, 0.94)],
+    asphalt: [asphaltSmall,        mrFrom(asphaltSmall, null, 1.0)],
+    store:   [T.store.image,       mrFrom(T.store.image, null, 0.85, 0, 0.08)],
+    door:    [T.door.image,        mrFrom(T.door.image, doorMask, 0.55)],
+    garage:  [T.garage.image,      mrFrom(T.garage.image, null, 0.6)],
+    white:   [solid(64,64,'#ffffff'), mrFrom(solid(64,64,'#ffffff'), null, 0.7)],
+    metal:   [solid(64,64,'#ffffff'), mrFrom(solid(64,64,'#ffffff'), null, 0.45, 0.7)],
+  };
+  // shelf packer, 1024 x 1024, 8 px wrapped gutter
+  const S=1024, G=8, col=canvas(S), mr=canvas(S), gc=col.getContext('2d'), gm=mr.getContext('2d'), rect={};
+  const order=Object.keys(R).sort((a,b)=>R[b][0].height-R[a][0].height);
+  let x=0, y=0, shelf=0;
+  for(const k of order){
+    const [c, m]=R[k], w=c.width, h=c.height;
+    if(x+w+2*G > S){ x=0; y+=shelf; shelf=0; }
+    if(y+h+2*G > S) throw new Error('atlas overflow at '+k);
+    for(const [cv, g] of [[c,gc],[m,gm]]){
+      g.save(); g.beginPath(); g.rect(x, y, w+2*G, h+2*G); g.clip();
+      for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++) g.drawImage(cv, x+G+ox*w, y+G+oy*h);   // wrapped gutter
+      g.restore(); }
+    rect[k]=[ (x+G)/S, 1-(y+G+h)/S, w/S, h/S ];   // u0, v0 (flipY), width, height in UV
+    x+=w+2*G; shelf=Math.max(shelf, h+2*G);
+  }
+  const map=tex(col,{repeat:false}), mrt=tex(mr,{repeat:false, srgb:false});
+  map.wrapS=map.wrapT=mrt.wrapS=mrt.wrapT=THREE.ClampToEdgeWrapping;
+  return { map, mr:mrt, rect, size:S };
 }
