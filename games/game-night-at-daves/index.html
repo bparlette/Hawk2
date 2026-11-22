@@ -7,14 +7,25 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Game Night at Dave's</title>
 <style>
-  html,body{margin:0;padding:0;height:100%;background:#17100b;overflow:hidden;overscroll-behavior:none;
+  html,body{margin:0;padding:0;height:100%;background:#000000;overflow:hidden;overscroll-behavior:none;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
-    font-family:"Courier New",monospace;}
-  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#17100b;}
-  canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;background:#241610;}
+    font-family:Verdana,"Courier New",monospace;}
+  /* shell harmonized with videogamecritic.com (his own CSS, fetched
+     2026-11-22): black starfield, navy #000080 panels, link-green #90ee90,
+     white/#dddddd Verdana text */
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000000;
+    background-image:radial-gradient(1px 1px at 20px 30px,#ffffff 50%,transparent 51%),radial-gradient(1px 1px at 70px 90px,#aaaaFF 50%,transparent 51%),radial-gradient(1.5px 1.5px at 120px 50px,#dddddd 50%,transparent 51%);
+    background-size:150px 120px;}
+  #siteBar{font-family:Verdana,sans-serif;font-size:12px;color:#dddddd;padding:7px 0 3px;letter-spacing:.4px;}
+  #siteBar a{color:#90ee90;font-weight:bold;text-decoration:none;}
+  canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;background:#241610;
+    /* fit ANY container (standalone page or someone else's iframe): scale to
+       the smaller dimension, aspect locked, never overflow (30px reserved
+       for the siteBar above) */
+    width:min(100vw,calc((100vh - 30px) * 390 / 844));height:auto;aspect-ratio:390 / 844;max-width:100vw;max-height:100vh;}
   #muteBtn{position:fixed;top:calc(8px + env(safe-area-inset-top));right:10px;z-index:1200;
-    width:44px;height:44px;border-radius:10px;border:2px solid #0d0906;background:rgba(38,24,14,.92);
-    color:#ffd98a;font-size:21px;line-height:1;cursor:pointer;padding:0;}
+    width:44px;height:44px;border-radius:10px;border:2px solid #000080;background:rgba(0,0,60,.92);
+    color:#90ee90;font-size:21px;line-height:1;cursor:pointer;padding:0;}
   #errBox{position:fixed;inset:0;z-index:1300;display:none;align-items:center;justify-content:center;
     background:rgba(10,6,4,.94);color:#ffe9c4;text-align:center;padding:24px;}
   #errBox .card{max-width:320px;border:3px solid #b3543f;padding:20px;background:#241610;}
@@ -23,7 +34,7 @@
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="cv" width="390" height="844"></canvas></div>
+<div id="wrap"><div id="siteBar">presented by <a href="https://videogamecritic.com" target="_blank" rel="noopener">videogamecritic.com</a></div><canvas id="cv" width="390" height="844"></canvas></div>
 <button id="muteBtn" aria-label="Toggle sound">🔊</button>
 <div id="errBox"><div class="card"><div style="font-size:20px;font-weight:bold;">TAPE EJECTED</div>
 <div style="margin-top:10px;">Something glitched in the game room.<br>No save files were harmed.</div>
@@ -60,7 +71,8 @@ var Audio8={
   },
   resume:function(){ if(this.ctx&&this.ctx.state==="suspended") this.ctx.resume(); },
   applyMute:function(){ if(this.master) this.master.gain.value=this.muted?0:0.5;
-    var b=document.getElementById("muteBtn"); if(b)b.textContent=this.muted?"🔇":"🔊"; },
+    var b=document.getElementById("muteBtn"); if(b)b.textContent=this.muted?"🔇":"🔊";
+    if(this.muted&&typeof Voice!=="undefined")Voice.stop(); },
   toggleMute:function(){ this.init(); this.muted=!this.muted;
     try{ localStorage.setItem("gnd_mute",this.muted?"1":"0"); }catch(e){}
     this.applyMute(); },
@@ -112,9 +124,115 @@ var Audio8={
     },132);
   },
   sig:function(id){ // per-microgame 3-note signature
-    var map={sudz:[392,523,659],scott:[330,330,262],brent:[262,330,392],brad:[523,392,784]};
+    var map={sudz:[392,523,659],scott:[330,330,262],brent:[262,330,392],brad:[523,392,784],
+             brian:[262,330,262],steve:[349,440,523],chris:[587,587,440],brendan:[196,233,196]};
     var n=map[id]||[440,440,440];
     for(var i=0;i<n.length;i++)this.tone(n[i],0.09,"square",0.13,i*0.06);
+  }
+};
+
+/* ============================== VOICES ==============================
+   BLIP TALK, old-Nintendo style: NO recorded audio at all.
+   When a card's line appears, Voice.play(id) "speaks" it as rapid
+   pitched SYLLABLE blips — Animalese / Banjo-Kazooie babble at natural
+   speech cadence, synced to the text — at the speaking character's
+   pitch profile (VOICE_PROFILES below; the same map is published in
+   the README for the parallel module lanes). Blips are plain WebAudio
+   oscillators routed through Audio8.master, so the mute toggle
+   silences them, and the iOS gesture-unlock chain covers startup. */
+var LINES={"intro_sudz":["sudz","What team am I, blue or phlegm?"],"intro_scott":["scott","Set down the controller and sip your beer."],"intro_brent":["brent","He's lining up from 80 yards!"],"intro_brian":["brian","That little shit keeps grabbing my balls!!"],"intro_steve":["steve","This game is beer friendly."],"intro_chris":["chris","Put the Rams video on. Loop it."],"intro_brad":["brad","OP Brad, reporting for duty."],"intro_brendan":["brendan","How much did you pay for this?"],"brad_ext":["brad","Okay, just two more times!"],"brian_ohh":["brian","Ooooh!"],"r_sudz_win":["sudz","PHLEGM!"],"r_sudz_burn":["dave","Medical finger burn."],"r_sudz_slow":["dave","Too slow."],"r_scott_win":["scott","I don't care if I live or die."],"r_scott_lose":["dave","You played."],"r_brent_good":["dave","It's good!"],"r_brent_crotch":["dave","Choir Boy Promotion."],"r_brent_miss":["dave","Wide."],"r_brent_never":["dave","Never kicked."],"r_brad_win":["dave","Wave cleared!"],"r_brad_overrun":["dave","Overrun!"],"r_brad_remain":["dave","The demons remain."],"r_brian_win":["dave","Still holding."],"r_brian_lose":["dave","Grabbed 'em all."],"r_steve_win":["dave","Maze generated!"],"r_steve_lose":["dave","A mug sat empty."],"r_chris_win":["dave","The loop lives."],"r_chris_lose":["dave","The loop died."],"r_brendan_win":["dave","Spot on."],"r_brendan_lose":["dave","Way off."],"say_a":["dave","Chicken, fight like a robot!"],"say_b":["dave","Work with me here!"],"say_c":["dave","If I wanted to watch a movie, I'd go to Blockbuster."],"say_d":["dave","Made me physically ill."],"say_f":["dave","You'll get more enjoyment out of making fun of this game than actually playing it."],"grade_Ap":["dave","Dave gives you an A plus."],"grade_A":["dave","Dave gives you an A."],"grade_Am":["dave","Dave gives you an A minus."],"grade_Bp":["dave","Dave gives you a B plus."],"grade_B":["dave","Dave gives you a B."],"grade_Bm":["dave","Dave gives you a B minus."],"grade_Cp":["dave","Dave gives you a C plus."],"grade_C":["dave","Dave gives you a C."],"grade_Cm":["dave","Dave gives you a C minus."],"grade_Dp":["dave","Dave gives you a D plus."],"grade_D":["dave","Dave gives you a D."],"grade_Dm":["dave","Dave gives you a D minus."],"grade_Fp":["dave","Dave gives you an F plus."],"grade_F":["dave","Dave gives you an F."],"grade_Fm":["dave","Dave gives you an F minus."]};
+var VOICE_PROFILES={
+  dave:   {pitch:110, rate:0.85, wave:"square",   wobble:2},
+  sudz:   {pitch:230, rate:1.55, wave:"square",   wobble:6},
+  scott:  {pitch:150, rate:0.95, wave:"triangle", wobble:0},
+  brent:  {pitch:132, rate:1.05, wave:"square",   wobble:3},
+  brian:  {pitch:196, rate:1.15, wave:"triangle", wobble:5},
+  steve:  {pitch:165, rate:1.00, wave:"sawtooth", wobble:2},
+  chris:  {pitch:140, rate:1.25, wave:"square",   wobble:3},
+  brad:   {pitch:175, rate:1.35, wave:"triangle", wobble:4},
+  brendan:{pitch:118, rate:0.90, wave:"sawtooth", wobble:3}
+};
+var Voice={
+  nodes:[], blips:0,
+  /* BLIP TALK — Nintendo voice babble (Animalese / Banjo-Kazooie /
+     Mario Party chatter). One short pitched blip per SYLLABLE, at
+     natural speech cadence, synced to the card's text. Inflection:
+     pitch RISES at a question, DIPS at a sentence end, phrase ends
+     sag a little, ALL-CAPS words jump up for emphasis, and each
+     syllable's pitch jitters deterministically so no two lines sound
+     looped. Every blip is a WebAudio oscillator through
+     Audio8.master — the mute toggle silences them, and the iOS
+     gesture-unlock chain covers startup. No audio assets, ever. */
+  syllables:function(word){
+    var w=(word||"").toLowerCase().replace(/[^a-z]/g,"");
+    if(!w)return 0;
+    var n=0, prev=false, i, v;
+    for(i=0;i<w.length;i++){
+      v="aeiouy".indexOf(w[i])>=0;
+      if(v&&!prev)n++;
+      prev=v;
+    }
+    if(w.length>2&&w.charAt(w.length-1)==="e"&&n>1)n--; // silent e
+    return Math.max(1,n);
+  },
+  pattern:function(text,p){
+    var iv=0.078/p.rate, t=0, out=[];
+    var words=(text||"").split(/\s+/), wi, si;
+    for(wi=0;wi<words.length;wi++){
+      var word=words[wi]; if(!word)continue;
+      var syl=this.syllables(word); if(!syl)continue;
+      var letters=word.replace(/[^A-Za-z]/g,"");
+      var caps=letters.length>1&&letters===letters.toUpperCase();
+      var lastCh=word.charAt(word.length-1);
+      var sentEnd=(lastCh==="."||lastCh==="!"||lastCh==="?")&&wi===words.length-1;
+      var phraseEnd=(lastCh===","||lastCh===";"||lastCh===":");
+      for(si=0;si<syl;si++){
+        var jit=((wi*7+si*13)%5-2)*0.03;         // deterministic jitter
+        var m=1+jit+((si%2)?0.02:-0.01);         // gentle up-down babble
+        if(caps)m*=1.15;                          // emphasis jump — a shout
+                                                  // keeps its jump (no end dip)
+        else if(sentEnd&&si===syl-1)m*=(lastCh==="?")?1.22:0.82; // rise / dip
+        else if(phraseEnd&&si===syl-1)m*=0.94;    // phrase-end sag
+        out.push([t,iv*0.62,m]);
+        t+=iv;
+      }
+      t+=iv*0.45;                                 // word gap
+      if(phraseEnd)t+=iv*0.8;
+      if(sentEnd)t+=iv*1.2;
+    }
+    return out;
+  },
+  play:function(id){
+    if(Audio8.muted)return;
+    var L=LINES[id]; if(!L)return;
+    Audio8.init(); Audio8.resume();
+    this.stop();
+    if(!Audio8.ctx||!Audio8.master)return;
+    var p=VOICE_PROFILES[L[0]]||VOICE_PROFILES.dave;
+    var pat=this.pattern(L[1],p), t0=Audio8.ctx.currentTime+0.03, i;
+    for(i=0;i<pat.length;i++){
+      if(pat[i][0]>4.2)break;
+      var wob=1+((i%2)?1:-1)*(p.wobble/200);
+      this._blip(t0+pat[i][0],pat[i][1],p.pitch*pat[i][2]*wob,p.wave);
+    }
+  },
+  _blip:function(t,dur,freq,wave){
+    var ctx=Audio8.ctx;
+    var o=ctx.createOscillator(), gn=ctx.createGain();
+    o.type=wave;
+    o.frequency.setValueAtTime(freq*1.06,t);
+    o.frequency.exponentialRampToValueAtTime(freq*0.88,t+dur);
+    gn.gain.setValueAtTime(0.0001,t);
+    gn.gain.exponentialRampToValueAtTime(0.055,t+0.008);
+    gn.gain.setValueAtTime(0.055,t+Math.max(0.008,dur-0.012));
+    gn.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(gn); gn.connect(Audio8.master);
+    o.start(t); o.stop(t+dur+0.02);
+    this.nodes.push(o); this.blips++;
+  },
+  stop:function(){
+    for(var i=0;i<this.nodes.length;i++){ try{this.nodes[i].stop();}catch(e){} }
+    this.nodes.length=0;
   }
 };
 
@@ -124,9 +242,9 @@ var Input={
   moved:0,                       // distance moved this frame while down
   path:[],                       // recent {x,y,t} while down (for rub analysis)
   tapEdge:false,releaseEdge:false,
-  keys:{},keyEdge:{},
+  keys:{},keyEdge:{},keyUpEdge:{},
   sipEdge:false,                 // set by beer-button hit or B key
-  resetFrame:function(){ this.moved=0; this.tapEdge=false; this.releaseEdge=false; this.sipEdge=false; this.keyEdge={}; }
+  resetFrame:function(){ this.moved=0; this.tapEdge=false; this.releaseEdge=false; this.sipEdge=false; this.keyEdge={}; this.keyUpEdge={}; }
 };
 function canvasPos(evt){
   var r=cv.getBoundingClientRect();
@@ -135,8 +253,10 @@ function canvasPos(evt){
   return {x:(cx-r.left)*(W/r.width), y:(cy-r.top)*(H/r.height)};
 }
 var cv=document.getElementById("cv");
+cv.setAttribute("tabindex","0"); cv.style.outline="none"; // keyboard focus lives here when embedded
 function ptrDown(e){
   Audio8.init(); Audio8.resume();
+  try{ cv.focus({preventScroll:true}); }catch(_){ } // grab keyboard focus on interaction (iframe-safe)
   var p=canvasPos(e);
   Input.x=p.x; Input.y=p.y; Input.px=p.x; Input.py=p.y;
   Input.down=true; Input.tapEdge=true; Input.path=[{x:p.x,y:p.y,t:performance.now()}];
@@ -170,7 +290,7 @@ window.addEventListener("keydown",function(e){
   if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space"].indexOf(e.code)>=0)e.preventDefault();
   if(Shell)Shell.onKey(e.code);
 });
-window.addEventListener("keyup",function(e){ Input.keys[e.code]=false; });
+window.addEventListener("keyup",function(e){ Input.keys[e.code]=false; Input.keyUpEdge[e.code]=true; });
 document.addEventListener("visibilitychange",function(){
   if(!document.hidden)Audio8.resume();
   if(Shell)Shell.onVisibility(document.hidden);
@@ -202,7 +322,10 @@ var CREW={
   scott: {name:"SCOTT", icon:"🍺", shirt:"#d9903a", shirtD:"#a86c28", pants:"#5a4632", skin:"#e8b48c", hair:"#7a4a22", hairStyle:"cap",   color:"#ffb84d"},
   brent: {name:"BRENT", icon:"🏈", shirt:"#3f9e4d", shirtD:"#2e7539", pants:"#e8e4da", skin:"#c98a5a", hair:"#1d1d1d", hairStyle:"flat",  color:"#7ddb8a"},
   brian: {name:"BRIAN", icon:"🤕", shirt:"#e8e4da", shirtD:"#bdb8ac", pants:"#3c4654", skin:"#eec39c", hair:"#4a3220", hairStyle:"bandage",color:"#ffffff"},
-  brad:  {name:"BRAD",  icon:"🕹️", shirt:"#2e7fc2", shirtD:"#1f5c8f", pants:"#2c3440", skin:"#e8b48c", hair:"#3a2a18", hairStyle:"flat",  color:"#6ec3ff"}
+  brad:  {name:"BRAD",  icon:"🕹️", shirt:"#2e7fc2", shirtD:"#1f5c8f", pants:"#2c3440", skin:"#e8b48c", hair:"#3a2a18", hairStyle:"flat",  color:"#6ec3ff"},
+  steve: {name:"STEVE", icon:"📺", shirt:"#3a6ac2", shirtD:"#2b4f8f", pants:"#3c4654", skin:"#d99e6a", hair:"#5a4632", hairStyle:"flat",  color:"#6ea8ff"},
+  chris: {name:"CHRIS", icon:"🏎️", shirt:"#2a9d8f", shirtD:"#1f7368", pants:"#2c3440", skin:"#c98a5a", hair:"#c9a227", hairStyle:"spiky", color:"#4dd8c3"},
+  brendan:{name:"BRENDAN",icon:"🦖", shirt:"#7a4a9e", shirtD:"#5c3778", pants:"#333a44", skin:"#e8b48c", hair:"#241a12", hairStyle:"long",  color:"#c39aff"}
 };
 /* generic pixel person FROM BEHIND — backs of heads, over-the-shoulder.
    Identity = shirt color + hair silhouette. No faces, by design. */
@@ -228,6 +351,7 @@ function drawBackPerson(x,y,s,p,opts){
   else if(p.hairStyle==="cap"){ // backwards cap from behind: dome + strap + brim toward viewer
     r(3,3,8,6,p.hair); r(2,0,10,4,"#8a2f23"); r(2,0,10,1,"#a8453a"); r(4,4,6,1,"#5a1f16"); r(1,5,12,2,"#8a2f23"); }
   else if(p.hairStyle==="bandage"){ r(3,1,8,8,p.hair); r(3,1,8,3,"#f4f1e8"); r(3,3,8,1,"#d8d2c2"); r(6,4,2,2,"#f4f1e8"); r(4,5,3,1,"rgba(255,255,255,0.16)"); }
+  else if(p.hairStyle==="long"){ r(3,1,8,8,p.hair); r(2,3,2,11,p.hair); r(10,3,2,11,p.hair); r(4,2,3,1,"rgba(255,255,255,0.16)"); r(3,7,8,1,"rgba(0,0,0,0.18)"); }
   else { r(3,1,8,8,p.hair); r(4,2,3,1,"rgba(255,255,255,0.16)"); r(3,7,8,1,"rgba(0,0,0,0.18)"); }
   if(opts.book){ r(12,11,4,7,"#7a2e2e"); r(12,11,4,1,"#a8453a"); r(13,13,2,1,"#ffd98a"); r(13,15,2,1,"#f4f1e8"); } // grade book at his side
 }
@@ -297,15 +421,15 @@ function drawCouch(y,withCrew,exprs){
   // helmet resting on the right couch arm (photo 2)
   R(330,y+58,34,20,"#8a8f96"); R(330,y+58,34,5,"#a8adb4"); R(336,y+72,22,6,"#3c4046"); R(344,y+62,8,8,"#565b62");
   if(withCrew){
-    var crew=["sudz","scott","brent","brian","brad"];
-    var xs=[48,114,170,236,298];
+    var crew=["sudz","scott","brent","brian","steve","chris","brad","brendan"];
+    var xs=[36,78,120,162,204,246,288,324];
     for(var i=0;i<crew.length;i++){
       var p=CREW[crew[i]];
       // warm amber backlight halo — big readable silhouettes
-      var gr=g.createRadialGradient(xs[i]+16,y+42,4,xs[i]+16,y+42,40);
+      var gr=g.createRadialGradient(xs[i]+14,y+38,4,xs[i]+14,y+38,36);
       gr.addColorStop(0,"rgba(255,176,66,0.35)"); gr.addColorStop(1,"rgba(255,176,66,0)");
-      g.fillStyle=gr; g.fillRect(xs[i]-24,y+2,80,80);
-      drawBackPerson(xs[i],y+14,2.35,p,{pose:"sit"});
+      g.fillStyle=gr; g.fillRect(xs[i]-22,y+2,72,72);
+      drawBackPerson(xs[i],y+16,2.0,p,{pose:"sit"});
     }
   }
 }
@@ -322,6 +446,7 @@ function drawBigTV(x,y,w,h){
 function drawSteelBattalion(x,y){
   // the absurd giant dual-stick controller rig on the coffee table (photo 2)
   R(x-8,y+26,196,10,"#5a4632"); R(x-2,y+36,8,16,"#4a3826"); R(x+174,y+36,8,16,"#4a3826"); // coffee table
+  for(var wg=0;wg<3;wg++)R(x-6,y+28+wg*3,192,1,"rgba(0,0,0,0.28)"); // woodgrain
   R(x,y,180,28,"#23262b"); R(x,y,180,4,"#34383f");
   // left stick block
   R(x+8,y-16,34,42,"#2c2f36"); R(x+22,y-30,5,18,"#14161a"); R(x+19,y-34,11,7,"#14161a");
@@ -350,11 +475,18 @@ function drawCaseStack(x,y){
   R(sx,y+26,30,7,"#7a3a2a"); R(sx,y+26,30,2,"rgba(255,255,255,0.25)");
   R(sx+2,y+19,26,7,"#bcd2e8"); R(sx+2,y+19,26,2,"rgba(255,255,255,0.25)");
   R(sx+1,y+12,28,7,"#a83a5a"); R(sx+1,y+12,28,2,"rgba(255,255,255,0.25)");
+  R(sx+8,y+14,13,3,"#f7f2e2"); R(sx+10,y+15,9,1,"#3a3a4a"); // white cart label on the top case
 }
 function drawCRTFrame(x,y,w,h){
   R(x-10,y-10,w+20,h+22,"#191410");
   R(x-6,y-6,w+12,h+12,"#3a332a");
   R(x,y,w,h,"#000");
+  // nerd details on the bezel: brand badge, red power LED, two difficulty
+  // switches — B lit gold, the house rule nobody questions
+  Tplain("TRONICOLOR",x+2,y+h+2,8,"#8a7a5c");
+  R(x+w-58,y+h+2,6,6,"#e84d26");
+  R(x+w-46,y+h+1,14,8,"#100c08"); R(x+w-44,y+h+2,4,6,"#6a5a40");
+  R(x+w-28,y+h+1,14,8,"#100c08"); R(x+w-20,y+h+2,4,6,"#ffd98a");
   // marquee bulbs on top (photo 2)
   var cols=["#e84d4d","#f7c948","#57e85e","#4da6e8","#e87ac9"];
   for(var i=0;i<9;i++){ R(x+14+i*((w-28)/8)-3,y-20,6,6,cols[i%5]); }
@@ -379,9 +511,9 @@ function drawBeerGlass(x,y,frac){
   R(x+24,y+10,5,14,"rgba(216,226,232,0.25)");
 }
 function drawHUD(){
-  R(0,0,W,58,"#1d130b"); R(0,56,W,2,"#0d0906");
-  Tplain("SCORE "+Shell.score,12,10,17,"#ffd98a");
-  Tplain("ROUND "+Math.min(Shell.round+1,Shell.totalRounds)+"/"+Shell.totalRounds,12,33,12,"#c8a878");
+  R(0,0,W,58,"#000000"); R(0,56,W,2,"#000080");
+  Tplain("SCORE "+Shell.score,12,10,17,"#90ee90");
+  Tplain("ROUND "+Math.min(Shell.round+1,Shell.totalRounds)+"/"+Shell.totalRounds,12,33,12,"#dddddd");
   if(Shell.streak>=2)Tplain("🔥 ×"+Shell.streakMult(),210,10,16,"#ff9a3d");
   // lives = beers
   for(var i=0;i<4;i++){
@@ -395,10 +527,11 @@ function drawHUD(){
 
 /* ============================== CARDS ============================== */
 function drawPanel(x,y,w,h,band){
-  R(x-4,y-4,w+8,h+8,"#0d0906");
-  R(x,y,w,h,"#2b1d12");
+  // site-harmonized card: black frame, VGC navy panel, darker navy field
+  R(x-4,y-4,w+8,h+8,"#000000");
+  R(x,y,w,h,"#000080");
   R(x,y,w,10,band);
-  R(x+6,y+16,w-12,h-22,"#3a2817");
+  R(x+6,y+16,w-12,h-22,"#00004d");
 }
 function wrapText(txt,x,y,size,c,maxW,lineH){
   g.font="bold "+size+"px 'Courier New',monospace"; g.textAlign="left"; g.textBaseline="top";
@@ -411,30 +544,48 @@ function wrapText(txt,x,y,size,c,maxW,lineH){
   for(var j=0;j<lines.length;j++){ g.fillStyle="#0d0906"; g.fillText(lines[j],x+2,y+j*lineH+2); g.fillStyle=c; g.fillText(lines[j],x,y+j*lineH); }
   return lines.length;
 }
+/* Readable long-form text: clean system sans, left-aligned, generous
+   line-height. The chunky Courier display font is for headings, the
+   grade letter and short labels ONLY (Cherie's readability rule). */
+var SANS="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
+function wrapLines(txt,size,maxW){
+  g.font="500 "+size+"px "+SANS;
+  var words=txt.split(" "),lines=[],cur="";
+  for(var i=0;i<words.length;i++){
+    var t=cur?cur+" "+words[i]:words[i];
+    if(g.measureText(t).width>maxW&&cur){lines.push(cur);cur=words[i];}else cur=t;
+  }
+  if(cur)lines.push(cur);
+  return lines;
+}
+function wrapSans(txt,x,y,size,c,maxW,lineH){
+  var lines=wrapLines(txt,size,maxW);
+  g.font="500 "+size+"px "+SANS; g.textAlign="left"; g.textBaseline="top"; g.fillStyle=c;
+  for(var j=0;j<lines.length;j++)g.fillText(lines[j],x,y+j*lineH);
+  return lines.length;
+}
 function drawIntroCard(){
   var m=Shell.mod,p=CREW[m.friend];
   drawPanel(30,180,330,330,p.color);
   Tplain(p.icon+" "+p.name,55,206,30,p.color);
-  Tplain(m.verb,55,246,17,"#f7f2e2");
+  Tplain(m.verb,55,246,17,"#90ee90");
   drawBadge(195,348,54,p);
-  var q="\u201C"+m.quoteIntro+"\u201D", qs=19;
-  g.font="italic bold "+qs+"px 'Courier New',monospace";
-  while(g.measureText(q).width>W-64&&qs>11){ qs--; g.font="italic bold "+qs+"px 'Courier New',monospace"; }
-  g.textAlign="center"; g.textBaseline="top";
-  g.fillStyle="#0d0906"; g.fillText(q,W/2+2,428+2);
-  g.fillStyle="#ffe9c4"; g.fillText(q,W/2,428);
-  g.textAlign="left";
+  // the quote is long-form text: readable sans, left-aligned, no shrink-to-fit
+  wrapSans("\u201C"+m.quoteIntro+"\u201D",55,412,19,"#ffffff",280,27);
+  // both control hints, always: a desktop player is never left guessing
+  if(m.hintTouch)Tplain(m.hintTouch,55,472,11,"#dddddd");
+  if(m.hintKeys)Tplain(m.hintKeys,55,489,11,"#90ee90");
 }
 function drawReactCard(){
   var rc=Shell.react;
   drawPanel(30,190,330,300,rc.win?"#57b85e":"#b3543f");
   drawBadge(88,254,32,CREW.dave);
-  Tplain(rc.win?"DAVE APPROVES":"DAVE WINCES",140,232,14,"#c8a878");
-  Tplain("ROUND "+Shell.results.length+" OF "+Shell.totalRounds,140,254,12,"#a8906a");
+  Tplain(rc.win?"DAVE APPROVES":"DAVE WINCES",140,232,14,rc.win?"#90ee90":"#ff9a8a");
+  Tplain("ROUND "+Shell.results.length+" OF "+Shell.totalRounds,140,254,12,"#dddddd");
   var y=306;
-  y+=wrapText(rc.headline,55,y,20,"#ffe9c4",280,26)*26;
-  if(rc.sub)y+=wrapText(rc.sub,55,y+2,14,"#d8c8a8",280,19)*19;
-  if(rc.attrib)Tplain(rc.attrib,55,y+6,12,"#a8906a");
+  y+=wrapText(rc.headline,55,y,20,"#ffffff",280,26)*26;
+  if(rc.sub)y+=wrapSans(rc.sub,55,y+2,15,"#dddddd",280,21)*21;
+  if(rc.attrib)Tplain(rc.attrib,55,y+6,12,"#90ee90");
   if(rc.points)Tplain((rc.points>=0?"+":"")+rc.points+" PTS",55,446,20,rc.points>0?"#7ddb8a":"#c8a878");
   if(!rc.win)Tplain("🍺 −1 BEER",232,446,16,"#ff9a8a");
 }
@@ -452,7 +603,11 @@ var FRIEND_LINES={
   brad:{best:"Your paddle work would make Brad proud.",worst:"Brad is still shouting for two more times."},
   sudz:{best:"Sudz respects the finger burn.",worst:"Sudz's finger outlasted yours."},
   scott:{best:"You sipped like a pro while the opponent beat himself.",worst:"Scott drank alone."},
-  brent:{best:"Brent is still talking about that kick.",worst:"Brent's kick is still sailing somewhere."}
+  brent:{best:"Brent is still talking about that kick.",worst:"Brent's kick is still sailing somewhere."},
+  brian:{best:"Brian kept every ball accounted for. A first.",worst:"Brian is icing something again."},
+  steve:{best:"Every mug stayed full. Steve is emotional.",worst:"Steve is still waiting for that beer."},
+  chris:{best:"The loop never died. Chris is at peace.",worst:"The loop died on your watch. Everyone heard the beeps."},
+  brendan:{best:"Brendan couldn't heckle a single price. Silenced.",worst:"Brendan is still asking what you paid."}
 };
 function buildReview(){
   var grade=computeGrade();
@@ -484,44 +639,54 @@ function buildReview(){
 }
 function drawReview(){
   drawRoom(4);
-  R(18,96,354,560,"#0d0906");
-  R(22,100,346,552,"#f4ead2");
-  R(22,100,346,54,"#7a2e2e");
-  Tplain("THE VERDICT",W/2,112,26,"#f7f2e2","center");
-  Tplain("DAVE REVIEWS: YOU",W/2,140,12,"#e8b48c","center");
-  // grade box
-  R(42,176,104,104,"#241610"); R(46,180,96,96,"#f7f2e2");
-  Tplain(Shell.review.grade,94,206,44,"#7a2e2e","center");
+  // styled as one of Dave's own review blocks (rev.css): black card,
+  // header bar with the title left and "Grade: X" right, white Verdana
+  // body, light-green byline
+  R(18,96,354,560,"#000000");
+  R(22,100,346,552,"#000000");
+  R(22,100,346,54,"#000080");
+  Tplain("THE VERDICT",40,112,24,"#ffffff");
+  Tplain("Grade: "+Shell.review.grade,350,118,17,"#dddddd","right");
+  Tplain("DAVE REVIEWS: YOU",40,138,11,"#90ee90");
+  // grade box: navy frame, black field, link-green letter
+  R(42,176,104,104,"#000080"); R(46,180,96,96,"#000000");
+  Tplain(Shell.review.grade,94,206,44,"#90ee90","center");
   drawBadge(292,224,46,CREW.dave);
-  g.fillStyle="#2b1d12";
-  wrapText(Shell.review.text,44,306,17,"#2b1d12",302,24);
-  Tplain("SCORE  "+Shell.score,44,470,17,"#2b1d12");
-  Tplain("BEST STREAK  ×"+Math.max(1,Shell.bestStreak),44,496,15,"#2b1d12");
-  Tplain("ROUNDS  "+Shell.results.length+"   BEERS LEFT  "+Shell.beers,44,522,15,"#2b1d12");
-  Tplain("— Dave, The Video Game Critic",44,556,14,"#7a2e2e");
-  if(Shell.bestGrade)Tplain("BEST SO FAR: "+Shell.bestGrade+" · "+Shell.bestScore,44,582,12,"#8a6f4d");
-  // buttons
+  // review body: readable sans, left-aligned. The stats block is placed
+  // BELOW the measured text height — it can never overlap the text,
+  // at any grade or review length (two-tier shrink if a review runs long).
+  var rsize=18, rlh=27, rl=wrapLines(Shell.review.text,rsize,302).length;
+  if(304+rl*rlh+22+124>646){ rsize=16; rlh=24; rl=wrapLines(Shell.review.text,rsize,302).length; }
+  wrapSans(Shell.review.text,44,304,rsize,"#ffffff",302,rlh);
+  var sy=Math.max(458,304+rl*rlh+22);
+  Tplain("SCORE  "+Shell.score,44,sy,17,"#dddddd");
+  Tplain("BEST STREAK  ×"+Math.max(1,Shell.bestStreak),44,sy+26,15,"#dddddd");
+  Tplain("ROUNDS  "+Shell.results.length+"   BEERS LEFT  "+Shell.beers,44,sy+52,15,"#dddddd");
+  Tplain("— Dave, The Video Game Critic",44,sy+86,14,"#90ee90");
+  if(Shell.bestGrade)Tplain("BEST SO FAR: "+Shell.bestGrade+" · "+Shell.bestScore,44,sy+112,12,"#aaaaaa");
+  // buttons: navy panels in the site's manner
   var blink=Math.floor(performance.now()/500)%2===0;
-  R(42,668,150,52,"#2e7fc2"); R(42,668,150,6,"#6ec3ff");
+  R(42,668,150,52,"#000080"); R(42,668,150,6,"#90ee90");
   Tplain("PLAY AGAIN",117,684,16,"#ffffff","center");
-  R(206,668,150,52,blink?"#7a2e2e":"#93382f"); R(206,668,150,6,"#c96a5a");
+  R(206,668,150,52,"#1b213f"); R(206,668,150,6,blink?"#00adee":"#0076a3");
   Tplain("SHARE 📤",281,684,16,"#ffffff","center");
 }
 function shareReview(){
   var c2=document.createElement("canvas"); c2.width=390; c2.height=620;
   var save=g; g=c2.getContext("2d"); g.imageSmoothingEnabled=false;
   // render a compact review card
-  R(0,0,390,620,"#241610");
-  R(14,14,362,592,"#f4ead2"); R(14,14,362,54,"#7a2e2e");
-  Tplain("GAME NIGHT AT DAVE'S",195,26,19,"#f7f2e2","center");
-  Tplain("THE VERDICT",195,50,12,"#e8b48c","center");
-  R(30,92,104,104,"#241610"); R(34,96,96,96,"#f7f2e2");
-  Tplain(Shell.review.grade,82,122,44,"#7a2e2e","center");
+  R(0,0,390,620,"#000000");
+  R(14,14,362,592,"#000000"); R(14,14,362,54,"#000080");
+  Tplain("GAME NIGHT AT DAVE'S",195,26,19,"#ffffff","center");
+  Tplain("THE VERDICT · Grade: "+Shell.review.grade,195,50,12,"#dddddd","center");
+  R(30,92,104,104,"#000080"); R(34,96,96,96,"#000000");
+  Tplain(Shell.review.grade,82,122,44,"#90ee90","center");
   drawBadge(292,140,44,CREW.dave);
-  wrapText(Shell.review.text,32,226,17,"#2b1d12",326,24);
-  Tplain("SCORE  "+Shell.score,32,400,17,"#2b1d12");
-  Tplain("— Dave, The Video Game Critic",32,436,14,"#7a2e2e");
-  Tplain("bparlette.github.io/Hawk2/games/game-night-at-daves/",32,560,11,"#8a6f4d");
+  var rl2=wrapSans(Shell.review.text,32,222,17,"#ffffff",326,25);
+  var sy2=Math.max(392,222+rl2*25+18);
+  Tplain("SCORE  "+Shell.score,32,sy2,17,"#dddddd");
+  Tplain("— Dave, The Video Game Critic",32,sy2+36,14,"#90ee90");
+  Tplain("GAME NIGHT AT DAVE'S · videogamecritic.com",32,560,11,"#aaaaaa");
   g=save;
   function fallback(){ var a=document.createElement("a"); a.download="game-night-at-daves-review.png"; a.href=c2.toDataURL("image/png"); a.click(); }
   if(navigator.canShare&&window.File){
@@ -551,9 +716,8 @@ var Shell={
   },
   startRun:function(firstId){
     this.rng=mulberry32(this.seedBase);
-    var ids=["sudz","scott","brent","brad"];
-    var cyc1=shuffle(ids.slice(),this.rng), cyc2=shuffle(ids.slice(),this.rng);
-    this.order=cyc1.concat(cyc2);
+    var ids=["sudz","scott","brent","brian","steve","chris","brad","brendan"];
+    this.order=shuffle(ids.slice(),this.rng);
     if(firstId){ var i=this.order.indexOf(firstId); if(i>0){ this.order.splice(i,1); this.order.unshift(firstId); } }
     this.score=0; this.streak=0; this.bestStreak=0; this.beers=4;
     this.round=0; this.results=[]; this.review=null;
@@ -563,13 +727,14 @@ var Shell={
     if(this.round>=this.totalRounds||this.beers<=0){ this.toReview(); return; }
     var id=this.order[this.round];
     this.mod=MODULES[id];
-    this.speed=1+0.15*Math.floor(this.round/4);
-    this.state="INTRO"; this.stateT=1.5;
+    this.speed=Math.min(1.16,1+0.08*Math.floor(this.round/4));
+    this.state="INTRO"; this.stateT=2.0;
     Audio8.sig(id);
+    Voice.play("intro_"+id);
   },
   startPlay:function(){
     var m=this.mod;
-    this.timeTotal=Math.max(4,6-0.5*Math.floor(this.round/4));
+    this.timeTotal=Math.max(6.5,8-0.5*Math.floor(this.round/4));
     this.timeLeft=this.timeTotal;
     this.modState=m.create(this);
     this.state="PLAY";
@@ -592,12 +757,16 @@ var Shell={
     this.react=rc;
     if(win)Audio8.jingleWin(); else if(opts.comedy)Audio8.jingleComedy(); else Audio8.jingleLose();
     if(opts.shout)Audio8.shout();
-    this.state="REACT"; this.stateT=opts.cardT||1.5;
+    if(opts.voice)Voice.play(opts.voice);
+    this.state="REACT"; this.stateT=opts.cardT||1.9;
     this.round++;
   },
   toReview:function(){
     this.review=buildReview();
     this.state="REVIEW"; this.stateT=0;
+    Voice.play("grade_"+this.review.grade.replace("+","p").replace("-","m"));
+    var band=this.review.grade.charAt(0).toLowerCase();
+    setTimeout(function(){ if(Shell.state==="REVIEW")Voice.play("say_"+band); },2300);
     if(this.score>this.bestScore)this.bestScore=this.score;
     var gi=GRADES.indexOf(this.review.grade), bi=GRADES.indexOf(this.bestGrade||"F-");
     if(!this.bestGrade||gi<bi)this.bestGrade=this.review.grade;
@@ -606,6 +775,8 @@ var Shell={
   },
   onTap:function(x,y){
     if(this.state==="TITLE"){ this.startRun(); }
+    else if(this.state==="INTRO"&&this.stateT<1.7)this.stateT=0; // tap to skip the intro card
+    else if(this.state==="REACT"&&this.stateT<1.1)this.stateT=0; // tap to move on (after a fair read)
     else if(this.state==="REVIEW"){
       if(y>=660&&y<=730){ if(x<195)this.startRun(); else shareReview(); }
     }
@@ -613,6 +784,8 @@ var Shell={
   },
   onKey:function(code){
     if(this.state==="TITLE"&&(code==="Space"||code==="Enter"))this.startRun();
+    else if(this.state==="INTRO"&&(code==="Space"||code==="Enter")&&this.stateT<1.7)this.stateT=0;
+    else if(this.state==="REACT"&&(code==="Space"||code==="Enter")&&this.stateT<1.1)this.stateT=0;
     else if(this.state==="REVIEW"&&(code==="Space"||code==="Enter"))this.startRun();
     else if(this.state==="PLAY"&&this.modState&&this.modState.onKey)this.modState.onKey(code);
   },
@@ -665,15 +838,16 @@ function drawTitle(){
   drawCaseStack(238,58);
   // dual screens: big flat TV left, CRT right (photo 2)
   drawBigTV(28,150,168,116);
-  R(24,272,176,22,"#0d0906");
-  Tplain("GAME NIGHT AT DAVE'S",112,277,13,"#ffd98a","center");
+  R(24,272,176,22,"#000080");
+  Tplain("GAME NIGHT AT DAVE'S",112,277,13,"#ffffff","center");
   drawCRTFrame(216,150,150,116);
   R(216,150,150,116,"#14202c");
-  Tplain("GAME NIGHT",291,166,16,"#ffd98a","center");
-  Tplain("AT DAVE'S",291,188,16,"#ffd98a","center");
+  Tplain("GAME NIGHT",291,166,16,"#ffffff","center");
+  Tplain("AT DAVE'S",291,188,16,"#ffffff","center");
   if(Math.floor(performance.now()/530)%2===0)
-    Tplain("▶ PRESS START",291,222,12,"#57e85e","center");
-  Tplain("Dave's reviewing tonight.",291,240,9,"#9fd8e8","center");
+    Tplain("▶ PRESS START",291,222,12,"#90ee90","center");
+  Tplain("Dave's reviewing tonight.",291,240,9,"#dddddd","center");
+  Tplain("PRESENTED BY VIDEOGAMECRITIC.COM",291,254,7,"#90ee90","center");
   scanlines(216,150,150,116);
   // Dave standing by the screens, grade book in hand
   drawBackPerson(318,296,3.4,CREW.dave,{pose:"stand",book:true});
@@ -683,73 +857,73 @@ function drawTitle(){
   R(292,600,44,26,"#14161a"); R(292,600,44,4,"#23262b");
   R(310,578,5,24,"#14161a"); R(305,570,15,12,"#2e7fc2"); R(307,572,11,3,"#6ec3ff");
   R(322,606,9,9,"#2e7fc2"); R(296,606,7,7,"#b03a3a");
-  if(Shell.bestGrade)Tplain("BEST: "+Shell.bestGrade+" · "+Shell.bestScore+" PTS",195,716,13,"#ffd98a","center");
-  Tplain("SUDZ · SCOTT · BRENT · BRAD",195,756,13,"#f7f2e2","center");
-  Tplain("8 ROUNDS · 4 BEERS · ONE VERDICT",195,778,12,"#c8a878","center");
-  Tplain("TAP TO START",195,812,12,"#8a6f4d","center");
+  if(Shell.bestGrade)Tplain("BEST: "+Shell.bestGrade+" · "+Shell.bestScore+" PTS",195,716,13,"#90ee90","center");
+  Tplain("SUDZ · SCOTT · BRENT · BRIAN",195,744,12,"#dddddd","center");
+  Tplain("STEVE · CHRIS · BRAD · BRENDAN",195,764,12,"#dddddd","center");
+  Tplain("8 ROUNDS · 4 BEERS · ONE VERDICT",195,786,12,"#90ee90","center");
+  Tplain("TAP TO START",195,812,12,"#aaaaaa","center");
 }
 
 /* ============================== MICROGAMES ============================== */
 var CC={g:g,x:CRT.x,y:CRT.y};
 var MODULES={};
 
-/* ---------- SUDZ — Finger Burn Decathlon (RUB) ---------- */
+/* ---------- SUDZ — Finger Burn Decathlon (RAPID TAP) ---------- */
 MODULES.sudz={
-  id:"sudz", friend:"sudz", verb:"RUB THE D-PAD!",
+  id:"sudz", friend:"sudz", verb:"TAP! TAP! TAP!",
+  hintTouch:"TOUCH: TAP TAP TAP - FAST!", hintKeys:"DESKTOP: MASH SPACE OR CLICK",
   quoteIntro:"What team am I, blue or phlegm?",
   create:function(){
     var st={ state:"playing", result:null, dist:0, rival:0, burn:0, vel:0, phase:0, t:0,
-      lastKey:"", kbImp:0, hint:1.8,
+      taps:[], rate:0, hint:2.4, tapFx:0,
       update:function(dt,input){
         if(this.state!=="playing")return;
         this.t+=dt; if(this.hint>0)this.hint-=dt;
-        var rate=0;
-        if(input.down&&input.moved>0)rate=clamp((input.moved/Math.max(dt,0.001))/900,0,1.25);
-        if(input.keyEdge.ArrowLeft||input.keyEdge.ArrowRight){
-          var k=input.keyEdge.ArrowLeft?"L":"R";
-          if(this.lastKey&&this.lastKey!==k)this.kbImp=1;
-          else if(this.lastKey===k)this.burn=clamp(this.burn+0.18,0,1);
-          this.lastKey=k;
+        // RAPID TAP: every tap lunges the runner forward. Mashing at max
+        // speed overheats the finger; easing off cools it. Two-meter race:
+        // finish line vs Finger Burn.
+        if(input.tapEdge||input.keyEdge.Space||input.keyEdge.ArrowLeft||input.keyEdge.ArrowRight){
+          this.taps.push(this.t); this.dist+=0.030; this.vel=1; this.tapFx=0.18;
+          Audio8.tone(170+Math.random()*50,0.05,"square",0.07);
         }
-        this.kbImp=Math.max(0,this.kbImp-dt*2.0);
-        rate=Math.max(rate,this.kbImp*1.1);
-        this.vel=lerp(this.vel,rate,0.45);
-        this.dist+=dt*this.vel*0.30*Shell.speed;
-        this.phase+=dt*(2+this.vel*16);
-        this.rival+=dt*0.105*Shell.speed;
-        if(input.down&&input.path.length>4){
-          var now=performance.now(),pts=[],i,L=0,mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
-          for(i=0;i<input.path.length;i++)if(now-input.path[i].t<600)pts.push(input.path[i]);
-          if(pts.length>4){
-            for(i=0;i<pts.length;i++){ if(i>0)L+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
-              mnx=Math.min(mnx,pts[i].x); mxx=Math.max(mxx,pts[i].x); mny=Math.min(mny,pts[i].y); mxy=Math.max(mxy,pts[i].y); }
-            var diag=Math.hypot(mxx-mnx,mxy-mny);
-            if(L>110&&diag<36)this.burn=clamp(this.burn+dt*0.62,0,1);
-            else this.burn=clamp(this.burn-dt*0.30,0,1);
-          }
-        } else if(!input.down)this.burn=clamp(this.burn-dt*0.22,0,1);
+        while(this.taps.length&&this.taps[0]<this.t-1.0)this.taps.shift();
+        this.rate=this.taps.length; // taps in the last second
+        if(this.rate>5.5)this.burn=clamp(this.burn+dt*(this.rate-5.5)*0.30,0,1);
+        else this.burn=clamp(this.burn-dt*0.38,0,1);
+        this.vel=Math.max(0,this.vel-dt*3.2);
+        this.phase+=dt*(2+this.rate*2.4);
+        this.rival+=dt*0.082*Shell.speed;
+        if(this.tapFx>0)this.tapFx-=dt;
         if(this.burn>=1){ this.state="lost";
-          this.result={card:{headline:"Medical finger burn.",sub:"The D-pad claims another digit."}}; return; }
+          this.result={voice:"r_sudz_burn",card:{headline:"Medical finger burn.",sub:"The D-pad claims another digit."}}; return; }
         if(this.dist>=1){ this.state="won";
-          this.result={shout:true,card:{headline:"PHLEGM!",sub:"A distant shout echoes across the track."}}; return; }
+          this.result={voice:"r_sudz_win",card:{headline:"PHLEGM!",sub:"A distant shout echoes across the track."}}; return; }
       },
       onTimeout:function(){ this.state="lost";
-        this.result={card:{headline:"TOO SLOW.",sub:"The phlegm team takes the heat."}}; },
+        this.result={voice:"r_sudz_slow",card:{headline:"TOO SLOW.",sub:"The phlegm team takes the heat."}}; },
       render:function(){
+        // anchored on refs/decathlon-intellivision.jpg: sunset sky, crowd
+        // band, green field, BLUE track, pink distance meter, white digits
         R(CRT.x,CRT.y,CRT.w,CRT.h,"#101038");
-        Tplain("INTELLIVISION DECATHLON",CRT.x+12,CRT.y+10,13,"#9fd8e8");
-        Tplain("100M RUB",CRT.x+CRT.w-12,CRT.y+10,13,"#ffd98a","right");
-        // progress bar
-        R(CRT.x+12,CRT.y+34,CRT.w-24,10,"#2a2a6a"); R(CRT.x+12,CRT.y+34,(CRT.w-24)*clamp(this.dist,0,1),10,"#2e7fc2");
-        // track
-        PX(CC,0,86,120,44,"#1d1d5e");
+        var sky=["#2a2a9c","#5a3a9c","#9c3a7a","#d85a6a","#e88a3a"];
+        for(var sk=0;sk<5;sk++)R(CRT.x,CRT.y+sk*7,CRT.w,7,sky[sk]);
+        R(CRT.x,CRT.y+35,CRT.w,13,"#8a5a28"); // crowd band
+        for(var cd=0;cd<44;cd++)R(CRT.x+6+((cd*53)%348),CRT.y+38+((cd*29)%8),3,3,(cd%3)?"#d8a878":"#5a3a1e");
+        R(CRT.x,CRT.y+48,CRT.w,CRT.h-48,"#4a7a28"); // green field
+        Tplain("DECATHLON",CRT.x+12,CRT.y+8,13,"#ffffff");
+        Tplain("100M TAP",CRT.x+CRT.w-12,CRT.y+8,13,"#ffffff","right");
+        // distance meter (pink, like the reference) + chunky white readout
+        R(CRT.x+12,CRT.y+56,CRT.w-24,10,"#3a2a1e"); R(CRT.x+12,CRT.y+56,(CRT.w-24)*clamp(this.dist,0,1),10,"#e87a8a");
+        Tplain((this.dist*100).toFixed(1)+"m",CRT.x+12,CRT.y+70,15,"#ffffff");
+        // the BLUE track
+        PX(CC,0,86,120,44,"#2a34c8");
         PX(CC,0,86,120,1,"#e8e4da"); PX(CC,0,107,120,1,"#e8e4da"); PX(CC,0,129,120,1,"#e8e4da");
         for(var d=0;d<12;d++)PX(CC,4+d*10,96,5,1,"rgba(232,228,218,0.5)");
         // finish post
         PX(CC,107,84,2,46,"#e8e4da");
         for(var f=0;f<4;f++)for(var f2=0;f2<4;f2++)PX(CC,109+f,84+f2,1,1,(f+f2)%2?"#111":"#f4f1e8");
-        this.runner(6+this.rival*100,92,"#7a9a4a");
-        this.runner(6+this.dist*100,112,"#2e7fc2");
+        this.runner(6+this.rival*100,92,"#d84a3a");
+        this.runner(6+this.dist*100,112,"#4db84d");
         Tplain("YOU",CRT.x+18+this.dist*(CRT.w-60),CRT.y+318,11,"#6ec3ff");
         Tplain("PHLEGM",CRT.x+18+this.rival*(CRT.w-60),CRT.y+258,11,"#a8c47a");
         // finger burn meter
@@ -758,15 +932,15 @@ MODULES.sudz={
         R(CRT.x+CRT.w-38,CRT.y+66+116-bh,20,bh,this.burn>0.7?"#e84d26":"#e8a020");
         Tplain("FINGER",CRT.x+CRT.w-28,CRT.y+192,10,"#ff9a8a","center");
         Tplain("BURN",CRT.x+CRT.w-28,CRT.y+206,10,"#ff9a8a","center");
-        if(this.hint>0){ // rotating rub hint
-          var cx=CRT.x+52,cy=CRT.y+392,a0=this.t*4;
+        if(this.hint>0){ // tap hint: pulsing target, no circles to draw — just TAP
+          var cx=CRT.x+52,cy=CRT.y+392,pr=17+Math.sin(this.t*10)*4-(this.tapFx>0?5:0);
           g.strokeStyle="#ffd98a"; g.lineWidth=5; g.beginPath();
-          g.arc(cx,cy,24,a0,a0+4.4); g.stroke();
-          g.fillStyle="#ffd98a"; g.beginPath();
-          var ax=cx+Math.cos(a0+4.4)*24,ay=cy+Math.sin(a0+4.4)*24;
-          g.moveTo(ax,ay); g.lineTo(ax-12,ay-2); g.lineTo(ax-2,ay+11); g.closePath(); g.fill();
-          Tplain("RUB IN BIG CIRCLES!",CRT.x+92,CRT.y+384,14,"#ffd98a");
+          g.arc(cx,cy,Math.max(9,pr),0,6.3); g.stroke();
+          g.fillStyle="#ffd98a"; g.beginPath(); g.arc(cx,cy,4,0,6.3); g.fill();
+          Tplain("TAP FAST!",CRT.x+92,CRT.y+376,14,"#ffd98a");
+          Tplain("EASE OFF TO COOL THE FINGER",CRT.x+92,CRT.y+396,11,"#ff9a8a");
         }
+        if(this.burn>0.62&&this.state==="playing")Tplain("🔥 TOO HOT — EASE OFF!",CRT.x+CRT.w/2,CRT.y+348,14,"#e84d26","center");
       },
       runner:function(gx,gy,c){
         var leg=Math.floor(this.phase)%2;
@@ -785,6 +959,7 @@ MODULES.sudz={
 var SIPZONE={x:308,y:664,w:72,h:92};
 MODULES.scott={
   id:"scott", friend:"scott", verb:"DON'T TOUCH!",
+  hintTouch:"TOUCH: HANDS OFF! TAP MUG = SIP", hintKeys:"DESKTOP: HANDS OFF! B = SIP",
   quoteIntro:"Set down the controller and sip your beer.",
   create:function(){
     var st={ state:"playing", result:null, t:0, phase:"idle", phaseT:0.9, serves:0, points:0,
@@ -799,7 +974,7 @@ MODULES.scott={
       lunge:function(){
         if(this.state!=="playing")return;
         this.state="lost";
-        this.result={card:{headline:"YOU PLAYED.",sub:"The one thing you had to not do."}};
+        this.result={voice:"r_scott_lose",card:{headline:"YOU PLAYED.",sub:"The one thing you had to not do."}};
       },
       update:function(dt,input){
         if(this.state!=="playing")return;
@@ -811,9 +986,9 @@ MODULES.scott={
         this.phaseT-=dt*sp;
         if(this.sipGrace>0)this.sipGrace-=dt;
         if(this.phase==="idle"&&this.phaseT<=0){ this.phase="toss"; this.phaseT=0.45; this.sipWin=true; this.sipScored=false;
-          if(sp>=1.15)Audio8.tone(1180,0.07,"square",0.10); }
+          if(sp>=1.08)Audio8.tone(1180,0.07,"square",0.10); }
         else if(this.phase==="toss"&&this.phaseT<=0){ this.phase="fly"; this.phaseT=0.5; this.sipWin=false; this.sipGrace=0.28;
-          this.faultKind=Shell.rng()<0.5?"net":"out"; if(sp>=1.15)Audio8.tone(1180,0.07,"square",0.10); }
+          this.faultKind=Shell.rng()<0.5?"net":"out"; if(sp>=1.08)Audio8.tone(1180,0.07,"square",0.10); }
         else if(this.phase==="fly"&&this.phaseT<=0){ this.phase="fault"; this.phaseT=0.55; this.serves++;
           this.faultTxt=(this.serves%2===1)?"FAULT!":"DOUBLE FAULT!";
           if(this.serves%2===0)this.points=Math.min(3,this.points+1);
@@ -833,17 +1008,20 @@ MODULES.scott={
       },
       onKey:function(code){ if(code!=="KeyB")this.lunge(); },
       onTimeout:function(){ this.state="won";
-        this.result={bonus:this.style,card:{headline:"I don't care if I live or die.",attrib:"— Scott",sub:"He never touched the controller. Flawless."}}; },
+        this.result={voice:"r_scott_win",bonus:this.style,card:{headline:"I don't care if I live or die.",attrib:"— Scott",sub:"He never touched the controller. Flawless."}}; },
       render:function(){
-        R(CRT.x,CRT.y,CRT.w,CRT.h,"#0d2812");
-        // scoreboard
-        R(CRT.x+10,CRT.y+8,CRT.w-20,30,"#06170a");
-        if(Shell.speed>=1.15)Tplain("Beep beep beep beep F!!!",CRT.x+CRT.w/2,CRT.y+15,15,"#57e85e","center");
-        else Tplain("YOU "+["0","15","30","40"][this.points]+"  ·  OPP 0  ·  OPP SERVING",CRT.x+CRT.w/2,CRT.y+15,14,"#57e85e","center");
-        // court
-        PX(CC,8,44,104,96,"#14532a"); PX(CC,8,44,104,2,"#e8e4da"); PX(CC,8,138,104,2,"#e8e4da");
+        // anchored on refs/quattro-sports-nes.jpg: CLAY court, green
+        // surround, lavender scoreboard tower with black score panels
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#005000");
+        // scoreboard (lavender tower, black panels, cream digits)
+        R(CRT.x+10,CRT.y+8,CRT.w-20,30,"#9c9ce8");
+        R(CRT.x+18,CRT.y+13,CRT.w-36,20,"#101018");
+        if(Shell.speed>=1.08)Tplain("Beep beep beep beep F!!!",CRT.x+CRT.w/2,CRT.y+16,14,"#f7f2e2","center");
+        else Tplain("P1 "+["0","15","30","40"][this.points]+"   P2 0   OPP SERVING",CRT.x+CRT.w/2,CRT.y+16,13,"#f7f2e2","center");
+        // clay court, white lines, dark net
+        PX(CC,8,44,104,96,"#7a2818"); PX(CC,8,44,104,2,"#e8e4da"); PX(CC,8,138,104,2,"#e8e4da");
         PX(CC,8,44,2,96,"#e8e4da"); PX(CC,110,44,2,96,"#e8e4da");
-        PX(CC,59,44,2,96,"#9fb6cc"); PX(CC,59,60,2,60,"rgba(159,182,204,0.5)"); // net
+        PX(CC,59,44,2,96,"#191924"); PX(CC,59,60,2,60,"rgba(10,10,18,0.5)"); // net
         // players: you (left, idle, controller DOWN), opponent (right)
         PX(CC,14,84,4,4,"#e8b48c"); PX(CC,13,88,6,8,"#d9903a"); PX(CC,13,96,6,5,"#5a4632");
         PX(CC,10,92,3,2,"#191919"); // controller resting in lap
@@ -876,11 +1054,12 @@ MODULES.scott={
 /* ---------- BRENT — The 80-Yard Kick (AIM + RELEASE) ---------- */
 MODULES.brent={
   id:"brent", friend:"brent", verb:"KICK IT!",
+  hintTouch:"TOUCH: HOLD... RELEASE ON GREEN", hintKeys:"DESKTOP: HOLD SPACE, RELEASE",
   quoteIntro:"He's lining up from 80 yards…",
   create:function(){
-    var st={ state:"playing", result:null, t:0, needle:0, brianX:60, kicked:false,
+    var st={ state:"playing", result:null, t:0, needle:0, brianX:60, kicked:false, armed:false,
       kickT:0, outcome:"", ballX:60, ballY:116, wind:0,
-      startInit:function(){ this.wind=Shell.speed>=1.15?(Shell.rng()<0.5?-0.28:0.28):0; },
+      startInit:function(){ this.wind=Shell.speed>=1.08?(Shell.rng()<0.5?-0.28:0.28):0; },
       kick:function(){
         if(this.kicked||this.state!=="playing")return;
         this.kicked=true; this.kickT=0;
@@ -893,32 +1072,39 @@ MODULES.brent={
       update:function(dt,input){
         if(this.state!=="playing")return;
         this.t+=dt;
-        if(this.wind===0&&Shell.speed>=1.15&&!this._wset){ this._wset=true; this.wind=Shell.rng()<0.5?-0.28:0.28; }
-        this.needle=Math.sin(this.t*2.3*Shell.speed);
-        this.brianX=60+Math.sin(this.t*0.85*Shell.speed)*38;
+        // HOLD + RELEASE: press (tap/Space/Enter) arms the kick, letting go strikes.
+        if(!this.kicked){
+          if(input.tapEdge||input.keyEdge.Space||input.keyEdge.Enter)this.armed=true;
+          if(this.armed&&(input.releaseEdge||Input.keyUpEdge.Space||Input.keyUpEdge.Enter)){ this.armed=false; this.kick(); }
+        }
+        if(this.wind===0&&Shell.speed>=1.08&&!this._wset){ this._wset=true; this.wind=Shell.rng()<0.5?-0.28:0.28; }
+        this.needle=Math.sin(this.t*1.8*Shell.speed);
+        this.brianX=60+Math.sin(this.t*0.68*Shell.speed)*38;
         if(this.kicked){
           this.kickT+=dt;
+          if(this.outcome==="crotch"&&this.kickT>=0.7&&!this._ohh){ this._ohh=true; Voice.play("brian_ohh"); }
           var k=clamp(this.kickT/0.75,0,1);
           if(this.outcome==="crotch"){ this.ballX=lerp(60,this.brianX,k); this.ballY=lerp(116,104,k); }
           else if(this.outcome==="good"){ this.ballX=60; this.ballY=lerp(116,20,k); }
           else { this.ballX=lerp(60,60+this.needle*46,k); this.ballY=lerp(116,26,k); }
           if(this.kickT>=0.9){
             if(this.outcome==="good"){ this.state="won";
-              this.result={card:{headline:"IT'S GOOD!",sub:"From 80 yards. Dave's TV survives."}}; }
+              this.result={voice:"r_brent_good",card:{headline:"IT'S GOOD!",sub:"From 80 yards. Dave's TV survives."}}; }
             else if(this.outcome==="crotch"){ this.state="won";
-              this.result={comedy:true,cardT:2.0,card:{headline:"Choir Boy Promotion",sub:"Brian takes one for the team. Won on comedy — no points."}}; }
+              this.result={voice:"r_brent_crotch",comedy:true,cardT:2.4,card:{headline:"Choir Boy Promotion",sub:"Brian takes one for the team. Won on comedy — no points."}}; }
             else { this.state="lost";
-              this.result={card:{headline:"WIDE.",sub:"Somewhere, a neighbor's window trembles."}}; }
+              this.result={voice:"r_brent_miss",card:{headline:"WIDE.",sub:"Somewhere, a neighbor's window trembles."}}; }
           }
         }
       },
       holdTimer:function(){ return this.kicked; },
-      onTap:function(){ this.kick(); },
-      onKey:function(code){ if(code==="Space"||code==="Enter")this.kick(); },
       onTimeout:function(){ this.state="lost";
-        this.result={card:{headline:"NEVER KICKED.",sub:"Brent is still lining it up."}}; },
+        this.result={voice:"r_brent_never",card:{headline:"NEVER KICKED.",sub:"Brent is still lining it up."}}; },
       render:function(){
-        R(CRT.x,CRT.y,CRT.w,CRT.h,"#14532a");
+        // anchored on refs/football-2600.jpg: blue surround, green field
+        // with horizontal mowing stripes
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#1a1a9c");
+        for(var fs=0;fs<11;fs++)PX(CC,0,26+fs*11,120,11,fs%2?"#357a18":"#3e8c1f");
         Tplain("80-YARD ATTEMPT",CRT.x+12,CRT.y+10,14,"#f7f2e2");
         if(this.wind!==0)Tplain(this.wind>0?"WIND →":"← WIND",CRT.x+CRT.w-12,CRT.y+10,13,"#ffd98a","right");
         // goalpost
@@ -947,7 +1133,7 @@ MODULES.brent={
         R(CRT.x+CRT.w/2-1,CRT.y+414,2,26,"#e8e4da");
         var nx=CRT.x+CRT.w/2+this.needle*(CRT.w/2-24);
         R(nx-2,CRT.y+410,4,34,"#e84d26");
-        Tplain(this.kicked?"":"TAP TO KICK",CRT.x+CRT.w/2,CRT.y+CRT.h-24,13,"#ffd98a","center");
+        Tplain(this.kicked?"":(this.armed?"RELEASE!":"HOLD... RELEASE ON THE GREEN!"),CRT.x+CRT.w/2,CRT.y+CRT.h-24,13,"#ffd98a","center");
       }
     };
     return st;
@@ -957,6 +1143,7 @@ MODULES.brent={
 /* ---------- BRAD — Paddle Master (PADDLE) ---------- */
 MODULES.brad={
   id:"brad", friend:"brad", verb:"BLAST THE DEMONS!",
+  hintTouch:"TOUCH: SLIDE TO MOVE PADDLE", hintKeys:"DESKTOP: MOUSE OR ARROWS OR A/D",
   quoteIntro:"OP Brad, reporting for duty.",
   create:function(){
     var st={ state:"playing", result:null, t:0, paddleX:60, shots:[], demons:[], diamonds:[],
@@ -975,20 +1162,21 @@ MODULES.brad={
         this.extensions++;
         Shell.inter=true; this.interT=1.4;
         Audio8.tone(784,0.1,"square",0.14); Audio8.tone(1047,0.14,"square",0.14,0.09);
+        Voice.play("brad_ext");
       },
       winResult:function(){
-        return {bonus:this.killPts,card:{headline:"WAVE CLEARED!",sub:"Brad finally sets the paddle down."}};
+        return {voice:"r_brad_win",bonus:this.killPts,card:{headline:"WAVE CLEARED!",sub:"Brad finally sets the paddle down."}};
       },
       update:function(dt,input){
         if(this.state!=="playing")return;
         this.t+=dt;
         if(Shell.inter){ this.interT-=dt;
-          if(this.interT<=0){ Shell.inter=false; Shell.timeLeft=3.2; this.spawnWave(this.extensions); }
+          if(this.interT<=0){ Shell.inter=false; Shell.timeLeft=4.2; this.spawnWave(this.extensions); }
           return; }
         // paddle control
         if(input.down||input.x>0)this.paddleX=clamp((input.x-CRT.x)/3,8,112);
-        if(input.keys.ArrowLeft)this.paddleX=clamp(this.paddleX-dt*65,8,112);
-        if(input.keys.ArrowRight)this.paddleX=clamp(this.paddleX+dt*65,8,112);
+        if(input.keys.ArrowLeft||input.keys.KeyA)this.paddleX=clamp(this.paddleX-dt*65,8,112);
+        if(input.keys.ArrowRight||input.keys.KeyD)this.paddleX=clamp(this.paddleX+dt*65,8,112);
         // fire
         this.fireT-=dt;
         if(this.fireT<=0){ this.fireT=0.34/Shell.speed; this.shots.push({x:this.paddleX,y:136}); Audio8.tone(920,0.05,"square",0.05); }
@@ -999,10 +1187,10 @@ MODULES.brad={
           minx=Math.min(minx,d.x); maxx=Math.max(maxx,d.x); }
         if(maxx>=114)this.dir=-1; if(minx<=6)this.dir=1;
         for(i=0;i<this.demons.length;i++){ d=this.demons[i]; if(!d.alive)continue;
-          d.x+=this.dir*dt*5.5*sp; d.y+=dt*1.7*sp;
+          d.x+=this.dir*dt*5.0*sp; d.y+=dt*1.5*sp;
           if(d.y>132){
             if(!this.baseCleared){ this.state="lost";
-              this.result={bonus:this.killPts,card:{headline:"OVERRUN!",sub:"The demons reach the paddle line."}}; return; }
+              this.result={voice:"r_brad_overrun",bonus:this.killPts,card:{headline:"OVERRUN!",sub:"The demons reach the paddle line."}}; return; }
             d.alive=false; // escaped during a bonus wave — no harm
           }
         }
@@ -1031,33 +1219,402 @@ MODULES.brad={
       onTimeout:function(){
         if(this.baseCleared){ this.state="won"; this.result=this.winResult(); }
         else { this.state="lost";
-          this.result={bonus:this.killPts,card:{headline:"THE DEMONS REMAIN.",sub:"Brad reaches for the paddle again anyway."}}; }
+          this.result={voice:"r_brad_remain",bonus:this.killPts,card:{headline:"THE DEMONS REMAIN.",sub:"Brad reaches for the paddle again anyway."}}; }
       },
       render:function(){
-        R(CRT.x,CRT.y,CRT.w,CRT.h,"#0a0a12");
-        Tplain("DEMONS TO DIAMONDS",CRT.x+12,CRT.y+10,13,"#e8e4da");
-        Tplain("DEMONS "+this.demonsAlive(),CRT.x+CRT.w-12,CRT.y+10,13,"#ff7a6b","right");
-        if(this.extensions>0)Tplain("MORE ×"+this.extensions,CRT.x+12,CRT.y+30,11,"#6ec3ff");
+        // anchored on refs/demons-to-diamonds-2600.png: GREEN horizontal
+        // lanes, blue top/bottom bars, lavender side borders, crab demons
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#2a2a8c");
+        var lanes=["#00a800","#5c8c1e","#008c00","#7aa820","#0e9c0e"];
+        for(var ln=0;ln<5;ln++)PX(CC,4,20+ln*24,112,24,lanes[ln]);
+        PX(CC,0,20,3,120,"#9c8ce8"); PX(CC,117,20,3,120,"#9c8ce8");
+        for(var tk=0;tk<6;tk++){ PX(CC,0,32+tk*20,3,1,"#14143c"); PX(CC,117,32+tk*20,3,1,"#14143c"); }
+        PX(CC,0,140,120,10,"#000000");
+        Tplain("DEMONS TO DIAMONDS",CRT.x+12,CRT.y+8,13,"#f7f2e2");
+        Tplain("DEMONS "+this.demonsAlive(),CRT.x+CRT.w-12,CRT.y+8,13,"#ff9ab0","right");
+        if(this.extensions>0)Tplain("MORE ×"+this.extensions,CRT.x+12,CRT.y+28,11,"#ffffff");
         var i,d;
         for(i=0;i<this.diamonds.length;i++){ d=this.diamonds[i]; if(!d.alive)continue;
           PX(CC,d.x-2,d.y-3,5,3,"#bfe8f7"); PX(CC,d.x-1,d.y,3,3,"#e8f7ff"); PX(CC,d.x,d.y+3,1,2,"#bfe8f7"); }
+        var dcPal=["#2a2ac8","#a828c8","#7ac8e8","#d82818"];
         for(i=0;i<this.demons.length;i++){ d=this.demons[i]; if(!d.alive)continue;
-          var bob=Math.sin(this.t*6+d.ph)>0?0:1;
-          PX(CC,d.x-4,d.y-4+bob,2,2,"#e84d26"); PX(CC,d.x+3,d.y-4+bob,2,2,"#e84d26"); // horns
-          PX(CC,d.x-4,d.y-3+bob,9,7,"#c0392b");
+          var bob=Math.sin(this.t*6+d.ph)>0?0:1, dc=dcPal[i%4];
+          PX(CC,d.x-5,d.y+2+bob,2,2,dc); PX(CC,d.x+4,d.y+2+bob,2,2,dc); // crab claws
+          PX(CC,d.x-4,d.y-3+bob,9,7,dc);
           PX(CC,d.x-2,d.y-1+bob,2,2,"#f7f2e2"); PX(CC,d.x+2,d.y-1+bob,2,2,"#f7f2e2");
           PX(CC,d.x-1,d.y-1+bob,1,1,"#111"); PX(CC,d.x+3,d.y-1+bob,1,1,"#111");
-          PX(CC,d.x-2,d.y+3+bob,5,1,"#7a1f14");
-          PX(CC,d.x-3,d.y+4+bob,2,2,"#c0392b"); PX(CC,d.x+3,d.y+4+bob,2,2,"#c0392b"); }
+          PX(CC,d.x-2,d.y+3+bob,5,1,"#14143c");
+          PX(CC,d.x-3,d.y+4+bob,2,2,dc); PX(CC,d.x+3,d.y+4+bob,2,2,dc); }
         for(i=0;i<this.shots.length;i++)PX(CC,this.shots[i].x,this.shots[i].y,1,3,"#f7f2e2");
-        // paddle
-        PX(CC,this.paddleX-7,140,14,3,"#d9a05a"); PX(CC,this.paddleX-7,140,14,1,"#f7d9a0");
-        PX(CC,this.paddleX-1,137,2,3,"#8a5a2a");
-        PX(CC,0,144,120,1,"#3a3a4a");
-        Tplain("DON'T SHOOT THE DIAMONDS",CRT.x+CRT.w/2,CRT.y+CRT.h-24,11,"#9fd8e8","center");
+        // the little orange-and-blue cannon on its black strip
+        PX(CC,this.paddleX-7,143,14,3,"#e87a18"); PX(CC,this.paddleX-1,141,3,2,"#2a2ac8");
+        Tplain("DON'T SHOOT THE DIAMONDS",CRT.x+CRT.w/2,CRT.y+CRT.h-14,11,"#f7f2e2","center");
       }
     };
     st.spawnWave(0);
+    return st;
+  }
+};
+
+/* ---------- BRIAN — Ball Grab Pachinko (GUARD / slide) ---------- */
+MODULES.brian={
+  id:"brian", friend:"brian", verb:"GUARD YOUR BALLS!",
+  hintTouch:"TOUCH: SLIDE THE BASKET", hintKeys:"DESKTOP: MOUSE OR ARROWS OR A/D",
+  quoteIntro:"That little sh*t keeps grabbing my balls!!",
+  create:function(){
+    var st={ state:"playing", result:null, t:0, balls:3, shieldX:60, blocks:0,
+      thieves:[], spawnT:0.1,
+      spawnThief:function(lurk){
+        this.thieves.push({x:16+Shell.rng()*88, y:8, mode:"lurk", t:lurk, tx:60, speed:88+Shell.rng()*10});
+      },
+      update:function(dt,input){
+        if(this.state!=="playing")return;
+        this.t+=dt;
+        // shield: SLIDE / DRAG to move (Space Invaders style), arrows work too
+        if(input.down||input.x>0)this.shieldX=clamp((input.x-CRT.x)/3,10,110);
+        if(input.keys.ArrowLeft||input.keys.KeyA)this.shieldX=clamp(this.shieldX-dt*72,10,110);
+        if(input.keys.ArrowRight||input.keys.KeyD)this.shieldX=clamp(this.shieldX+dt*72,10,110);
+        this.spawnT-=dt;
+        if(this.spawnT<=0&&this.thieves.length<(Shell.speed>1.0?3:2)){
+          this.spawnThief(0.15); this.spawnT=2.3; } // ramp: up to 3 thieves at once
+        var sp=Shell.speed, i, th;
+        for(i=this.thieves.length-1;i>=0;i--){ th=this.thieves[i];
+          if(th.mode==="lurk"){ th.t-=dt; th.x+=Math.sin(this.t*3+i*2)*dt*7;
+            if(th.t<=0){ th.mode="aim"; th.t=0.28; th.tx=46+Shell.rng()*28; } }
+          else if(th.mode==="aim"){ th.t-=dt;
+            if(th.t<=0){ th.mode="dart"; Audio8.tone(1400,0.05,"square",0.06); } }
+          else if(th.mode==="dart"){
+            var dx=th.tx-th.x, dy=132-th.y, dl=Math.hypot(dx,dy)||1, v=th.speed*sp;
+            th.x+=dx/dl*v*dt; th.y+=dy/dl*v*dt;
+            if(Math.abs(th.x-this.shieldX)<10&&Math.abs(th.y-121)<10){ th.mode="flee"; this.blocks++;
+              Audio8.tone(300,0.08,"square",0.12,0,520); }
+            else if(th.y>=130){
+              this.balls--; Audio8.tone(160,0.15,"sawtooth",0.13,0,80);
+              th.mode="flee";
+              if(this.balls<=0){ this.state="lost";
+                this.result={voice:"r_brian_lose",card:{headline:"GRABBED 'EM ALL.",sub:"The little green thief strikes again."}}; return; }
+            }
+          }
+          else if(th.mode==="flee"){ th.y-=dt*110*sp; th.x+=(th.x<60?-1:1)*dt*10;
+            if(th.y<4)this.thieves.splice(i,1); }
+        }
+      },
+      onTimeout:function(){ if(this.balls>=1){ this.state="won";
+          this.result={voice:"r_brian_win",bonus:this.blocks*50,card:{headline:"STILL HOLDING.",sub:"The green menace leaves empty-handed."}}; }
+      },
+      debug:function(){ return {balls:this.balls,blocks:this.blocks,shieldX:Math.round(this.shieldX),
+        thieves:this.thieves.map(function(t){return {x:Math.round(t.x),y:Math.round(t.y),mode:t.mode,tx:Math.round(t.tx)};})}; },
+      render:function(){
+        // anchored on refs/kc-munchkin-odyssey2.jpg: black field, MAGENTA
+        // maze geometry, the thief in K.C. green
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#000000");
+        Tplain("K.C.'S BALL GRAB",CRT.x+12,CRT.y+10,13,"#9fd8e8");
+        Tplain("BALLS ×"+this.balls,CRT.x+CRT.w-12,CRT.y+10,13,"#ffd98a","right");
+        // pachinko pegs — chunky magenta, Odyssey² style
+        var px,py;
+        for(py=0;py<6;py++)for(px=0;px<9;px++)
+          PX(CC,10+px*12+(py%2)*6,34+py*13,2,2,"#d020a0");
+        // the stash tray
+        PX(CC,42,136,36,3,"#8a6f4d"); PX(CC,42,133,2,3,"#8a6f4d"); PX(CC,76,133,2,3,"#8a6f4d");
+        for(var b=0;b<this.balls;b++){ var bx=48+b*10;
+          PX(CC,bx,131,5,5,"#e8e4da"); PX(CC,bx+1,132,2,2,"#bdb8ac"); }
+        Tplain("BRIAN'S STASH",CRT.x+CRT.w/2,CRT.y+428,10,"#a8906a","center");
+        // shield / basket on its rail
+        PX(CC,4,124,112,1,"#2a2a4a");
+        var sx=this.shieldX;
+        PX(CC,sx-9,119,18,2,"#d9a05a"); PX(CC,sx-9,121,2,4,"#d9a05a"); PX(CC,sx+7,121,2,4,"#d9a05a");
+        PX(CC,sx-9,125,18,1,"#8a5a2a");
+        // thieves: little green men
+        for(var i=0;i<this.thieves.length;i++){ var th=this.thieves[i];
+          if(th.mode==="aim"){ // telegraphed aim line
+            g.strokeStyle="rgba(232,77,38,0.5)"; g.lineWidth=2; g.setLineDash([4,5]);
+            g.beginPath(); g.moveTo(CRT.x+th.x*3,CRT.y+th.y*3); g.lineTo(CRT.x+th.tx*3,CRT.y+132*3); g.stroke(); g.setLineDash([]);
+          }
+          var bob=th.mode==="dart"?0:(Math.sin(this.t*8+i)>0?0:1);
+          PX(CC,th.x-2,th.y-3+bob,4,4,"#57e85e"); // head
+          PX(CC,th.x-1,th.y-2+bob,1,1,"#0a2a0a"); PX(CC,th.x+1,th.y-2+bob,1,1,"#0a2a0a");
+          PX(CC,th.x-3,th.y+1+bob,6,5,"#3fa34d"); // body
+          PX(CC,th.x-5,th.y+2+bob,2,2,"#57e85e"); PX(CC,th.x+3,th.y+2+bob,2,2,"#57e85e"); // grabby arms
+          PX(CC,th.x-2,th.y+6+bob,2,3,"#2a7a37"); PX(CC,th.x+1,th.y+6+bob,2,3,"#2a7a37");
+        }
+        if(this.blocks>0)Tplain("BLOCKED ×"+this.blocks,CRT.x+12,CRT.y+34,11,"#7ddb8a");
+      }
+    };
+    return st;
+  }
+};
+
+/* ---------- STEVE — Beer-Friendly Maze (WAIT + TAP to serve) ---------- */
+MODULES.steve={
+  id:"steve", friend:"steve", verb:"WAIT + SERVE!",
+  hintTouch:"TOUCH: TAP A MUG TO REFILL", hintKeys:"DESKTOP: CLICK MUG OR KEYS 1-5",
+  quoteIntro:"This game is beer friendly.",
+  create:function(){
+    var mugN=Shell.speed>1.0?5:4;
+    var st={ state:"playing", result:null, t:0, progress:0, segs:[],
+      mugs:[], mugRects:[], served:0,
+      update:function(dt,input){
+        if(this.state!=="playing")return;
+        this.t+=dt;
+        this.progress+=dt/Shell.timeTotal*1.04;
+        var i,m;
+        for(i=0;i<this.mugs.length;i++){ m=this.mugs[i];
+          if(m.lvl>0){ m.lvl=Math.max(0,m.lvl-dt/m.drain); if(m.lvl===0)Audio8.tone(220,0.1,"sawtooth",0.10); }
+          else { m.emptyT+=dt;
+            if(m.emptyT>=3){ this.state="lost";
+              this.result={voice:"r_steve_lose",card:{headline:"A MUG SAT EMPTY.",sub:"Someone noticed the wait."}}; return; } }
+        }
+        if(this.progress>=1){ this.progress=1; this.state="won";
+          this.result={voice:"r_steve_win",bonus:this.served*25,card:{headline:"MAZE GENERATED!",sub:"Only took forever. Every mug stayed full."}}; }
+      },
+      refill:function(i){
+        var m=this.mugs[i]; if(!m||this.state!=="playing")return;
+        if(m.lvl<1){ m.lvl=1; m.emptyT=0; this.served++;
+          Audio8.tone(520,0.06,"square",0.10); Audio8.tone(760,0.07,"square",0.10,0.05); }
+      },
+      onTap:function(x,y){
+        for(var i=0;i<this.mugRects.length;i++){ var r=this.mugRects[i];
+          if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ this.refill(i); return; } }
+      },
+      onKey:function(code){
+        var n=parseInt(code.replace("Digit",""),10);
+        if(n>=1&&n<=this.mugs.length)this.refill(n-1);
+      },
+      onTimeout:function(){ /* progress completes first; reaching here dry = shell marks lost */ },
+      debug:function(){ return {progress:Math.round(this.progress*100)/100,
+        lvls:this.mugs.map(function(m){return Math.round(m.lvl*100)/100;})}; },
+      render:function(){
+        // anchored on refs/amazing-maze-midway-ref.jpg (the Astrocade
+        // cartridge ports Midway's 1976 maze): cream line maze on black
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#000000");
+        Tplain("AMAZING MAZE — ASTROCADE",CRT.x+12,CRT.y+10,12,"#9fd8e8");
+        Tplain(Math.floor(this.progress*100)+"%",CRT.x+CRT.w-12,CRT.y+10,13,"#ffd98a","right");
+        // generation progress bar
+        R(CRT.x+12,CRT.y+32,CRT.w-24,8,"#23234a");
+        R(CRT.x+12,CRT.y+32,(CRT.w-24)*this.progress,8,"#57e85e");
+        Tplain("GENERATING… DO NOT RUSH IT",CRT.x+12,CRT.y+46,10,"#a8906a");
+        // maze walls revealed progressively — cream lines, Midway-style
+        var n=Math.floor(this.progress*this.segs.length), i, s;
+        for(i=0;i<n;i++){ s=this.segs[i];
+          if(s.h===0)PX(CC,s.x,s.y,s.w,1,"#ede4c8"); else PX(CC,s.x,s.y,1,s.h,"#ede4c8"); }
+        PX(CC,6,30,108,1,"#4da6e8"); PX(CC,6,102,108,1,"#4da6e8");
+        PX(CC,6,30,1,72,"#4da6e8"); PX(CC,113,30,1,72,"#4da6e8");
+        if(this.progress>=1)Tplain("✦ MAZE COMPLETE ✦",CRT.x+CRT.w/2,CRT.y+330,15,"#57e85e","center");
+        // the crew's mugs — tap to refill
+        var cols=["#c0392b","#d9903a","#3f9e4d","#e8e4da","#2e7fc2"];
+        for(i=0;i<this.mugs.length;i++){ var m=this.mugs[i], r=this.mugRects[i];
+          var x=r.x-CRT.x, y=r.y-CRT.y, empty=m.lvl<=0;
+          var flash=empty&&Math.floor(this.t*4)%2===0;
+          R(r.x-3,r.y-3,r.w+6,r.h+6,flash?"#e84d26":(m.lvl<0.3?"#8a5a2a":"#2a2a4a"));
+          R(r.x,r.y,r.w,r.h,"#1a1430");
+          R(r.x+10,r.y+12,30,40,"rgba(216,226,232,0.30)");
+          var lh=Math.round(36*m.lvl);
+          R(r.x+12,r.y+50-lh,26,lh,"#e8a020"); if(m.lvl>0.05)R(r.x+12,r.y+50-lh,26,4,"#f7f2e2");
+          R(r.x+38,r.y+20,8,20,"rgba(216,226,232,0.30)");
+          R(r.x+8,r.y+58,34,5,cols[i%5]); // owner's color tab
+          if(empty){ Tplain("!",r.x+25,r.y+16,22,"#e84d26","center");
+            // neglect bar: 3 s of grace, visibly draining
+            R(r.x+6,r.y+r.h-9,r.w-12,4,"#3a0d06");
+            R(r.x+6,r.y+r.h-9,(r.w-12)*(1-m.emptyT/3),4,"#e84d26"); }
+          else if(m.lvl<0.3)Tplain("LOW",r.x+25,r.y+16,11,"#ffd98a","center");
+        }
+        Tplain("TAP A MUG TO REFILL IT",CRT.x+CRT.w/2,CRT.y+CRT.h-20,11,"#9fd8e8","center");
+      }
+    };
+    // precompute maze segments (seeded from the run rng)
+    var rng=mulberry32(4000+Math.floor(Shell.rng()*5000));
+    for(var rr=0;rr<6;rr++)for(var cc2=0;cc2<9;cc2++){
+      if(rng()<0.72)st.segs.push({x:6+cc2*12,y:30+rr*12,w:12,h:0});
+      if(rng()<0.72)st.segs.push({x:6+cc2*12,y:30+rr*12,w:0,h:12});
+    }
+    for(var i=0;i<mugN;i++){
+      st.mugs.push({lvl:0.75+Shell.rng()*0.25, drain:3.6+Shell.rng()*1.0, emptyT:0});
+      var mw=50, gap=(360-mugN*(mw+10))/2;
+      st.mugRects.push({x:CRT.x+gap+i*(mw+10), y:CRT.y+352, w:mw, h:74});
+    }
+    return st;
+  }
+};
+
+/* ---------- CHRIS — Ram It Loop (TAP replay in the window) ---------- */
+var REPLAYZONE={x:100,y:668,w:190,h:70};
+MODULES.chris={
+  id:"chris", friend:"chris", verb:"KEEP THE LOOP ALIVE!",
+  hintTouch:"TOUCH: TAP REPLAY IN THE GLOW", hintKeys:"DESKTOP: CLICK REPLAY OR SPACE",
+  quoteIntro:"Put the Rams video on. Loop it.",
+  create:function(){
+    var st={ state:"playing", result:null, t:0, loopT:0, loopLen:3.4, cycles:0,
+      exposure:0, beepT:0,
+      inWindow:function(){ return this.exposure>0||this.loopT>=this.loopLen-0.95; },
+      replay:function(){
+        if(this.state!=="playing")return;
+        if(this.inWindow()){ this.loopT=0; this.exposure=0; this.cycles++;
+          this.loopLen=Math.max(1.6,3.4-this.cycles*0.3)/Shell.speed;
+          Audio8.tone(880,0.07,"square",0.12); Audio8.tone(1174,0.09,"square",0.12,0.06);
+        } else Audio8.tone(200,0.12,"square",0.10,0,150); // too early — sad honk
+      },
+      update:function(dt,input){
+        if(this.state!=="playing")return;
+        this.t+=dt;
+        this.loopT+=dt*Shell.speed;
+        if(this.loopT>=this.loopLen){
+          this.loopT=this.loopLen;
+          this.exposure+=dt;
+          Audio8.tone(98,0.09,"sawtooth",0.15); // raw Ram It bleeds through
+          if(this.exposure>=1){ this.state="lost";
+            this.result={voice:"r_chris_lose",card:{headline:"THE LOOP DIED.",sub:"One full second of unfiltered Ram It. Dave winces."}}; return; }
+        } else {
+          // the game's awful beeps swell as the video nears its end
+          var inten=this.loopT/this.loopLen;
+          this.beepT-=dt;
+          if(this.beepT<=0){ this.beepT=lerp(0.36,0.11,inten);
+            Audio8.tone(1150+inten*700,0.05,"square",0.03+inten*0.10); }
+        }
+      },
+      onTap:function(x,y){
+        if(x>=REPLAYZONE.x&&x<=REPLAYZONE.x+REPLAYZONE.w&&y>=REPLAYZONE.y&&y<=REPLAYZONE.y+REPLAYZONE.h)this.replay();
+      },
+      onKey:function(code){ if(code==="Space"||code==="KeyR")this.replay(); },
+      onTimeout:function(){ this.state="won";
+        this.result={voice:"r_chris_win",bonus:this.cycles*75,card:{headline:"THE LOOP LIVES.",sub:"Not one second of raw Ram It."}}; },
+      debug:function(){ return {loopT:Math.round(this.loopT*100)/100,loopLen:Math.round(this.loopLen*100)/100,
+        cycles:this.cycles,exposure:Math.round(this.exposure*100)/100}; },
+      render:function(){
+        g.save();
+        if(this.exposure>0)g.translate((Math.random()-0.5)*7*this.exposure,(Math.random()-0.5)*5*this.exposure);
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#1a0f2a");
+        // VHS sunset stripes
+        var bands=["#2a1a5e","#7a2e6a","#b03a5a","#e86a3a","#f7c948"];
+        for(var b=0;b<5;b++)R(CRT.x,CRT.y+34+b*26,CRT.w,26,bands[b]);
+        R(CRT.x+238,CRT.y+52,64,64,"#f7e08a"); // sun
+        R(CRT.x,CRT.y+140,CRT.w,10,"#12081f");
+        // Ram It frame (refs/ram-it-2600.png): brown barrier bars top and
+        // bottom + TIA rainbow color-block columns pressing in at the edges
+        R(CRT.x,CRT.y+22,CRT.w,10,"#b06a1e"); R(CRT.x,CRT.y+CRT.h-46,CRT.w,10,"#b06a1e");
+        var tia=["#8a8a8a","#e87a18","#8a8c1e","#18c8a8","#a828c8","#e87ac9","#2a2ac8","#d82818","#3fa34d","#7ac8e8","#c8b898","#e8e83a","#b06a1e"];
+        for(var cb=0;cb<13;cb++){ var cbc=this.exposure>0?(Math.floor(this.t*10)%2?"#e84d26":"#f7f2e2"):tia[cb];
+          R(CRT.x+4,CRT.y+44+cb*27,12,20,cbc); R(CRT.x+CRT.w-16,CRT.y+44+cb*27,12,20,cbc); }
+        Tplain("RAM IT",CRT.x+22,CRT.y+52,40,"#ffffff");
+        Tplain("THE VIDEO · 1986 · L.A.",CRT.x+24,CRT.y+98,12,"#ffe9c4");
+        Tplain("▶ PLAY",CRT.x+24,CRT.y+120,12,"#57e85e");
+        // bouncing equalizer = the music that must never stop
+        for(var e=0;e<12;e++){ var eh=14+Math.abs(Math.sin(this.t*5+e*0.9))*44;
+          R(CRT.x+22+e*27,CRT.y+236-eh,18,eh,e%3?"#4da6e8":"#e87ac9"); }
+        R(CRT.x+12,CRT.y+240,CRT.w-24,2,"#3a2a5e");
+        // loop progress: the window glows at the end of the bar
+        var frac=this.loopT/this.loopLen;
+        R(CRT.x+22,CRT.y+268,CRT.w-44,20,"#12081f");
+        var ww=(CRT.w-44)*clamp(0.95/this.loopLen,0,1);
+        R(CRT.x+22+CRT.w-44-ww,CRT.y+268,ww,20,this.inWindow()?"#57e85e":"#3f7a4d");
+        R(CRT.x+22,CRT.y+268,(CRT.w-44)*frac,20,"#f7c948");
+        Tplain(this.inWindow()?"TAP REPLAY — NOW!":"THE VIDEO IS ENDING…",CRT.x+CRT.w/2,CRT.y+298,14,this.inWindow()?"#57e85e":"#ffd98a","center");
+        Tplain("LOOPS ×"+this.cycles,CRT.x+22,CRT.y+330,13,"#9c6ade");
+        Tplain("BEEP PRESSURE",CRT.x+CRT.w-22,CRT.y+330,11,"#e87ac9","right");
+        if(this.exposure>0){
+          R(CRT.x,CRT.y,CRT.w,CRT.h,"rgba(180,20,10,"+(0.16+0.12*Math.sin(this.t*30))+")");
+          Tplain("⚠ RAW RAM IT AUDIO ⚠",CRT.x+CRT.w/2,CRT.y+368,19,"#ffffff","center");
+        }
+        Tplain("THE BEEPS GET LOUDER AS IT ENDS",CRT.x+CRT.w/2,CRT.y+CRT.h-24,11,"#9fd8e8","center");
+        g.restore();
+      },
+      renderOverlay:function(){
+        var z=REPLAYZONE, hot=this.inWindow();
+        R(z.x-4,z.y-4,z.w+8,z.h+8,hot?"#57e85e":"#54432c");
+        R(z.x,z.y,z.w,z.h,hot?"#1d3a1d":"#2b1d12");
+        Tplain("↻ REPLAY",z.x+z.w/2,z.y+16,22,"#ffffff","center");
+        Tplain(hot?"NOW!":"before it ends…",z.x+z.w/2,z.y+46,11,hot?"#7ddb8a":"#a8906a","center");
+      }
+    };
+    return st;
+  }
+};
+
+/* ---------- BRENDAN — How Much Did You Pay For This? (SLIDE the dial + TAP lock) ---------- */
+var LOCKZONE={x:110,y:672,w:170,h:62};
+var PRICE_ITEMS=[
+  {title:"MUTANT WARRIOR",sys:"ARCADIA 2001",price:40,art:"#7a4a9e"},
+  {title:"SQUEEZE BOX",sys:"ATARI 2600",price:30,art:"#b03a3a"},
+  {title:"TURBO TAXI 3",sys:"GAME.COM",price:25,art:"#2a9d8f"},
+  {title:"GOLDEN RELIC",sys:"ATARI 2600",price:2,art:"#c9a227"},
+  {title:"MEGA CHESS",sys:"BALLY ASTROCADE",price:5,art:"#3a6ac2"},
+  {title:"DRAGON CASTLE",sys:"NES",price:12,art:"#3f9e4d"}
+];
+MODULES.brendan={
+  id:"brendan", friend:"brendan", verb:"NAME THE PRICE!",
+  hintTouch:"TOUCH: SLIDE DIAL, TAP LOCK", hintKeys:"DESKTOP: DRAG, ARROWS, ENTER=LOCK",
+  quoteIntro:"How much did you pay for this?",
+  create:function(){
+    var pool=Shell.speed>1.0?PRICE_ITEMS.slice(0,3):PRICE_ITEMS;
+    var item=pool[Math.floor(Shell.rng()*pool.length)];
+    var st={ state:"playing", result:null, t:0, item:item, dial:18+Math.floor(Shell.rng()*22),
+      band:Shell.speed>1.0?3:5, locked:false,
+      evaluate:function(){
+        if(this.locked||this.state!=="playing")return;
+        this.locked=true;
+        var diff=Math.abs(this.dial-this.item.price);
+        if(diff<=this.band){ this.state="won";
+          this.result={voice:"r_brendan_win",card:{headline:"SPOT ON.",
+            sub:"Dave paid $"+this.item.price+" for "+this.item.title+". Brendan is stunned."}}; }
+        else { this.state="lost";
+          this.result={voice:"r_brendan_lose",card:{headline:"WAY OFF.",
+            sub:"Dave paid $"+this.item.price+" for "+this.item.title+". Brendan will never let it go."}}; }
+      },
+      update:function(dt,input){
+        if(this.state!=="playing")return;
+        this.t+=dt;
+        // SLIDE anywhere on the dial band (or the CRT) to set the price
+        if(input.down&&input.y>CRT.y+250&&input.y<CRT.y+400)
+          this.dial=clamp(Math.round((input.x-CRT.x)/CRT.w*60),0,60);
+        if(input.keyEdge.ArrowLeft||input.keyEdge.KeyA)this.dial=clamp(this.dial-1,0,60);
+        if(input.keyEdge.ArrowRight||input.keyEdge.KeyD)this.dial=clamp(this.dial+1,0,60);
+        if(input.keyEdge.ArrowUp)this.dial=clamp(this.dial+5,0,60);
+        if(input.keyEdge.ArrowDown)this.dial=clamp(this.dial-5,0,60);
+      },
+      onTap:function(x,y){
+        if(x>=LOCKZONE.x&&x<=LOCKZONE.x+LOCKZONE.w&&y>=LOCKZONE.y&&y<=LOCKZONE.y+LOCKZONE.h)this.evaluate();
+        else if(y>CRT.y+250&&y<CRT.y+400)this.dial=clamp(Math.round((x-CRT.x)/CRT.w*60),0,60);
+      },
+      onKey:function(code){ if(code==="Enter"||code==="Space")this.evaluate(); },
+      onTimeout:function(){ this.evaluate(); },
+      debug:function(){ return {dial:this.dial,price:this.item.price,band:this.band,title:this.item.title}; },
+      render:function(){
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#241a10");
+        Tplain("BRENDAN'S PRICE CHECK",CRT.x+12,CRT.y+10,13,"#c39aff");
+        // the terrible game box
+        R(CRT.x+88,CRT.y+36,184,168,"#0d0906");
+        R(CRT.x+92,CRT.y+40,176,160,this.item.art);
+        if(this.item.title==="SQUEEZE BOX") // prisoner stripes, refs/squeeze-box-2600-b.jpg
+          for(var sq=0;sq<10;sq++)R(CRT.x+92,CRT.y+72+sq*13,176,7,sq%2?"#b85c28":"#f0e8da");
+        R(CRT.x+92,CRT.y+40,176,26,"rgba(0,0,0,0.35)");
+        var tl=wrapText(this.item.title,CRT.x+104,CRT.y+52,19,"#ffffff",152,24);
+        Tplain(this.item.sys,CRT.x+104,CRT.y+112,12,"#ffe9c4");
+        Tplain("CONDITION: QUESTIONABLE",CRT.x+104,CRT.y+134,10,"#ffd98a");
+        Tplain("★ RARE ★ (says the seller)",CRT.x+104,CRT.y+156,10,"#f7f2e2");
+        R(CRT.x+196,CRT.y+168,64,22,"#e8b020");
+        Tplain("$ ???",CRT.x+228,CRT.y+172,13,"#241610","center");
+        // heckle meter: Brendan's patience drains with the round clock
+        var pat=Shell.timeTotal>0?Shell.timeLeft/Shell.timeTotal:0;
+        R(CRT.x+22,CRT.y+222,CRT.w-44,10,"#3a2a17");
+        R(CRT.x+22,CRT.y+222,(CRT.w-44)*pat,10,pat<0.3?"#e84d26":"#c39aff");
+        Tplain("BRENDAN'S PATIENCE",CRT.x+22,CRT.y+238,10,"#a8906a");
+        // the price dial: slide it
+        R(CRT.x+22,CRT.y+292,CRT.w-44,12,"#12081f");
+        for(var tk=0;tk<=6;tk++){ var tx=CRT.x+22+tk*(CRT.w-44)/6;
+          R(tx-1,CRT.y+288,2,20,"#8a6f4d"); Tplain("$"+(tk*10),tx,CRT.y+312,10,"#a8906a","center"); }
+        var kx=CRT.x+22+(CRT.w-44)*(this.dial/60);
+        R(kx-5,CRT.y+282,10,32,"#e8b020"); R(kx-5,CRT.y+282,10,5,"#f7c948");
+        Tplain("$"+this.dial,CRT.x+CRT.w/2,CRT.y+338,34,"#ffd98a","center");
+        Tplain("WHAT DID DAVE PAY?",CRT.x+CRT.w/2,CRT.y+382,13,"#f7f2e2","center");
+        Tplain("SLIDE THE DIAL · WITHIN $"+this.band+" WINS",CRT.x+CRT.w/2,CRT.y+404,11,"#9fd8e8","center");
+      },
+      renderOverlay:function(){
+        var z=LOCKZONE;
+        R(z.x-4,z.y-4,z.w+8,z.h+8,"#54432c");
+        R(z.x,z.y,z.w,z.h,"#7a4a9e");
+        Tplain("LOCK IT IN",z.x+z.w/2,z.y+14,18,"#ffffff","center");
+        Tplain("no take-backs",z.x+z.w/2,z.y+38,10,"#e8d8ff","center");
+      }
+    };
     return st;
   }
 };
@@ -1088,14 +1645,16 @@ window.__dbg={
   get review(){return Shell.review;},
   get inter(){return !!Shell.inter;},
   get gameState(){ var s=Shell.modState; if(!s)return null; var o={};
-    ["dist","burn","points","style","serves","needle","brianX","kicked","outcome","extensions","baseCleared","paddleX","phase","sipWin","killPts"].forEach(function(k){
+    ["dist","burn","rate","points","style","serves","needle","wind","brianX","kicked","outcome","extensions","baseCleared","paddleX","phase","sipWin","killPts"].forEach(function(k){
       if(s[k]!==undefined)o[k]=s[k]; });
+    if(s.debug){ var dd=s.debug(); for(var dk in dd)o[dk]=dd[dk]; }
     if(s.demonsAlive)o.demonsAlive=s.demonsAlive();
     if(s.demons)o.demons=s.demons.filter(function(d){return d.alive;}).map(function(d){return {x:Math.round(d.x),y:Math.round(d.y)};});
     return o; },
   startRun:function(){ Shell.startRun(); },
   startGame:function(id){ Shell.startRun(id); },
   tap:function(x,y){ Audio8.init(); Audio8.resume(); Input.x=x; Input.y=y; Input.down=true; Input.tapEdge=true; Shell.onTap(x,y); },
+  release:function(){ Input.down=false; Input.releaseEdge=true; },
   pointer:function(x,y,down){ Input.x=x; Input.y=y; Input.down=down;
     if(down)Input.path=[{x:x,y:y,t:performance.now()}]; else Input.path.length=0; },
   moveTo:function(x,y){ if(Input.down){ Input.moved+=Math.hypot(x-Input.x,y-Input.y);
@@ -1103,7 +1662,7 @@ window.__dbg={
     Input.x=x; Input.y=y; },
   key:function(code,down){ if(down){ if(!Input.keys[code])Input.keyEdge[code]=true;
       Input.keys[code]=true; if(code==="KeyB")Input.sipEdge=true; Shell.onKey(code); }
-    else Input.keys[code]=false; }
+    else { Input.keys[code]=false; Input.keyUpEdge[code]=true; } }
 };
 </script>
 </body>
