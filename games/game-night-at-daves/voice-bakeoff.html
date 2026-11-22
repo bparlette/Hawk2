@@ -49,6 +49,14 @@
     margin-bottom: 12px;
   }
   .xrow { border-color: #0e7a6d; background: rgba(0, 64, 64, 0.88); }
+  .orow {
+    background: rgba(64, 48, 0, 0.88);
+    border: 1px solid #8a6d1f;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .orow .who { color: #ffd75e; border-color: #ffd75e; }
   .section-head {
     background: #000080;
     border: 2px solid #90ee90;
@@ -91,6 +99,8 @@
   button.mimic { background: #2a1a4d; color: #ffd75e; border-color: #ffd75e; }
   button.extra { background: #003a33; color: #7ef0e0; border-color: #7ef0e0; font-size: 16px; }
   button.extra.playing { background: #7ef0e0; color: #000; }
+  button.orig { background: #3a2a00; color: #ffd75e; border-color: #ffd75e; font-size: 16px; }
+  button.orig.playing { background: #ffd75e; color: #000; }
   button.all   { min-height: 56px; font-size: 16px; }
   button.playing { background: #90ee90; color: #000; border-color: #fff; }
   button.mimic.playing { background: #ffd75e; }
@@ -120,6 +130,14 @@
 </div>
 
 <main id="extraRows"></main>
+
+<div class="section-head">
+  <h2>🤖 MOTH'S ORIGINALS — 10 CLEAR OLD-SCHOOL VOICES</h2>
+  <p>Ten voices invented for this game — old-school video game flavor,
+     but every word stays clear. No mud. One line each.</p>
+</div>
+
+<main id="origRows"></main>
 
 <footer>
   <b>SAM</b> — the 1982 classic software voice (sam-js port, used with permission of the house).<br>
@@ -746,12 +764,294 @@ function ExtrasGauntlet(buf) {
   return normalize(out, 0.8);
 }
 
+/* ============================================================================
+   MOTH'S ORIGINALS — ten invented voices, old-school flavored but CLEAR.
+   Intelligible English is the whole point: every style starts from a
+   clean MIMIC (or friendly SAM) render and the processing stays gentle —
+   flavor around the words, never mud over them. Each function takes the
+   page's source render and returns a processed Float32Array at 22050 Hz.
+     OriginalsCoinOp(buf)      bright announcer: chorus + comp + tiny echo
+     OriginalsHerald(buf)      deep & booming, light clean reverb only
+     OriginalsButler(buf)      SAM + metallic ring-mod sheen
+     OriginalsChipmunk(buf)    bouncing pitch wobble (modulated delay)
+     OriginalsSportscaster(buf) excited voice, whisper-gentle 6-bit crush
+     OriginalsRadio(buf)       bandpass + faint static + squelch clicks
+     OriginalsVillain(buf)     downward pitch drift + a touch of grit
+     OriginalsFairy(buf)       gentle vibrato + highpassed sparkle echo
+     OriginalsMech(buf)        ring modulation + hard gate between words
+     OriginalsGhost(buf)       reversed-reverb pre-echo swell, airy top
+   ============================================================================ */
+
+/* Linear-interpolated sample read (for the modulated-delay styles). */
+function sampleAt(buf, pos) {
+  var i = Math.floor(pos);
+  var f = pos - i;
+  var a = buf[Math.max(0, Math.min(buf.length - 1, i))];
+  var b = buf[Math.max(0, Math.min(buf.length - 1, i + 1))];
+  return a + (b - a) * f;
+}
+
+/* Parameterized Schroeder reverb engine. Returns dry*1 + wet*wet over a
+   buffer extended by `tail` seconds, with a 60 ms fade at the very end
+   (unless dryMix is 0 — the wet-only path used by the ghost pre-echo). */
+function origReverbMix(buf, o) {
+  o = o || {};
+  var combDelays = o.combs || [987, 1103, 1211, 1319];
+  var FB = o.fb != null ? o.fb : 0.62;
+  var DAMP = o.damp != null ? o.damp : 0.32;
+  var apDelays = o.allpass || [337, 211];
+  var WET = o.wet != null ? o.wet : 0.5;
+  var DRY = o.dry != null ? o.dry : 1;
+  var TAIL = Math.floor((o.tail != null ? o.tail : 0.7) * SR);
+  var len = buf.length + TAIL;
+  var combs = combDelays.map(function (d) { return { buf: new Float32Array(d), idx: 0, store: 0 }; });
+  var aps = apDelays.map(function (d) { return { buf: new Float32Array(d), idx: 0 }; });
+  var out = new Float32Array(len);
+  for (var n = 0; n < len; n++) {
+    var dry = n < buf.length ? buf[n] : 0;
+    var wet = 0, i;
+    for (i = 0; i < combs.length; i++) {
+      var c = combs[i];
+      var co = c.buf[c.idx];
+      c.store = co * (1 - DAMP) + c.store * DAMP;
+      c.buf[c.idx] = dry + c.store * FB;
+      if (++c.idx >= c.buf.length) c.idx = 0;
+      wet += co;
+    }
+    wet *= 0.25;
+    for (i = 0; i < aps.length; i++) {
+      var a = aps[i];
+      var ao = a.buf[a.idx];
+      var ai = wet;
+      wet = -ai + ao;
+      a.buf[a.idx] = ai + ao * 0.5;
+      if (++a.idx >= a.buf.length) a.idx = 0;
+    }
+    out[n] = dry * DRY + wet * WET;
+  }
+  if (TAIL > 0) {
+    var FADE = Math.floor(0.06 * SR);
+    for (var k = 0; k < FADE && k < len; k++) out[len - 1 - k] *= k / FADE;
+  }
+  return out;
+}
+
+/* 1. COIN-OP HERO — chorus shimmer, a whisper of room echo, then a soft
+   saturator as "tight compression" so every word punches at one level. */
+function OriginalsCoinOp(buf) {
+  var n;
+  var chor = new Float32Array(buf.length);
+  for (n = 0; n < buf.length; n++) {
+    var d = 240 + 55 * Math.sin(2 * Math.PI * 0.8 * n / SR);
+    chor[n] = buf[n] * 0.78 + sampleAt(buf, n - d) * 0.42;
+  }
+  var D = 1543, ring = new Float32Array(D), idx = 0;   /* ~70 ms echo */
+  var out = new Float32Array(buf.length);
+  for (n = 0; n < buf.length; n++) {
+    var r = ring[idx];
+    ring[idx] = chor[n] + r * 0.24;
+    if (++idx >= D) idx = 0;
+    out[n] = Math.tanh((chor[n] + r * 0.16) * 1.35);
+  }
+  return normalize(out, 0.8);
+}
+
+/* 2. DUNGEON HERALD — Gauntlet's boom without the chip mud: the page
+   renders MIMIC low and slow; here only a light, clean hall reverb. */
+function OriginalsHerald(buf) {
+  var out = origReverbMix(buf, { wet: 0.5, fb: 0.60, damp: 0.34, tail: 0.8 });
+  return normalize(out, 0.8);
+}
+
+/* 3. ROBOT BUTLER — the page renders SAM slow and precise; a gentle
+   88 Hz ring modulation (never crossing zero, so no added harshness)
+   lays a polite metallic sheen over the top. */
+function OriginalsButler(buf) {
+  var out = new Float32Array(buf.length);
+  for (var n = 0; n < buf.length; n++) {
+    var m = Math.sin(2 * Math.PI * 88 * n / SR);
+    out[n] = buf[n] * (0.82 + 0.38 * m);
+  }
+  return normalize(out, 0.78);
+}
+
+/* 4. CHIPMUNK MASCOT — a modulated delay sweeps the pitch up and down
+   at syllable rate (~5.6 Hz, ±7%): the bounce of a cartoon mascot,
+   applied lightly enough that the words stay put. */
+function OriginalsChipmunk(buf) {
+  var out = new Float32Array(buf.length);
+  for (var n = 0; n < buf.length; n++) {
+    var d = 100 + 90 * Math.sin(2 * Math.PI * 5.6 * n / SR);
+    out[n] = buf[n] * 0.35 + sampleAt(buf, n - d) * 0.8;
+  }
+  return normalize(out, 0.78);
+}
+
+/* 5. 8-BIT SPORTSCASTER — the gentlest possible crush: sample-hold at
+   11025 Hz and 6-bit steps (the 8-BIT SHOUT uses 7350 Hz / 4-bit /
+   hot clip — this is a whisper by comparison), plus a presence lift. */
+function OriginalsSportscaster(buf) {
+  var HOLD = 2, LEVELS = 64;
+  var lpA = lowpassCoef(2800), lp = 0;
+  var out = new Float32Array(buf.length);
+  var held = 0;
+  for (var i = 0; i < buf.length; i++) {
+    lp += lpA * (buf[i] - lp);
+    var bright = buf[i] + (buf[i] - lp) * 0.3;
+    if (i % HOLD === 0) held = bright;
+    out[i] = Math.round(held * LEVELS) / LEVELS;
+  }
+  return normalize(out, 0.8);
+}
+
+/* 6. SPACE CADET RADIO — telephone-band bandpass (500 Hz–2.6 kHz),
+   a whisper of static with sparse ticks, and a squelch burst at both
+   ends, Houston-style. The band is wide enough to keep every word. */
+function OriginalsRadio(buf) {
+  var n, i;
+  var hpA = lowpassCoef(500), lpA = lowpassCoef(2600);
+  var bp = new Float32Array(buf.length);
+  var l1 = 0, l2 = 0, l3 = 0, l4 = 0;
+  for (n = 0; n < buf.length; n++) {
+    l1 += hpA * (buf[n] - l1);
+    var h = buf[n] - l1;                 /* highpass pass 1 */
+    l2 += hpA * (h - l2);
+    h = h - l2;                          /* highpass pass 2 */
+    l3 += lpA * (h - l3);                /* lowpass pass 1 */
+    l4 += lpA * (l3 - l4);               /* lowpass pass 2 */
+    bp[n] = l4;
+  }
+  var PAD = Math.floor(0.055 * SR);
+  var out = new Float32Array(buf.length + PAD * 2);
+  var rnd = lcg(20240);
+  for (i = 0; i < bp.length; i++) {
+    var hiss = (rnd() * 2 - 1) * 0.008;
+    var tick = rnd() < 0.0009 ? (rnd() * 2 - 1) * 0.07 : 0;
+    out[PAD + i] = bp[i] * 0.92 + hiss + tick;
+  }
+  for (n = 0; n < PAD; n++) {            /* squelch bursts, head + tail */
+    var g = n < PAD * 0.3 ? (1 - n / (PAD * 0.3)) * 0.15 : 0;
+    out[n] += (rnd() * 2 - 1) * g;
+    out[out.length - 1 - n] += (rnd() * 2 - 1) * g;
+  }
+  return normalize(out, 0.78);
+}
+
+/* 7. VILLAIN VOX — the Impossible Mission lesson: a clear recorded-style
+   voice, made sinister with time, not mud. Playback rate eases
+   1.00 → 1.13 (the pitch sags ~13% across the line) and a touch of
+   soft distortion adds the grin. Nothing is filtered away. */
+function OriginalsVillain(buf) {
+  var steps = [];
+  var pos = 0;
+  while (pos < buf.length - 1) { steps.push(pos); pos += 1 + 0.13 * (pos / buf.length); }
+  var out = new Float32Array(steps.length);
+  for (var n = 0; n < steps.length; n++) {
+    var x = sampleAt(buf, steps[n]);
+    out[n] = x * 0.78 + Math.tanh(x * 1.7) * 0.30;
+  }
+  return normalize(out, 0.8);
+}
+
+/* 8. PIXEL FAIRY — gentle vibrato (modulated delay, ±3% at 4.8 Hz) and
+   a sparkle echo: two feedback delays fed only by the highpassed top
+   of the voice, so the shimmer floats above the words. */
+function OriginalsFairy(buf) {
+  var n;
+  var vib = new Float32Array(buf.length);
+  for (n = 0; n < buf.length; n++) {
+    var d = 46 + 26 * Math.sin(2 * Math.PI * 4.8 * n / SR);
+    vib[n] = buf[n] * 0.6 + sampleAt(buf, n - d) * 0.55;
+  }
+  var EXT = Math.floor(0.35 * SR);
+  var total = buf.length + EXT;
+  var out = new Float32Array(total);
+  var hpA = lowpassCoef(2600), lp = 0;
+  var d1 = new Float32Array(3021), d2 = new Float32Array(4655);  /* 137 / 211 ms */
+  var i1 = 0, i2 = 0;
+  for (n = 0; n < total; n++) {
+    var x = n < vib.length ? vib[n] : 0;
+    lp += hpA * (x - lp);
+    var hp = x - lp;
+    var r1 = d1[i1], r2 = d2[i2];
+    d1[i1] = hp * 0.5 + r1 * 0.34;
+    d2[i2] = hp * 0.4 + r2 * 0.30;
+    if (++i1 >= d1.length) i1 = 0;
+    if (++i2 >= d2.length) i2 = 0;
+    out[n] = x + r1 * 0.16 + r2 * 0.12;
+  }
+  var FADE = Math.floor(0.05 * SR);
+  for (var k = 0; k < FADE; k++) out[total - 1 - k] *= k / FADE;
+  return normalize(out, 0.78);
+}
+
+/* 9. MECH COMMANDER — 43 Hz ring modulation for the steel-grille
+   metal, then a hard gate: an envelope follower snaps the gaps
+   between words down to near-silence, so the line lands in stomps.
+   The gate follows the speech envelope — words themselves pass whole. */
+function OriginalsMech(buf) {
+  var n;
+  var rm = new Float32Array(buf.length);
+  for (n = 0; n < buf.length; n++) {
+    var m = Math.sin(2 * Math.PI * 43 * n / SR);
+    rm[n] = buf[n] * (0.62 + 0.55 * m);
+  }
+  var aAtk = 1 - Math.exp(-1 / (SR * 0.001));
+  var aRel = 1 - Math.exp(-1 / (SR * 0.055));
+  var aGate = 1 - Math.exp(-1 / (SR * 0.003));
+  var env = 0, gate = 0;
+  var out = new Float32Array(buf.length);
+  for (n = 0; n < buf.length; n++) {
+    var a = Math.abs(rm[n]);
+    env += (a - env) * (a > env ? aAtk : aRel);
+    var tgt = env > 0.055 ? 1 : 0.04;
+    gate += (tgt - gate) * aGate;
+    out[n] = rm[n] * gate;
+  }
+  return normalize(out, 0.8);
+}
+
+/* 10. ARCADE GHOST — the echo arrives BEFORE the voice: reverse the
+   line, run it through a hall reverb, reverse it back — every word is
+   preceded by its own ghost swell. The pre-echo is highpassed airy,
+   and the whole thing fades in slowly, haunted-cabinet style. */
+function OriginalsGhost(buf) {
+  var n;
+  var LEAD = Math.floor(0.32 * SR);
+  var src = new Float32Array(buf.length + LEAD);
+  src.set(buf, LEAD);
+  var rev = new Float32Array(src.length);
+  for (n = 0; n < src.length; n++) rev[n] = src[src.length - 1 - n];
+  var wetRev = origReverbMix(rev, { combs: [873, 983, 1093, 1201], fb: 0.66, damp: 0.30, wet: 1.0, dry: 0, tail: 0 });
+  var pre = new Float32Array(src.length);
+  for (n = 0; n < src.length; n++) pre[n] = wetRev[src.length - 1 - n];
+  var lpA = lowpassCoef(1400), lp = 0;
+  var out = new Float32Array(src.length);
+  for (n = 0; n < src.length; n++) {
+    lp += lpA * (pre[n] - lp);
+    var airy = pre[n] - lp;
+    var atk = Math.min(1, n / (0.14 * SR));
+    out[n] = (src[n] * 0.92 + airy * 0.5) * (0.35 + 0.65 * atk);
+  }
+  return normalize(out, 0.78);
+}
+
 global.ExtrasAnimalese = ExtrasAnimalese;
 global.ExtrasBanjo = ExtrasBanjo;
 global.ExtrasQbert = ExtrasQbert;
 global.ExtrasCrush = ExtrasCrush;
 global.ExtrasMidna = ExtrasMidna;
 global.ExtrasGauntlet = ExtrasGauntlet;
+global.OriginalsCoinOp = OriginalsCoinOp;
+global.OriginalsHerald = OriginalsHerald;
+global.OriginalsButler = OriginalsButler;
+global.OriginalsChipmunk = OriginalsChipmunk;
+global.OriginalsSportscaster = OriginalsSportscaster;
+global.OriginalsRadio = OriginalsRadio;
+global.OriginalsVillain = OriginalsVillain;
+global.OriginalsFairy = OriginalsFairy;
+global.OriginalsMech = OriginalsMech;
+global.OriginalsGhost = OriginalsGhost;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
 <script>/* Bake-off line set — text taken verbatim from the game's LINES table and
@@ -990,6 +1290,77 @@ var MIMIC_VOICES = {
     xrows.appendChild(row);
   });
 
+  /* ---- MOTH'S ORIGINALS section: ten invented clear old-school voices. ---- */
+  var ocache = {};
+  function oCached(key, fn) { if (!ocache[key]) ocache[key] = fn(); return ocache[key]; }
+  function oMimic(lineIdx, voice) {
+    return MimicRender(BAKE_LINES[lineIdx].ph, voice);
+  }
+
+  var ORIG_DEFS = [
+    { id: 'coinop', style: 'COIN-OP HERO', lineIdx: 1,
+      desc: 'Bright, punchy arcade announcer — chorus shimmer, tight compression, a whisper of room echo.',
+      fn: function () { return oCached('coinop', function () { return OriginalsCoinOp(oMimic(1, { pitch: 122, fscale: 1.06, rate: 0.95, question: false })); }); } },
+    { id: 'herald', style: 'DUNGEON HERALD', lineIdx: 0,
+      desc: 'Gauntlet-deep and booming, but clean — low voice, light hall reverb, zero chip crush.',
+      fn: function () { return oCached('herald', function () { return OriginalsHerald(oMimic(0, { pitch: 58, fscale: 0.84, rate: 1.38, question: false })); }); } },
+    { id: 'butler', style: 'ROBOT BUTLER', lineIdx: 8,
+      desc: 'A polite metal valet — SAM slowed right down for precise enunciation, with a metallic ring-mod sheen.',
+      fn: function () { return oCached('butler', function () {
+        var sam = new SamJs({ pitch: 74, speed: 92, throat: 126, mouth: 132 });
+        return OriginalsButler(sam.buf32(BAKE_LINES[8].text));
+      }); } },
+    { id: 'chipmunk', style: 'CHIPMUNK MASCOT', lineIdx: 2,
+      desc: 'High, fast, bouncy mascot energy — the pitch bounces at syllable rate, the words stay clear.',
+      fn: function () { return oCached('chipmunk', function () { return OriginalsChipmunk(oMimic(2, { pitch: 305, fscale: 1.32, rate: 0.62, question: true })); }); } },
+    { id: 'sportscaster', style: '8-BIT SPORTSCASTER', lineIdx: 4,
+      desc: 'Excited play-by-play announcer with the gentlest 8-bit edge — grit you can still understand.',
+      fn: function () { return oCached('sportscaster', function () { return OriginalsSportscaster(oMimic(4, { pitch: 134, fscale: 1.02, rate: 0.80, question: false })); }); } },
+    { id: 'radio', style: 'SPACE CADET RADIO', lineIdx: 7,
+      desc: 'NASA comms — bandpassed voice, faint static ticks, and a squelch click at both ends.',
+      fn: function () { return oCached('radio', function () { return OriginalsRadio(oMimic(7, { pitch: 116, fscale: 1.00, rate: 0.94, question: false })); }); } },
+    { id: 'villain', style: 'VILLAIN VOX', lineIdx: 5,
+      desc: 'The clear digitized villain — low and slow, the pitch sagging downward, a touch of distortion. No mud.',
+      fn: function () { return oCached('villain', function () { return OriginalsVillain(oMimic(5, { pitch: 64, fscale: 0.87, rate: 1.24, question: false })); }); } },
+    { id: 'fairy', style: 'PIXEL FAIRY', lineIdx: 3,
+      desc: 'Sparkly and pure — high formants, sine-sweet vibrato, and a tiny echo that glitters.',
+      fn: function () { return oCached('fairy', function () { return OriginalsFairy(oMimic(3, { pitch: 292, fscale: 1.40, rate: 0.90, question: false })); }); } },
+    { id: 'mech', style: 'MECH COMMANDER', lineIdx: 6,
+      desc: 'A stompy robot commander — ring-modulated steel with a hard gate chopping the gaps between words.',
+      fn: function () { return oCached('mech', function () { return OriginalsMech(oMimic(6, { pitch: 82, fscale: 0.94, rate: 1.00, question: false })); }); } },
+    { id: 'ghost', style: 'ARCADE GHOST', lineIdx: 9,
+      desc: 'Spooky but clear — the echo arrives before the voice does, airy and slow to attack.',
+      fn: function () { return oCached('ghost', function () { return OriginalsGhost(oMimic(9, { pitch: 106, fscale: 1.06, rate: 1.16, question: true })); }); } }
+  ];
+
+  var orows = document.getElementById('origRows');
+  ORIG_DEFS.forEach(function (def) {
+    var line = BAKE_LINES[def.lineIdx];
+    var row = document.createElement('section');
+    row.className = 'orow';
+    var who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = def.style;
+    var from = document.createElement('p');
+    from.className = 'from';
+    from.textContent = def.desc + ' · voice: ' + line.name;
+    var p = document.createElement('p');
+    p.className = 'line';
+    p.textContent = '\u201C' + line.text + '\u201D';
+    var btns = document.createElement('div');
+    btns.className = 'btns';
+    var btn = document.createElement('button');
+    btn.className = 'orig';
+    btn.textContent = '\u25B6 ' + line.name;
+    btn.addEventListener('click', function () { chain++; playSamples(def.fn(), btn); });
+    btns.appendChild(btn);
+    row.appendChild(who);
+    row.appendChild(from);
+    row.appendChild(p);
+    row.appendChild(btns);
+    orows.appendChild(row);
+  });
+
   /* Test hook: lets the headless verifier render every line on both engines. */
   window.BAKEOFF = {
     lines: BAKE_LINES,
@@ -1008,6 +1379,13 @@ var MIMIC_VOICES = {
       midna: function () { return EXTRA_DEFS[4].buttons[0].fn(); },
       gauntletWarrior: function () { return EXTRA_DEFS[5].buttons[0].fn(); },
       gauntletDave: function () { return EXTRA_DEFS[5].buttons[1].fn(); }
+    },
+    originals: {
+      defs: ORIG_DEFS.map(function (d) { return { id: d.id, style: d.style, lineIdx: d.lineIdx }; }),
+      render: function (id) {
+        for (var i = 0; i < ORIG_DEFS.length; i++) if (ORIG_DEFS[i].id === id) return ORIG_DEFS[i].fn();
+        return null;
+      }
     }
   };
 })();
