@@ -127,6 +127,7 @@ export function createCineCam({ camera }) {
   const startPose = newPose(), curPose = newPose(), tmpA = newPose(), tmpB = newPose();
   let lastLook = { x: 0, y: 1.12, z: 0 };
   let approachVal = 0, approachAt = -10, settle2AwayT = 0;
+  let beatTime = 0;          // seconds since arrive() — drives the greeter track
   let anchors = null;        // arrive() anchorInfo, defaults filled
   let takeoffNextLeg = true;
 
@@ -241,6 +242,7 @@ export function createCineCam({ camera }) {
     const fl = Math.hypot(face.x, face.z) || 1; face = { x: face.x / fl, z: face.z / fl };
     const lineup = (Array.isArray(info.lineup) ? info.lineup : []).filter(pt => pt && Number.isFinite(pt.x) && Number.isFinite(pt.z));
     anchors = { group, face, lineup };
+    beatTime = 0;
     beginOwned('arriveGroup'); return true;
   }
   function takeoff(opts) {
@@ -255,38 +257,43 @@ export function createCineCam({ camera }) {
   }
 
   /* ---------------- arrival poses ---------------- */
-  function groupPose(t, out) {
-    // slow dolly-in across the hold: 8.4 m -> 7.3 m off the group centre
-    const d = lerp(8.4, 7.3, sstep(t / CINE.groupT));
-    out.pos.x = anchors.group.x + anchors.face.x * d;
-    out.pos.y = 2.3; out.pos.z = anchors.group.z + anchors.face.z * d;
-    out.look.x = anchors.group.x; out.look.y = 1.05; out.look.z = anchors.group.z;
-    out.fov = 55; return out;
+  /* The celebration framing TRACKS THE PEOPLE (Cherie, Nov 21: "the
+     camera either needs to zoom out more or follow the people and show
+     the greeting"). The greeter walks from the group point to the
+     player's car at the host's walk speed (1.6 m/s, stopping ~2 m short
+     — the dap happens at the car). The camera follows the action point
+     between greeter and car, pulled back far enough that BOTH stay
+     framed with margin for the whole beat; as the gap closes it settles
+     ~9.5 m out, where a standing figure reads ~17% of the portrait
+     frame height. (The old framing parked 7-8 m off the HOUSE group:
+     the player car sat behind the camera and the greeting walked out
+     of the shot.) */
+  const _gr = { x: 0, z: 0 };
+  function greeterPos() {
+    const p = lastPlayer, g = anchors.group;
+    if (!p) { _gr.x = g.x; _gr.z = g.z; return _gr; }
+    const dx = p.x - g.x, dz = p.z - g.z, sep = Math.hypot(dx, dz);
+    const walk = Math.max(0, sep - 2.0);
+    const f = walk > 0 ? clamp(beatTime * 1.6 / walk, 0, 1) : 1;
+    _gr.x = g.x + dx * f; _gr.z = g.z + dz * f; return _gr;
   }
+  function trackPose(orbit, out) {
+    const p = lastPlayer || anchors.group;
+    const g = greeterPos();
+    const ax = g.x * 0.55 + p.x * 0.45, az = g.z * 0.55 + p.z * 0.45;
+    const gap = Math.hypot(p.x - g.x, p.z - g.z);
+    const dist = clamp(7.5 + 0.62 * gap, 9.5, 17);
+    const ca = Math.cos(orbit), sa = Math.sin(orbit);
+    const ox = anchors.face.x * ca - anchors.face.z * sa, oz = anchors.face.x * sa + anchors.face.z * ca;
+    out.pos.x = ax + ox * dist; out.pos.y = 3.0; out.pos.z = az + oz * dist;
+    out.look.x = ax; out.look.y = 1.05; out.look.z = az;
+    out.fov = 58; return out;
+  }
+  function groupPose(t, out) { return trackPose(0, out); }
   function panPose(p, out) {
-    const L = anchors.lineup, face = anchors.face;
-    if (L.length >= 2) {
-      const a = L[0], b = L[L.length - 1];
-      let span = Math.hypot(b.x - a.x, b.z - a.z);
-      let ex = b.x, ez = b.z;
-      if (span < 4) { const dx = (b.x - a.x) / (span || 1), dz = (b.z - a.z) / (span || 1); ex = a.x + dx * 6; ez = a.z + dz * 6; span = 6; }
-      out.pos.x = lerp(a.x, ex, p) + face.x * 6.8; out.pos.y = 2.5; out.pos.z = lerp(a.z, ez, p) + face.z * 6.8;
-      const lp = clamp(p * 1.18, 0, 1);           // look leads the dolly
-      out.look.x = lerp(a.x, ex, lp); out.look.y = 0.9; out.look.z = lerp(a.z, ez, lp);
-    } else if (L.length === 1) {
-      const c = L[0], ang = lerp(-0.45, 0.45, p);
-      const ca = Math.cos(ang), sa = Math.sin(ang);
-      const ox = face.x * ca - face.z * sa, oz = face.x * sa + face.z * ca;
-      out.pos.x = c.x + ox * 7; out.pos.y = 2.4; out.pos.z = c.z + oz * 7;
-      out.look.x = c.x; out.look.y = 0.9; out.look.z = c.z;
-    } else {
-      // no lineup passed: slow arc around the group so the beat still reads
-      const ang = lerp(-0.3, 0.3, p), ca = Math.cos(ang), sa = Math.sin(ang);
-      const ox = anchors.face.x * ca - anchors.face.z * sa, oz = anchors.face.x * sa + anchors.face.z * ca;
-      out.pos.x = anchors.group.x + ox * 7.6; out.pos.y = 2.3; out.pos.z = anchors.group.z + oz * 7.6;
-      out.look.x = anchors.group.x; out.look.y = 1.0; out.look.z = anchors.group.z;
-    }
-    out.fov = 55; return out;
+    // The pan keeps tracking the greeting (greeter closing on the car)
+    // while the camera swings a gentle ~40 deg arc around the action.
+    return trackPose(lerp(-0.15, 0.55, p), out);
   }
 
   /* ---------------- per-frame ---------------- */
@@ -296,6 +303,7 @@ export function createCineCam({ camera }) {
     if (!player || !(dt > 0)) return owned;
     lastPlayer = player;
     time += dt; phaseTime += dt;
+    if (phase === 'arriveGroup' || phase === 'arrivePan' || phase === 'arriveHold') beatTime += dt;
     const input = (ctx && ctx.input) || {};
     const steer = input.steer || 0, throttle = input.throttle || 0;
 

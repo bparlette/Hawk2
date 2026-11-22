@@ -107,18 +107,31 @@ export function createMinimap(D, parent = document.body) {
       }
     }
 
-    // 2. Rally GPS Route line (sampled coarsely around car/route)
+    // 2. Rally GPS Route line — SEGMENT-based proximity: a stretch of the
+    // route is drawn whenever the segment itself passes within range of
+    // the car. (The old code sampled every 3rd point and culled by POINT
+    // distance, which dropped the whole line mid-segment on long straights
+    // — the shipped route has segments up to ~384 m, with stretches where
+    // no sampled point falls inside the cull radius at all.)
     if (route.length > 1) {
       ctx.strokeStyle = 'rgba(255, 210, 63, 0.78)';
       ctx.lineWidth = 4.2;
+      const maxD2 = (RANGE * 1.45) * (RANGE * 1.45);
       ctx.beginPath();
-      let started = false;
-      for (let i = 0; i < route.length; i += 3) {
-        const p = route[i];
-        if (Math.hypot(p[0] - px, p[1] - pz) > RANGE * 1.45) { started = false; continue; }
-        const [rx, ry] = toRadar(p[0], p[1]);
-        if (!started) { ctx.moveTo(rx, ry); started = true; }
-        else ctx.lineTo(rx, ry);
+      let pen = false;
+      for (let i = 0; i < route.length - 1; i++) {
+        const ax = route[i][0], az = route[i][1], bx = route[i + 1][0], bz = route[i + 1][1];
+        const abx = bx - ax, abz = bz - az;
+        const len2 = abx * abx + abz * abz || 1;
+        let tt = ((px - ax) * abx + (pz - az) * abz) / len2;
+        tt = tt < 0 ? 0 : tt > 1 ? 1 : tt;
+        const qx = ax + abx * tt - px, qz = az + abz * tt - pz;
+        if (qx * qx + qz * qz > maxD2) { pen = false; continue; }
+        const [x0, y0] = toRadar(ax, az);
+        const [x1, y1] = toRadar(bx, bz);
+        if (!pen) { ctx.moveTo(x0, y0); pen = true; }
+        else ctx.lineTo(x0, y0);
+        ctx.lineTo(x1, y1);
       }
       ctx.stroke();
     }

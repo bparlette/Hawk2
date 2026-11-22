@@ -547,7 +547,7 @@ const speedEl=document.querySelector('#speed b'), rallyEl=document.getElementByI
       wantedEl=document.getElementById('wanted'), scoreValEl=document.getElementById('scoreVal'),
       comboPillEl=document.getElementById('comboPill'), legHudEl=document.getElementById('legHud');
 const TURBO_RING_C = 2*Math.PI*36; // svg ring circumference (r=36)
-const _navV = new THREE.Vector3(); let lastNavLabel='';   // directions pair scratch
+const _navV = new THREE.Vector3(), _navW = new THREE.Vector3(), _navD = new THREE.Vector3(); let lastNavLabel='';   // directions pair scratch
 if(turboRingEl){ turboRingEl.style.strokeDasharray=TURBO_RING_C; turboRingEl.style.strokeDashoffset=0; }
 function addScore(pts, label=''){
   if(!pts) return;
@@ -720,6 +720,70 @@ function checkArrivals(){
   }
 }
 
+/* ================= ROUTE GUIDANCE (road line + route chevrons) =================
+   One source of truth: WORLD_DATA.route, the same polyline the minimap
+   draws. A faint gold ribbon lies ON the road from the car to the next
+   stop; the HUD chevrons point at a lookahead point on that line, so the
+   arrows and the line always agree. Legs follow the rally order; a leg's
+   end index is its stop's closest route pass at/after the previous leg's
+   end (the route passes Lazaris at idx 162 on the way to Grant, then
+   again at 190 after Grant — the at/after rule keeps the legs straight). */
+const ROUTE_PTS = WORLD_DATA.route || [];
+const LEG_ENDS = (()=>{
+  const ends=[]; let from=0;
+  const stopsInOrder=[...HOUSEHOLDS.slice(1).map(h=>h.stop), 'atholton'];
+  for(const id of stopsInOrder){
+    const s=stopById[id]; let best=from, bd=Infinity;
+    for(let i=from;i<ROUTE_PTS.length;i++){ const dd=(ROUTE_PTS[i][0]-s.sx)**2+(ROUTE_PTS[i][1]-s.sz)**2; if(dd<bd){ bd=dd; best=i; } }
+    ends.push(best); from=best;
+  }
+  return ends;
+})();
+let navProg = 0, ribbonFrom = -1, ribbonLeg = -1;
+let routeRibbon = null;
+const ribbonMat = new THREE.MeshBasicMaterial({ color:0xffd23f, transparent:true, opacity:0.32, depthWrite:false });
+function buildRouteRibbon(fromIdx, leg){
+  const end = LEG_ENDS[leg]; if(end===undefined || fromIdx>end) return;
+  const n = end - fromIdx + 1;
+  const pos = new Float32Array(n*2*3);
+  for(let k=0;k<n;k++){
+    const i = fromIdx + k;
+    const p = ROUTE_PTS[i], pa = ROUTE_PTS[Math.max(0,i-1)], pb = ROUTE_PTS[Math.min(ROUTE_PTS.length-1,i+1)];
+    let dx = pb[0]-pa[0], dz = pb[1]-pa[1]; const dl = Math.hypot(dx,dz)||1; dx/=dl; dz/=dl;
+    const ox = -dz*0.55, oz = dx*0.55;   // half-width 0.55 m, flat on the road
+    pos.set([p[0]-ox, 0.07, p[1]-oz, p[0]+ox, 0.07, p[1]+oz], k*6);
+  }
+  const idxs = [];
+  for(let k=0;k<n-1;k++){ const a=k*2; idxs.push(a, a+1, a+2, a+1, a+3, a+2); }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setIndex(idxs);
+  if(routeRibbon){ routeRibbon.geometry.dispose(); routeRibbon.geometry = geo; }
+  else { routeRibbon = new THREE.Mesh(geo, ribbonMat); routeRibbon.frustumCulled=false; routeRibbon.renderOrder=2; scene.add(routeRibbon); }
+  ribbonFrom = fromIdx; ribbonLeg = leg;
+}
+function routeProgress(){
+  if(finished || !player) return;
+  const leg = Math.min(collected.size, LEG_ENDS.length-1);
+  const lo = leg===0? 0 : LEG_ENDS[leg-1], hi = LEG_ENDS[leg];
+  let best = Math.max(lo, Math.min(hi, navProg)), bd = Infinity;
+  const w0 = Math.max(lo, best-25), w1 = Math.min(hi, best+45);
+  for(let i=w0;i<=w1;i++){ const dd=(ROUTE_PTS[i][0]-player.x)**2+(ROUTE_PTS[i][1]-player.z)**2; if(dd<bd){ bd=dd; best=i; } }
+  if(bd>3600){ for(let i=lo;i<=hi;i++){ const dd=(ROUTE_PTS[i][0]-player.x)**2+(ROUTE_PTS[i][1]-player.z)**2; if(dd<bd){ bd=dd; best=i; } } }
+  navProg = best;
+  if(leg!==ribbonLeg || navProg-ribbonFrom>=8 || ribbonFrom>navProg) buildRouteRibbon(navProg, leg);
+}
+function routeLookahead(){
+  const leg = Math.min(collected.size, LEG_ENDS.length-1), end = LEG_ENDS[leg];
+  let px = player.x, pz = player.z, acc = 0;
+  for(let i=navProg;i<end;i++){
+    const q = ROUTE_PTS[i+1], dd = Math.hypot(q[0]-px, q[1]-pz);
+    if(acc+dd>=45){ const f=(45-acc)/(dd||1); return { x:px+(q[0]-px)*f, z:pz+(q[1]-pz)*f }; }
+    acc+=dd; px=q[0]; pz=q[1];
+  }
+  const t = currentTargetStop(); return { x:t.sx, z:t.sz };
+}
+
 /* ============================== CAMERA (GTA V + Bunny Hop settlement) ============================== */
 let camYaw=null, camPos=new THREE.Vector3(), fovCur=60, overheadMode=false;
 function updateCamera(dt){
@@ -810,7 +874,7 @@ function animate(){
       const el=document.getElementById(id); if(el) el.style.display=dsp;
     }
     const rToast=document.getElementById('radioToast'); if(rToast && _btnHidden) rToast.style.opacity='0';
-    if(_btnHidden){ crewBtn.style.display='none'; actBtn.style.display='none'; minimap.hide(); }
+    if(_btnHidden){ crewBtn.style.display='none'; actBtn.style.display='none'; minimap.hide(); if(routeRibbon) routeRibbon.visible=false; }
     else if(started) minimap.show();
   }
   if(started && player && !interiors.active){
@@ -1088,25 +1152,48 @@ function animate(){
     if(d<=20 && !approachLatch){ approachLatch=true; cine.approachEnd(); }
     if(d>60) approachLatch=false;
     // DIRECTIONS (2D Scaggsville precedent): a gold chevron orbits the car at
-    // 104 px pointing at the target (lf_compass.js COMPASS.radius), and when
-    // the target is far a bigger chevron rides the screen edge with a
-    // "Name · 0.0 mi" label (drawMissionHud). Hidden inside the 20 m arrival
-    // range, on foot, and once the rally is finished (unless the night-party
+    // 104 px (lf_compass.js COMPASS.radius), and when the target is far a
+    // bigger chevron rides the screen edge with a "Name · 0.0 mi" label
+    // (drawMissionHud). Both point along the ROUTE (lookahead point ~45 m
+    // ahead on the polyline), never crow-flies at the stop, so they agree
+    // with the gold line on the road. Hidden inside the 20 m arrival range,
+    // on foot, and once the rally is finished (unless the night-party
     // target is live) — the 2D rule: nothing worth pointing at, no arrow.
-    const bearing=Math.atan2(t.sx-player.x, t.sz-player.z);
-    const rel=bearing-(camYaw ?? player.heading);
     const navOn = !onfoot.state.active && d>20 && (!finished || (missions && missions.navStop && missions.navStop()));
+    routeProgress();
+    if(routeRibbon) routeRibbon.visible = navOn && !finished;
     if(navOn){
-      const dirX=Math.sin(rel), dirY=-Math.cos(rel);
+      // Lookahead ON the route (~45 m ahead along the leg); post-rally the
+      // party target has no leg, so aim at the stop itself.
+      const la = finished? { x:t.sx, z:t.sz } : routeLookahead();
+      // Screen direction car -> lookahead from the REAL camera projection,
+      // so the arrows stay honest in chase, above and cine views alike.
+      camera.getWorldDirection(_navD);
+      const inFront = (x,z)=> (x-camera.position.x)*_navD.x + (z-camera.position.z)*_navD.z > 0;
       _navV.set(player.x, 1.2, player.z).project(camera);
-      const carX = _navV.z<1? (_navV.x*0.5+0.5)*innerWidth : innerWidth/2;
-      const carY = _navV.z<1? (-_navV.y*0.5+0.5)*innerHeight : innerHeight*0.55;
-      navOrbitEl.style.transform=`translate(${carX+dirX*104}px,${carY+dirY*104}px) rotate(${rel}rad)`;
+      const carIn = inFront(player.x, player.z);
+      const carX = carIn? (_navV.x*0.5+0.5)*innerWidth : innerWidth/2;
+      const carY = carIn? (-_navV.y*0.5+0.5)*innerHeight : innerHeight*0.55;
+      let dirX, dirY;
+      if(inFront(la.x, la.z)){
+        _navW.set(la.x, 1.2, la.z).project(camera);
+        const dx = (_navW.x*0.5+0.5)*innerWidth - carX, dy = (-_navW.y*0.5+0.5)*innerHeight - carY;
+        const dl = Math.hypot(dx, dy) || 1; dirX = dx/dl; dirY = dy/dl;
+      } else {
+        const th = Math.atan2(_navD.x, _navD.z) - Math.atan2(la.x-player.x, la.z-player.z);
+        dirX = Math.sin(th); dirY = -Math.cos(th);
+      }
+      const rot = Math.atan2(dirX, -dirY);
+      navOrbitEl.style.transform=`translate(${carX+dirX*104}px,${carY+dirY*104}px) rotate(${rot}rad)`;
       if(navOrbitEl.style.visibility!=='visible') navOrbitEl.style.visibility='visible';
       if(d>100){
-        const ex=innerWidth/2 + dirX*(innerWidth/2-42), ey=innerHeight/2 + dirY*(innerHeight/2-118);
+        // Edge anchor clamped to a safe rect: the label under the chevron
+        // stays clear of the NEXT:/street bars (they end ~226 px from the
+        // top) and of the touch buttons at the bottom.
+        const ex=Math.max(76, Math.min(innerWidth-76, innerWidth/2 + dirX*(innerWidth/2-42)));
+        const ey=Math.max(240, Math.min(innerHeight-150, innerHeight/2 + dirY*(innerHeight/2-118)));
         navEdgeEl.style.transform=`translate(${ex}px,${ey}px) translate(-50%,-50%)`;
-        navEdgeArrowEl.style.transform=`rotate(${rel}rad)`;
+        navEdgeArrowEl.style.transform=`rotate(${rot}rad)`;
         const lbl=`${householdLabel(t.id)} · ${(d/1609.34).toFixed(1)} mi`;
         if(lbl!==lastNavLabel){ lastNavLabel=lbl; navEdgeLabelEl.textContent=lbl; }
         if(navEdgeEl.style.visibility!=='visible') navEdgeEl.style.visibility='visible';
@@ -1191,6 +1278,7 @@ window.__dbg={ get ready(){ return started; },
     trafficCount: traffic.cars.filter(c=>c.active).length,
     propsBroken: props.stats().broken, camMode,
     crowd: crowd.stats(), interior: interiors.stats() } : null; } };
+Object.defineProperty(window.__dbg, 'nav', { get(){ return { leg: Math.min(collected.size, LEG_ENDS.length-1), ends: LEG_ENDS, prog: navProg, ribbonFrom, ribbonLeg, ribbonOn: !!(routeRibbon && routeRibbon.visible) }; } });
 window.__proof={
   start(id){ startGame(id||'brad'); },
   teleport(x,z,heading){ if(player){ player.x=x; player.z=z; if(heading!==undefined) player.heading=heading;
