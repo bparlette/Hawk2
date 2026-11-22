@@ -301,7 +301,7 @@ function drawCouch(y,withCrew,exprs){
     var xs=[48,114,170,236,298];
     for(var i=0;i<crew.length;i++){
       var p=CREW[crew[i]];
-      // warm amber backlight halo — the SUPER DADS lamp look: big readable silhouettes
+      // warm amber backlight halo — big readable silhouettes
       var gr=g.createRadialGradient(xs[i]+16,y+42,4,xs[i]+16,y+42,40);
       gr.addColorStop(0,"rgba(255,176,66,0.35)"); gr.addColorStop(1,"rgba(255,176,66,0)");
       g.fillStyle=gr; g.fillRect(xs[i]-24,y+2,80,80);
@@ -334,23 +334,22 @@ function drawSteelBattalion(x,y){
   // right stick block
   R(x+138,y-16,34,42,"#2c2f36"); R(x+152,y-30,5,18,"#14161a"); R(x+149,y-34,11,7,"#8a2f23");
 }
-function drawSuperDadsLamp(x,y){
-  // backlit pixel-figure lamp on the shelf (photo 4): 4 chunky amber figures on a dark base
-  var gr=g.createRadialGradient(x+40,y+8,4,x+40,y+8,58);
-  gr.addColorStop(0,"rgba(255,176,66,0.5)"); gr.addColorStop(1,"rgba(255,176,66,0)");
-  g.fillStyle=gr; g.fillRect(x-20,y-32,120,64);
-  var figs=[["#c47b2a","#8a5a1d"],["#9a8a6a","#5a5348"],["#f7c948","#d9a03a"],["#bcd2e8","#7fa3c4"]];
-  for(var i=0;i<4;i++){
-    var fx=x+i*19, body=figs[i][0], dark=figs[i][1];
-    R(fx+3,y-26,12,11,"#ffd98a"); R(fx+3,y-26,12,3,dark); // head + hair
-    R(fx+5,y-21,2,3,"#3a2a12"); R(fx+11,y-21,2,3,"#3a2a12"); // eyes
-    R(fx+2,y-15,14,13,body); R(fx+2,y-15,14,2,dark);
-    R(fx+7,y-9,4,4,"#ffe9a8"); // glowing chest/core
-    if(i===2){ R(fx+15,y-34,3,22,"#d8dee8"); R(fx+13,y-14,7,3,"#d9a03a"); } // the big sword
-    if(i===3){ R(fx+15,y-20,3,9,body); }
+function drawCaseStack(x,y){
+  // ordinary game cases filling the shelf spot: upright spines + a flat stack
+  var cases=[[8,30,"#a83a2a"],[7,26,"#e8e4da"],[9,32,"#c25a28"],[7,24,"#8a4a6a"],[8,29,"#b03a3a"],[7,27,"#d8d4e8"],[9,31,"#c2782a"],[7,25,"#96422e"]];
+  var cx=x-4;
+  for(var i=0;i<cases.length;i++){
+    var cw=cases[i][0], ch=cases[i][1], c=cases[i][2];
+    R(cx,y+34-ch,cw,ch,c);
+    R(cx,y+34-ch,cw,2,"rgba(255,255,255,0.25)");
+    R(cx+1,y+34-ch+6,Math.max(1,cw-2),2,"rgba(0,0,0,0.35)");
+    cx+=cw+1.5;
   }
-  R(x-4,y-2,84,16,"#232733"); R(x-4,y-2,84,3,"#343a48");
-  Tplain("SUPER DADS",x+38,y+2,10,"#e84d26","center");
+  // flat stack of cases at the right end of the shelf
+  var sx=cx+3;
+  R(sx,y+26,30,7,"#7a3a2a"); R(sx,y+26,30,2,"rgba(255,255,255,0.25)");
+  R(sx+2,y+19,26,7,"#bcd2e8"); R(sx+2,y+19,26,2,"rgba(255,255,255,0.25)");
+  R(sx+1,y+12,28,7,"#a83a5a"); R(sx+1,y+12,28,2,"rgba(255,255,255,0.25)");
 }
 function drawCRTFrame(x,y,w,h){
   R(x-10,y-10,w+20,h+22,"#191410");
@@ -663,7 +662,7 @@ function drawTitle(){
   var frames=[[108,66],[140,66],[172,66],[204,66],[108,96],[156,96],[204,96]];
   var fc=["#a83a2a","#3a5f8a","#c2782a","#5a7a3a","#7a3a5a","#2e7fc2","#96422e"];
   for(var i=0;i<frames.length;i++){ R(frames[i][0],frames[i][1],26,24,"#14100d"); R(frames[i][0]+2,frames[i][1]+2,22,20,fc[i]); R(frames[i][0]+5,frames[i][1]+5,7,9,"#e8dcc0"); R(frames[i][0]+14,frames[i][1]+12,7,6,"#e8dcc0"); }
-  drawSuperDadsLamp(238,58);
+  drawCaseStack(238,58);
   // dual screens: big flat TV left, CRT right (photo 2)
   drawBigTV(28,150,168,116);
   R(24,272,176,22,"#0d0906");
@@ -684,7 +683,6 @@ function drawTitle(){
   R(292,600,44,26,"#14161a"); R(292,600,44,4,"#23262b");
   R(310,578,5,24,"#14161a"); R(305,570,15,12,"#2e7fc2"); R(307,572,11,3,"#6ec3ff");
   R(322,606,9,9,"#2e7fc2"); R(296,606,7,7,"#b03a3a");
-  Tplain("Based on Brad's email · For Dave's readers",195,690,12,"#e8dcc0","center");
   if(Shell.bestGrade)Tplain("BEST: "+Shell.bestGrade+" · "+Shell.bestScore+" PTS",195,716,13,"#ffd98a","center");
   Tplain("SUDZ · SCOTT · BRENT · BRAD",195,756,13,"#f7f2e2","center");
   Tplain("8 ROUNDS · 4 BEERS · ONE VERDICT",195,778,12,"#c8a878","center");

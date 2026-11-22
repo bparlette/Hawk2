@@ -3,8 +3,8 @@
 A WarioWare-style microgame gauntlet set at Dave's legendary retro game nights.
 Dave hosts; his friends each throw you a 6-second microgame with deliberately
 terrible retro controls; at the end, Dave reviews *your* performance and gives
-it a grade. Built from Brad Parlette's email cataloguing the crew — Sudz,
-Scott, Brent, Brian, Brad, Brendan — and Dave's own sayings.
+it a grade. The crew — Sudz, Scott, Brent, Brian, Brad, Brendan — each
+bring their own running joke, and Dave brings his sayings.
 
 **This is the SAMPLE build**: the complete shell plus four microgames
 (Sudz, Scott, Brent, Brad). The remaining friends, sudden death, and unlocks
@@ -54,7 +54,7 @@ Mute button is top-right. Best score and grade are saved on the device.
   game-night photos: shelf walls of game cases on both sides, the big TV and
   the CRT side by side, the giant dual-stick controller rig on the coffee
   table, the beige recliner row with a ball-top arcade stick on a lap, a
-  poster collage between the shelves, and a little backlit SUPER DADS lamp.
+  poster collage between the shelves, and a helmet resting on the couch arm.
   The crew are generic color-coded pixel archetypes — no likenesses. Per the
   final art direction there are **no faces at all**: the crew are seen from
   behind, backs of heads in the recliners, over-the-shoulder toward the
