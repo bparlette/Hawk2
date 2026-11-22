@@ -69,7 +69,7 @@ var Audio8={
     try{ this.muted=localStorage.getItem("gnd_mute")==="1"; this.applyMute(); }catch(e){}
     this.startMusic();
   },
-  resume:function(){ if(this.ctx&&this.ctx.state==="suspended") this.ctx.resume(); },
+  resume:function(){ if(this.ctx&&this.ctx.state!=="running") this.ctx.resume(); },
   applyMute:function(){ if(this.master) this.master.gain.value=this.muted?0:0.5;
     var b=document.getElementById("muteBtn"); if(b)b.textContent=this.muted?"🔇":"🔊";
     if(this.muted&&typeof Voice!=="undefined")Voice.stop(); },
@@ -116,7 +116,7 @@ var Audio8={
     var lead=[440,0,523,0,659,0,523,0,587,0,523,0,440,0,0,0];
     var self=this;
     this.musicTimer=setInterval(function(){
-      if(self.muted||!Shell||(Shell.state!=="TITLE"&&Shell.state!=="REVIEW"))return;
+      if(self.muted||!Shell||(Shell.state!=="TITLE"&&Shell.state!=="REVIEW"&&Shell.state!=="SHELF"&&Shell.state!=="UNLOCK"))return;
       var s=self.musicStep%16;
       if(bass[s])self.tone(bass[s],0.14,"triangle",0.20,0);
       if(lead[s])self.tone(lead[s],0.10,"square",0.05,0);
@@ -205,11 +205,18 @@ var Voice={
   play:function(id){
     if(Audio8.muted)return;
     var L=LINES[id]; if(!L)return;
+    this._speak(L[0],L[1]);
+  },
+  /* speak an arbitrary speaker-tagged line ({who, text}) — the module
+     lanes' lines (sudden death, favorites) ride this path */
+  say:function(who,text){ this._speak(who,text); },
+  _speak:function(who,text){
+    if(Audio8.muted)return;
     Audio8.init(); Audio8.resume();
     this.stop();
     if(!Audio8.ctx||!Audio8.master)return;
-    var p=VOICE_PROFILES[L[0]]||VOICE_PROFILES.dave;
-    var pat=this.pattern(L[1],p), t0=Audio8.ctx.currentTime+0.03, i;
+    var p=VOICE_PROFILES[who]||VOICE_PROFILES.dave;
+    var pat=this.pattern(text,p), t0=Audio8.ctx.currentTime+0.03, i;
     for(i=0;i<pat.length;i++){
       if(pat[i][0]>4.2)break;
       var wob=1+((i%2)?1:-1)*(p.wobble/200);
@@ -220,11 +227,11 @@ var Voice={
     var ctx=Audio8.ctx;
     var o=ctx.createOscillator(), gn=ctx.createGain();
     o.type=wave;
-    o.frequency.setValueAtTime(freq*1.06,t);
-    o.frequency.exponentialRampToValueAtTime(freq*0.88,t+dur);
+    o.frequency.setValueAtTime(freq*2*1.06,t);
+    o.frequency.exponentialRampToValueAtTime(freq*2*0.88,t+dur);
     gn.gain.setValueAtTime(0.0001,t);
-    gn.gain.exponentialRampToValueAtTime(0.055,t+0.008);
-    gn.gain.setValueAtTime(0.055,t+Math.max(0.008,dur-0.012));
+    gn.gain.exponentialRampToValueAtTime(0.22,t+0.008);
+    gn.gain.setValueAtTime(0.22,t+Math.max(0.008,dur-0.012));
     gn.gain.exponentialRampToValueAtTime(0.0001,t+dur);
     o.connect(gn); gn.connect(Audio8.master);
     o.start(t); o.stop(t+dur+0.02);
@@ -565,7 +572,16 @@ function wrapSans(txt,x,y,size,c,maxW,lineH){
   return lines.length;
 }
 function drawIntroCard(){
-  var m=Shell.mod,p=CREW[m.friend];
+  var m=Shell.mod;
+  if(m.hidden){ // the hidden round: Dave's card pretends nothing happened
+    drawPanel(30,180,330,330,"#3a3a3a");
+    Tplain(m.verb,55,246,17,"#90ee90");
+    wrapSans("\u201C"+m.quoteIntro+"\u201D",55,412,19,"#ffffff",280,27);
+    Tplain("TOUCH: SLIDE TO DODGE \u2014 TAP TO KEEP HIM CALM",55,472,11,"#dddddd");
+    Tplain("DESKTOP: ARROWS / MOUSE \u2014 SPACE / CLICK",55,489,11,"#90ee90");
+    return;
+  }
+  var p=CREW[m.friend];
   drawPanel(30,180,330,330,p.color);
   Tplain(p.icon+" "+p.name,55,206,30,p.color);
   Tplain(m.verb,55,246,17,"#90ee90");
@@ -581,13 +597,13 @@ function drawReactCard(){
   drawPanel(30,190,330,300,rc.win?"#57b85e":"#b3543f");
   drawBadge(88,254,32,CREW.dave);
   Tplain(rc.win?"DAVE APPROVES":"DAVE WINCES",140,232,14,rc.win?"#90ee90":"#ff9a8a");
-  Tplain("ROUND "+Shell.results.length+" OF "+Shell.totalRounds,140,254,12,"#dddddd");
+  Tplain(rc.shelf?"DAVE'S FAVORITES \u2014 BONUS":("ROUND "+Shell.results.length+" OF "+Shell.totalRounds),140,254,12,"#dddddd");
   var y=306;
   y+=wrapText(rc.headline,55,y,20,"#ffffff",280,26)*26;
   if(rc.sub)y+=wrapSans(rc.sub,55,y+2,15,"#dddddd",280,21)*21;
   if(rc.attrib)Tplain(rc.attrib,55,y+6,12,"#90ee90");
   if(rc.points)Tplain((rc.points>=0?"+":"")+rc.points+" PTS",55,446,20,rc.points>0?"#7ddb8a":"#c8a878");
-  if(!rc.win)Tplain("🍺 −1 BEER",232,446,16,"#ff9a8a");
+  if(!rc.win&&!rc.noBeer)Tplain("🍺 −1 BEER",232,446,16,"#ff9a8a");
 }
 
 /* ============================== REVIEW ============================== */
@@ -625,6 +641,7 @@ function buildReview(){
   // best / worst friend from results
   var byFriend={},i,r;
   for(i=0;i<Shell.results.length;i++){ r=Shell.results[i];
+    if(!FRIEND_LINES[r.id])continue; // hidden / sudden-death rounds have no friend line
     if(!byFriend[r.id])byFriend[r.id]={w:0,l:0};
     if(r.win)byFriend[r.id].w++; else byFriend[r.id].l++; }
   var best=null,worst=null;
@@ -700,10 +717,15 @@ function shareReview(){
 
 /* ============================== SHELL ============================== */
 var CRT={x:15,y:118,w:360,h:452}; // gameplay CRT screen rect
+var SD_SPEED=(function(){ var v=parseFloat(qs("sdspeed")); return v>0?v:1.6; })(); // DESIGN section 6 "double speed": the 4 s clock (half a normal round) + 1.6x module speed. A literal 2.0x multiplier made Squeeze/Karate luck-based (frame-perfect pilot won only 2/5 and 1/5 seeds); 1.6x swept 5/5 on every seed.
 var Shell={
   state:"TITLE", mod:null, modState:null,
   score:0, streak:0, bestStreak:0, beers:4,
   round:0, totalRounds:8, order:[], results:[],
+  passStart:0, passesDone:0, sdDone:false, inSD:false, sdSavedBeers:0,
+  flow:"run", shelfPlay:null, savedDisplay:null, shelfRects:[],
+  modes:{}, seenFriends:{}, newUnlocks:[], unlockIdx:0,
+  challengeFailed:false, runFinished:false,
   timeLeft:0, timeTotal:6, speed:1,
   stateT:0, react:null, review:null, inter:null,
   rng:mulberry32(1), paused:false,
@@ -713,28 +735,76 @@ var Shell={
     var seed=qs("seed"); this.seedBase=(seed!==null&&seed!=="")?(parseInt(seed,10)||0):(Date.now()%100000);
     try{ this.bestScore=parseInt(localStorage.getItem("gnd_best_score")||"0",10)||0;
          this.bestGrade=localStorage.getItem("gnd_best_grade")||""; }catch(e){}
+    try{ var sf=localStorage.getItem("gnd_seen_friends"); if(sf)this.seenFriends=JSON.parse(sf)||{}; }catch(e){}
   },
   startRun:function(firstId){
     this.rng=mulberry32(this.seedBase);
-    var ids=["sudz","scott","brent","brian","steve","chris","brad","brendan"];
-    this.order=shuffle(ids.slice(),this.rng);
-    if(firstId){ var i=this.order.indexOf(firstId); if(i>0){ this.order.splice(i,1); this.order.unshift(firstId); } }
+    this.modes=(window.GNDUnlocks&&GNDUnlocks.applyModes)?GNDUnlocks.applyModes()
+      :{jekyllInRotation:false,favoritesAvailable:false,noBeerChallenge:false,speedBonus:0};
     this.score=0; this.streak=0; this.bestStreak=0; this.beers=4;
     this.round=0; this.results=[]; this.review=null;
+    this.passesDone=0; this.challengeFailed=false; this.runFinished=false;
+    this.flow="run"; this.shelfPlay=null; this.savedDisplay=null;
+    this.buildPass(firstId);
     this.nextIntro();
   },
+  /* one pass = the 8 friends shuffled. The hidden doctor joins once
+     (position >= index 4, never listed anywhere) once every friend has
+     been seen, or openly when Jekyll Mode is toggled on. */
+  buildPass:function(firstId){
+    var ids=["sudz","scott","brent","brian","steve","chris","brad","brendan"];
+    var order=shuffle(ids.slice(),this.rng);
+    if(firstId){ var i=order.indexOf(firstId); if(i>0){ order.splice(i,1); order.unshift(firstId); } }
+    var seenArr=[]; for(var k in this.seenFriends)if(this.seenFriends[k])seenArr.push(k);
+    var eligible=this.modes.jekyllInRotation||
+      (window.GNDJekyll&&GNDJekyll.shouldJoinRotation&&GNDJekyll.shouldJoinRotation(seenArr));
+    if(eligible&&MODULES.jekyll){
+      var pos=4+Math.floor(this.rng()*Math.max(1,order.length-4));
+      order.splice(Math.min(pos,order.length),0,"jekyll");
+    }
+    this.order=order; this.passStart=this.round; this.sdDone=false;
+    this.totalRounds=this.round+order.length+1; // +1: the sudden-death round
+  },
+  saveSeen:function(){ try{ localStorage.setItem("gnd_seen_friends",JSON.stringify(this.seenFriends)); }catch(e){} },
   nextIntro:function(){
-    if(this.round>=this.totalRounds||this.beers<=0){ this.toReview(); return; }
-    var id=this.order[this.round];
+    if(this.flow==="shelf"){ // a shelf play just ended: back to the shelf
+      if(this.savedDisplay){ var sd=this.savedDisplay;
+        this.score=sd.score; this.round=sd.round; this.totalRounds=sd.totalRounds;
+        this.beers=sd.beers; this.streak=sd.streak; this.savedDisplay=null; }
+      this.state="SHELF"; this.shelfPlay=null; return;
+    }
+    if(this.beers<=0||this.challengeFailed){ this.finishRun(); return; }
+    if(this.round-this.passStart>=this.order.length){
+      if(!this.sdDone){ this.startSuddenDeath(); return; }
+      if(this.passesDone<1){ this.passesDone++; this.buildPass(); } // encore pass: the night runs long
+      else { this.finishRun(); return; }
+    }
+    var id=this.order[this.round-this.passStart];
+    this.inSD=false;
     this.mod=MODULES[id];
-    this.speed=Math.min(1.16,1+0.08*Math.floor(this.round/4));
+    this.speed=Math.min(1.45,Math.min(1.16,1+0.08*Math.floor(this.round/4))+(this.modes.speedBonus||0));
     this.state="INTRO"; this.stateT=2.0;
     Audio8.sig(id);
     Voice.play("intro_"+id);
+    if(this.mod.quoteSay&&!LINES["intro_"+id])Voice.say(this.mod.quoteSay.who,this.mod.quoteSay.text);
+  },
+  /* DESIGN section 6: after the pass, if beers remain — one of Dave's
+     Most Hated, in the 1-beer state, on the module's own duration clock */
+  startSuddenDeath:function(){
+    var ids=["squeeze","karate","jump"];
+    var id=ids[Math.floor(this.rng()*ids.length)];
+    this.mod=MODULES[id];
+    this.inSD=true; this.sdDone=true;
+    this.sdSavedBeers=this.beers; this.beers=1; // the brink: one beer state
+    this.speed=SD_SPEED;
+    this.state="INTRO"; this.stateT=2.0;
+    Audio8.sig(id);
+    if(this.mod.quoteSay)Voice.say(this.mod.quoteSay.who,this.mod.quoteSay.text);
   },
   startPlay:function(){
     var m=this.mod;
-    this.timeTotal=Math.max(6.5,8-0.5*Math.floor(this.round/4));
+    if(m.duration)this.timeTotal=m.duration; // sudden death 4 s, favorites 10 s
+    else this.timeTotal=Math.max(6.5,8-0.5*Math.floor(this.round/4));
     this.timeLeft=this.timeTotal;
     this.modState=m.create(this);
     this.state="PLAY";
@@ -742,39 +812,119 @@ var Shell={
   endRound:function(win,opts){
     opts=opts||{};
     var m=this.mod, pts=0;
+    /* Dave's Favorites shelf play: standalone — no beer ever at risk,
+       and the module's banked points are paid on a win AND on a loss */
+    if(this.flow==="shelf"){
+      pts=opts.bonus||0;
+      if(this.modState&&this.modState.onEnd)this.modState.onEnd();
+      var src=opts.card||(win?{headline:"NICE!",sub:""}:{headline:"OUCH.",sub:""});
+      src.win=win; src.points=pts; src.ill=!!opts.ill; src.noBeer=true; src.shelf=true;
+      this.react=src;
+      if(win)Audio8.jingleWin(); else Audio8.jingleLose();
+      if(opts.say)Voice.say(opts.say.who,opts.say.text);
+      this.state="REACT"; this.stateT=opts.cardT||1.9;
+      return;
+    }
+    var isSD=!!opts.suddenDeath||!!m.suddenDeath;
     if(win){
       this.streak++; if(this.streak>this.bestStreak)this.bestStreak=this.streak;
       if(opts.comedy){ pts=0; }
+      else if(opts.noScore){ pts=0; } // sudden death: a win just continues the run
       else { pts=Math.round(1000*this.streakMult()+ (this.timeTotal>0? (this.timeLeft/this.timeTotal)*500:0)) + (opts.bonus||0); }
     } else {
-      this.streak=0; this.beers--; pts=opts.bonus||0;
+      this.streak=0;
+      if(isSD){ this.beers=0; pts=opts.bonus||0; } // the brink broke: night over
+      else if(opts.noBeer){ pts=opts.bonus||0; }
+      else { this.beers--; pts=opts.bonus||0;
+        if(this.modes.noBeerChallenge)this.challengeFailed=true; }
     }
+    if(isSD&&win)this.beers=this.sdSavedBeers; // survived sudden death: beers restored
     this.score+=pts;
     this.results.push({id:m.id,win:win,comedy:!!opts.comedy,points:pts});
+    if(FRIEND_IDS.indexOf(m.id)>=0){ this.seenFriends[m.id]=true; this.saveSeen(); }
     if(this.modState&&this.modState.onEnd)this.modState.onEnd();
     var rc=opts.card||(win?{headline:"NICE!",sub:""}:{headline:"OUCH.",sub:""});
     rc.win=win; rc.points=pts; rc.ill=!!opts.ill;
+    if(isSD)rc.noBeer=true;
     this.react=rc;
     if(win)Audio8.jingleWin(); else if(opts.comedy)Audio8.jingleComedy(); else Audio8.jingleLose();
     if(opts.shout)Audio8.shout();
     if(opts.voice)Voice.play(opts.voice);
+    if(opts.say)Voice.say(opts.say.who,opts.say.text); // speaker-tagged module lines (blip talk)
     this.state="REACT"; this.stateT=opts.cardT||1.9;
     this.round++;
+    this.inSD=false;
   },
-  toReview:function(){
+  finishRun:function(){
+    if(this.runFinished)return;
+    this.runFinished=true;
     this.review=buildReview();
-    this.state="REVIEW"; this.stateT=0;
-    Voice.play("grade_"+this.review.grade.replace("+","p").replace("-","m"));
-    var band=this.review.grade.charAt(0).toLowerCase();
-    setTimeout(function(){ if(Shell.state==="REVIEW")Voice.play("say_"+band); },2300);
+    // DESIGN section 10: unlock checks at run end; new unlock cards are
+    // shown before the Verdict
+    this.newUnlocks=[];
+    if(window.GNDUnlocks&&GNDUnlocks.checkUnlocks){
+      try{ this.newUnlocks=GNDUnlocks.checkUnlocks({finished:true,
+        roundsReached:this.round, beersLeft:this.beers, grade:this.review.grade})||[]; }catch(e){}
+    }
     if(this.score>this.bestScore)this.bestScore=this.score;
     var gi=GRADES.indexOf(this.review.grade), bi=GRADES.indexOf(this.bestGrade||"F-");
     if(!this.bestGrade||gi<bi)this.bestGrade=this.review.grade;
     try{ localStorage.setItem("gnd_best_score",""+this.bestScore);
          localStorage.setItem("gnd_best_grade",this.bestGrade); }catch(e){}
+    if(this.newUnlocks.length){ this.unlockIdx=0; this.state="UNLOCK"; this.stateT=2.6; }
+    else this.enterReview();
+  },
+  enterReview:function(){
+    this.state="REVIEW"; this.stateT=0;
+    Voice.play("grade_"+this.review.grade.replace("+","p").replace("-","m"));
+    var band=this.review.grade.charAt(0).toLowerCase();
+    setTimeout(function(){ if(Shell.state==="REVIEW")Voice.play("say_"+band); },2300);
+  },
+  toReview:function(){ this.finishRun(); },
+  /* ---- Dave's Favorites shelf (title -> SHELF -> standalone plays) ---- */
+  startShelfPlay:function(id){
+    if(!MODULES[id])return;
+    this.savedDisplay={score:this.score,round:this.round,totalRounds:this.totalRounds,
+      beers:this.beers,streak:this.streak};
+    this.flow="shelf"; this.shelfPlay=id;
+    this.mod=MODULES[id]; this.modState=null;
+    this.speed=1; this.round=0; this.totalRounds=1;
+    this.state="INTRO"; this.stateT=2.0;
+    Audio8.sig(id);
+    if(this.mod.quoteSay)Voice.say(this.mod.quoteSay.who,this.mod.quoteSay.text);
+  },
+  shelfTap:function(x,y){
+    var rects=this.shelfRects||[];
+    for(var i=0;i<rects.length;i++){ var r=rects[i];
+      if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+        Audio8.init(); Audio8.resume();
+        if(r.action==="back")this.state="TITLE";
+        else if(r.action==="play")this.startShelfPlay(r.arg);
+        else if(r.action==="mode"&&window.GNDUnlocks)GNDUnlocks.setMode(r.arg,!GNDUnlocks.isModeEnabled(r.arg));
+        return;
+      }
+    }
+  },
+  shelfKey:function(code){
+    if(code==="Escape"||code==="Backspace"){ this.state="TITLE"; return; }
+    if(!window.GNDUnlocks)return;
+    if(code==="Digit1"||code==="Digit2"||code==="Digit3"){
+      if(GNDUnlocks.isUnlocked("favoritesShelf")){
+        var favs=["warlords","hydrothunder","riverraid"];
+        this.startShelfPlay(favs[parseInt(code.slice(-1),10)-1]);
+      }
+      return;
+    }
+    var map={KeyJ:"jekyllMode",KeyN:"noBeerChallenge",KeyC:"criticsCut"};
+    if(map[code]&&GNDUnlocks.isUnlocked(map[code]))
+      GNDUnlocks.setMode(map[code],!GNDUnlocks.isModeEnabled(map[code]));
   },
   onTap:function(x,y){
-    if(this.state==="TITLE"){ this.startRun(); }
+    if(this.state==="TITLE"){
+      if(x>=70&&x<=320&&y>=692&&y<=736){ this.state="SHELF"; Audio8.init(); Audio8.resume(); return; }
+      this.startRun(); }
+    else if(this.state==="SHELF")this.shelfTap(x,y);
+    else if(this.state==="UNLOCK"&&this.stateT<2.0)this.stateT=0; // tap through unlock cards
     else if(this.state==="INTRO"&&this.stateT<1.7)this.stateT=0; // tap to skip the intro card
     else if(this.state==="REACT"&&this.stateT<1.1)this.stateT=0; // tap to move on (after a fair read)
     else if(this.state==="REVIEW"){
@@ -784,6 +934,9 @@ var Shell={
   },
   onKey:function(code){
     if(this.state==="TITLE"&&(code==="Space"||code==="Enter"))this.startRun();
+    else if(this.state==="TITLE"&&code==="KeyU")this.state="SHELF";
+    else if(this.state==="SHELF")this.shelfKey(code);
+    else if(this.state==="UNLOCK"&&(code==="Space"||code==="Enter")&&this.stateT<2.0)this.stateT=0;
     else if(this.state==="INTRO"&&(code==="Space"||code==="Enter")&&this.stateT<1.7)this.stateT=0;
     else if(this.state==="REACT"&&(code==="Space"||code==="Enter")&&this.stateT<1.1)this.stateT=0;
     else if(this.state==="REVIEW"&&(code==="Space"||code==="Enter"))this.startRun();
@@ -802,12 +955,16 @@ var Shell={
       }
       if(st.state!=="playing")this.endRound(st.state==="won",st.result||{});
     }
+    else if(this.state==="UNLOCK"){ this.stateT-=dt; if(this.stateT<=0){ this.unlockIdx++;
+      if(this.unlockIdx>=this.newUnlocks.length)this.enterReview(); else this.stateT=2.6; } }
     else if(this.state==="REACT"){ this.stateT-=dt; if(this.stateT<=0)this.nextIntro(); }
   },
   speedScale:function(){ return 1; }, // module-internal speeds use Shell.speed; timer runs real-time
   render:function(){
     g.clearRect(0,0,W,H);
     if(this.state==="REVIEW"){ drawReview(); return; }
+    if(this.state==="UNLOCK"){ drawUnlockScreen(); return; }
+    if(this.state==="SHELF"){ drawShelfScreen(); return; }
     if(this.state==="TITLE"){ drawTitle(); return; }
     // PLAY / INTRO / REACT scene
     drawRoom(3);
@@ -857,15 +1014,89 @@ function drawTitle(){
   R(292,600,44,26,"#14161a"); R(292,600,44,4,"#23262b");
   R(310,578,5,24,"#14161a"); R(305,570,15,12,"#2e7fc2"); R(307,572,11,3,"#6ec3ff");
   R(322,606,9,9,"#2e7fc2"); R(296,606,7,7,"#b03a3a");
-  if(Shell.bestGrade)Tplain("BEST: "+Shell.bestGrade+" · "+Shell.bestScore+" PTS",195,716,13,"#90ee90","center");
+  // unlocks / favorites shelf button (navy panel in the site's manner)
+  R(70,694,250,40,"#000080"); R(70,694,250,5,"#90ee90");
+  Tplain("\u2605 UNLOCKS \u00b7 FAVORITES",195,706,14,"#ffffff","center");
+  if(Shell.bestGrade)Tplain("BEST: "+Shell.bestGrade+" \u00b7 "+Shell.bestScore+" PTS",195,672,13,"#90ee90","center");
   Tplain("SUDZ · SCOTT · BRENT · BRIAN",195,744,12,"#dddddd","center");
   Tplain("STEVE · CHRIS · BRAD · BRENDAN",195,764,12,"#dddddd","center");
   Tplain("8 ROUNDS · 4 BEERS · ONE VERDICT",195,786,12,"#90ee90","center");
   Tplain("TAP TO START",195,812,12,"#aaaaaa","center");
 }
 
+
+/* ============================== UNLOCKS & SHELF ============================== */
+function drawUnlockScreen(){
+  drawRoom(3);
+  R(18,96,354,560,"#000000");
+  R(22,100,346,54,"#000080");
+  Tplain("NEW UNLOCK!",40,112,24,"#ffffff");
+  Tplain("DAVE'S SHELF GROWS",40,138,11,"#90ee90");
+  var def=Shell.newUnlocks[Shell.unlockIdx];
+  if(Shell.newUnlocks.length>1)
+    Tplain((Shell.unlockIdx+1)+" OF "+Shell.newUnlocks.length,350,118,12,"#dddddd","right");
+  if(def&&window.GNDUnlocks&&GNDUnlocks.drawUnlockCard)
+    GNDUnlocks.drawUnlockCard(g,def,195,320,Math.max(0,2.6-Shell.stateT));
+  if(def){
+    Tplain(def.name,195,486,20,"#90ee90","center");
+    wrapSans(def.desc,70,522,14,"#dddddd",250,20);
+  }
+  Tplain("TAP TO CONTINUE",195,612,12,"#aaaaaa","center");
+}
+function drawShelfScreen(){
+  drawRoom(3);
+  R(18,88,354,664,"#000000");
+  R(22,92,346,54,"#000080");
+  Tplain("THE SHELF",40,104,22,"#ffffff");
+  Tplain("FAVORITES \u00b7 MODES \u00b7 UNLOCKS",40,132,10,"#90ee90");
+  Shell.shelfRects=[];
+  var U=window.GNDUnlocks;
+  var favOpen=!!(U&&U.isUnlocked("favoritesShelf"));
+  var y=162, i, m, d;
+  Tplain("DAVE'S FAVORITES \u2014 TAP TO PLAY",40,y,12,"#90ee90"); y+=10;
+  var favs=[MODULES.warlords,MODULES.hydrothunder,MODULES.riverraid];
+  for(i=0;i<favs.length;i++){ m=favs[i]; if(!m)continue;
+    y+=8;
+    if(favOpen){ R(40,y,310,52,"#000080"); R(40,y,310,5,"#90ee90");
+      Tplain(m.name.toUpperCase(),54,y+10,16,"#ffffff");
+      Tplain(m.system+" \u00b7 "+m.verb,54,y+32,11,"#dddddd");
+      Shell.shelfRects.push({x:40,y:y,w:310,h:52,action:"play",arg:m.id});
+    } else { R(40,y,310,52,"#1b213f");
+      Tplain("\u{1F512} "+m.name.toUpperCase(),54,y+10,16,"#888888");
+      Tplain("UNLOCK: REACH ROUND 12 IN A RUN",54,y+32,11,"#888888");
+    }
+    y+=52;
+  }
+  y+=16;
+  Tplain("MODES \u2014 TAP TO TOGGLE",40,y,12,"#90ee90"); y+=10;
+  var defs=U?U.listUnlocks():[];
+  for(i=0;i<defs.length;i++){ d=defs[i]; if(!d.mode)continue;
+    y+=8;
+    var on=d.unlocked&&U.isModeEnabled(d.id);
+    R(40,y,310,52,d.unlocked?"#000080":"#1b213f"); if(d.unlocked)R(40,y,310,5,"#90ee90");
+    Tplain((d.unlocked?"":"\u{1F512} ")+d.name,54,y+8,14,d.unlocked?"#ffffff":"#888888");
+    var dtx=d.unlocked?d.desc:("UNLOCK: "+d.conditionText.toUpperCase());
+    if(dtx.length>40)dtx=dtx.slice(0,39)+"\u2026";
+    Tplain(dtx,54,y+30,10,"#dddddd");
+    if(d.unlocked){ R(286,y+12,52,26,on?"#1d5c2a":"#3a3a3a");
+      Tplain(on?"ON":"OFF",312,y+18,12,on?"#90ee90":"#aaaaaa","center");
+      Shell.shelfRects.push({x:40,y:y,w:310,h:52,action:"mode",arg:d.id}); }
+    y+=52;
+  }
+  y+=16;
+  Tplain("UNLOCKS",40,y,12,"#90ee90"); y+=8;
+  for(i=0;i<defs.length;i++){ d=defs[i];
+    Tplain((d.unlocked?"\u2605 ":"\u{1F512} ")+d.name+" \u2014 "+d.conditionText,40,y+14,11,d.unlocked?"#ffffff":"#888888");
+    y+=22;
+  }
+  R(95,762,200,44,"#000080"); R(95,762,200,5,"#90ee90");
+  Tplain("\u2190 BACK",195,776,15,"#ffffff","center");
+  Shell.shelfRects.push({x:95,y:762,w:200,h:44,action:"back"});
+}
+
 /* ============================== MICROGAMES ============================== */
 var CC={g:g,x:CRT.x,y:CRT.y};
+var FRIEND_IDS=["sudz","scott","brent","brian","steve","chris","brad","brendan"];
 var MODULES={};
 
 /* ---------- SUDZ — Finger Burn Decathlon (RAPID TAP) ---------- */
@@ -1622,6 +1853,1865 @@ MODULES.brendan={
 /* ============================== BOOT / LOOP ============================== */
 Shell.init();
 var lastT=performance.now();
+
+/* ==================== inlined: modules/unlocks.js ==================== */
+/* ============================================================================
+   GAME NIGHT AT DAVE'S — UNLOCK SYSTEM (DESIGN.md §10)
+   ----------------------------------------------------------------------------
+   Persistent unlock flags in localStorage (key prefix "gnd_unlock_", matching
+   the shell's "gnd_" prefix family). The shell calls checkUnlocks(runStats)
+   once at run end (REVIEW); anything newly unlocked comes back as an array so
+   the shell can announce it ("UNLOCKED: X" — drawUnlockCard below, or the
+   shell can draw the returned strings itself).
+
+   The four unlocks (conditions are exact — each fires on its condition and
+   not before):
+     jekyllMode      "Jekyll Mode"           finish a run (reach the Review)
+     favoritesShelf  "Dave's Favorites"      reach Round 12 in a run
+     noBeerChallenge "No-Beer Challenge"     finish a run with all 4 beers
+     criticsCut      "Critic's Cut"          earn any A grade (A- / A / A+)
+
+   Modes: three of the unlocks double as toggleable modes for the NEXT run.
+   applyModes() returns the flag object the shell reads at startRun:
+     { jekyllInRotation: bool,   // jekyllMode on: Jekyll joins openly
+       favoritesAvailable: bool, // favoritesShelf unlocked (shelf visible)
+       noBeerChallenge: bool,    // noBeerChallenge on: any lost beer ends run
+       speedBonus: 0.15 | 0 }    // criticsCut on: harder speed ramp
+
+   runStats shape (aliases accepted):
+     { finished: bool,            // reached the Review screen
+       roundsReached: int,        // highest round number entered (or .round)
+       beersLeft: int,            // beers remaining at run end (or .beers)
+       grade: "A-" }              // final Dave grade (or "" if unfinished)
+
+   Storage is fully try/catch-guarded like the shell; if localStorage is
+   unavailable the system degrades to in-memory flags for the session.
+   ============================================================================ */
+(function () {
+  "use strict";
+
+  var UNLOCK_PREFIX = "gnd_unlock_";
+  var MODE_PREFIX = "gnd_mode_";
+
+  var DEFS = [
+    {
+      id: "jekyllMode",
+      name: "Jekyll Mode",
+      desc: "A certain doctor joins the rotation. Dave saw nothing.",
+      conditionText: "Finish a run",
+      mode: true,
+      test: function (s) { return !!s.finished; }
+    },
+    {
+      id: "favoritesShelf",
+      name: "Dave's Favorites Shelf",
+      desc: "Warlords. Hydro Thunder. River Raid. The good shelf.",
+      conditionText: "Reach Round 12",
+      mode: false,
+      test: function (s) { return (s.roundsReached | 0) >= 12; }
+    },
+    {
+      id: "noBeerChallenge",
+      name: "No-Beer Challenge",
+      desc: "Run the table without losing a single beer.",
+      conditionText: "Finish with all 4 beers",
+      mode: true,
+      test: function (s) { return !!s.finished && (s.beersLeft | 0) >= 4; }
+    },
+    {
+      id: "criticsCut",
+      name: "Critic's Cut",
+      desc: "The harder speed cut. Dave gets pickier.",
+      conditionText: "Earn any A grade",
+      mode: true,
+      test: function (s) { return typeof s.grade === "string" && s.grade.charAt(0) === "A"; }
+    }
+  ];
+
+  /* --- storage (guarded; in-memory fallback) --- */
+  var mem = {};
+  var store = {
+    get: function (k) {
+      try { var v = localStorage.getItem(k); return v === null ? (k in mem ? mem[k] : null) : v; }
+      catch (e) { return k in mem ? mem[k] : null; }
+    },
+    set: function (k, v) {
+      mem[k] = v;
+      try { localStorage.setItem(k, v); } catch (e) {}
+    },
+    del: function (k) {
+      delete mem[k];
+      try { localStorage.removeItem(k); } catch (e) {}
+    }
+  };
+
+  function normalizeStats(raw) {
+    raw = raw || {};
+    return {
+      finished: !!raw.finished,
+      roundsReached: (raw.roundsReached != null ? raw.roundsReached : raw.round) | 0,
+      beersLeft: (raw.beersLeft != null ? raw.beersLeft : raw.beers) | 0,
+      grade: raw.grade || ""
+    };
+  }
+
+  function defById(id) {
+    for (var i = 0; i < DEFS.length; i++) if (DEFS[i].id === id) return DEFS[i];
+    return null;
+  }
+
+  function isUnlocked(id) { return store.get(UNLOCK_PREFIX + id) === "1"; }
+
+  function publicDef(d) {
+    return {
+      id: d.id, name: d.name, desc: d.desc,
+      conditionText: d.conditionText, mode: !!d.mode,
+      unlocked: isUnlocked(d.id)
+    };
+  }
+
+  var api = {
+    DEFS: DEFS.map(function (d) {
+      return { id: d.id, name: d.name, desc: d.desc, conditionText: d.conditionText, mode: !!d.mode };
+    }),
+
+    /* Every unlock with its current state — for a collection/progress screen. */
+    listUnlocks: function () { return DEFS.map(publicDef); },
+
+    isUnlocked: isUnlocked,
+
+    /*
+     * Call at run end. Persists any newly-earned unlocks and returns ONLY the
+     * newly unlocked defs (possibly empty) so the shell announces each once.
+     */
+    checkUnlocks: function (runStats) {
+      var s = normalizeStats(runStats);
+      var fresh = [];
+      for (var i = 0; i < DEFS.length; i++) {
+        var d = DEFS[i];
+        if (!isUnlocked(d.id) && d.test(s)) {
+          store.set(UNLOCK_PREFIX + d.id, "1");
+          fresh.push(publicDef(d));
+        }
+      }
+      return fresh;
+    },
+
+    /* --- modes (only for defs flagged mode:true, only once unlocked) --- */
+    isModeEnabled: function (id) {
+      var d = defById(id);
+      return !!(d && d.mode && isUnlocked(id) && store.get(MODE_PREFIX + id) === "1");
+    },
+    setMode: function (id, on) {
+      var d = defById(id);
+      if (!d || !d.mode || !isUnlocked(id)) return false;
+      store.set(MODE_PREFIX + id, on ? "1" : "0");
+      return true;
+    },
+    getModes: function () {
+      var out = {};
+      for (var i = 0; i < DEFS.length; i++) if (DEFS[i].mode) out[DEFS[i].id] = api.isModeEnabled(DEFS[i].id);
+      return out;
+    },
+    /* The flag object the shell reads at startRun. */
+    applyModes: function () {
+      return {
+        jekyllInRotation: api.isModeEnabled("jekyllMode"),
+        favoritesAvailable: isUnlocked("favoritesShelf"),
+        noBeerChallenge: api.isModeEnabled("noBeerChallenge"),
+        speedBonus: api.isModeEnabled("criticsCut") ? 0.15 : 0
+      };
+    },
+
+    /* Dev/test helper: wipe all unlock + mode flags. */
+    reset: function () {
+      for (var i = 0; i < DEFS.length; i++) {
+        store.del(UNLOCK_PREFIX + DEFS[i].id);
+        store.del(MODE_PREFIX + DEFS[i].id);
+      }
+    },
+
+    /*
+     * "UNLOCKED: X" card renderer. Takes the raw canvas 2d context (the
+     * shell's g) so it has no dependency on shell art helpers.
+     *   drawUnlockCard(ctx, def, cx, cy, t)  — centered at (cx, cy);
+     *   t = seconds since shown (optional pulse). Returns {w, h} drawn.
+     */
+    drawUnlockCard: function (ctx, def, cx, cy, t) {
+      if (!ctx || !def) return { w: 0, h: 0 };
+      var w = 316, h = 96, x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
+      var pulse = t != null ? (0.5 + 0.5 * Math.sin(t * 5)) : 0;
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.88)";
+      ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = pulse > 0.5 ? "#F8D878" : "#F8B800"; // NES palette golds
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+      ctx.textAlign = "center"; ctx.textBaseline = "top";
+      ctx.font = "bold 13px 'Courier New',monospace";
+      ctx.fillStyle = "#FCA044";
+      ctx.fillText("★ UNLOCKED ★", cx, y + 10);
+      ctx.font = "bold 22px 'Courier New',monospace";
+      ctx.fillStyle = "#FCFCFC";
+      ctx.fillText(def.name || "", cx, y + 30);
+      ctx.font = "bold 12px 'Courier New',monospace";
+      ctx.fillStyle = "#3CBCFC";
+      var desc = def.desc || "";
+      if (desc.length > 40) desc = desc.slice(0, 39) + "…";
+      ctx.fillText(desc, cx, y + 62);
+      ctx.restore();
+      return { w: w, h: h };
+    }
+  };
+
+  if (typeof window !== "undefined") window.GNDUnlocks = api;
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+})();
+
+/* ==================== inlined: modules/sudden-death.js ==================== */
+/* ============================================================================
+   GAME NIGHT AT DAVE'S — SUDDEN DEATH modules (DESIGN.md §6)
+   Dave's Most Hated: Squeeze Box (2600), Karate (2600), White Men Can't
+   Jump (Jaguar). Standalone module file — load AFTER the shell's
+   `var MODULES={}` declaration; registers into the same MODULES map and
+   follows the shipped contract exactly:
+     { id, friend, verb, hintTouch, hintKeys, quoteIntro, create(Shell)->state }
+     state: { state:'playing'|'won'|'lost', result, update(dt,input),
+              render(), onTimeout(), ... }
+   Sudden-death rules (§6 + Cherie's refinements):
+     - ONE attempt, 1-beer state, ~4 s rounds (metadata: duration:4,
+       oneBeer:true — the shell sets timeTotal from `duration` for these).
+     - NO SCORE: results carry noScore:true; a win just continues the run.
+     - LOSE and Dave delivers the failure card. The two lines ROTATE via a
+       shared counter. Lines are SPEAKER-TAGGED data ({who:"dave", text})
+       in module.failLines and in result.say — the shell voices them with
+       Dave's SNES-style blip profile (CHAR_TTS dave). NO audio clips here.
+     - Controls: TAP and TAP-RELEASE only (touch + spacebar/click via the
+       shell's normalized Input: tapEdge / releaseEdge / keyEdge /
+       keyUpEdge / down / keys).
+   Era-true art, anchored on real screenshots (refs/):
+     - Squeeze Box: black field, dark-blue border bars, white score digits,
+       walls = stacked TIA-color blocks (refs/squeeze-box-2600.png).
+     - Karate: black upper field, pink referee, tan mat in a red-brown
+       surround, solid-color fighters (refs/karate-2600.png).
+     - White Men Can't Jump: Jaguar night court — indigo sky, pale moon,
+       teal water band, brick wall, tan court, big shaded sprites, green
+       NRG bars (refs/white-men-cant-jump-jaguar.jpg).
+   Period chip SFX only: 2600 square/noise bursts for the 2600 pair,
+   simple Jaguar-era chip tones for the dunk.
+   ============================================================================ */
+var MODULES = (typeof MODULES !== "undefined" && MODULES) || {};
+
+/* Dave's sudden-death failure lines — rotate, speaker-tagged for blip voice */
+var SD_FAIL_LINES = [
+  { who: "dave", text: "Quite possibly the worst video game ever!" },
+  { who: "dave", text: "The plankton of the video game food chain." }
+];
+var SD_FAIL_IDX = 0;
+function sdFailResult(sub) {
+  var line = SD_FAIL_LINES[SD_FAIL_IDX % SD_FAIL_LINES.length]; SD_FAIL_IDX++;
+  return { card: { headline: line.text, sub: sub },
+           say: { who: line.who, text: line.text },
+           suddenDeath: true, noScore: true };
+}
+function sdWinResult(headline, sub) {
+  return { card: { headline: headline, sub: sub }, suddenDeath: true, noScore: true };
+}
+function sdSfx(freq, dur, type, vol, delay) {
+  if (typeof Audio8 !== "undefined" && Audio8.tone) Audio8.tone(freq, dur, type || "square", vol || 0.09, delay || 0);
+}
+function sdNoise(dur, vol) {
+  if (typeof Audio8 !== "undefined" && Audio8.noise) Audio8.noise(dur, vol || 0.12);
+}
+function sdRnd() {
+  if (typeof Shell !== "undefined" && Shell && Shell.rng) return Shell.rng();
+  return Math.random();
+}
+function sdSpeed() {
+  return (typeof Shell !== "undefined" && Shell && Shell.speed) ? Shell.speed : 1;
+}
+var SD_INTRO = "Suffer like G did?"; // §7 sayings bank — sudden-death intro
+
+/* ================= SQUEEZE BOX (Atari 2600) — "FIND THE GAP!" =================
+   Walls of stacked TIA blocks scroll in; each has ONE gap, and the gap
+   SHRINKS every wall you clear. Tap to flap the little striped box;
+   slip through 3 gaps before the timer dies. Touch a wall, the blue
+   border bars, or the floor of the cell — you're squeezed flat. */
+MODULES.squeeze = {
+  id: "squeeze", friend: "dave", name: "Squeeze Box", system: "Atari 2600",
+  verb: "FIND THE GAP!",
+  hintTouch: "TOUCH: TAP TO FLAP — SLIP THROUGH 3 GAPS",
+  hintKeys: "DESKTOP: SPACE / CLICK TO FLAP",
+  quoteIntro: SD_INTRO, quoteSay: { who: "dave", text: SD_INTRO },
+  duration: 4, suddenDeath: true, oneBeer: true,
+  failLines: SD_FAIL_LINES,
+  create: function () {
+    var TIA = ["#f0b878", "#58c838", "#8848c8", "#f08818", "#58a8f0", "#9898e8", "#e878b8"];
+    var st = { state: "playing", result: null, t: 0,
+      by: 74, vy: 0,            // box position/velocity (PX grid cells, 120x150)
+      walls: [], spawnT: 0.15, passed: 0, need: 3, crashFx: 0, lastC: 74,
+      update: function (dt, input) {
+        if (this.state !== "playing") return;
+        this.t += dt;
+        var spd = sdSpeed();
+        if (input.tapEdge || input.keyEdge.Space || input.keyEdge.Enter) {
+          this.vy = -54; sdSfx(210 + Math.random() * 40, 0.045, "square", 0.07);
+        }
+        this.vy += 165 * dt; this.by += this.vy * dt;
+        // spawn walls: stacked-block barriers with one shrinking gap
+        this.spawnT -= dt;
+        if (this.spawnT <= 0 && this.walls.length < 4) {
+          this.spawnT = 0.85 / spd;
+          var gapH = Math.max(24, 36 * Math.pow(0.86, this.passed + this.walls.length));
+          // gap center roams the cell but is delta-limited from the last
+          // gap (+-30 cells): the gap "moves unfairly", never impossibly.
+          var cMin = 18 + gapH / 2, cMax = 130 - gapH / 2;
+          var center = cMin + sdRnd() * (cMax - cMin);
+          center = Math.max(this.lastC - 30, Math.min(this.lastC + 30, center));
+          center = Math.max(cMin, Math.min(cMax, center));
+          this.lastC = center;
+          this.walls.push({ x: 126, gapY: center - gapH / 2, gapH: gapH, ci: Math.floor(sdRnd() * TIA.length), scored: false });
+        }
+        for (var i = this.walls.length - 1; i >= 0; i--) {
+          var w = this.walls[i]; w.x -= 60 * spd * dt;
+          // collision: wall slab (5 wide) reaches the box column (gx 14..20)
+          if (w.x < 20 && w.x + 5 > 14) {
+            if (this.by - 3 < w.gapY || this.by + 3 > w.gapY + w.gapH) {
+              this.state = "lost"; this.crashFx = 0.4; sdNoise(0.22, 0.16);
+              this.result = sdFailResult("Squeezed flat. The gap moved. It does that.");
+              return;
+            }
+          }
+          if (!w.scored && w.x + 5 < 14) {
+            w.scored = true; this.passed++; sdSfx(660, 0.07, "square", 0.1); sdSfx(990, 0.09, "square", 0.09, 0.06);
+            if (this.passed >= this.need) {
+              this.state = "won";
+              this.result = sdWinResult("THROUGH!", "A clean prison break. Dave can't pan an escape.");
+              return;
+            }
+          }
+          if (w.x < -8) this.walls.splice(i, 1);
+        }
+        if (this.by < 15 || this.by > 131) { // the blue bars squeeze back
+          this.state = "lost"; this.crashFx = 0.4; sdNoise(0.22, 0.16);
+          this.result = sdFailResult("Squeezed flat against the bars.");
+        }
+      },
+      onTimeout: function () {
+        if (this.state !== "playing") return;
+        this.state = "lost";
+        this.result = sdFailResult("The walls kept coming. They always keep coming.");
+      },
+      render: function () {
+        g.save(); g.beginPath(); g.rect(CRT.x, CRT.y, CRT.w, CRT.h); g.clip(); // walls slide in from off-screen — never paint the room
+        R(CRT.x, CRT.y, CRT.w, CRT.h, "#000000");
+        Tplain(this.passed + " 6 0", CRT.x + CRT.w / 2, CRT.y + 8, 17, "#f4f1e8", "center"); // 2600 score digits homage
+        // dark-blue border bars (ref: thick blue lines top + bottom)
+        PX(CC, 0, 12, 120, 3, "#2020a8"); PX(CC, 0, 133, 120, 3, "#2020a8");
+        // walls: stacked TIA blocks above and below the gap
+        for (var i = 0; i < this.walls.length; i++) {
+          var w = this.walls[i];
+          this.wallRun(w.x, 15, w.gapY, w.ci);
+          this.wallRun(w.x, w.gapY + w.gapH, 133, w.ci + 2);
+          // gap lips glow so the safe zone reads at speed
+          PX(CC, w.x, w.gapY - 1, 5, 1, "#f4f1e8"); PX(CC, w.x, w.gapY + w.gapH, 5, 1, "#f4f1e8");
+        }
+        // the box: prisoner stripes (ref: red/white stripes, pink mask, green shoes)
+        var bx = 14, by = Math.round(this.by) - 3, sq = this.crashFx > 0 ? 2 : 0;
+        PX(CC, bx, by + sq, 6, 1, "#e878b8");
+        PX(CC, bx, by + 1 + sq, 6, 1, "#d83828"); PX(CC, bx, by + 2 + sq, 6, 1, "#f0f0e8");
+        PX(CC, bx, by + 3 + sq, 6, 1, "#d83828"); PX(CC, bx, by + 4 + sq, 6, 1, "#f0f0e8");
+        if (!sq) PX(CC, bx, by + 5, 6, 1, "#58c838");
+        // lives stars under the bottom bar (ref)
+        for (var s = 0; s < 3; s++) { var sx = 54 + s * 6; PX(CC, sx, 141, 1, 3, "#f4f1e8"); PX(CC, sx - 1, 142, 3, 1, "#f4f1e8"); }
+        Tplain("GAPS " + this.passed + "/" + this.need, CRT.x + 12, CRT.y + CRT.h - 26, 12, "#9898e8");
+        Tplain("SQUEEZE BOX", CRT.x + CRT.w - 12, CRT.y + CRT.h - 26, 12, "#f0b878", "right");
+        g.restore();
+      },
+      wallRun: function (x, y0, y1, ci) {
+        var TIA2 = ["#f0b878", "#58c838", "#8848c8", "#f08818", "#58a8f0", "#9898e8", "#e878b8"];
+        var y = y0, k = 0;
+        while (y < y1) { var h = Math.min(7, y1 - y); PX(CC, x, y, 5, h - 1, TIA2[(ci + k) % TIA2.length]); y += h; k++; }
+      }
+    };
+    return st;
+  }
+};
+
+/* ================= KARATE (Atari 2600) — "CHOP!" =================
+   Dave's vote for worst 2600 game ever, redeemed as a timing test:
+   a needle screams back and forth across the scoreboard strip — tap
+   when it's in the GREEN to chop. Break all 3 boards. Whiff and the
+   needle gets faster, because Karate hates you personally. */
+MODULES.karate = {
+  id: "karate", friend: "dave", name: "Karate", system: "Atari 2600",
+  verb: "CHOP!",
+  hintTouch: "TOUCH: TAP IN THE GREEN — BREAK 3 BOARDS",
+  hintKeys: "DESKTOP: SPACE / CLICK IN THE GREEN",
+  quoteIntro: SD_INTRO, quoteSay: { who: "dave", text: SD_INTRO },
+  duration: 4, suddenDeath: true, oneBeer: true,
+  failLines: SD_FAIL_LINES,
+  create: function () {
+    var st = { state: "playing", result: null, t: 0,
+      needle: 0.1, dir: 1, nSpeed: 1.85,   // traversals per second (ping-pong 0..1)
+      zoneC: 0.5, zoneW: 0.17, boards: 3, whiffs: 0,
+      chopT: 0, breakFx: 0, whiffFx: 0,
+      update: function (dt, input) {
+        if (this.state !== "playing") return;
+        this.t += dt;
+        if (this.chopT > 0) this.chopT -= dt;
+        if (this.breakFx > 0) this.breakFx -= dt;
+        if (this.whiffFx > 0) this.whiffFx -= dt;
+        this.needle += this.dir * this.nSpeed * sdSpeed() * dt;
+        if (this.needle > 1) { this.needle = 1 - (this.needle - 1); this.dir = -1; }
+        if (this.needle < 0) { this.needle = -this.needle; this.dir = 1; }
+        if (input.tapEdge || input.keyEdge.Space || input.keyEdge.Enter) {
+          this.chopT = 0.22;
+          if (Math.abs(this.needle - this.zoneC) <= this.zoneW / 2) {
+            this.boards--; this.breakFx = 0.35;
+            sdSfx(180, 0.06, "square", 0.12); sdNoise(0.08, 0.14); sdSfx(520, 0.08, "square", 0.1, 0.05);
+            if (this.boards <= 0) {
+              this.state = "won";
+              this.result = sdWinResult("BOARD BREAKER!", "Three boards. More action than the cartridge.");
+              return;
+            }
+            this.zoneC = 0.18 + sdRnd() * 0.64;               // green zone jumps
+            this.zoneW = Math.max(0.105, this.zoneW - 0.028); // ...and shrinks
+            this.nSpeed *= 1.07;
+          } else {
+            this.whiffs++; this.whiffFx = 0.3; this.nSpeed *= 1.12; // whiff = meaner needle
+            sdSfx(90, 0.09, "square", 0.1);
+          }
+        }
+      },
+      onTimeout: function () {
+        if (this.state !== "playing") return;
+        this.state = "lost";
+        this.result = sdFailResult("One hit was the whole game. You needed three.");
+      },
+      render: function () {
+        R(CRT.x, CRT.y, CRT.w, CRT.h, "#000000");
+        // scoreboard strip, 2600-style chunky digits (ref b: orange/yellow on black)
+        Tplain("KARATE", CRT.x + 12, CRT.y + 10, 15, "#f08818");
+        Tplain("BOARDS " + this.boards, CRT.x + CRT.w - 12, CRT.y + 10, 15, "#e8e24a", "right");
+        // pink referee, arms raised, standing on the mat edge (ref)
+        var rx = 56, ry = 30;
+        PX(CC, rx + 3, ry, 2, 3, "#e878b8");
+        PX(CC, rx, ry + 3, 1, 3, "#e878b8"); PX(CC, rx + 7, ry + 3, 1, 3, "#e878b8");
+        PX(CC, rx + 1, ry + 4, 6, 2, "#e878b8"); PX(CC, rx + 3, ry + 6, 2, 6, "#e878b8");
+        PX(CC, rx + 2, ry + 12, 1, 6, "#e878b8"); PX(CC, rx + 5, ry + 12, 1, 6, "#e878b8");
+        // red-brown surround + tan mat (ref)
+        PX(CC, 0, 52, 120, 98, "#a02818");
+        PX(CC, 8, 62, 104, 78, "#f0b878");
+        // the green fighter (player, ref: solid green + white belt)
+        var fx = 26, fy = 96, chop = this.chopT > 0;
+        PX(CC, fx + 2, fy, 3, 3, "#58c838");                       // head
+        PX(CC, fx + 2, fy + 3, 3, 7, "#58c838");                   // torso
+        PX(CC, fx + 2, fy + 6, 3, 1, "#f4f1e8");                   // belt
+        PX(CC, fx + 5, fy + 4, chop ? 6 : 3, 2, "#58c838");        // chopping arm
+        PX(CC, fx + 1, fy + 10, 2, 6, "#58c838"); PX(CC, fx + 4, fy + 10, 2, 6, "#58c838"); // legs
+        if (this.whiffFx > 0) Tplain("WHIFF!", CRT.x + 66, CRT.y + 268, 13, "#a02818");
+        // board stack on two blocks, center-right of the mat
+        var bx = 74, byy = 118;
+        PX(CC, bx - 2, byy + 8, 3, 6, "#8a8a96"); PX(CC, bx + 19, byy + 8, 3, 6, "#8a8a96");
+        for (var b = 0; b < this.boards; b++) {
+          var yy = byy + 6 - b * 3;
+          PX(CC, bx, yy, 20, 2, b % 2 ? "#c89858" : "#d8a868");
+          PX(CC, bx, yy, 20, 1, "#8a5a2a");
+        }
+        if (this.breakFx > 0) { // splinters
+          PX(CC, bx + 4, byy - 2, 2, 1, "#d8a868"); PX(CC, bx + 13, byy - 4, 2, 1, "#c89858"); PX(CC, bx + 9, byy - 1, 1, 1, "#8a5a2a");
+          Tplain("CRACK!", CRT.x + 218, CRT.y + 268, 13, "#a02818");
+        }
+        if (this.boards < 3) Tplain("BOARDS LEFT: " + this.boards, CRT.x + CRT.w / 2, CRT.y + 316, 12, "#5a2a10", "center");
+        // timing strip: black scoreboard bar, red field, GREEN zone, white needle
+        var mx = CRT.x + 24, mw = CRT.w - 48, my = CRT.y + CRT.h - 52;
+        R(mx - 4, my - 4, mw + 8, 22, "#0d0906");
+        R(mx, my, mw, 14, "#a02818");
+        R(mx + (this.zoneC - this.zoneW / 2) * mw, my, this.zoneW * mw, 14, "#58c838");
+        R(mx + this.needle * mw - 2, my - 3, 4, 20, "#f4f1e8");
+        Tplain("TAP IN THE GREEN!", CRT.x + CRT.w / 2, my + 24, 12, "#f4f1e8", "center");
+      }
+    };
+    return st;
+  }
+};
+
+/* ================= WHITE MEN CAN'T JUMP (Atari Jaguar) — "JAM IT!" =================
+   One shot, a ball with its own physics, and a vertical that needs
+   proving. HOLD to charge the jump meter; RELEASE when the charge sits
+   in the RIM band. Too soft: airball. Too much: off the backboard.
+   Miss and you can reload while the clock lives. */
+MODULES.jump = {
+  id: "jump", friend: "dave", name: "White Men Can't Jump", system: "Atari Jaguar",
+  verb: "JAM IT!",
+  hintTouch: "TOUCH: HOLD TO CHARGE — RELEASE AT THE RIM",
+  hintKeys: "DESKTOP: HOLD SPACE — RELEASE AT THE RIM",
+  quoteIntro: SD_INTRO, quoteSay: { who: "dave", text: SD_INTRO },
+  duration: 4, suddenDeath: true, oneBeer: true,
+  failLines: SD_FAIL_LINES,
+  create: function () {
+    var st = { state: "playing", result: null, t: 0,
+      charge: 0, charging: false, phase: "aim", flyT: 0, power: 0, made: false,
+      rimLo: 0.70, rimHi: 0.90, attempts: 0, msg: "", msgT: 0,
+      release: function () {
+        this.charging = false; this.phase = "fly"; this.flyT = 0;
+        this.power = this.charge; this.attempts++;
+        this.made = this.power >= this.rimLo && this.power <= this.rimHi;
+        sdSfx(300 + this.power * 300, 0.08, "square", 0.09);
+      },
+      update: function (dt, input) {
+        if (this.state !== "playing") return;
+        this.t += dt;
+        if (this.msgT > 0) this.msgT -= dt;
+        if (this.phase === "aim") {
+          if (!this.charging && (input.tapEdge || input.keyEdge.Space)) this.charging = true;
+          if (this.charging) {
+            if (input.down || input.keys.Space) {
+              this.charge = Math.min(1, this.charge + dt / 1.05);
+              if (this.charge >= 1) this.release(); // overcharge goes up anyway — a brick
+            } else if (input.releaseEdge || (input.keyUpEdge && input.keyUpEdge.Space)) {
+              this.release();
+            }
+          }
+        } else if (this.phase === "fly") {
+          this.flyT += dt;
+          if (this.flyT >= 0.55) {
+            if (this.made) {
+              this.state = "won"; sdSfx(523, 0.09, "square", 0.1); sdSfx(659, 0.09, "square", 0.1, 0.08); sdSfx(784, 0.14, "square", 0.11, 0.16);
+              this.result = sdWinResult("HE JAMMED IT!", "Vertical: confirmed. Dave is stunned.");
+              return;
+            }
+            this.msg = this.power < this.rimLo ? "AIRBALL..." : "OFF THE GLASS!";
+            this.msgT = 0.7; sdNoise(0.1, 0.1);
+            this.phase = "aim"; this.charge = 0; this.charging = false;
+          }
+        }
+      },
+      onTimeout: function () {
+        if (this.state !== "playing") return;
+        this.state = "lost";
+        this.result = sdFailResult("The ball obeys its own physics. So does the clock.");
+      },
+      render: function () {
+        var X = CRT.x, Y = CRT.y, Wd = CRT.w, Hd = CRT.h;
+        g.save(); g.beginPath(); g.rect(X, Y, Wd, Hd); g.clip();
+        // Jaguar night court (ref): indigo sky, pale moon, teal water, grass, brick wall, tan court
+        R(X, Y, Wd, 120, "#141038"); R(X, Y + 120, Wd, 60, "#241a58");
+        g.fillStyle = "#e8e4da"; g.beginPath(); g.arc(X + 238, Y + 76, 33, 0, 6.3); g.fill(); // moon behind the backboard
+        R(X, Y + 180, Wd, 26, "#1a7a8a");                       // water
+        R(X, Y + 206, Wd, 14, "#2a7a3a");                       // grass strip
+        R(X, Y + 220, Wd, 54, "#8a8a96");                       // brick wall
+        R(X, Y + 220, Wd, 3, "#6a6a76");
+        for (var br = 0; br < 9; br++) R(X + 14 + br * 40, Y + 238, 22, 3, "#6a6a76");
+        for (var br2 = 0; br2 < 9; br2++) R(X + 34 + br2 * 40, Y + 256, 22, 3, "#6a6a76");
+        R(X, Y + 274, Wd, Hd - 274, "#c8a058");                 // court
+        R(X, Y + 274, Wd, 4, "#a8803f");
+        R(X + 30, Y + 330, 200, 4, "#f4f1e8"); R(X + 250, Y + 300, 4, 90, "#f4f1e8"); // painted lines
+        // palm silhouettes
+        R(X + 36, Y + 128, 6, 60, "#0d2a1a");
+        g.strokeStyle = "#0d2a1a"; g.lineWidth = 6;
+        for (var fr = 0; fr < 5; fr++) { g.beginPath(); g.moveTo(X + 39, Y + 128); g.quadraticCurveTo(X + 39 + (fr - 2) * 22, Y + 104, X + 39 + (fr - 2) * 34, Y + 122 + Math.abs(fr - 2) * 6); g.stroke(); }
+        // scoreboard digits (ref: white 00 / 02 top corners)
+        Tplain("00", X + 14, Y + 10, 20, "#f4f1e8");
+        Tplain(this.attempts ? "01" : "02", X + Wd - 14, Y + 10, 20, "#f4f1e8", "right");
+        Tplain("WHITE MEN CAN'T JUMP", X + Wd / 2, Y + 12, 12, "#ffd98a", "center");
+        // hoop: pole, backboard (white, red square), rim
+        var hx = X + 238, hy = Y + 96;
+        R(hx + 30, hy + 6, 8, 150, "#5a5a66");
+        R(hx - 30, hy - 38, 64, 50, "#14101c");                   // dark outline so the board reads against the moon
+        R(hx - 27, hy - 35, 58, 44, "#f4f1e8"); R(hx - 27, hy - 35, 58, 4, "#c8c8d0");
+        R(hx - 10, hy - 16, 20, 16, "#e84d26"); R(hx - 7, hy - 13, 14, 10, "#f4f1e8");
+        R(hx - 12, hy + 9, 24, 4, "#e84d26");                     // rim
+        // player + ball
+        var px = X + 96, floorY = Y + 356, lift = 0, ballOff = { x: 22, y: -52 };
+        if (this.phase === "fly") {
+          var f = Math.min(1, this.flyT / 0.55), arc = Math.sin(f * Math.PI);
+          lift = arc * (30 + this.power * 88);
+          var bx2 = px + 22 + (hx - 12 - (px + 22)) * f, by2 = floorY - 52 - lift * 1.06 - arc * 26;
+          if (!this.made && f > 0.82) by2 += (f - 0.82) * 160; // clang away
+          ballOff = { x: bx2 - px, y: by2 - floorY };
+        }
+        var crouch = this.charging ? 7 : 0, py = floorY - lift;
+        // big shaded Jaguar-era sprite (ref players fill ~1/4 of the frame
+        // height): red shirt, yellow shorts, drawn at 1.55x via rp()
+        function rp(dx, dy, w, h, c) { R(px + dx * 1.55, py + dy * 1.55, w * 1.55, h * 1.55, c); }
+        rp(-9, -46 + crouch, 18, 17, "#1d1d1d");                   // hair/head mass
+        rp(-8, -44 + crouch, 16, 14, "#8a5a34");                   // head
+        rp(-11, -30 + crouch, 22, 20, "#c22a1e");                  // shirt
+        rp(-11, -30 + crouch, 22, 4, "#8f1d14");
+        rp(9, -32 + crouch - (this.phase === "fly" ? 10 : 0), 6, 16, "#8a5a34"); // arm up
+        rp(-15, -30 + crouch, 5, 14, "#8a5a34");
+        rp(-10, -10 + crouch, 9, 12, "#e8c832");                   // shorts
+        rp(2, -10 + crouch, 9, 12, "#e8c832");
+        rp(-10, 2, 9, 5, "#2b3aa8"); rp(2, 2, 9, 5, "#2b3aa8");    // shoes
+        // ball
+        var blx = px + ballOff.x, bly = py + ballOff.y;
+        g.fillStyle = "#e87818"; g.beginPath(); g.arc(blx, bly, 12, 0, 6.3); g.fill();
+        g.strokeStyle = "#8a4410"; g.lineWidth = 2; g.beginPath(); g.arc(blx, bly, 12, 0, 6.3); g.stroke();
+        g.beginPath(); g.moveTo(blx - 12, bly); g.lineTo(blx + 12, bly); g.stroke();
+        // charge meter: green NRG bar (ref HUD) with the RIM band marked
+        var mx2 = X + 14, my2 = Y + 210, mh = 150;
+        R(mx2 - 3, my2 - 3, 20, mh + 6, "#0d0906");
+        R(mx2, my2, 14, mh, "#3a1414");
+        R(mx2, my2 + mh * (1 - this.rimHi), 14, mh * (this.rimHi - this.rimLo), "#ffd98a"); // rim band
+        var ch = this.phase === "aim" ? this.charge : this.power;
+        R(mx2, my2 + mh * (1 - ch), 14, mh * ch, "#58c838");
+        Tplain("NRG", mx2 + 7, my2 + mh + 8, 10, "#58c838", "center");
+        Tplain("RIM", mx2 + 26, my2 + mh * (1 - this.rimHi) - 4, 10, "#ffd98a");
+        if (this.msgT > 0) Tplain(this.msg, X + Wd / 2, Y + 300, 17, "#ffd98a", "center");
+        if (this.phase === "aim" && !this.charging)
+          Tplain("HOLD TO CHARGE!", X + Wd / 2, Y + Hd - 30, 13, "#f4f1e8", "center");
+        g.restore();
+      }
+    };
+    return st;
+  }
+};
+
+/* registry for the integration pass + harness */
+var SUDDEN_DEATH_MODULES = [MODULES.squeeze, MODULES.karate, MODULES.jump];
+if (typeof window !== "undefined") window.SUDDEN_DEATH_MODULES = SUDDEN_DEATH_MODULES;
+
+/* ==================== inlined: modules/favorites.js ==================== */
+/* ============================================================================
+   GAME NIGHT AT DAVE'S — DAVE'S FAVORITES bonus rounds (DESIGN.md §10)
+   Warlords (2600), Hydro Thunder (arcade/Dreamcast), River Raid (2600).
+   Standalone module file — load AFTER the shell's `var MODULES={}`
+   declaration; registers into the same MODULES map and follows the
+   shipped contract exactly (same shape as sudden-death.js / jekyll.js):
+     { id, friend, verb, hintTouch, hintKeys, quoteIntro, quoteSay,
+       duration, favorites, noBeer, create()->state }
+     state: { state:'playing'|'won'|'lost', result, update(dt,input),
+              render(), onTimeout(), ... }
+   Favorites rules (§10 + Cherie's refinements):
+     - BONUS rounds unlocked by clean-run milestones. NO BEER AT RISK:
+       module metadata carries favorites:true + noBeer:true so the shell
+       never decrements a beer for these, win or lose.
+     - ESCALATING PURE SCORE: every module banks its points as
+       result.bonus (the shell's endRound adds opts.bonus on a win AND
+       pays it on a loss), and inside each round the point multiplier
+       climbs (x1 -> x2 -> x3) while the action speeds up. A "lost"
+       favorites round just means the objective was missed — the banked
+       points still count.
+     - Controls: SLIDE/DRAG + TAP only (touch pointer, mouse, and arrow
+       keys / spacebar via the shell's normalized Input: down / x / y /
+       tapEdge / keyEdge / keys).
+   Era-true art, anchored on REAL screenshots (refs/):
+     - Warlords: black field, red striped-brick castles in all four
+       corners, colored shield + crown warlord per corner — yellow TL,
+       blue TR, GREEN bottom-left = YOU, purple BR
+       (refs/warlords-2600-2.jpg; the C64 shot refs/warlords-2600-1.png
+       confirms the 4-castle layout and per-corner colors).
+     - River Raid: purple-blue river between two-tone green banks,
+       yellow jet, pink FUEL depots, gray HUD panel with yellow score
+       digits and the E..F fuel gauge (refs/river-raid-2600-1.png,
+       refs/river-raid-2600-2.jpg). Sprite shapes + palette cross-checked
+       against joaoneto/river-raid-2k (MIT) — see the River Raid section.
+     - Hydro Thunder: late-90s arcade — bright blue stadium watercourse,
+       ad-banner walls, crowd stands, checkered start banner, red boost
+       barrels with the yellow lightning flash, yellow hydroplane with
+       twin engines and a rear wing, pink-white boost flames
+       (refs/hydro-thunder-arcade-1.jpg, refs/hydro-thunder-arcade-2.png).
+   Period chip SFX only: 2600 square/noise bursts for the 2600 pair,
+   brighter arcade chip tones for Hydro Thunder. No audio files.
+   ============================================================================ */
+var MODULES = (typeof MODULES !== "undefined" && MODULES) || {};
+
+function fvSfx(freq, dur, type, vol, delay) {
+  if (typeof Audio8 !== "undefined" && Audio8.tone) Audio8.tone(freq, dur, type || "square", vol || 0.09, delay || 0);
+}
+function fvNoise(dur, vol) {
+  if (typeof Audio8 !== "undefined" && Audio8.noise) Audio8.noise(dur, vol || 0.12);
+}
+function fvRnd() {
+  if (typeof Shell !== "undefined" && Shell && Shell.rng) return Shell.rng();
+  return Math.random();
+}
+function fvSpeed() {
+  return (typeof Shell !== "undefined" && Shell && Shell.speed) ? Shell.speed : 1;
+}
+function fvResult(headline, sub, score) {
+  return { card: { headline: headline, sub: sub },
+           bonus: Math.round(score), favorites: true, noBeer: true };
+}
+/* pointer position in PX-grid cells (120x150) for the grid games */
+function fvGridX(input) { return (input.x - CRT.x) / 3; }
+function fvGridY(input) { return (input.y - CRT.y) / 3; }
+
+/* ================= WARLORDS (Atari 2600) — "BREAK THE WALL!" =================
+   Four brick castles, four crowned warlords, one fireball. Your shield
+   slides along the two inner faces of the GREEN bottom-left castle.
+   Bounce the fireball into the rival walls: every rival brick you blast
+   is points, and the multiplier climbs as the rubble piles up.
+   WIN: knock out a rival warlord OR blast 5 rival bricks.
+   LOSE: the fireball reaches YOUR warlord — or the clock dies first. */
+MODULES.warlords = {
+  id: "warlords", friend: "dave", name: "Warlords", system: "Atari 2600",
+  verb: "BREAK THE WALL!",
+  hintTouch: "TOUCH: SLIDE TO GUARD YOUR WALL — BLAST 5 RIVAL BRICKS OR KO A KING",
+  hintKeys: "DESKTOP: MOUSE / ARROW KEYS TO GUARD",
+  quoteIntro: "The most-requested game at game night.",
+  quoteSay: { who: "dave", text: "The most-requested game at game night." },
+  duration: 10, favorites: true, noBeer: true,
+  create: function () {
+    var CASTLE = 42, SHIELD_LEN = 11;
+    function makeCastle(ox, oy, dx, dy, color, isPlayer, skill) {
+      // ox,oy = outer corner (0|120, 0|150); dx,dy = growth toward center
+      var bx0 = Math.min(ox, ox + CASTLE * dx), by0 = Math.min(oy, oy + CASTLE * dy);
+      var ix = ox + CASTLE * dx, iy = oy + CASTLE * dy; // inner corner point
+      var c = { ox: ox, oy: oy, dx: dx, dy: dy, bx0: bx0, by0: by0, ix: ix, iy: iy,
+                color: color, isPlayer: isPlayer, skill: skill, alive: true,
+                king: { x: dx > 0 ? ox + 2 : ox - 11, y: dy > 0 ? oy + 2 : oy - 11, w: 9, h: 9 },
+                bricks: [], shieldP: 20 };
+      // horizontal wall: full width, 6 thick at the inner-y edge; bricks 6x3
+      var wy0 = dy > 0 ? iy - 6 : iy;
+      for (var r = 0; r < 2; r++) for (var col = 0; col < 7; col++)
+        c.bricks.push({ x: bx0 + col * 6, y: wy0 + r * 3, w: 6, h: 3, c: col, r: r, owner: c });
+      // vertical wall: 6 thick at the inner-x edge, clear of the horiz band; bricks 3x6
+      var wx0 = dx > 0 ? ix - 6 : ix;
+      var vy0 = dy > 0 ? by0 : by0 + 6, vy1 = dy > 0 ? by0 + CASTLE - 6 : by0 + CASTLE;
+      for (var cc = 0; cc < 2; cc++) for (var row = 0; row < 6; row++)
+        c.bricks.push({ x: wx0 + cc * 3, y: vy0 + row * 6, w: 3, h: 6, c: cc + 7, r: row, owner: c });
+      // shield path: seg H just inside the horizontal wall, then seg V
+      c.segHy = iy + 3 * dy, c.segVx = ix + 3 * dx;
+      c.segLen = (CASTLE - 4 - SHIELD_LEN); // travel of the shield's start point
+      return c;
+    }
+    function shieldRect(c) {
+      var p = Math.max(0, Math.min(c.shieldP, c.segLen * 2));
+      if (p <= c.segLen) { // on H: start x from the castle's outer side
+        var sx = c.dx > 0 ? c.bx0 + 2 + p : c.bx0 + CASTLE - 2 - SHIELD_LEN - p;
+        return { x: sx, y: c.segHy - 1, w: SHIELD_LEN, h: 2, horiz: true };
+      }
+      var p2 = p - c.segLen;
+      var sy = c.dy > 0 ? c.by0 + 2 + p2 : c.by0 + CASTLE - 2 - SHIELD_LEN - p2;
+      return { x: c.segVx - 1, y: sy, w: 2, h: SHIELD_LEN, horiz: false };
+    }
+    function pointerToP(c, gx, gy) {
+      // desired shield edge in absolute grid coords, converted back to the
+      // path parameter with the exact inverse of shieldRect()'s formulas
+      var sxD = clampN(gx - SHIELD_LEN / 2, c.bx0 + 2, c.bx0 + CASTLE - 2 - SHIELD_LEN);
+      var pH = c.dx > 0 ? sxD - (c.bx0 + 2) : (c.bx0 + CASTLE - 2 - SHIELD_LEN) - sxD;
+      var syD = clampN(gy - SHIELD_LEN / 2, c.by0 + 2, c.by0 + CASTLE - 2 - SHIELD_LEN);
+      var pV = (c.dy > 0 ? syD - (c.by0 + 2) : (c.by0 + CASTLE - 2 - SHIELD_LEN) - syD) + c.segLen;
+      var rh = shieldRectAt(c, pH), rv = shieldRectAt(c, pV);
+      var dh = Math.pow(rh.x + rh.w / 2 - gx, 2) + Math.pow(rh.y + rh.h / 2 - gy, 2);
+      var dv = Math.pow(rv.x + rv.w / 2 - gx, 2) + Math.pow(rv.y + rv.h / 2 - gy, 2);
+      return dh <= dv ? pH : pV;
+    }
+    function shieldRectAt(c, p) { var keep = c.shieldP; c.shieldP = p; var r = shieldRect(c); c.shieldP = keep; return r; }
+    function clampN(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
+    var castles = [
+      makeCastle(0, 0, 1, 1, "#e8c832", false, 27),        // TL yellow
+      makeCastle(120, 0, -1, 1, "#58a8f0", false, 30),     // TR blue
+      makeCastle(0, 150, 1, -1, "#58c838", true, 0),       // BL green = YOU
+      makeCastle(120, 150, -1, -1, "#8848c8", false, 33)   // BR purple
+    ];
+    var player = castles[2];
+    var st = { state: "playing", result: null, t: 0,
+      castles: castles, player: player, score: 0, rivalBricks: 0, needBricks: 5,
+      ball: { x: 60, y: 75, vx: 0, vy: 0, mine: false }, ballSpeed: 128, flash: 0,
+      pace: function (b) { // renormalize to ballSpeed AND keep the flight diagonal —
+        var m = Math.sqrt(b.vx * b.vx + b.vy * b.vy) || 1; // a near-vertical rally between
+        b.vx = b.vx / m * this.ballSpeed; b.vy = b.vy / m * this.ballSpeed; // two shields is a stalemate
+        var min = 0.40 * this.ballSpeed;
+        if (Math.abs(b.vx) < min) { var sx = b.vx < 0 ? -1 : 1; b.vx = sx * min; b.vy = (b.vy < 0 ? -1 : 1) * Math.sqrt(this.ballSpeed * this.ballSpeed - b.vx * b.vx); }
+        if (Math.abs(b.vy) < min) { var sy = b.vy < 0 ? -1 : 1; b.vy = sy * min; b.vx = (b.vx < 0 ? -1 : 1) * Math.sqrt(this.ballSpeed * this.ballSpeed - b.vy * b.vy); }
+      },
+      mult: function () { return 1 + Math.min(2, Math.floor(this.rivalBricks / 6)); },
+      launch: function () {
+        var a = (0.35 + fvRnd() * 0.5) * (fvRnd() < 0.5 ? 1 : -1); // angle off vertical
+        var dirY = fvRnd() < 0.5 ? 1 : -1;
+        this.ball.x = 60; this.ball.y = 75;
+        this.ball.vx = Math.sin(a) * this.ballSpeed;
+        this.ball.vy = Math.cos(a) * this.ballSpeed * dirY;
+      },
+      update: function (dt, input) {
+        if (this.state !== "playing") return;
+        this.t += dt;
+        if (this.flash > 0) this.flash -= dt;
+        var spd = fvSpeed(), i, c;
+        /* --- player shield --- */
+        var prevP = player.shieldP;
+        if (input.down) player.shieldP = pointerToP(player, fvGridX(input), fvGridY(input));
+        var kStep = 95 * dt;
+        if (input.keys && input.keys.ArrowRight) player.shieldP += kStep;
+        if (input.keys && input.keys.ArrowUp) player.shieldP += kStep;
+        if (input.keys && input.keys.ArrowLeft) player.shieldP -= kStep;
+        if (input.keys && input.keys.ArrowDown) player.shieldP -= kStep;
+        player.shieldP = Math.max(0, Math.min(player.segLen * 2, player.shieldP));
+        // "played return" memory: a shield you are actually sliding attacks;
+        // a parked shield still blocks, but its bounces earn no possession.
+        if (Math.abs(player.shieldP - prevP) / Math.max(dt, 0.001) > 4) player.actT = 0.35;
+        else player.actT = Math.max(0, (player.actT || 0) - dt);
+        /* --- CPU shields: re-think every 0.22 s (reaction lag) with aim
+               error, then chase the stale read at capped speed — beatable --- */
+        for (i = 0; i < castles.length; i++) {
+          c = castles[i];
+          if (c.isPlayer || !c.alive) continue;
+          c.thinkT = (c.thinkT || 0) - dt;
+          if (c.thinkT <= 0) {
+            c.thinkT = 0.22;
+            c.wantP = pointerToP(c, this.ball.x + (fvRnd() * 10 - 5), this.ball.y + (fvRnd() * 10 - 5));
+          }
+          var diff = (c.wantP !== undefined ? c.wantP : c.shieldP) - c.shieldP, maxMove = c.skill * spd * dt;
+          c.shieldP += Math.max(-maxMove, Math.min(maxMove, diff));
+        }
+        /* --- ball --- */
+        var b = this.ball, steps = 3, sdt = dt / steps;
+        // (possession: b.mine is set on shield touches in hitWorld)
+        for (var s = 0; s < steps && this.state === "playing"; s++) {
+          b.x += b.vx * spd * sdt; b.y += b.vy * spd * sdt;
+          if (b.x < 2) { b.x = 2; b.vx = Math.abs(b.vx); fvSfx(160, 0.03, "square", 0.05); }
+          if (b.x > 118) { b.x = 118; b.vx = -Math.abs(b.vx); fvSfx(160, 0.03, "square", 0.05); }
+          if (b.y < 2) { b.y = 2; b.vy = Math.abs(b.vy); fvSfx(160, 0.03, "square", 0.05); }
+          if (b.y > 148) { b.y = 148; b.vy = -Math.abs(b.vy); fvSfx(160, 0.03, "square", 0.05); }
+          this.hitWorld(b);
+        }
+      },
+      hitWorld: function (b) {
+        var i, j, c, r;
+        /* kings */
+        for (i = 0; i < castles.length; i++) {
+          c = castles[i];
+          if (!c.alive) continue;
+          r = c.king;
+          if (b.x + 1 > r.x && b.x - 1 < r.x + r.w && b.y + 1 > r.y && b.y - 1 < r.y + r.h) {
+            c.alive = false; this.flash = 0.5; fvNoise(0.3, 0.18);
+            fvSfx(98, 0.25, "square", 0.14); fvSfx(65, 0.35, "square", 0.12, 0.08);
+            if (c.isPlayer) {
+              this.state = "lost";
+              this.result = fvResult("YOUR KING HAS FALLEN!", "The green crown is rubble. The crowd goes mild.", this.score);
+            } else if (b.mine) { // YOUR attack took the crown
+              this.score += 250 * this.mult();
+              this.state = "won";
+              this.result = fvResult("KING DOWN!", "One crown, courtesy of your fireball. +250 and bragging rights.", this.score);
+            } else if (castles.every(function (c2) { return c2.isPlayer || !c2.alive; })) {
+              this.state = "won"; // the warlords wiped each other out — you outlived them
+              this.result = fvResult("LAST WARLORD STANDING!", "The rivals destroyed each other. You take the crown by survival.", this.score);
+            }
+            return;
+          }
+        }
+        /* shields */
+        for (i = 0; i < castles.length; i++) {
+          c = castles[i];
+          if (!c.alive) continue;
+          r = shieldRect(c);
+          if (b.x + 1 > r.x && b.x - 1 < r.x + r.w && b.y + 1 > r.y && b.y - 1 < r.y + r.h) {
+            b.mine = !!c.isPlayer && player.actT > 0; // possession = last PLAYED
+                                   // return; your returns are aimed (assist)
+            var off = r.horiz ? (b.x - (r.x + r.w / 2)) / (r.w / 2) : (b.y - (r.y + r.h / 2)) / (r.h / 2);
+            if (r.horiz) {
+              b.vy = Math.abs(b.vy) * c.dy;                       // away from the castle
+              if (Math.abs(b.vy) < 20) b.vy = 20 * c.dy;
+              b.vx += off * 34;
+            } else {
+              b.vx = Math.abs(b.vx) * c.dx;
+              if (Math.abs(b.vx) < 20) b.vx = 20 * c.dx;
+              b.vy += off * 34;
+            }
+            if (c.isPlayer) { // arcade assist: your returns lean toward the weakest rival king
+              var weak = null, wi;
+              for (wi = 0; wi < castles.length; wi++)
+                if (!castles[wi].isPlayer && castles[wi].alive && (!weak || castles[wi].bricks.length < weak.bricks.length)) weak = castles[wi];
+              if (weak) {
+                var ax = weak.king.x + 4 - b.x, ay = weak.king.y + 4 - b.y, am = Math.sqrt(ax * ax + ay * ay) || 1;
+                b.vx = b.vx * 0.70 + (ax / am) * this.ballSpeed * 0.30;
+                b.vy = b.vy * 0.70 + (ay / am) * this.ballSpeed * 0.30;
+              }
+            }
+            this.pace(b);
+            b.x += b.vx * 0.03; b.y += b.vy * 0.03;               // step clear
+            fvSfx(c.isPlayer ? 320 : 240, 0.04, "square", 0.08);
+            return;
+          }
+        }
+        /* bricks */
+        for (i = 0; i < castles.length; i++) {
+          c = castles[i];
+          for (j = c.bricks.length - 1; j >= 0; j--) {
+            var br = c.bricks[j];
+            if (b.x + 1 > br.x && b.x - 1 < br.x + br.w && b.y + 1 > br.y && b.y - 1 < br.y + br.h) {
+              c.bricks.splice(j, 1);
+              var dxp = (b.x - (br.x + br.w / 2)) / (br.w / 2), dyp = (b.y - (br.y + br.h / 2)) / (br.h / 2);
+              if (Math.abs(dxp) > Math.abs(dyp)) b.vx = (dxp > 0 ? 1 : -1) * Math.abs(b.vx || 12);
+              else b.vy = (dyp > 0 ? 1 : -1) * Math.abs(b.vy || 12);
+              this.ballSpeed = Math.min(176, this.ballSpeed + 5);
+              this.pace(b);
+              if (!c.isPlayer && b.mine) {
+                this.rivalBricks++;
+                this.score += 10 * this.mult();
+                fvSfx(520 + this.rivalBricks * 12, 0.05, "square", 0.09);
+                if (this.rivalBricks >= this.needBricks && this.state === "playing") {
+                  this.state = "won";
+                  this.result = fvResult("WALL BREAKER!", "Five rival bricks blasted. Dave's favorite for a reason.", this.score);
+                }
+              } else {
+                fvSfx(140, 0.06, "square", 0.09);
+              }
+              return;
+            }
+          }
+        }
+      },
+      onTimeout: function () {
+        if (this.state !== "playing") return;
+        this.state = "lost";
+        this.result = fvResult("THE WALLS HELD.", "No crown, not enough rubble. The fireball keeps the change.", this.score);
+      },
+      render: function () {
+        R(CRT.x, CRT.y, CRT.w, CRT.h, "#000000");
+        var i, j, c;
+        for (i = 0; i < castles.length; i++) {
+          c = castles[i];
+          if (!c.alive) continue;
+          // bricks: striped reds, mortar-dark base line (ref: horizontal stripes)
+          for (j = 0; j < c.bricks.length; j++) {
+            var br = c.bricks[j];
+            PX(CC, br.x, br.y, br.w, br.h - 1, ((br.c + br.r) % 2) ? "#d83a20" : "#b02818");
+            PX(CC, br.x, br.y + br.h - 1, br.w, 1, "#701408");
+          }
+          // the warlord: little crown in the corner color (ref)
+          var k = c.king;
+          PX(CC, k.x, k.y + 2, 9, 6, c.color);
+          PX(CC, k.x, k.y, 2, 3, c.color); PX(CC, k.x + 3, k.y, 3, 3, c.color); PX(CC, k.x + 7, k.y, 2, 3, c.color);
+          PX(CC, k.x + 3, k.y + 5, 3, 2, "#000000");
+          // shield: castle color with a white core (ref shields)
+          var r = shieldRect(c);
+          PX(CC, r.x, r.y, r.w, r.h, c.color);
+          if (r.horiz) PX(CC, r.x + 1, r.y, r.w - 2, 1, "#ffffff");
+          else PX(CC, r.x, r.y + 1, 1, r.h - 2, "#ffffff");
+          if (c.isPlayer && Math.floor(this.t * 2.4) % 2 === 0) // pulse so YOU reads instantly
+            PX(CC, r.x - 1, r.y - 1, r.w + 2, 1, "#ffffff");
+        }
+        // fireball: white-hot core, orange flicker (ref: the little ball)
+        var b = this.ball;
+        PX(CC, Math.round(b.x) - 1, Math.round(b.y) - 1, 3, 3, "#f08818");
+        PX(CC, Math.round(b.x), Math.round(b.y), 1, 1, "#ffffff");
+        if (this.flash > 0) R(CRT.x, CRT.y, CRT.w, CRT.h, "rgba(240,136,24,0.25)");
+        // 2600 score digits + progress (ref: chunky white numbers)
+        Tplain("SCORE " + this.score, CRT.x + CRT.w / 2, CRT.y + 6, 15, "#ffffff", "center");
+        Tplain("BRICKS " + this.rivalBricks + "/" + this.needBricks + "  x" + this.mult(),
+               CRT.x + CRT.w / 2, CRT.y + CRT.h - 24, 12, "#58c838", "center");
+        Tplain("YOU = GREEN", CRT.x + CRT.w / 2, CRT.y + 26, 11, "#58c838", "center");
+      }
+    };
+    st.launch();
+    return st;
+  }
+};
+
+/* ================= HYDRO THUNDER (Arcade) — "BOOST!" =================
+   A 10-second stadium sprint in pseudo-3D. Slide to steer the yellow
+   hydroplane; thread the buoy gates for points, and TAP the moment a
+   red boost barrel reaches you to light the jets. Crashes cost speed,
+   not the round. WIN: thread 6 gates before the clock dies. */
+MODULES.hydrothunder = {
+  id: "hydrothunder", friend: "dave", name: "Hydro Thunder", system: "Arcade",
+  verb: "BOOST!",
+  hintTouch: "TOUCH: SLIDE TO STEER — TAP A BOOST BARREL AS IT REACHES YOU",
+  hintKeys: "DESKTOP: MOUSE / ARROWS TO STEER — SPACE TO BOOST",
+  quoteIntro: "My favorite Dreamcast racer. Full boost.",
+  quoteSay: { who: "dave", text: "My favorite Dreamcast racer. Full boost." },
+  duration: 10, favorites: true, noBeer: true,
+  create: function () {
+    var st = { state: "playing", result: null, t: 0,
+      score: 0, gates: 0, needGates: 6, dist: 0, nextGate: 10, nextPad: 55, nextRival: 95,
+      boatX: 0, boatTilt: 0, boostT: 0, crashT: 0, lastTapT: -9, objs: [], spray: 0,
+      horizon: 148, // px below CRT.y
+      mult: function () { return 1 + Math.min(2, Math.floor(this.gates / 3)); },
+      curve: function () { return Math.sin(this.dist * 0.016) * 58; },
+      hwAt: function (y) { // water half-width at a CRT-relative y
+        var f = Math.max(0, Math.min(1, (y - this.horizon) / (CRT.h - this.horizon)));
+        return 26 + (170 - 26) * Math.pow(f, 1.35);
+      },
+      cxAt: function (y) {
+        var f = Math.max(0, Math.min(1, (y - this.horizon) / (CRT.h - this.horizon)));
+        return CRT.w / 2 + this.curve() * f * f;
+      },
+      boatLineY: function () { return CRT.h - 66; },
+      boatOff: function () { // boatX is canvas-absolute; course math is CRT-relative
+        var y = this.boatLineY();
+        return ((this.boatX - CRT.x) - this.cxAt(y)) / this.hwAt(y);
+      },
+      spawn: function (type, off) {
+        this.objs.push({ type: type, z: 1, off: off, hit: false });
+      },
+      update: function (dt, input) {
+        if (this.state !== "playing") return;
+        this.t += dt;
+        var spd = fvSpeed();
+        if (this.crashT > 0) this.crashT -= dt;
+        if (this.boostT > 0) this.boostT -= dt;
+        if (input.tapEdge || input.keyEdge.Space || input.keyEdge.Enter) this.lastTapT = this.t;
+        /* steering: slide (pointer) or arrows — boatX is canvas-absolute */
+        var y = this.boatLineY(), halfW = this.hwAt(y), cxAbs = CRT.x + this.cxAt(y);
+        if (!this.boatX) this.boatX = cxAbs;
+        var prevX = this.boatX;
+        if (input.down) this.boatX = Math.max(CRT.x + 26, Math.min(CRT.x + CRT.w - 26, input.x));
+        var kStep = 330 * dt;
+        if (input.keys && input.keys.ArrowLeft) this.boatX -= kStep;
+        if (input.keys && input.keys.ArrowRight) this.boatX += kStep;
+        this.boatX = Math.max(cxAbs - halfW + 14, Math.min(cxAbs + halfW - 14, this.boatX));
+        this.boatTilt = Math.max(-1, Math.min(1, (this.boatX - prevX) / Math.max(1, 260 * dt)));
+        /* course advance: distance-based spawns; boost covers ground faster */
+        var rate = 36 * (this.boostT > 0 ? 1.7 : 1) * (this.crashT > 0 ? 0.45 : 1) * spd;
+        this.dist += rate * dt;
+        if (this.dist >= this.nextGate) {
+          this.nextGate += 40;
+          var offs = [-0.52, -0.3, 0, 0.3, 0.52];
+          this.spawn("gate", offs[Math.floor(fvRnd() * offs.length)]);
+        }
+        if (this.dist >= this.nextPad) { this.nextPad += 88 + fvRnd() * 30; this.spawn("pad", (fvRnd() * 1.2 - 0.6)); }
+        if (this.dist >= this.nextRival) { this.nextRival += 120 + fvRnd() * 60; this.spawn("rival", (fvRnd() * 1.1 - 0.55)); }
+        /* objects approach — an object "crosses" at the boat line, z = 0.11,
+           which is where objXY() puts it level with the boat (y = boatLineY) */
+        var dz = (0.34 + 0.02 * this.mult()) * (this.boostT > 0 ? 1.55 : 1) * (this.crashT > 0 ? 0.5 : 1) * spd;
+        for (var i = this.objs.length - 1; i >= 0; i--) {
+          var o = this.objs[i];
+          o.z -= dz * dt;
+          if (o.z <= 0.11 && !o.hit) { o.hit = true; this.cross(o); }
+          if (o.z < -0.15) this.objs.splice(i, 1);
+        }
+        this.spray += dt * (this.boostT > 0 ? 3 : 1);
+        if (Math.random() < dt * 6) fvSfx(70 + Math.random() * 30 + (this.boostT > 0 ? 60 : 0), 0.07, "triangle", 0.05); // engine burble
+      },
+      cross: function (o) {
+        var diff = Math.abs(this.boatOff() - o.off);
+        if (o.type === "gate") {
+          if (diff < 0.30) {
+            this.gates++; this.score += 150 * this.mult();
+            fvSfx(660, 0.07, "square", 0.1); fvSfx(880, 0.09, "square", 0.1, 0.06); fvSfx(1320, 0.12, "square", 0.09, 0.12);
+            if (this.gates >= this.needGates && this.state === "playing") {
+              this.state = "won";
+              this.result = fvResult("CHECKERED FLAG!", "Six gates threaded at full song. The crowd does the wave.", this.score);
+            }
+          } else if (diff < 0.45) { this.bump("BUOY!"); }
+          // else: clean miss, the gate just goes by
+        } else if (o.type === "pad") {
+          if (diff < 0.16 && this.t - this.lastTapT < 0.25) {
+            this.boostT = 1.1; this.score += 100 * this.mult();
+            fvNoise(0.25, 0.14); fvSfx(220, 0.2, "square", 0.1); fvSfx(440, 0.24, "square", 0.09, 0.05);
+          }
+        } else if (o.type === "rival") {
+          if (diff < 0.17) this.bump("TRAFFIC!");
+        }
+      },
+      bump: function (word) {
+        if (this.crashT > 0) return;
+        this.crashT = 0.7; this.bumpWord = word; fvNoise(0.18, 0.16); fvSfx(110, 0.15, "square", 0.1);
+      },
+      onTimeout: function () {
+        if (this.state !== "playing") return;
+        this.state = "lost";
+        this.result = fvResult("OUT OF TIME.", "The gates win this one. The boost barrels send their regards.", this.score);
+      },
+      objXY: function (o) {
+        var f = Math.pow(1 - Math.max(0, o.z), 2.1);
+        var y = this.horizon + f * (CRT.h - this.horizon);
+        return { x: this.cxAt(y) + o.off * this.hwAt(y), y: y, s: 0.12 + Math.pow(1 - Math.max(0, o.z), 2.4) * 1.05 };
+      },
+      render: function () {
+        var X = CRT.x, Y = CRT.y, Wd = CRT.w, Hd = CRT.h, hor = Y + this.horizon;
+        // sky + stadium stands with crowd speckle (refs: packed bowl)
+        R(X, Y, Wd, this.horizon, "#57a8e8");
+        R(X, Y + 62, Wd, 40, "#8a8a96");
+        for (var d = 0; d < 130; d++) {
+          var px2 = X + ((d * 47 + 13) % Wd), py2 = Y + 66 + ((d * 29) % 32);
+          R(px2, py2, 3, 3, ["#e8dcc0", "#c2782a", "#3a5f8a", "#a83a2a"][d % 4]);
+        }
+        R(X, Y + 102, Wd, 12, "#36485e"); // press box band
+        // checkered start banner (ref 1) while the run is young
+        if (this.t < 2.2) {
+          R(X + 60, Y + 40, Wd - 120, 18, "#101018");
+          for (var sq = 0; sq < 12; sq++) for (var sr = 0; sr < 2; sr++)
+            if ((sq + sr) % 2 === 0) R(X + 64 + sq * 19, Y + 42 + sr * 7, 19, 7, "#ffffff");
+        }
+        // water: horizontal bands, brighter toward the boat (ref: bright blue course)
+        var bands = ["#1a5a9e", "#1f68b4", "#2578c6", "#2f8ad2", "#3f9ede", "#57b2e8"];
+        for (var bi = 0; bi < bands.length; bi++) {
+          var by0 = this.horizon + (Hd - this.horizon) * bi / bands.length;
+          R(X, Y + by0, Wd, (Hd - this.horizon) / bands.length + 1, bands[bi]);
+        }
+        // side walls with ad banners, converging on the horizon (refs)
+        var bannerCols = ["#f08818", "#008888", "#ffffff", "#e84d26"];
+        for (var wy = this.horizon; wy < Hd; wy += 9) {
+          var hw = this.hwAt(wy), cx = this.cxAt(wy), seg = Math.floor((wy + this.dist * 2) / 27) % 4;
+          R(X, Y + wy, Math.max(0, cx - hw), 9, "#5a6a8a"); // left apron
+          R(X + cx + hw + 16, Y + wy, Math.max(0, Wd - (cx + hw + 16)), 9, "#5a6a8a"); // right apron
+          R(X + cx - hw - 16, Y + wy, 16, 9, bannerCols[seg]);
+          R(X + cx + hw, Y + wy, 16, 9, bannerCols[(seg + 2) % 4]);
+          R(X + cx - hw - 2, Y + wy, 2, 9, "#ffffff");
+          R(X + cx + hw, Y + wy, 2, 9, "#ffffff");
+        }
+        // objects, far to near
+        var sorted = this.objs.slice().sort(function (a, b) { return b.z - a.z; });
+        for (var i = 0; i < sorted.length; i++) this.drawObj(sorted[i]);
+        this.drawBoat();
+        // HUD: chunky yellow arcade type (ref 2: Time / Lap / Position)
+        Tplain("GATES " + this.gates + "/" + this.needGates, X + 12, Y + 8, 16, "#f8b800");
+        Tplain("SCORE " + this.score, X + Wd - 12, Y + 8, 16, "#f8b800", "right");
+        if (this.boostT > 0) {
+          R(X + Wd / 2 - 52, Y + 30, 104, 10, "#101018");
+          R(X + Wd / 2 - 50, Y + 32, 100 * (this.boostT / 1.1), 6, "#e84d26");
+          Tplain("BOOST!", X + Wd / 2, Y + 44, 14, "#e84d26", "center");
+        }
+        if (this.crashT > 0.35 && this.bumpWord) Tplain(this.bumpWord, X + Wd / 2, Y + Hd - 130, 17, "#ffffff", "center");
+      },
+      drawObj: function (o) {
+        var p = this.objXY(o), X = CRT.x, Y = CRT.y, s = p.s;
+        var gx = X + p.x, gy = Y + p.y;
+        if (o.type === "gate") {
+          var gw = this.hwAt(p.y) * 0.34 * 2, gh = 44 * s;
+          // buoys: red with a white band (ref course markers)
+          R(gx - gw / 2 - 6 * s, gy - gh, 12 * s, gh, "#d82818"); R(gx - gw / 2 - 6 * s, gy - gh * 0.55, 12 * s, 5 * s, "#ffffff");
+          R(gx + gw / 2 - 6 * s, gy - gh, 12 * s, gh, "#d82818"); R(gx + gw / 2 - 6 * s, gy - gh * 0.55, 12 * s, 5 * s, "#ffffff");
+          // checkered banner across the top
+          var bw = gw + 12 * s;
+          R(gx - bw / 2, gy - gh - 10 * s, bw, 9 * s, "#101018");
+          for (var q = 0; q < 8; q++) if (q % 2 === 0) R(gx - bw / 2 + q * bw / 8, gy - gh - 10 * s, bw / 8, 9 * s, "#ffffff");
+        } else if (o.type === "pad") {
+          // boost barrel: red can, yellow lightning flash (ref 1)
+          var pw = 30 * s, ph = 22 * s;
+          R(gx - pw / 2, gy - ph, pw, ph, "#d82818");
+          R(gx - pw / 2, gy - ph, pw, 4 * s, "#8f1d14");
+          g.fillStyle = "#f8b800";
+          g.beginPath();
+          g.moveTo(gx + 3 * s, gy - ph + 2 * s); g.lineTo(gx - 5 * s, gy - ph * 0.45);
+          g.lineTo(gx, gy - ph * 0.45); g.lineTo(gx - 3 * s, gy - 2 * s);
+          g.lineTo(gx + 5 * s, gy - ph * 0.55); g.lineTo(gx, gy - ph * 0.55);
+          g.closePath(); g.fill();
+          if (Math.floor(this.t * 3) % 2 === 0) R(gx - pw / 2 - 3, gy - ph - 3, pw + 6, 2, "#f8b800"); // pulse ring
+        } else { // rival boat: teal hull, dark canopy (ref 1)
+          var rw = 46 * s, rh = 26 * s;
+          R(gx - rw / 2, gy - rh * 0.4, rw, rh * 0.4, "#0f7a6a");
+          R(gx - rw * 0.32, gy - rh * 0.75, rw * 0.64, rh * 0.4, "#14a088");
+          R(gx - rw * 0.14, gy - rh * 0.95, rw * 0.28, rh * 0.3, "#14202c");
+          R(gx - rw / 2 - 3 * s, gy - 2, rw * 0.3, 2, "#ffffff"); R(gx + rw * 0.2, gy - 2, rw * 0.3, 2, "#ffffff"); // wake
+        }
+      },
+      drawBoat: function () {
+        var X = CRT.x, Y = CRT.y, y = Y + this.boatLineY();
+        var bx = this.boatX || (X + CRT.w / 2), tilt = this.boatTilt * 5;
+        // wake: foam fan behind the hull, bigger on boost
+        var wk = this.boostT > 0 ? 30 : 20;
+        g.fillStyle = "rgba(244,241,232,0.5)";
+        g.beginPath(); g.moveTo(bx - 14, y + 16); g.lineTo(bx + 14, y + 16);
+        g.lineTo(bx + 14 + wk, y + 52); g.lineTo(bx - 14 - wk, y + 52); g.closePath(); g.fill();
+        R(bx - 20 - wk / 2, y + 40, 8, 4, "#ffffff"); R(bx + 12 + wk / 2, y + 44, 8, 4, "#ffffff");
+        // boost flames: pink-white jets off the engines (ref 1)
+        if (this.boostT > 0) {
+          g.fillStyle = "#f8a4c0";
+          g.beginPath(); g.moveTo(bx - 16, y + 14); g.lineTo(bx - 9, y + 14); g.lineTo(bx - 12, y + 40 + Math.random() * 8); g.closePath(); g.fill();
+          g.beginPath(); g.moveTo(bx + 9, y + 14); g.lineTo(bx + 16, y + 14); g.lineTo(bx + 12, y + 40 + Math.random() * 8); g.closePath(); g.fill();
+          g.fillStyle = "#ffffff";
+          g.beginPath(); g.moveTo(bx - 14, y + 14); g.lineTo(bx - 11, y + 14); g.lineTo(bx - 12, y + 28); g.closePath(); g.fill();
+          g.beginPath(); g.moveTo(bx + 11, y + 14); g.lineTo(bx + 14, y + 14); g.lineTo(bx + 12, y + 28); g.closePath(); g.fill();
+        }
+        // hull: yellow hydroplane, twin sponsons, canopy, rear wing (ref 2)
+        R(bx - 26, y + 6, 52, 10, "#d89a06");
+        R(bx - 30, y - 2, 14, 16, "#f8b800"); R(bx + 16, y - 2, 14, 16, "#f8b800"); // sponsons
+        R(bx - 30, y - 2, 14, 4, "#a87404"); R(bx + 16, y - 2, 14, 4, "#a87404");
+        R(bx - 13, y - 14, 26, 22, "#f8b800");
+        R(bx - 9, y - 20, 18, 9, "#364185");   // canopy
+        R(bx - 9, y - 20, 18, 3, "#6888fc");
+        R(bx - 24, y - 26, 48, 6, "#20222e");  // rear wing
+        R(bx - 24, y - 26, 48, 2, "#e84d26");
+        R(bx - 15, y + 10, 9, 8, "#5a5a66"); R(bx + 6, y + 10, 9, 8, "#5a5a66"); // engines
+        if (tilt) { R(bx + (tilt > 0 ? 24 : -30), y + 2, 6, 3, "#ffffff"); } // lean spray
+      }
+    };
+    return st;
+  }
+};
+
+/* ================= RIVER RAID (Atari 2600) — "SHOOT THE FUEL!" =================
+   The vertical burst: purple-blue river, two-tone green banks, your
+   yellow jet glued to the bottom of the screen. Slide to fly the river
+   (the banks are death), TAP to shoot the planes, helis and ships —
+   and whatever you do, grab the pink FUEL depots: the gauge drains
+   the whole way. WIN: reach the bridge. Sprite matrices + palette
+   cross-checked against joaoneto/river-raid-2k (MIT License) and the
+   original 2600 screenshots in refs/. */
+MODULES.riverraid = {
+  id: "riverraid", friend: "dave", name: "River Raid", system: "Atari 2600",
+  verb: "SHOOT THE FUEL!",
+  hintTouch: "TOUCH: SLIDE TO FLY THE RIVER — TAP TO SHOOT — GRAB THE FUEL",
+  hintKeys: "DESKTOP: MOUSE / ARROWS TO FLY — SPACE TO SHOOT",
+  quoteIntro: "Top-five 2600. Don't waste the fuel.",
+  quoteSay: { who: "dave", text: "Top-five 2600. Don't waste the fuel." },
+  duration: 10, favorites: true, noBeer: true,
+  create: function () {
+    /* Palette + JET/HELI/SHIP matrices transcribed from river-raid-2k's
+       palette.js / sprites.js (MIT, joaoneto) — indices: 2 yellow, 3 white,
+       4 green, 5 pink, 6 dark grey, 7 red, 8 light green, 9 dark green,
+       10 navy. PLANE redrawn from the 2600 gameplay refs (the 2k remake
+       ships no plane sprite). The Spriters Resource sheet itself is
+       Cloudflare-walled from this machine; its shapes match these matrices. */
+    var PAL = { Y: "#fbf236", W: "#ffffff", G: "#6abe30", P: "#d77bba",
+                K: "#383838", R: "#ac3232", L: "#62cf72", D: "#3a681a", N: "#364185" };
+    var JET = ["....Y....", "....Y....", "...YYY...", "..YYYYY..", ".YY.Y.YY.",
+               ".Y..Y..Y.", "...YYY...", "..Y.Y.Y.."];
+    var PLANE = ["....W....", "....W....", "...WWW...", "WWWWWWWWW",
+                 ".WWWWWWW.", "....W....", "...WWW...", "..W...W.."];
+    var HELI = [".........YYYY.", "....YYYYY.....", "........YY....",
+                "......DDDDDD..", "DD..DDDDDDDDD.", "NNNNNNNNNNNNNN",
+                "NNNNNNNNNNNNNN", "DD....DDDDDD..", "........DD....",
+                "......DDDDDD.."];
+    var SHIP = [".....KK.......", "....KKK.......", "..KKKKKKK.....",
+                "RRRRRRRRRRRRRR", ".RRRRRRRRRRR..", "..LLLLLLLL...."];
+    function drawSprite(rows, x, y) {
+      for (var r = 0; r < rows.length; r++) {
+        var row = rows[r];
+        for (var c = 0; c < row.length; c++) {
+          var ch = row.charAt(c);
+          if (ch !== "." && PAL[ch]) PX(CC, Math.round(x) + c, Math.round(y) + r, 1, 1, PAL[ch]);
+        }
+      }
+    }
+    var GLYPH = { F: ["###", "#..", "##.", "#.."], U: ["#.#", "#.#", "#.#", "###"],
+                  E: ["###", "#..", "##.", "###"], L: ["#..", "#..", "#..", "###"] };
+    function drawDepot(x, y) { // pink depot, FUEL stacked in white (ref)
+      PX(CC, x, y, 8, 22, "#d77bba");
+      PX(CC, x, y, 8, 1, "#ffffff"); PX(CC, x, y + 21, 8, 1, "#ffffff");
+      var word = "FUEL";
+      for (var li = 0; li < 4; li++) {
+        var gl = GLYPH[word.charAt(li)];
+        for (var r = 0; r < 4; r++) for (var c = 0; c < 3; c++)
+          if (gl[r].charAt(c) === "#") PX(CC, x + 2 + c, y + 2 + li * 5 + r, 1, 1, "#ffffff");
+      }
+    }
+    var D_END = 360;
+    var st = { state: "playing", result: null, t: 0,
+      d: 0, jetX: 60, fuel: 100, score: 0, shots: 0,
+      enemies: [], depots: [], bullets: [], boom: null,
+      nextSpawnD: 95, nextDepotD: 110, spawnN: 0, fireT: 0, sfxT: 0, riverC: 60, riverHW: 27,
+      centerAt: function (d) { return 60 + 24 * Math.sin(d * 0.011) + 12 * Math.sin(d * 0.027 + 1.7); },
+      halfWAt: function (d) { return 27 - 5 * Math.sin(d * 0.019 + 0.4); },
+      mult: function () { return 1 + Math.min(2, Math.floor(this.d / 180)); },
+      scroll: function () { return 50 * (1 + this.d / 1400) * fvSpeed(); },
+      update: function (dt, input) {
+        if (this.state !== "playing") return;
+        this.t += dt;
+        var sc = this.scroll();
+        this.d += sc * dt;
+        this.fuel -= 15 * dt;
+        this.riverC = this.centerAt(this.d); this.riverHW = this.halfWAt(this.d);
+        /* steering: slide or arrows */
+        if (input.down) this.jetX = Math.max(6, Math.min(114, fvGridX(input)));
+        var kStep = 78 * dt;
+        if (input.keys && input.keys.ArrowLeft) this.jetX -= kStep;
+        if (input.keys && input.keys.ArrowRight) this.jetX += kStep;
+        this.jetX = Math.max(6, Math.min(114, this.jetX));
+        /* fire */
+        this.fireT -= dt;
+        if ((input.tapEdge || input.keyEdge.Space || input.keyEdge.Enter) && this.fireT <= 0) {
+          this.fireT = 0.16; this.shots++;
+          this.bullets.push({ x: this.jetX, y: 118 });
+          fvSfx(740, 0.05, "square", 0.07);
+        }
+        /* spawns */
+        while (this.nextSpawnD < this.d + 165) {
+          var sd2 = this.nextSpawnD; this.nextSpawnD += 34 + fvRnd() * 26;
+          var kinds = ["ship", "heli", "plane", "heli", "ship", "plane"];
+          var kind = kinds[this.spawnN++ % kinds.length];
+          var ex = this.centerAt(sd2) + (fvRnd() * 24 - 12);
+          ex = Math.max(this.centerAt(sd2) - this.halfWAt(sd2) + 8, Math.min(this.centerAt(sd2) + this.halfWAt(sd2) - 8, ex));
+          this.enemies.push({ kind: kind, d: sd2, x: ex, baseX: ex, phase: fvRnd() * 6.28, dead: false });
+        }
+        while (this.nextDepotD < this.d + 165) {
+          var dd = this.nextDepotD; this.nextDepotD += 130;
+          this.depots.push({ d: dd, x: this.centerAt(dd), taken: false });
+        }
+        /* planes fly at you; helis wander */
+        for (var i = 0; i < this.enemies.length; i++) {
+          var e = this.enemies[i];
+          if (e.kind === "plane") e.d -= 30 * dt;
+          if (e.kind === "heli") e.x = e.baseX + Math.sin(this.t * 1.3 + e.phase) * 6;
+        }
+        /* bullets */
+        for (var bi = this.bullets.length - 1; bi >= 0; bi--) {
+          var bu = this.bullets[bi];
+          bu.y -= 150 * dt;
+          if (bu.y < 2) { this.bullets.splice(bi, 1); continue; }
+          var buD = this.d + (122 - bu.y);
+          var hit = false;
+          for (var ei = 0; ei < this.enemies.length && !hit; ei++) {
+            var en = this.enemies[ei];
+            var ey = 122 - (en.d - this.d);
+            var ew = en.kind === "ship" ? 14 : (en.kind === "plane" ? 9 : 14);
+            var eh = en.kind === "ship" ? 6 : (en.kind === "plane" ? 8 : 10);
+            if (Math.abs(bu.x - en.x) < ew / 2 && bu.y > ey - eh && bu.y < ey + 2) {
+              en.dead = true; hit = true;
+              var pts = en.kind === "plane" ? 100 : (en.kind === "ship" ? 80 : 60);
+              this.score += pts * this.mult();
+              this.boom = { x: en.x, y: ey - 3, t: 0.3 };
+              fvNoise(0.14, 0.14); fvSfx(196, 0.1, "square", 0.09);
+            }
+          }
+          if (!hit) { // shot a depot: points, but the fuel is gone (classic tradeoff)
+            for (var di = 0; di < this.depots.length && !hit; di++) {
+              var dp = this.depots[di];
+              var dy2 = 122 - (dp.d - this.d);
+              if (!dp.taken && Math.abs(bu.x - dp.x) < 5 && bu.y > dy2 - 22 && bu.y < dy2 + 2) {
+                dp.taken = true; hit = true; this.score += 50 * this.mult();
+                this.boom = { x: dp.x, y: dy2 - 10, t: 0.3 };
+                fvNoise(0.14, 0.12);
+              }
+            }
+          }
+          if (hit) this.bullets.splice(bi, 1);
+        }
+        this.enemies = this.enemies.filter(function (e) { return !e.dead && (e.d - st.d) > -30; });
+        /* depots: fly over to grab */
+        for (var gi = 0; gi < this.depots.length; gi++) {
+          var gp = this.depots[gi];
+          var gy = 122 - (gp.d - this.d);
+          if (!gp.taken && gy > 104 && gy < 128 && Math.abs(this.jetX - gp.x) < 6) {
+            gp.taken = true; this.fuel = Math.min(100, this.fuel + 40);
+            this.score += 25 * this.mult();
+            fvSfx(523, 0.07, "square", 0.1); fvSfx(784, 0.1, "square", 0.1, 0.06);
+          }
+        }
+        if (this.boom && (this.boom.t -= dt) <= 0) this.boom = null;
+        /* engine drone, throttled */
+        this.sfxT -= dt;
+        if (this.sfxT <= 0) { this.sfxT = 0.11; fvSfx(82, 0.07, "square", 0.03); }
+        /* --- endings --- */
+        if (this.d >= D_END) {
+          this.state = "won"; this.score += 200;
+          this.result = fvResult("BRIDGE CROSSED!", "The whole river, one tank of gas. Activision would be proud.", this.score);
+          return;
+        }
+        if (this.fuel <= 0) {
+          this.fuel = 0; this.state = "lost";
+          this.result = fvResult("OUT OF FUEL.", "The jet glides. The river claps politely.", this.score);
+          return;
+        }
+        if (this.jetX - 4 < this.riverC - this.riverHW + 1 || this.jetX + 4 > this.riverC + this.riverHW - 1) {
+          this.state = "lost"; this.boom = { x: this.jetX, y: 118, t: 0.4 }; fvNoise(0.25, 0.16);
+          this.result = fvResult("INTO THE BANK.", "The river is the blue part. Aim for the blue part.", this.score);
+          return;
+        }
+        for (var ci = 0; ci < this.enemies.length; ci++) {
+          var ce = this.enemies[ci], cey = 122 - (ce.d - this.d);
+          var cw = ce.kind === "ship" ? 14 : (ce.kind === "plane" ? 9 : 14);
+          if (cey > 115 && cey < 131 && Math.abs(this.jetX - ce.x) < (cw / 2 + 3)) {
+            this.state = "lost"; this.boom = { x: this.jetX, y: 118, t: 0.4 }; fvNoise(0.25, 0.16);
+            this.result = fvResult("MID-AIR MEETING.", "Two objects cannot share a river. Physics wins again.", this.score);
+            return;
+          }
+        }
+      },
+      onTimeout: function () {
+        if (this.state !== "playing") return;
+        this.state = "lost";
+        this.result = fvResult("THE RIVER WINS.", "The bridge was right there. It is always right there.", this.score);
+      },
+      render: function () {
+        var gy, dRow, c, hw;
+        // banks + river, row by row (two-tone green sections, ref)
+        for (gy = 0; gy < 136; gy++) {
+          dRow = this.d + (122 - gy);
+          c = this.centerAt(dRow); hw = this.halfWAt(dRow);
+          var bank = Math.floor(dRow / 260) % 2 === 0 ? "#3a681a" : "#6abe30";
+          PX(CC, 0, gy, 120, 1, bank);
+          PX(CC, Math.max(0, Math.round(c - hw)), gy, Math.round(hw * 2), 1, "#639bff");
+        }
+        // the bridge at the end of the burst (ref 1: orange-brown planks, yellow line)
+        var bgy = 122 - (D_END - this.d);
+        if (bgy > -14 && bgy < 140) {
+          var bc = this.centerAt(D_END), bhw = this.halfWAt(D_END);
+          PX(CC, Math.round(bc - bhw) - 6, Math.round(bgy), Math.round(bhw * 2) + 12, 9, "#8a8a96");
+          PX(CC, Math.round(bc - bhw), Math.round(bgy), Math.round(bhw * 2), 9, "#b45a18");
+          PX(CC, Math.round(bc - bhw), Math.round(bgy) + 4, Math.round(bhw * 2), 1, "#fbf236");
+          PX(CC, Math.round(bc - bhw), Math.round(bgy) + 1, Math.round(bhw * 2), 1, "#8a4410");
+          PX(CC, Math.round(bc - bhw), Math.round(bgy) + 7, Math.round(bhw * 2), 1, "#8a4410");
+        }
+        // depots + enemies
+        var i, e, ey;
+        for (i = 0; i < this.depots.length; i++) {
+          var dp = this.depots[i];
+          if (dp.taken) continue;
+          var dy3 = 122 - (dp.d - this.d);
+          if (dy3 > -24 && dy3 < 140) drawDepot(Math.round(dp.x) - 4, Math.round(dy3) - 22);
+        }
+        for (i = 0; i < this.enemies.length; i++) {
+          e = this.enemies[i]; ey = 122 - (e.d - this.d);
+          if (ey < -12 || ey > 142) continue;
+          if (e.kind === "ship") drawSprite(SHIP, e.x - 7, ey - 6);
+          else if (e.kind === "plane") drawSprite(PLANE, e.x - 4, ey - 8);
+          else drawSprite(HELI, e.x - 7, ey - 10);
+        }
+        // bullets: yellow tracers (ref)
+        for (i = 0; i < this.bullets.length; i++)
+          PX(CC, Math.round(this.bullets[i].x), Math.round(this.bullets[i].y), 1, 3, "#fbf236");
+        // the jet (gone if it just crashed)
+        if (!(this.state === "lost" && this.boom)) drawSprite(JET, this.jetX - 4, 118);
+        // explosion star
+        if (this.boom) {
+          var bx = Math.round(this.boom.x), by = Math.round(this.boom.y), r = this.boom.t > 0.18 ? 3 : 5;
+          PX(CC, bx - r, by, r * 2, 2, "#f08818"); PX(CC, bx - 1, by - r, 2, r * 2, "#f08818");
+          PX(CC, bx - 1, by - 1, 2, 2, "#fbf236");
+        }
+        // HUD panel (ref: gray strip, yellow score, E..F fuel gauge)
+        PX(CC, 0, 137, 120, 13, "#989898");
+        PX(CC, 0, 136, 120, 1, "#141414");
+        Tplain("" + this.score, CRT.x + 14, CRT.y + 414, 15, "#fbf236");
+        Tplain("E", CRT.x + 168, CRT.y + 416, 12, "#141414");
+        R(CRT.x + 186, CRT.y + 418, 120, 10, "#141414");
+        var fw = Math.max(0, this.fuel) / 100 * 116;
+        R(CRT.x + 188, CRT.y + 420, fw, 6, this.fuel > 30 ? "#58c838" : "#e84d26");
+        Tplain("F", CRT.x + 314, CRT.y + 416, 12, "#141414");
+        Tplain("x" + this.mult(), CRT.x + CRT.w - 14, CRT.y + 414, 13, "#141414", "right");
+      }
+    };
+    return st;
+  }
+};
+
+/* registry for the integration pass + harness */
+var FAVORITES_MODULES = [MODULES.warlords, MODULES.hydrothunder, MODULES.riverraid];
+if (typeof window !== "undefined") window.FAVORITES_MODULES = FAVORITES_MODULES;
+
+/* ==================== inlined: modules/jekyll.js ==================== */
+/* ============================================================================
+   GAME NIGHT AT DAVE'S — HIDDEN ROUND: DR. JEKYLL AND MR. HYDE
+   ----------------------------------------------------------------------------
+   The hidden 9th microgame slot (DESIGN.md §7). It is NOT part of the friend
+   roster: it never appears on the roster, has no intro fanfare, and Dave's
+   card pretends nothing happened. It secretly joins the rotation once the
+   player has seen every friend once (see shouldJoinRotation below).
+
+   ERA STYLING (Cherie's art direction): this round is the infamous NES game,
+   so it is styled NES-true, NOT 16-bit like the rest of the night —
+     * Palette: every color below is an exact NES palette value (NES[]).
+     * Sprites: chunky blocks on the shell's PX grid (3 px units — chunkier
+       than NES native at this screen size, which is the right read).
+     * Sound: 2A03 channels ONLY — pulse (square), triangle, and the noise
+       channel via Audio8.noise(). No sawtooth, no samples, period chip only.
+
+   Verb (common verbs only, per Cherie's controls ruling):
+     SLIDE — drag / mouse / arrow keys to move Jekyll along the corridor and
+             dodge the villagers' torches.
+     TAP   — tap / click / SPACE to suppress Hyde as the TEMPER meter fills.
+   Win: survive the shell timer (onTimeout -> won, "Struck by Lightning" card,
+        DESIGN.md §7 lightning gag).
+   Lose: the TEMPER meter fills first — Mr. Hyde takes over.
+
+   Shell contract (same as every MODULES entry in the game):
+     { id, friend, verb, quoteIntro, create(shell) -> state }
+     state: { state:'playing'|'won'|'lost', result, update(dt,input),
+              onTimeout(), onEnd(), render() }
+   The state draws with the shell's helpers (g, CRT, CC, PX, R, Tplain) and
+   reads Shell.speed / Audio8 when they exist; every dependency is guarded so
+   the module also runs under the stub harness in this folder.
+
+   Integration (one pass, later):
+     1. Load/inline this file after the other MODULES definitions.
+        It auto-registers as MODULES.jekyll when a global MODULES exists.
+     2. In the shell's rotation builder, once the player has seen every friend
+        once, insert "jekyll" once into the order at a random position
+        >= round 4. Never add it to any roster / collection list. Its intro
+        card is intentionally blank-faced.
+     3. result.lightning === true on a win -> the shell may swap Dave's
+        reaction sub for the lightning gag (the module's win card already
+        carries it, so this is optional polish).
+   ============================================================================ */
+(function () {
+  "use strict";
+
+  /* The NES palette (exact hex values, NESdev table). Only these ship.
+     Anchored on REAL screenshots of the NES game — see
+     ../../refs/dr-jekyll-and-mr-hyde-nes-*.jpg (refs folder):
+       HUD: black bar, "METER" in pale green, the meter itself a slanted
+       two-tone bar — pale (Jekyll) vs dark green (Hyde) — with J / H ends.
+       Street: white brick buildings, olive window panes, black shutters,
+       brown storefronts, cyan sky in the gaps, grey sidewalk over a brown
+       brick pavement strip. Jekyll: small grey suit, reddish-brown hair.
+       Hyde: bulky dark-grey body, wild black hair, orange-tan face/arms. */
+  var NES = {
+    BLACK: "#000000", WHITE: "#FCFCFC", PALE: "#F8F8F8", GREY: "#BCBCBC",
+    CYAN: "#3CBCFC",
+    METER_PALE: "#D8F878", METER_DARK: "#007800", GREEN: "#00B800",
+    BRICK: "#F8F8F8", OLIVE: "#AC7C00", BROWN: "#881400", DKBROWN: "#503000",
+    YELLOW: "#F8B800", SAND: "#F8D878", SKIN: "#F0D0B0",
+    FLAME: "#F83800", FLAME2: "#FCA044", NOTE_RED: "#E40058",
+    HAIR: "#A81000", SUIT: "#7C7C7C", HYDE_BODY: "#787878", ORANGE: "#E45C10"
+  };
+
+  var FRIEND_IDS = ["sudz", "scott", "brent", "brian", "steve", "chris", "brad", "brendan"];
+
+  /* Has the player seen every friend at least once? seenIds: array or object map. */
+  function shouldJoinRotation(seenIds, allIds) {
+    var ids = allIds || FRIEND_IDS;
+    if (!seenIds) return false;
+    var seen = {};
+    if (Array.isArray(seenIds)) { for (var i = 0; i < seenIds.length; i++) seen[seenIds[i]] = true; }
+    else { for (var k in seenIds) if (seenIds[k]) seen[k] = true; }
+    for (var j = 0; j < ids.length; j++) if (!seen[ids[j]]) return false;
+    return true;
+  }
+
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function speed() {
+    return (typeof Shell !== "undefined" && Shell && Shell.speed) ? Shell.speed : 1;
+  }
+  function rng() {
+    if (typeof Shell !== "undefined" && Shell && typeof Shell.rng === "function") return Shell.rng();
+    return Math.random();
+  }
+
+  /* --- 2A03 SFX only: pulse = square, bass/thud = triangle, fire = noise --- */
+  function pulse(f, d, v, delay, slideTo) {
+    try { if (typeof Audio8 !== "undefined" && Audio8 && Audio8.tone) Audio8.tone(f, d, "square", v, delay || 0, slideTo); } catch (e) {}
+  }
+  function tri(f, d, v, delay, slideTo) {
+    try { if (typeof Audio8 !== "undefined" && Audio8 && Audio8.tone) Audio8.tone(f, d, "triangle", v, delay || 0, slideTo); } catch (e) {}
+  }
+  function noiseHit(d, v, delay) {
+    try { if (typeof Audio8 !== "undefined" && Audio8 && Audio8.noise) Audio8.noise(d, v, delay || 0); } catch (e) {}
+  }
+  var SFX = {
+    suppress: function () { pulse(330, 0.05, 0.05, 0, 220); },              // pulse blip down
+    throwIt: function () { noiseHit(0.09, 0.03); pulse(523, 0.05, 0.03); }, // whoosh + chirp
+    hit: function () { noiseHit(0.16, 0.12); tri(98, 0.14, 0.12); },        // noise burst + triangle thud
+    hyde: function () { tri(196, 0.38, 0.12, 0, 49); pulse(98, 0.38, 0.06, 0, 37); }, // the change
+    lightning: function () { noiseHit(0.32, 0.16); pulse(1245, 0.07, 0.08, 0.02, 1568); pulse(1568, 0.09, 0.07, 0.10, 2093); }
+  };
+
+  var MODULE = {
+    id: "jekyll",
+    friend: "jekyll",
+    hidden: true,          // never on the roster, never in the collection
+    roster: false,
+    era: "NES",
+    verb: "SURVIVE!",
+    /* Dave's card pretends nothing happened: no name, no fanfare. */
+    quoteIntro: "…just a short walk home.",
+
+    create: function () {
+      var st = {
+        state: "playing",
+        result: null,
+        t: 0,
+        /* --- tuning (per second, scaled by Shell.speed where noted) --- */
+        TEMPER_FILL: 0.115,   // frustration of the corridor, per sec (x speed)
+        TEMPER_HIT: 0.22,     // added per torch hit
+        TEMPER_TAP: 0.085,    // removed per suppress tap
+        TORCH_EVERY: 1.05,    // sec between throws ( / speed )
+        TORCH_FLY: 0.85,      // sec of arc travel — the dodge window
+        /* --- live state --- */
+        jx: 0,                // Jekyll x, CRT-relative px (set in startInit)
+        targetX: 0,
+        hyde: 0,              // TEMPER meter 0..1
+        scroll: 0,            // corridor scroll px
+        walkPhase: 0,
+        torches: [],          // {x0,y0,x1,t,fly}
+        throwT: 0.55,         // countdown to next throw
+        villager: null,       // {x, raiseT} telegraph before a throw
+        stumble: 0,           // sec of post-hit stagger
+        shake: 0,
+        flash: 0,             // lightning flash timer (win)
+        hint: 2.2,
+        started: false,
+
+        startInit: function () {
+          var C = (typeof CRT !== "undefined") ? CRT : { x: 15, y: 118, w: 360, h: 452 };
+          this.jx = C.w / 2; this.targetX = this.jx;
+          this.started = true;
+        },
+
+        groundY: function () {
+          var C = (typeof CRT !== "undefined") ? CRT : { x: 15, y: 118, w: 360, h: 452 };
+          return C.h - 74; // CRT-relative ground line
+        },
+
+        loseNow: function () {
+          this.state = "lost";
+          this.result = {
+            card: { headline: "MR. HYDE TAKES OVER.", sub: "Dave saw nothing." }
+          };
+          SFX.hyde();
+        },
+
+        update: function (dt, input) {
+          if (this.state !== "playing") return;
+          if (!this.started) this.startInit();
+          var sp = speed();
+          var C = (typeof CRT !== "undefined") ? CRT : { x: 15, y: 118, w: 360, h: 452 };
+          this.t += dt;
+          if (this.hint > 0) this.hint -= dt;
+          if (this.stumble > 0) this.stumble -= dt;
+          if (this.shake > 0) this.shake -= dt * 3;
+          if (this.flash > 0) this.flash -= dt;
+
+          /* --- auto-walk: the corridor scrolls, Jekyll trudges right --- */
+          var walkRate = this.stumble > 0 ? 0.25 : 1;
+          this.scroll += dt * 46 * sp * walkRate;
+          this.walkPhase += dt * (5 + sp * 2) * walkRate;
+
+          /* --- SLIDE to dodge: pointer position steers Jekyll --- */
+          if (input) {
+            if (input.down) this.targetX = clamp(input.x - C.x, 34, C.w - 34);
+            var step = 260 * dt;
+            if (input.keys && input.keys.ArrowLeft) this.targetX = clamp(this.targetX - step, 34, C.w - 34);
+            if (input.keys && input.keys.ArrowRight) this.targetX = clamp(this.targetX + step, 34, C.w - 34);
+          }
+          this.jx = lerp(this.jx, this.targetX, clamp(dt * 14, 0, 1));
+
+          /* --- TAP to suppress Hyde --- */
+          if (input && (input.tapEdge || (input.keyEdge && (input.keyEdge.Space || input.keyEdge.Enter)))) {
+            if (this.hyde > 0) SFX.suppress();
+            this.hyde = clamp(this.hyde - this.TEMPER_TAP, 0, 1);
+          }
+
+          /* --- TEMPER fills: this corridor is infuriating --- */
+          this.hyde = clamp(this.hyde + dt * this.TEMPER_FILL * sp, 0, 1);
+          if (this.hyde >= 1) { this.loseNow(); return; }
+
+          /* --- villagers lob torches at where Jekyll stands --- */
+          this.throwT -= dt;
+          if (!this.villager && this.throwT <= 0) {
+            // telegraph: a villager leans out ahead, torch raised
+            this.villager = { x: clamp(this.jx + 120 + rng() * 90, 60, C.w - 30), raiseT: 0.38 };
+          }
+          if (this.villager) {
+            this.villager.raiseT -= dt;
+            if (this.villager.raiseT <= 0) {
+              this.torches.push({
+                x0: this.villager.x, y0: this.groundY() - 118,
+                x1: this.jx + (rng() * 24 - 12), // aimed at Jekyll, slight error
+                t: 0, fly: this.TORCH_FLY / sp
+              });
+              SFX.throwIt();
+              this.villager = null;
+              this.throwT = this.TORCH_EVERY / sp * (0.85 + rng() * 0.3);
+            }
+          }
+          for (var i = this.torches.length - 1; i >= 0; i--) {
+            var tc = this.torches[i];
+            tc.t += dt;
+            if (tc.t >= tc.fly) {
+              if (Math.abs(tc.x1 - this.jx) < 27) {
+                this.hyde = clamp(this.hyde + this.TEMPER_HIT, 0, 1);
+                this.stumble = 0.35; this.shake = 1;
+                SFX.hit();
+                if (this.hyde >= 1) { this.loseNow(); return; }
+              }
+              this.torches.splice(i, 1);
+            }
+          }
+        },
+
+        onTimeout: function () {
+          /* Survived the walk home. §7: the lightning gag. */
+          if (this.state !== "playing") return;
+          this.state = "won";
+          this.flash = 0.5;
+          SFX.lightning();
+          this.result = {
+            lightning: true,
+            card: { headline: "STRUCK BY LIGHTNING!", sub: "Dave is fine. He's reconsidering your grade." }
+          };
+        },
+
+        onEnd: function () {},
+
+        render: function () {
+          var hasShellArt = (typeof CRT !== "undefined" && typeof R === "function" && typeof PX === "function" && typeof CC !== "undefined");
+          if (!hasShellArt) { this.renderFallback(); return; }
+          if (!this.started) this.startInit();
+          var C = CRT, gy = C.y + this.groundY();
+          var shx = this.shake > 0 ? (rng() * 6 - 3) * this.shake : 0;
+
+          /* The street, anchored on the real screenshots: white brick
+             buildings with olive windows and black shutters, cyan sky in
+             the gaps, grey sidewalk over brown brick pavement.
+             PX grid: 1 unit = 3 real px, origin at CRT corner — so a
+             CRT-relative real px value v maps to grid v/3. */
+          var gY = this.groundY() / 3; // ground line in grid units (126)
+          R(C.x, C.y, C.w, C.h, NES.CYAN);                      // sky everywhere first
+          var segW = 30, off = -(this.scroll % (segW * 3)) / 3;
+          var seg0 = Math.floor(this.scroll / (segW * 3));
+          for (var sx = off, si = seg0; sx < C.w / 3; sx += segW, si++) {
+            if (si % 4 === 3) {                                 // gap: sky, grass, lamppost
+              PX(CC, sx, gY - 4, segW, 4, NES.GREEN);
+              PX(CC, sx + 14, gY - 30, 1, 30, NES.BLACK);       // lamppost
+              PX(CC, sx + 13, gY - 33, 3, 3, NES.PALE);
+              continue;
+            }
+            /* building: white brick with a speckle pattern */
+            PX(CC, sx, gY - 62, 26, 62, NES.BRICK);
+            for (var by = 0; by < 62; by += 2)
+              for (var bx = (by % 4 === 0 ? 0 : 2); bx < 26; bx += 5)
+                PX(CC, sx + bx, gY - 62 + by, 3, 1, NES.GREY);
+            /* two rows of windows: olive panes, white lintel, black shutter */
+            for (var wr = 0; wr < 2; wr++) for (var wc = 0; wc < 2; wc++) {
+              var wx = sx + 3 + wc * 12, wy = gY - 56 + wr * 26;
+              PX(CC, wx - 1, wy - 2, 8, 2, NES.PALE);
+              PX(CC, wx, wy, 6, 10, NES.OLIVE);
+              PX(CC, wx + 2, wy, 1, 10, NES.DKBROWN);
+              PX(CC, wx, wy + 11, 6, 4, NES.BLACK);
+            }
+            /* arched black doorway */
+            PX(CC, sx + 9, gY - 16, 8, 16, NES.BLACK);
+            PX(CC, sx + 10, gY - 18, 6, 2, NES.BLACK);
+          }
+          /* sidewalk + brown brick pavement + black below */
+          R(C.x, gy, C.w, 9, NES.GREY);
+          R(C.x, gy + 9, C.w, 21, NES.BROWN);
+          for (var px2 = 0; px2 < C.w; px2 += 24) R(C.x + px2, gy + 19, 12, 3, NES.DKBROWN);
+          R(C.x, gy + 30, C.w, C.h - this.groundY() - 30, NES.BLACK);
+
+          /* torches in flight (parabola) + landing-spot flicker */
+          for (var i = 0; i < this.torches.length; i++) {
+            var tc = this.torches[i], p = clamp(tc.t / tc.fly, 0, 1);
+            var tx = lerp(tc.x0, tc.x1, p) / 3;
+            var ty = (lerp(tc.y0, this.groundY(), p) - Math.sin(p * Math.PI) * 64) / 3;
+            PX(CC, tx - 1, ty - 2, 3, 3, NES.FLAME);
+            PX(CC, tx - 1, ty - 4, 3, 2, NES.FLAME2);
+            if (p > 0.7) PX(CC, tc.x1 / 3 - 2, gY + 1, 4, 1, "rgba(248,56,0,0.6)");
+          }
+
+          /* the telegraph: a singer leans out of a window, torch in hand,
+             red notes drifting (the refs' window singer, weaponized) */
+          if (this.villager) {
+            var vx = this.villager.x / 3, wy2 = (this.groundY() - 118) / 3;
+            PX(CC, vx - 5, wy2 - 2, 11, 2, NES.PALE);           // lintel
+            PX(CC, vx - 4, wy2, 9, 13, NES.OLIVE);              // window
+            PX(CC, vx - 2, wy2 + 3, 4, 4, NES.SKIN);            // her head
+            PX(CC, vx - 2, wy2 + 7, 4, 6, NES.YELLOW);          // gold dress
+            PX(CC, vx + 3, wy2 + 1, 2, 6, NES.FLAME);           // raised torch
+            PX(CC, vx + 3, wy2 - 1, 2, 2, NES.FLAME2);
+            PX(CC, vx - 8, wy2 + 2, 2, 3, NES.NOTE_RED);        // musical notes
+            PX(CC, vx + 7, wy2 + 6, 2, 3, NES.NOTE_RED);
+          }
+
+          /* Hyde's shadow grows with TEMPER */
+          if (this.hyde > 0.45) {
+            var ha = (this.hyde - 0.45) / 0.55;
+            PX(CC, this.jx / 3 - 5, gY - 2, 11, 2, "rgba(0,0,0," + (0.4 * ha).toFixed(2) + ")");
+          }
+
+          this.drawJekyll(shx);
+
+          /* THE METER — the real game's HUD: black bar, "METER" in pale
+             green, slanted two-tone bar (pale Jekyll | dark-green Hyde),
+             J and H at the ends. hyde fills the dark side from the right. */
+          R(C.x, C.y, C.w, 44, NES.BLACK);
+          var mx = C.x + 74, mw = C.w - 118, my = C.y + 14;
+          R(mx, my, mw, 13, NES.METER_PALE);
+          var darkW = Math.round(mw * this.hyde);
+          if (darkW > 0) {
+            R(mx + mw - darkW, my, darkW, 13, NES.METER_DARK);
+            R(mx + mw - darkW - 4, my, 4, 13, NES.METER_DARK); // slanted nose (approx)
+          }
+          if (typeof Tplain === "function") {
+            Tplain("METER", C.x + 10, C.y + 13, 14, NES.METER_PALE);
+            Tplain("J", mx - 14, C.y + 13, 14, NES.METER_PALE);
+            Tplain("H", mx + mw + 6, C.y + 13, 14, NES.METER_PALE);
+            Tplain("TAP TO STAY JEKYLL", C.x + C.w - 10, C.y + 31, 10, NES.METER_PALE, "right");
+            if (this.hint > 0) {
+              Tplain("SLIDE TO DODGE THE TORCHES!", C.x + C.w / 2, C.y + C.h - 30, 14, NES.SAND, "center");
+            }
+            if (this.flash > 0) Tplain("⚡", C.x + C.w / 2, C.y + 60, 40, NES.PALE, "center");
+          }
+        },
+
+        /* The figure, from the refs: Jekyll is SMALL — a grey suit and
+           reddish-brown hair, ~1/6 of the screen tall. As TEMPER passes
+           2/3 he hunches into the refs' Hyde: bulky dark-grey body, wild
+           black hair, orange-tan face and arms. */
+        drawJekyll: function (shx) {
+          if (typeof PX !== "function" || typeof CC === "undefined") return;
+          var gy = this.groundY() / 3;             // pixel-grid coords (CC origin is CRT)
+          var jx = Math.round((this.jx + (shx || 0)) / 3);
+          var leg = Math.floor(this.walkPhase) % 2;
+          if (this.hyde > 0.66) {
+            /* --- HYDE form --- */
+            PX(CC, jx - 3, gy - 15, 6, 2, NES.BLACK);              // wild hair
+            PX(CC, jx - 3, gy - 16, 2, 1, NES.BLACK);
+            PX(CC, jx + 1, gy - 16, 2, 1, NES.BLACK);
+            PX(CC, jx - 2, gy - 13, 4, 3, NES.ORANGE);              // face
+            PX(CC, jx - 3, gy - 10, 7, 6, NES.HYDE_BODY);          // bulky body
+            PX(CC, jx - 4, gy - 9, 1, 5, NES.ORANGE);              // arms
+            PX(CC, jx + 3, gy - 9, 1, 5, NES.ORANGE);
+            if (leg) { PX(CC, jx - 3, gy - 4, 2, 4, NES.HYDE_BODY); PX(CC, jx + 1, gy - 4, 2, 3, NES.HYDE_BODY); }
+            else { PX(CC, jx - 2, gy - 4, 2, 4, NES.HYDE_BODY); PX(CC, jx + 1, gy - 4, 2, 4, NES.HYDE_BODY); }
+            PX(CC, jx - 3, gy - 1, 2, 1, NES.BLACK);               // feet
+            PX(CC, jx + 1, gy - 1, 2, 1, NES.BLACK);
+          } else {
+            /* --- JEKYLL form --- */
+            PX(CC, jx - 1, gy - 15, 3, 2, NES.HAIR);               // reddish-brown hair
+            PX(CC, jx - 1, gy - 13, 3, 3, NES.SKIN);               // face
+            PX(CC, jx - 2, gy - 10, 4, 6, NES.SUIT);               // grey suit
+            PX(CC, jx + 2, gy - 9, 1, 7, NES.DKBROWN);             // cane
+            if (leg) { PX(CC, jx - 2, gy - 4, 2, 3, NES.SUIT); PX(CC, jx + 1, gy - 4, 1, 3, NES.SUIT); }
+            else { PX(CC, jx - 1, gy - 4, 1, 3, NES.SUIT); PX(CC, jx + 1, gy - 4, 2, 3, NES.SUIT); }
+            PX(CC, jx - 2, gy - 1, 2, 1, NES.BLACK);               // shoes
+            PX(CC, jx + 1, gy - 1, 2, 1, NES.BLACK);
+          }
+        },
+
+        /* Standalone fallback (stub harness without shell art helpers):
+           draws with the raw 2d context only, same NES palette. */
+        renderFallback: function () {
+          var ctx2d = (typeof g !== "undefined") ? g : null;
+          if (!ctx2d) return;
+          if (!this.started) this.startInit();
+          var C = (typeof CRT !== "undefined") ? CRT : { x: 15, y: 118, w: 360, h: 452 };
+          ctx2d.fillStyle = NES.CYAN; ctx2d.fillRect(C.x, C.y, C.w, C.h);
+          ctx2d.fillStyle = NES.BRICK; ctx2d.fillRect(C.x, C.y + 44, C.w, this.groundY() - 44);
+          ctx2d.fillStyle = NES.GREY; ctx2d.fillRect(C.x, C.y + this.groundY(), C.w, 9);
+          ctx2d.fillStyle = NES.BROWN; ctx2d.fillRect(C.x, C.y + this.groundY() + 9, C.w, 21);
+          ctx2d.fillStyle = this.hyde > 0.66 ? NES.HYDE_BODY : NES.SUIT;
+          ctx2d.fillRect(C.x + this.jx - 6, C.y + this.groundY() - 30, 12, 30);
+          ctx2d.fillStyle = NES.HAIR; ctx2d.fillRect(C.x + this.jx - 5, C.y + this.groundY() - 38, 10, 6);
+          ctx2d.fillStyle = NES.BLACK; ctx2d.fillRect(C.x, C.y, C.w, 44);
+          ctx2d.fillStyle = NES.METER_PALE; ctx2d.fillRect(C.x + 74, C.y + 14, C.w - 118, 13);
+          ctx2d.fillStyle = NES.METER_DARK;
+          var dw = Math.round((C.w - 118) * this.hyde);
+          if (dw > 0) ctx2d.fillRect(C.x + 74 + (C.w - 118) - dw, C.y + 14, dw, 13);
+          ctx2d.fillStyle = NES.FLAME2;
+          for (var i = 0; i < this.torches.length; i++) {
+            var tc = this.torches[i], p = clamp(tc.t / tc.fly, 0, 1);
+            ctx2d.fillRect(C.x + lerp(tc.x0, tc.x1, p) - 3, C.y + lerp(tc.y0, this.groundY(), p) - Math.sin(p * Math.PI) * 64 - 3, 6, 6);
+          }
+        }
+      };
+      return st;
+    }
+  };
+
+  var api = {
+    module: MODULE,
+    id: MODULE.id,
+    hidden: true,
+    era: "NES",
+    palette: NES,
+    FRIEND_IDS: FRIEND_IDS.slice(),
+    shouldJoinRotation: shouldJoinRotation,
+    register: function (modulesObj) {
+      var target = modulesObj || (typeof MODULES !== "undefined" ? MODULES : null);
+      if (target) target[MODULE.id] = MODULE;
+      return !!target;
+    }
+  };
+
+  if (typeof window !== "undefined") {
+    window.GNDJekyll = api;
+    if (typeof MODULES !== "undefined") api.register(MODULES);
+  }
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+})();
+
 function frame(now){
   requestAnimationFrame(frame);
   var dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
@@ -1653,6 +3743,17 @@ window.__dbg={
     return o; },
   startRun:function(){ Shell.startRun(); },
   startGame:function(id){ Shell.startRun(id); },
+  startShelf:function(id){ Shell.startShelfPlay(id); },
+  unlocks:function(){ return window.GNDUnlocks?GNDUnlocks.listUnlocks():[]; },
+  modes:function(){ return window.GNDUnlocks?GNDUnlocks.applyModes():{}; },
+  setMode:function(id,on){ if(window.GNDUnlocks)GNDUnlocks.setMode(id,!!on); },
+  checkUnlocks:function(s){ return window.GNDUnlocks?GNDUnlocks.checkUnlocks(s):[]; },
+  resetUnlocks:function(){ if(window.GNDUnlocks)GNDUnlocks.reset(); },
+  get shelfOpen(){ return !!(window.GNDUnlocks&&GNDUnlocks.isUnlocked("favoritesShelf")); },
+  get seen(){ return Shell.seenFriends; },
+  get flow(){ return Shell.flow; },
+  get order(){ return Shell.order; },
+  get inSD(){ return Shell.inSD; },
   tap:function(x,y){ Audio8.init(); Audio8.resume(); Input.x=x; Input.y=y; Input.down=true; Input.tapEdge=true; Shell.onTap(x,y); },
   release:function(){ Input.down=false; Input.releaseEdge=true; },
   pointer:function(x,y,down){ Input.x=x; Input.y=y; Input.down=down;
