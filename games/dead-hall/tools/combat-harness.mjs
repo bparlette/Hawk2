@@ -31,8 +31,9 @@ for(let i = 0; i < 12; i++){ if(ROOMS[i].kind !== 'live') continue; const enc = 
   check(`   room ${i+1} miss still winnable`, enc.result === 'win'); }
 
 // The two decoys in run order: corridor beat C1 (after room 3) first, then the room-8 doorway decoy.
+// (Corridor beat C2 is live, not a decoy — it gets its own section below.)
 const decoys = [
-  ...CORRIDOR_BEATS.map(b => ({ label: `corridor ${b.id} (after room ${b.after})`, make: ctx => createEncounter(b.after - 1, b.tune, ctx, 'decoy', b.id) })),
+  ...CORRIDOR_BEATS.filter(b => b.kind === 'decoy').map(b => ({ label: `corridor ${b.id} (after room ${b.after})`, make: ctx => createEncounter(b.after - 1, b.tune, ctx, 'decoy', b.id) })),
   ...ROOMS.map((r, i) => r.kind === 'decoy' ? { label: `room ${i+1}`, make: ctx => createEncounter(i, TUNING[i], ctx) } : null).filter(Boolean),
 ];
 console.log(`== 3. decoy right path (${decoys.map(d=>d.label).join(', ')}: withhold) ==`);
@@ -51,13 +52,25 @@ console.log('== 4. decoy wrong path (stab at the decision point) ==');
   console.log(`   next live encounter (room 9) counter window: ${nxt.window.toFixed(2)} s (tuned ${TUNING[8].window.toFixed(2)} s)`);
   check('window-shrink consequence lands on the next live encounter', nxt.window < TUNING[8].window); }
 
-console.log('== 5. full scripted clear: 12 rooms + corridor beat C1 (seed 0, then seeds 1-5) ==');
+console.log('== 4b. corridor beat C2: the double-look (after room 10) ==');
+{ const b = CORRIDOR_BEATS.find(x => x.id === 'C2');
+  const enc = createEncounter(b.after - 1, b.tune, { lightLoose: false, shrink: 0 }, 'live', b.id); const ev = play(enc, human());
+  const seq = ev.filter(e => ['noise', 'glanceBack', 'forward', 'forwardSnap', 'lunge'].includes(e.type))
+    .map(e => `${e.type}${e.type === 'glanceBack' ? (e.empty ? '(empty)' : '(figure)') : ''}${e.closer ? '(closer)' : ''} ${e.t}s`).join(' -> ');
+  console.log(`   phases: ${seq}`);
+  console.log(`   counter window ${enc.window} s, stagger ${T(ev,'stagger')} s, head thrust ${T(ev,'headThrust')} s, taps ${enc.taps}, result ${enc.result}`);
+  check('double-look phases in order -> lunge -> counter -> win', enc.result === 'win' && T(ev, 'lunge') !== undefined && T(ev, 'stagger') > T(ev, 'lunge'));
+  const enc2 = createEncounter(b.after - 1, b.tune, { lightLoose: false, shrink: 0 }, 'live', b.id); const ev2 = play(enc2, finishOnly);
+  console.log(`   no counter stab: bite surge ${T(ev2,'biteSurge')} s -> bite ${(ev2.find(e=>e.type==='biteSurge')||{}).bite}, hard finish ${enc2.hard}, final bite ${enc2.bite.toFixed(2)}, result ${enc2.result}`);
+  check('double-look miss -> bite surge -> harder finish, still winnable', enc2.result === 'win' && enc2.hard && T(ev2, 'biteSurge') !== undefined); }
+
+console.log('== 5. full scripted clear: 12 rooms + corridor beats C1/C2 (seed 0, then seeds 1-5) ==');
 for(const seed of [0, 1, 2, 3, 4, 5]){
   const run = createRun(seed), ev = []; run.on(e => ev.push(e)); const p = human(); let t = 0;
   while(!run.cleared && t < 400){ const e = run.enc; const a = e.kind === 'decoy' ? null : p(t, e); if(a) run.input(a); run.step(DT); t += DT; }
-  const planArr = run.plan.map(r => r.kind[0].toUpperCase() + (r.swapped ? '*' : '')); planArr.splice(3, 0, 'C1');
+  const planArr = run.plan.map(r => r.kind[0].toUpperCase() + (r.swapped ? '*' : '')); planArr.splice(3, 0, 'C1'); planArr.splice(12, 0, 'C2');
   console.log(`   seed ${seed}: plan [${planArr.join(' ')}]  results ${run.results.join(',')}  restarts ${run.restarts}  time ${t.toFixed(1)} s  dispatch cards ${ev.filter(e=>e.type==='dispatch').length}`);
-  check(`seed ${seed} clears all 12 rooms + corridor beat with no restart`, run.cleared && run.results.length === 13 && run.restarts === 0 && run.results[3] === 'spared' && run.results[12] === 'empty'); }
+  check(`seed ${seed} clears all 12 rooms + both corridor beats with no restart`, run.cleared && run.results.length === 14 && run.restarts === 0 && run.results[3] === 'spared' && run.results[11] === 'win' && run.results[13] === 'empty'); }
 
 console.log('== 6. SIGNAL LOST path (never stab) ==');
 { const run = createRun(0), ev = []; run.on(e => ev.push(e)); let t = 0;
@@ -69,5 +82,5 @@ console.log('== 6. SIGNAL LOST path (never stab) ==');
 console.log('== timing table (per room, from the module) ==');
 for(let i = 0; i < 12; i++){ const r = ROOMS[i], tu = TUNING[i];
   console.log(`   room ${String(i+1).padStart(2)} ${r.kind.padEnd(5)} ${r.id.padEnd(13)} ` + (r.kind === 'live' ? `spike ${(tu.dreadAt-1).toFixed(1)} s, dread ${tu.dreadAt.toFixed(1)} s, counter window ${tu.window.toFixed(2)} s, bite ${tu.biteRate.toFixed(3)}/s (x1.35 after a miss), strikes ${tu.strikes} (cap 25)` : r.kind === 'empty' ? `walk ${tu.walk} s, no monster` : r.kind === 'decoy' ? 'tells +0.15 s, decision +0.45 s, withhold 2.0 s' : `spike ${(tu.dreadAt-1).toFixed(1)} s, vanish ${(tu.dreadAt+tu.dread).toFixed(1)} s`));
-  if(i === 2) for(const b of CORRIDOR_BEATS) console.log(`   beat ${b.id.padEnd(5)} ${'decoy'.padEnd(5)} ${'corridor'.padEnd(13)} fires in the walk after room ${b.after}: burst ${b.tune.dreadAt.toFixed(1)} s in, tells +0.15 s, decision +0.45 s, withhold 2.0 s`); }
+  for(const b of CORRIDOR_BEATS.filter(b => b.after === i + 1)) console.log(`   beat ${b.id.padEnd(5)} ${b.kind.padEnd(5)} ${'corridor'.padEnd(13)} fires in the walk after room ${b.after}: ` + (b.kind === 'decoy' ? `burst ${b.tune.dreadAt.toFixed(1)} s in, tells +0.15 s, decision +0.45 s, withhold 2.0 s` : `double-look phases (noise -> glance back empty -> forward -> noise closer -> glance back figure -> forward snap -> lunge), counter window ${b.tune.window.toFixed(2)} s, bite ${b.tune.biteRate.toFixed(3)}/s, strikes ${b.tune.strikes} (cap 25)`)); }
 console.log(fails ? `\n${fails} FAILED` : '\nALL PATHS PASS'); process.exit(fails ? 1 : 0);

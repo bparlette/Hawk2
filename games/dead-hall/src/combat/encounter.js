@@ -1,6 +1,8 @@
 // Dead Hall — encounter state machine (pure, dt-driven, no rendering). The render loop only calls step(dt),
 // forwards input('stab'|'action') and reacts to events; no encounter logic lives in the render loop.
 //   live : idle -> dread -> counter -> finish -> resolve   (result 'win' | 'lost')
+//   live (double-look corridor beat): idle -> look -> counter -> finish -> resolve — the scripted
+//          tune.look phases fire in order, then the lunge opens the same counter window as any live room
 //   decoy: idle -> decoy -> resolve                        (result 'spared' | 'wrongStab'; never death)
 //   fake : idle -> dread -> resolve                        (result 'fake': the figure vanishes)
 //   empty: idle -> resolve                                 (result 'empty': the long walk)
@@ -16,7 +18,7 @@ export function createEncounter(index, tune = TUNING[index], ctx = { lightLoose:
   const emit = (type, x = {}) => { const ev = { type, t: +t.toFixed(3), room: label ?? index + 1, ...x }; subs.forEach(f => f(ev)); };
   const go = to => { emit('state', { from: e.state, to }); e.state = to; e.stateT = 0; };
   const resolve = result => { e.result = result; go('resolve'); e.done = true; if(result !== 'lost') emit('walkResume'); };
-  let spiked = false, tellsShown = false, decided = false;
+  let spiked = false, tellsShown = false, decided = false, lookIdx = 0;
   if(kind === 'live' && ctx.shrink){ emit('windowShrunk', { window: e.window }); ctx.shrink = 0; }
   e.onPulse = () => { if(e.state !== 'finish') return false; const ph = e.stateT % C.pulsePeriod, h = e.hard ? C.pulseHalfHard : C.pulseHalf; return ph < h || ph > C.pulsePeriod - h; };
   e.forceState = s => { go(s); };
@@ -39,8 +41,14 @@ export function createEncounter(index, tune = TUNING[index], ctx = { lightLoose:
     if(e.state === 'idle'){
       if(kind === 'empty'){ if(e.stateT >= tune.walk) resolve('empty'); return; }
       if(kind === 'decoy'){ if(e.stateT >= tune.dreadAt){ go('decoy'); emit('burst'); } return; }
+      if(tune.look){ go('look'); return; }
       if(!spiked && e.stateT >= tune.dreadAt - C.meterLead){ spiked = true; emit('meterSpike'); }
       if(e.stateT >= tune.dreadAt) go('dread');
+    } else if(e.state === 'look'){
+      const ph = tune.look[lookIdx], { ev: _ev, dt: _dt, ...extra } = ph;
+      if(e.stateT >= ph.dt){ emit(ph.ev, extra); if(ph.ev === 'noise' && !spiked){ spiked = true; emit('meterSpike'); }
+        lookIdx++; e.stateT = 0;
+        if(lookIdx >= tune.look.length){ emit('lunge', { window: e.window }); go('counter'); } }
     } else if(e.state === 'dread'){
       if(e.stateT >= tune.dread){ if(kind === 'fake'){ emit('vanish'); resolve('fake'); } else { go('counter'); emit('lunge', { window: e.window }); } }
     } else if(e.state === 'counter'){

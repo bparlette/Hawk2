@@ -20,10 +20,14 @@ test('12 rooms, locked order and kinds; room 4 is the live crawler; decoys = roo
   assert.equal(ROOMS[6].kind, 'live');                       // room 7 sprint
   assert.equal(ROOMS[3].kind, 'live');                       // room 4 crawler restored (Cherie, Nov 21)
   assert.equal(ROOMS.filter(r => r.kind === 'decoy').length, 1);   // room 8 is the only room decoy
-  assert.equal(CORRIDOR_BEATS.length, 1);
+  assert.equal(CORRIDOR_BEATS.length, 2);
   assert.equal(CORRIDOR_BEATS[0].id, 'C1');
   assert.equal(CORRIDOR_BEATS[0].kind, 'decoy');
   assert.equal(CORRIDOR_BEATS[0].after, 3);                  // fires in the walk after room 3
+  assert.equal(CORRIDOR_BEATS[1].id, 'C2');
+  assert.equal(CORRIDOR_BEATS[1].kind, 'live');              // the double-look resolves into a real fight
+  assert.equal(CORRIDOR_BEATS[1].after, 10);                 // fires in the walk after room 10
+  assert.ok(Math.abs(CORRIDOR_BEATS[1].after - CORRIDOR_BEATS[0].after) > 1, 'the two beats are never adjacent');
 });
 test('tuning table: every room has a counter window in 0.8–1.2 s, escalation tightens windows and speeds bite, never tap count', () => {
   assert.equal(TUNING.length, 12);
@@ -115,17 +119,39 @@ test('corridor beat C1: wrong stab -> consequence, never death', () => {
   assert.ok(events.some(e => e.type === 'consequence'));
   assert.ok(!events.some(e => e.type === 'signalLost'));
 });
-test('run: corridor beat fires after room 3; a full clear has 13 results with the beat spared in slot 4', () => {
+test('corridor beat C2 (double-look): phases fire in order, the lunge opens the counter window, stabbing early does nothing', () => {
+  const b = CORRIDOR_BEATS[1];
+  const stabEarly = (t, e) => e.state === 'look' ? 'stab' : counterThenMash(t, e);
+  const { enc, events } = play(createEncounter(9, b.tune, { lightLoose: false, shrink: 0 }, 'live', b.id), stabEarly);
+  const seq = events.filter(e => ['noise', 'glanceBack', 'forward', 'forwardSnap', 'lunge'].includes(e.type))
+    .map(e => e.type + (e.type === 'glanceBack' ? (e.empty ? ':empty' : ':figure') : '') + (e.closer ? ':closer' : ''));
+  assert.deepEqual(seq, ['noise', 'glanceBack:empty', 'forward', 'noise:closer', 'glanceBack:figure', 'forwardSnap', 'lunge']);
+  const states = events.filter(e => e.type === 'state').map(e => e.to);
+  assert.deepEqual(states, ['look', 'counter', 'finish', 'resolve']);
+  assert.ok(!events.some(e => e.type === 'stagger' && e.t < (events.find(e => e.type === 'lunge') || {}).t), 'no stagger before the lunge');
+  assert.equal(enc.result, 'win');
+  assert.ok(events.length > 0 && events.every(e => e.room === 'C2'), 'beat events labelled C2');
+});
+test('corridor beat C2: missing the counter -> bite surge + harder finish, still winnable', () => {
+  const b = CORRIDOR_BEATS[1];
+  const { enc, events } = play(createEncounter(9, b.tune, { lightLoose: false, shrink: 0 }, 'live', b.id), pulseMasher);
+  assert.ok(events.some(e => e.type === 'biteSurge'));
+  assert.ok(enc.hard, 'harder finish flag');
+  assert.equal(enc.result, 'win');
+});
+test('run: corridor beats fire after rooms 3 and 10; a full clear has 14 results', () => {
   const run = createRun(0); const ev = []; run.on(e => ev.push(e)); let t = 0;
   while(!run.cleared && t < 400){ const e = run.enc; const a = e.kind === 'decoy' ? null : counterThenMash(t, e); if(a) run.input(a); run.step(DT); t += DT; }
   assert.ok(run.cleared, 'run clears');
   assert.equal(run.restarts, 0);
-  assert.equal(run.results.length, 13, '12 rooms + 1 corridor beat');
+  assert.equal(run.results.length, 14, '12 rooms + 2 corridor beats');
   assert.equal(run.results[2], 'win');                       // room 3, the first real attack
-  assert.equal(run.results[3], 'spared');                    // corridor beat C1
+  assert.equal(run.results[3], 'spared');                    // corridor beat C1 (decoy)
   assert.equal(run.results[4], 'win');                       // room 4, the restored crawler
-  assert.equal(run.results[12], 'empty');                    // room 12 last
-  assert.ok(ev.some(e => e.type === 'dispatch' && e.room === 'C1'), 'corridor dispatch card fired');
+  assert.equal(run.results[11], 'win');                      // corridor beat C2 (double-look fight)
+  assert.equal(run.results[13], 'empty');                    // room 12 last
+  assert.ok(ev.some(e => e.type === 'dispatch' && e.room === 'C1'), 'C1 dispatch card fired');
+  assert.ok(ev.some(e => e.type === 'dispatch' && e.room === 'C2'), 'C2 dispatch card fired');
 });
 test('live/fake seeding: 2–3 mid rooms swap, room 12 always empty, room 7 always live, deterministic per seed', () => {
   for(let seed = 1; seed <= 200; seed++){
