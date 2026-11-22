@@ -421,6 +421,23 @@ void main() {
   vec3 dn = detailNormal(vWorldPos.xz, dist);
   vec3 N = normalize(vec3(vNormal.x + dn.x, vNormal.y, vNormal.z + dn.z));
 
+  // ---------- UNDERWATER VIEW LOOKING UP: AUTHENTIC SNELL'S WINDOW ----------
+  if (!gl_FrontFacing) {
+    vec3 Nu = -N;
+    float cosTheta = max(dot(Nu, V), 0.0);
+    // Snell's critical angle for water->air (~48.6 deg -> cos ~ 0.66)
+    float snellWin = smoothstep(0.56, 0.78, cosTheta);
+    vec3 refrDir = normalize(vec3(-V.x * 1.33, max(0.08, -V.y), -V.z * 1.33) + dn * 0.45);
+    vec3 skyUp = sampleSky(refrDir, L) * 1.15;
+    float sunGlint = pow(max(dot(refrDir, L), 0.0), 48.0) * 2.2;
+    vec3 tirCol = mix(vec3(0.02, 0.24, 0.36), vec3(0.08, 0.56, 0.68), pow(1.0 - cosTheta, 1.8));
+    vec3 underCol = mix(tirCol, skyUp + uSunColor * sunGlint, snellWin);
+    float fogAmt = 1.0 - exp(-dist * 0.026);
+    underCol = mix(underCol, vec3(0.02, 0.28, 0.42), clamp(fogAmt, 0.0, 0.96));
+    gl_FragColor = vec4(underCol, 1.0);
+    return;
+  }
+
   // Evaluate live jet-ski V-wake turbulence & aerated trail
   float wakeFoam = 0.0;
   float wakeAerate = 0.0;
@@ -553,6 +570,7 @@ export function createOcean(scene, preset = SKY_PRESETS.tropical, islands = []) 
   const mat = new THREE.ShaderMaterial({
     vertexShader: OCEAN_VERT,
     fragmentShader: OCEAN_FRAG,
+    side: THREE.DoubleSide,
     uniforms: {
       uTime: { value: 0 },
       uCenter: { value: new THREE.Vector2(0, 0) },

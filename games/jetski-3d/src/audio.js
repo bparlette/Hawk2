@@ -4,6 +4,7 @@
 export function createMarineAudio() {
   let ctx = null;
   let master = null;
+  let masterFilter = null;
   let engOscA = null, engOscB = null, whineOsc = null;
   let engGain = null, whineGain = null;
   let waterGain = null, waterFilter = null;
@@ -18,9 +19,14 @@ export function createMarineAudio() {
     try {
       if (navigator.audioSession) navigator.audioSession.type = 'playback';
       ctx = new (window.AudioContext || window.webkitAudioContext)();
+      masterFilter = ctx.createBiquadFilter();
+      masterFilter.type = 'lowpass';
+      masterFilter.frequency.value = 18000;
+      masterFilter.Q.value = 0.7;
+
       master = ctx.createGain();
       master.gain.value = muted ? 0 : 0.72;
-      master.connect(ctx.destination);
+      masterFilter.connect(master).connect(ctx.destination);
 
       // Silent unlock buffer for iOS WebKit
       const sb = ctx.createBuffer(1, 1, ctx.sampleRate);
@@ -37,7 +43,7 @@ export function createMarineAudio() {
 
       engGain = ctx.createGain();
       engGain.gain.value = 0.08;
-      engFilter.connect(engGain).connect(master);
+      engFilter.connect(engGain).connect(masterFilter);
 
       engOscA = ctx.createOscillator();
       engOscA.type = 'sawtooth';
@@ -55,7 +61,7 @@ export function createMarineAudio() {
       whineOsc = ctx.createOscillator();
       whineOsc.type = 'sine';
       whineOsc.frequency.value = 420;
-      whineOsc.connect(whineGain).connect(master);
+      whineOsc.connect(whineGain).connect(masterFilter);
 
       // Water shearing & surf rush (2-second pink/white noise loop through dynamic bandpass)
       const len = ctx.sampleRate * 2;
@@ -80,7 +86,7 @@ export function createMarineAudio() {
 
       waterGain = ctx.createGain();
       waterGain.gain.value = 0.03;
-      nSrc.connect(waterFilter).connect(waterGain).connect(master);
+      nSrc.connect(waterFilter).connect(waterGain).connect(masterFilter);
 
       engOscA.start();
       engOscB.start();
@@ -92,23 +98,47 @@ export function createMarineAudio() {
     }
   }
 
-  function update(rpm01, speed01, carveAmt, airborne01, boostOn) {
+  function update(rpm01, speed01, carveAmt, airborne01, boostOn, swimming = false, underwater = 0) {
     if (!unlocked || !ctx) return;
     const now = ctx.currentTime;
-    const revBoost = airborne01 > 0.25 ? 1.18 : 1.0; // unloaded impeller revs higher in mid-air!
+    // Smooth muffled underwater low-pass sweep!
+    masterFilter.frequency.setTargetAtTime(underwater > 0.35 ? 320 : 18000, now, 0.08);
+
+    const revBoost = airborne01 > 0.25 ? 1.18 : 1.0;
     const baseFreq = (48 + rpm01 * 132 + (boostOn ? 24 : 0)) * revBoost;
     engOscA.frequency.setTargetAtTime(baseFreq, now, 0.04);
     engOscB.frequency.setTargetAtTime(baseFreq * 0.5, now, 0.04);
-    engGain.gain.setTargetAtTime(0.065 + rpm01 * 0.11 + (boostOn ? 0.035 : 0), now, 0.05);
+    const engVol = swimming ? 0.012 : (0.065 + rpm01 * 0.11 + (boostOn ? 0.035 : 0));
+    engGain.gain.setTargetAtTime(engVol, now, 0.06);
 
     whineOsc.frequency.setTargetAtTime(380 + rpm01 * 1420 + (boostOn ? 380 : 0), now, 0.05);
-    whineGain.gain.setTargetAtTime(Math.max(0, (rpm01 - 0.35) * 0.032) + (boostOn ? 0.022 : 0), now, 0.06);
+    whineGain.gain.setTargetAtTime(swimming ? 0 : (Math.max(0, (rpm01 - 0.35) * 0.032) + (boostOn ? 0.022 : 0)), now, 0.06);
 
-    // Water rush quiets dramatically in mid-air and surges sharply during carves!
     const inWater = 1.0 - Math.min(1, airborne01 * 1.4);
-    const waterVol = (0.02 + speed01 * 0.18 + carveAmt * speed01 * 0.14) * inWater;
+    const waterVol = swimming
+      ? (0.06 + speed01 * 0.08 + underwater * 0.05)
+      : (0.02 + speed01 * 0.18 + carveAmt * speed01 * 0.14) * inWater;
     waterGain.gain.setTargetAtTime(waterVol, now, 0.05);
-    waterFilter.frequency.setTargetAtTime(620 + speed01 * 1450 + carveAmt * 650, now, 0.06);
+    waterFilter.frequency.setTargetAtTime(underwater > 0.35 ? 260 : (620 + speed01 * 1450 + carveAmt * 650), now, 0.06);
+  }
+
+  function bubbles() {
+    if (!unlocked || !ctx) return;
+    const now = ctx.currentTime;
+    for (let i = 0; i < 3; i++) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      const t0 = now + i * 0.055;
+      const f = 260 + Math.random() * 240;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, t0);
+      osc.frequency.exponentialRampToValueAtTime(f * 2.1, t0 + 0.08);
+      g.gain.setValueAtTime(0.06, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.09);
+      osc.connect(g).connect(master);
+      osc.start(t0);
+      osc.stop(t0 + 0.1);
+    }
   }
 
   function splash(intensity = 1.0) {
@@ -155,5 +185,5 @@ export function createMarineAudio() {
     return muted;
   }
 
-  return { unlock, update, splash, gateChime, toggleMute };
+  return { unlock, update, splash, gateChime, bubbles, toggleMute };
 }

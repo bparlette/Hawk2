@@ -391,5 +391,84 @@ export function createRider(opts = {}) {
       solveArmIK(armL, skiParts.gripL, skiQuat);
       solveArmIK(armR, skiParts.gripR, skiQuat);
     },
+
+    // Natural surface swimming, treading water & underwater breaststroke/dive animation!
+    updateSwim(speed01, steer, divePitch, underwater, t) {
+      const moving = THREE.MathUtils.clamp(speed01 * 1.4, 0, 1);
+
+      if (!underwater && moving < 0.15) {
+        // Relaxed treading water at the ocean surface (upright, sculling hands, gentle kick)
+        pelvis.position.set(0, -0.58 + Math.sin(t * 2.4) * 0.04, 0);
+        pelvis.rotation.set(0.18, 0, steer * 0.12);
+        spine.rotation.set(0.08, 0, 0);
+        head.rotation.set(-0.18, steer * 0.25, 0);
+
+        const tread = Math.sin(t * 3.4);
+        legL.hip.rotation.set(tread * 0.42, 0, -0.14);
+        legR.hip.rotation.set(-tread * 0.42, 0, 0.14);
+        legL.knee.rotation.set(0.55 + Math.max(0, -tread) * 0.35, 0, 0);
+        legR.knee.rotation.set(0.55 + Math.max(0, tread) * 0.35, 0, 0);
+        legL.ankle.rotation.set(0.35, 0, 0);
+        legR.ankle.rotation.set(0.35, 0, 0);
+
+        const scull = Math.sin(t * 3.0);
+        armL.shoulder.rotation.set(-0.55 + scull * 0.28, 0, -0.55 - Math.abs(scull) * 0.25);
+        armR.shoulder.rotation.set(-0.55 - scull * 0.28, 0,  0.55 + Math.abs(scull) * 0.25);
+        armL.elbow.rotation.set(0.75, 0, 0);
+        armR.elbow.rotation.set(0.75, 0, 0);
+        return;
+      }
+
+      // Horizontal streamlined swimmer body:
+      // pelvis.rotation.x = +PI/2 maps local +Y (head) -> +Z (forward), -Y (legs) -> -Z (trailing behind), -Z (back) -> +Y (up)!
+      const clampedDive = THREE.MathUtils.clamp(divePitch, -0.55, 0.55);
+      const pitchBase = Math.PI * 0.5 - clampedDive * 0.65;
+      const bodyRoll = underwater ? (steer * 0.34) : (Math.sin(t * 5.0) * 0.18 + steer * 0.25);
+      pelvis.position.set(0, 0.0, 0);
+      pelvis.rotation.set(pitchBase, 0, bodyRoll);
+      spine.rotation.set(-0.08 + Math.sin(t * 3.4) * 0.05, steer * 0.14, 0);
+      // Tilt head upward (-X rotates face toward -Z = up) so swimmer looks forward along reef!
+      head.rotation.set(-0.68, steer * 0.22, -bodyRoll * 0.3);
+
+      if (underwater) {
+        // Graceful underwater breaststroke sweep + rhythmic flutter kick
+        const phase = t * (3.0 + moving * 1.6);
+        const pull = Math.sin(phase);
+        const glide = Math.cos(phase);
+        // Arms reach forward (+PI = forward along +Y) and sweep gracefully out & back
+        const armPitch = 2.65 - (glide * 0.5 + 0.5) * 1.25;
+        const armOut = 0.24 + (pull * 0.5 + 0.5) * 0.85;
+        armL.shoulder.rotation.set(armPitch, 0, -armOut);
+        armR.shoulder.rotation.set(armPitch, 0,  armOut);
+        armL.elbow.rotation.set(-0.28 - Math.max(0, pull) * 0.45, 0, 0);
+        armR.elbow.rotation.set(-0.28 - Math.max(0, pull) * 0.45, 0, 0);
+
+        // Legs trail cleanly straight behind with smooth alternating flutter kick
+        const kick = Math.sin(phase * 2.0);
+        legL.hip.rotation.set(kick * 0.24, 0, -0.07);
+        legR.hip.rotation.set(-kick * 0.24, 0, 0.07);
+        legL.knee.rotation.set(0.18 + Math.max(0, -kick) * 0.24, 0, 0);
+        legR.knee.rotation.set(0.18 + Math.max(0, kick) * 0.24, 0, 0);
+        legL.ankle.rotation.set(0.45, 0, 0);
+        legR.ankle.rotation.set(0.45, 0, 0);
+      } else {
+        // Natural alternating freestyle crawl on the ocean surface
+        const stroke = t * (4.6 + moving * 2.0);
+        const sL = Math.sin(stroke);
+        const sR = Math.sin(stroke + Math.PI);
+        armL.shoulder.rotation.set(2.25 + sL * 1.05, 0, -0.22 - Math.max(0, Math.cos(stroke)) * 0.45);
+        armR.shoulder.rotation.set(2.25 + sR * 1.05, 0,  0.22 + Math.max(0, Math.cos(stroke + Math.PI)) * 0.45);
+        armL.elbow.rotation.set(-0.32 - Math.max(0, -sL) * 0.48, 0, 0);
+        armR.elbow.rotation.set(-0.32 - Math.max(0, -sR) * 0.48, 0, 0);
+
+        const kick = Math.sin(stroke * 2.0);
+        legL.hip.rotation.set(kick * 0.28, 0, -0.06);
+        legR.hip.rotation.set(-kick * 0.28, 0, 0.06);
+        legL.knee.rotation.set(0.16 + Math.max(0, -kick) * 0.26, 0, 0);
+        legR.knee.rotation.set(0.16 + Math.max(0, kick) * 0.26, 0, 0);
+        legL.ankle.rotation.set(0.45, 0, 0);
+        legR.ankle.rotation.set(0.45, 0, 0);
+      }
+    },
   };
 }

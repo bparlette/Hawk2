@@ -14,6 +14,11 @@
   }
   #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #lens { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
+  #underwaterTint {
+    position: fixed; inset: 0; pointer-events: none; z-index: 15; opacity: 0;
+    background: radial-gradient(ellipse at 50% 42%, rgba(28, 200, 215, 0.08) 28%, rgba(3, 56, 78, 0.42) 82%, rgba(2, 26, 44, 0.72) 100%);
+    transition: opacity 0.22s ease;
+  }
 
   /* ---------- Glassmorphic Marine Telemetry HUD ---------- */
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 100; }
@@ -95,6 +100,8 @@
   }
   #gasBtn { width: 78px; height: 78px; border-radius: 50%; font-size: 13px; letter-spacing: 0.1em; background: rgba(0, 178, 128, 0.48); border-color: rgba(110, 255, 200, 0.55); }
   #boostBtn { width: 64px; height: 64px; border-radius: 50%; font-size: 11px; letter-spacing: 0.08em; background: rgba(255, 118, 24, 0.48); border-color: rgba(255, 200, 120, 0.6); }
+  #diveBtn { width: 64px; height: 64px; border-radius: 50%; font-size: 11px; letter-spacing: 0.06em; background: rgba(0, 155, 215, 0.55); border-color: rgba(120, 240, 255, 0.7); display: none; }
+  .pillBtn.swimHot { background: rgba(0, 195, 225, 0.62); border-color: #8bfaff; color: #021826; }
 
   /* ---------- Title / Launch Overlay ---------- */
   #titleScreen {
@@ -126,20 +133,25 @@
   }
 
   @media (max-width: 540px) {
-    #speedo { bottom: 108px; padding: 7px 16px 9px; min-width: 156px; }
-    #mphVal { font-size: 30px; }
+    #speedo { bottom: 102px; padding: 7px 16px 9px; min-width: 152px; }
+    #mphVal { font-size: 28px; }
     #topLeft { top: 10px; left: 10px; padding: 6px 10px; }
     #brand { font-size: 9px; letter-spacing: 0.16em; }
     #scoreLine { font-size: 15px; }
     #subLine { font-size: 9.5px; }
-    #topRight { top: 10px; right: 10px; gap: 5px; flex-wrap: wrap; justify-content: flex-end; max-width: 54%; }
+    #topRight { top: 10px; right: 10px; gap: 5px; flex-wrap: wrap; justify-content: flex-end; max-width: 56%; }
     .pillBtn { padding: 5px 8px; font-size: 9px; letter-spacing: 0.06em; }
     #callout { font-size: 17px; letter-spacing: 0.1em; }
+    #steerPad { left: 10px; bottom: 18px; width: 112px; height: 58px; gap: 6px; }
+    #rightPad { right: 10px; bottom: 18px; gap: 6px; }
+    #gasBtn { width: 64px; height: 64px; font-size: 11px; }
+    #boostBtn, #diveBtn { width: 52px; height: 52px; font-size: 9.5px; }
   }
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
+<div id="underwaterTint"></div>
 <canvas id="lens"></canvas>
 
 <div id="hud">
@@ -149,6 +161,7 @@
     <div id="subLine">GATE 1/10 · x1 COMBO</div>
   </div>
   <div id="topRight">
+    <button class="pillBtn swimHot" id="swimBtn">DIVE / SWIM</button>
     <button class="pillBtn" id="camBtn">CAM: CHASE</button>
     <button class="pillBtn" id="skyBtn">TROPICAL</button>
     <button class="pillBtn" id="muteBtn">SFX ON</button>
@@ -166,6 +179,7 @@
     <button class="tBtn" id="rightBtn">▶</button>
   </div>
   <div id="rightPad">
+    <button class="tBtn" id="diveBtn">DIVE ▼</button>
     <button class="tBtn" id="boostBtn">BOOST</button>
     <button class="tBtn" id="gasBtn">GAS</button>
   </div>
@@ -174,11 +188,11 @@
 <div id="titleScreen">
   <div>
     <h1>APEX WAKE</h1>
-    <div class="sub">REALISTIC OCEAN WATERCRAFT · GERSTNER SWELLS</div>
+    <div class="sub">REALISTIC OCEAN WATERCRAFT · SWIM &amp; CORAL REEF DIVING</div>
   </div>
   <div>
     <div class="cta">TAP OR PRESS SPACE TO RIDE</div>
-    <div class="hint">WASD / ARROWS TO CARVE · SPACE BOOST · C CAMERA · L SKY</div>
+    <div class="hint">WASD CARVE · SPACE BOOST/RISE · E SWIM/BOARD · SHIFT DIVE</div>
   </div>
 </div>
 
@@ -189,6 +203,7 @@ import { createJetSki } from './src/jetski.js';
 import { createRider } from './src/rider.js';
 import { createWaterFX, createLensDroplets } from './src/fx.js';
 import { createWorld, ISLANDS } from './src/world.js';
+import { createUnderwaterWorld, sampleSeabedY } from './src/underwater.js';
 import { createMarineAudio } from './src/audio.js';
 
 // ================================================================
@@ -227,7 +242,11 @@ const ocean = createOcean(scene, curPreset, ISLANDS);
 const fx = createWaterFX(scene, curPreset);
 const lens = createLensDroplets(document.getElementById('lens'));
 const world = createWorld(scene);
+const underwaterWorld = createUnderwaterWorld(scene, curPreset);
 const audio = createMarineAudio();
+const underwaterFog = new THREE.FogExp2(0x054a64, 0.036);
+const underwaterBg = new THREE.Color(0x054a64);
+const underwaterTintEl = document.getElementById('underwaterTint');
 
 function applyLightingPreset(key) {
   curPreset = SKY_PRESETS[key];
@@ -241,6 +260,7 @@ function applyLightingPreset(key) {
   sky.updateEnv(renderer, curPreset);
   ocean.applyPreset(curPreset);
   fx.applyPreset(curPreset);
+  underwaterWorld.applyPreset(curPreset);
   document.getElementById('skyBtn').textContent = key.toUpperCase();
 }
 
@@ -292,14 +312,93 @@ const P = {
   lap: 1,
   started: false,
   demoMode: true,
+  // Swimming & underwater reef diving state
+  mode: 'ski',          // 'ski' | 'swim'
+  swX: 0, swY: 0, swZ: 0,
+  swVx: 0, swVy: 0, swVz: 0,
+  swYaw: Math.PI,
+  swPitch: 0,
+  o2: 1.0,
+  pearls: 0,
+  underwaterBlend: 0,
+  bubbleTimer: 0,
 };
 
 // ================================================================
-// 4. INPUTS (Keyboard + Touch Buttons)
+// 4. INPUTS (Keyboard + Touch Buttons + Seamless Swim/Dive/Board)
 // ================================================================
-const keys = { left: false, right: false, up: false, down: false, boost: false };
+const keys = { left: false, right: false, up: false, down: false, boost: false, dive: false };
 const CAM_MODES = ['CHASE', 'LOW ACTION', 'POV', 'ORBIT'];
 let camModeIdx = 0;
+
+function updateControlLabels() {
+  const swimBtn = document.getElementById('swimBtn');
+  const diveBtn = document.getElementById('diveBtn');
+  const boostBtn = document.getElementById('boostBtn');
+  const gasBtn = document.getElementById('gasBtn');
+  if (P.mode === 'swim') {
+    const distSki = Math.hypot(P.swX - P.x, P.swZ - P.z);
+    swimBtn.textContent = distSki < 7.5 ? 'BOARD SKI' : `SKI ${Math.round(distSki)}M`;
+    swimBtn.classList.toggle('swimHot', distSki < 7.5);
+    diveBtn.style.display = 'flex';
+    boostBtn.textContent = 'RISE ▲';
+    gasBtn.textContent = 'SWIM';
+  } else {
+    swimBtn.textContent = 'DIVE / SWIM';
+    swimBtn.classList.add('swimHot');
+    diveBtn.style.display = 'none';
+    boostBtn.textContent = 'BOOST';
+    gasBtn.textContent = 'GAS';
+  }
+}
+
+function toggleSwimMode() {
+  startPlaying();
+  if (P.mode === 'ski') {
+    // Leap cleanly off the port side of the jet ski into the water!
+    P.mode = 'swim';
+    const sideX = Math.cos(P.yaw) * 1.9;
+    const sideZ = -Math.sin(P.yaw) * 1.9;
+    P.swX = P.x + sideX;
+    P.swZ = P.z + sideZ;
+    P.swY = sampleWave(P.swX, P.swZ, simT).y - 0.35;
+    P.swVx = P.vx * 0.25 + sideX * 1.4;
+    P.swVy = -1.6;
+    P.swVz = P.vz * 0.25 + sideZ * 1.4;
+    P.swYaw = P.yaw;
+    P.swPitch = -0.25;
+    P.o2 = 1.0;
+
+    // Detach rider from jet ski and move into world space
+    playerSki.root.remove(playerRider.root);
+    scene.add(playerRider.root);
+    playerRider.root.position.set(P.swX, P.swY, P.swZ);
+    playerRider.root.rotation.set(0, P.swYaw, 0);
+
+    fx.emitSplashdown(new THREE.Vector3(P.swX, P.swY + 0.3, P.swZ), 5.5);
+    lens.splatter(7);
+    audio.splash(0.85);
+    audio.bubbles();
+    showCallout('SWIMMING · HOLD DIVE TO EXPLORE REEF');
+  } else {
+    // Board back onto the jet ski (if close, or swim-call if player taps BOARD SKI)
+    const distSki = Math.hypot(P.swX - P.x, P.swZ - P.z);
+    if (distSki > 8.5) {
+      // Gently drift jet ski closer if player swam far exploring the reef
+      P.x = P.swX - Math.cos(P.swYaw) * 2.2;
+      P.z = P.swZ + Math.sin(P.swYaw) * 2.2;
+    }
+    P.mode = 'ski';
+    P.speed = 0; P.vx = 0; P.vz = 0; P.vy = 0;
+    scene.remove(playerRider.root);
+    playerSki.root.add(playerRider.root);
+    playerRider.root.position.set(0, 0, 0);
+    playerRider.root.rotation.set(0, 0, 0);
+    audio.splash(0.5);
+    showCallout('BACK ON APEX 1800R');
+  }
+  updateControlLabels();
+}
 
 function startPlaying() {
   audio.unlock();
@@ -311,13 +410,16 @@ function startPlaying() {
 }
 
 document.getElementById('titleScreen').addEventListener('pointerdown', startPlaying);
+document.getElementById('swimBtn').onclick = toggleSwimMode;
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && !P.started) { e.preventDefault(); startPlaying(); return; }
+  if (e.code === 'KeyE' || e.code === 'KeyF') { e.preventDefault(); toggleSwimMode(); return; }
   if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
   if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
   if (e.code === 'KeyW' || e.code === 'ArrowUp') { keys.up = true; startPlaying(); }
   if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = true;
-  if (e.code === 'Space' || e.code === 'ShiftLeft') { e.preventDefault(); keys.boost = true; }
+  if (e.code === 'Space') { e.preventDefault(); keys.boost = true; }
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyQ') keys.dive = true;
   if (e.code === 'KeyC') cycleCamera();
   if (e.code === 'KeyL') cycleSky();
 });
@@ -326,7 +428,8 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
   if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.up = false;
   if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = false;
-  if (e.code === 'Space' || e.code === 'ShiftLeft') keys.boost = false;
+  if (e.code === 'Space') keys.boost = false;
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyQ') keys.dive = false;
 });
 
 function bindTouchBtn(id, keyName) {
@@ -344,6 +447,7 @@ bindTouchBtn('leftBtn', 'left');
 bindTouchBtn('rightBtn', 'right');
 bindTouchBtn('gasBtn', 'up');
 bindTouchBtn('boostBtn', 'boost');
+bindTouchBtn('diveBtn', 'dive');
 
 function cycleCamera() {
   camModeIdx = (camModeIdx + 1) % CAM_MODES.length;
@@ -381,7 +485,188 @@ const _hullPos = new THREE.Vector3();
 const _camPos = new THREE.Vector3(0, 3.2, 6.8);
 const _camLook = new THREE.Vector3(0, 1.0, -4);
 
+function stepSwimmer(dt, t) {
+  // Keep empty jet ski gently floating & bobbing on the ocean waves right where you left it!
+  P.speed *= Math.max(0, 1 - dt * 2.2);
+  P.vx *= Math.max(0, 1 - dt * 2.2);
+  P.vz *= Math.max(0, 1 - dt * 2.2);
+  P.x += P.vx * dt;
+  P.z += P.vz * dt;
+  const swSki = sampleWave(P.x, P.z, t);
+  P.y += (swSki.y + 0.14 - P.y) * Math.min(1, dt * 5.0);
+  P.pitch += (-swSki.slopeZ * 0.45 - P.pitch) * Math.min(1, dt * 4.0);
+  P.roll += (swSki.slopeX * 0.45 - P.roll) * Math.min(1, dt * 4.0);
+  playerSki.root.position.set(P.x, P.y, P.z);
+  playerSki.root.rotation.order = 'YXZ';
+  playerSki.root.rotation.set(P.pitch, P.yaw, P.roll);
+  playerSki.setControls(0, 0, 0, 0.08, P.boost);
+
+  // Natural 3D swimming & underwater free-diving physics
+  const inSteer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+  const inSwim = keys.up ? 1 : 0;
+  const inDive = (keys.dive || keys.down) ? 1 : 0;
+  const inRise = keys.boost ? 1 : 0;
+
+  P.steer += (inSteer - P.steer) * Math.min(1, dt * 7.0);
+  P.swYaw += P.steer * 1.85 * dt;
+
+  const surfY = sampleWave(P.swX, P.swZ, t).y;
+  const seabedY = sampleSeabedY(P.swX, P.swZ);
+  const depthBelowSurf = surfY - P.swY;
+  const underwater = depthBelowSurf > 0.55;
+
+  // Target dive pitch & 3D swim velocity
+  let targetPitch = 0;
+  if (inDive) targetPitch = -0.78;
+  else if (inRise) targetPitch = 0.72;
+  else if (underwater && inSwim) targetPitch = -0.05;
+  P.swPitch += (targetPitch - P.swPitch) * Math.min(1, dt * 5.5);
+
+  const swimPower = (inSwim || inDive || inRise) ? 1 : 0;
+  const maxSwim = underwater ? 5.8 : 4.6;
+  const fwdX = Math.sin(P.swYaw) * Math.cos(P.swPitch);
+  const fwdZ = Math.cos(P.swYaw) * Math.cos(P.swPitch);
+  const fwdY = Math.sin(P.swPitch);
+
+  if (inSwim) {
+    P.swVx += fwdX * 14.5 * dt;
+    P.swVz += fwdZ * 14.5 * dt;
+    P.swVy += fwdY * 12.5 * dt;
+  }
+  if (inDive) {
+    P.swVy -= 8.8 * dt;
+    P.swVx += Math.sin(P.swYaw) * 4.5 * dt;
+    P.swVz += Math.cos(P.swYaw) * 4.5 * dt;
+  }
+  if (inRise) {
+    P.swVy += 9.5 * dt;
+  }
+  // Natural gentle buoyancy near surface when not diving
+  if (!inDive && depthBelowSurf < 0.85) {
+    P.swVy += ((surfY - 0.12) - P.swY) * 6.5 * dt;
+  } else if (underwater && !inDive && !inRise) {
+    // Almost neutrally buoyant underwater (slight gentle float up)
+    P.swVy += 0.25 * dt;
+  }
+
+  // Smooth hydrodynamic water damping
+  const damp = Math.max(0, 1 - dt * 2.8);
+  P.swVx *= damp; P.swVy *= damp; P.swVz *= damp;
+  const spd = Math.hypot(P.swVx, P.swVy, P.swVz);
+  if (spd > maxSwim) {
+    const s = maxSwim / spd;
+    P.swVx *= s; P.swVy *= s; P.swVz *= s;
+  }
+
+  P.swX += P.swVx * dt;
+  P.swY += P.swVy * dt;
+  P.swZ += P.swVz * dt;
+
+  // Clamp cleanly between ocean surface and caustic coral seabed
+  const maxY = surfY - 0.05;
+  const minY = seabedY + 0.72;
+  if (P.swY > maxY) { P.swY = maxY; if (P.swVy > 0) P.swVy = 0; }
+  if (P.swY < minY) { P.swY = minY; if (P.swVy < 0) P.swVy = 0; }
+
+  // Soft island shoreline bounds
+  for (const isl of ISLANDS) {
+    const dx = P.swX - isl.x, dz = P.swZ - isl.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < isl.beachR + 2.5 && dist > 0.001) {
+      P.swX = isl.x + (dx / dist) * (isl.beachR + 2.5);
+      P.swZ = isl.z + (dz / dist) * (isl.beachR + 2.5);
+    }
+  }
+
+  // Oxygen / breath management + rising underwater breath bubbles!
+  if (underwater) {
+    P.o2 = Math.max(0.05, P.o2 - dt / 48.0);
+    P.bubbleTimer += dt;
+    if (P.bubbleTimer > 0.22) {
+      P.bubbleTimer = 0;
+      underwaterWorld.emitBreathBubbles(P.swX, P.swY + 0.18, P.swZ, 3);
+      if (Math.random() < 0.28) audio.bubbles();
+    }
+    if (P.o2 <= 0.12) {
+      // Auto-buoyant nudge back toward sunlit surface if O2 runs very low
+      P.swVy += 6.5 * dt;
+    }
+  } else {
+    P.o2 = Math.min(1.0, P.o2 + dt * 0.55);
+  }
+
+  // Check collectible glowing reef pearls on the seabed!
+  if (underwaterWorld.checkPearlCollect(P.swX, P.swY, P.swZ)) {
+    P.pearls++;
+    P.score += 500;
+    P.o2 = Math.min(1.0, P.o2 + 0.45);
+    audio.gateChime(P.pearls + 2);
+    showCallout(`REEF PEARL ${P.pearls}/8 · +500 PTS`);
+  }
+
+  // Position & animate swimmer
+  playerRider.root.position.set(P.swX, P.swY, P.swZ);
+  playerRider.root.rotation.order = 'YXZ';
+  playerRider.root.rotation.set(0, P.swYaw, 0);
+  const speed01 = THREE.MathUtils.clamp(spd / maxSwim, 0, 1);
+  playerRider.updateSwim(speed01, P.steer, P.swPitch, underwater, t);
+
+  // Subtle surface wake ripples when swimming at surface
+  ocean.update(t, dt, P.swX, P.swZ, !underwater && swimPower ? new THREE.Vector3(P.swX, surfY, P.swZ) : null, !underwater ? 0.35 : 0);
+
+  // Smooth third-person swimming/diving camera
+  const sinY = Math.sin(P.swYaw), cosY = Math.cos(P.swYaw);
+  const camDist = underwater ? 3.8 : 4.2;
+  const camH = underwater ? (0.75 - P.swPitch * 1.1) : 1.45;
+  const tgtPos = new THREE.Vector3(P.swX - sinY * camDist, P.swY + camH, P.swZ - cosY * camDist);
+  const minCamY = sampleSeabedY(tgtPos.x, tgtPos.z) + 0.55;
+  if (tgtPos.y < minCamY) tgtPos.y = minCamY;
+  const tgtLook = new THREE.Vector3(P.swX + sinY * 3.6, P.swY + (underwater ? P.swPitch * 2.2 : 0.2), P.swZ + cosY * 3.6);
+
+  _camPos.lerp(tgtPos, Math.min(1, dt * 6.0));
+  _camLook.lerp(tgtLook, Math.min(1, dt * 8.5));
+  camera.position.copy(_camPos);
+  camera.lookAt(_camLook);
+  camera.fov += (64 - camera.fov) * Math.min(1, dt * 5);
+  camera.updateProjectionMatrix();
+
+  // Underwater visual atmosphere transition (Snell's window + seamless deep-cyan fog + god-rays!)
+  const camSurfY = sampleWave(camera.position.x, camera.position.z, t).y;
+  const camSub = camera.position.y < camSurfY - 0.08 ? 1 : 0;
+  P.underwaterBlend += (camSub - P.underwaterBlend) * Math.min(1, dt * 8.0);
+  const subActive = P.underwaterBlend > 0.25;
+  scene.fog = subActive ? underwaterFog : null;
+  scene.background = subActive ? underwaterBg : null;
+  sky.mesh.visible = !subActive;
+  underwaterTintEl.style.opacity = String(P.underwaterBlend.toFixed(3));
+
+  // Telemetry & audio
+  const depthFt = Math.max(0, Math.round(depthBelowSurf * 3.281));
+  document.getElementById('mphVal').textContent = String(depthFt);
+  document.getElementById('mphUnit').textContent = 'FT DEPTH';
+  document.getElementById('boostFill').style.width = `${Math.round(P.o2 * 100)}%`;
+  document.getElementById('scoreLine').textContent = `${P.score.toLocaleString()} PTS`;
+  document.getElementById('subLine').textContent = `PEARLS ${P.pearls}/8 · O2 ${Math.round(P.o2 * 100)}%`;
+  updateControlLabels();
+  audio.update(0.1, speed01, 0, 0, false, true, P.underwaterBlend);
+  if (calloutTimer > 0) {
+    calloutTimer -= dt;
+    if (calloutTimer <= 0) calloutEl.classList.remove('show');
+  }
+}
+
 function stepPlayer(dt, t) {
+  if (P.mode === 'swim') {
+    stepSwimmer(dt, t);
+    return;
+  }
+  // Ensure surface optics when riding jet ski
+  P.underwaterBlend += (0 - P.underwaterBlend) * Math.min(1, dt * 8.0);
+  scene.fog = null;
+  scene.background = null;
+  sky.mesh.visible = true;
+  underwaterTintEl.style.opacity = '0';
+  document.getElementById('mphUnit').textContent = 'MPH';
   // Demo autopilot on title screen so the live background is already carving sunlit waves!
   let inThrottle = keys.up ? 1 : (keys.down ? -0.45 : 0);
   let inSteer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
@@ -610,7 +895,7 @@ function stepPlayer(dt, t) {
   updateCamera(dt, t, speed01);
 
   // Update sound & HUD
-  audio.update(rpm01, speed01, Math.abs(P.steer), P.airborne ? 1 : 0, P.boostOn);
+  audio.update(rpm01, speed01, Math.abs(P.steer), P.airborne ? 1 : 0, P.boostOn, false, 0);
   document.getElementById('mphVal').textContent = String(Math.round(mph));
   document.getElementById('boostFill').style.width = `${Math.round(P.boost * 100)}%`;
   document.getElementById('scoreLine').textContent = `${P.score.toLocaleString()} PTS`;
@@ -690,6 +975,7 @@ function tick(dt) {
   simT += dt;
   stepPlayer(dt, simT);
   world.update(simT, P.nextGate);
+  underwaterWorld.update(simT, dt, camera.position, P.underwaterBlend);
   fx.update(dt);
   lens.update(dt);
   sky.update(simT, camera.position);
@@ -716,20 +1002,31 @@ window.__jetski = {
   start: () => { startPlaying(); },
   setCam: (idx) => { camModeIdx = idx % CAM_MODES.length; document.getElementById('camBtn').textContent = `CAM: ${CAM_MODES[camModeIdx]}`; },
   setSky: (key) => { applyLightingPreset(key); },
+  toggleSwim: () => { toggleSwimMode(); },
+  diveTo: (x, y, z, yaw = Math.PI) => {
+    if (P.mode !== 'swim') toggleSwimMode();
+    P.swX = x; P.swY = y; P.swZ = z; P.swYaw = yaw; P.swPitch = -0.25;
+    P.underwaterBlend = y < -0.5 ? 1 : 0;
+    _camPos.set(x - Math.sin(yaw) * 3.8, y + 0.9, z - Math.cos(yaw) * 3.8);
+    _camLook.set(x + Math.sin(yaw) * 4.0, y - 0.5, z + Math.cos(yaw) * 4.0);
+  },
   step: (seconds, opts = {}) => {
     stepMode = true;
     if (opts.hideTitle) { P.started = true; P.demoMode = false; const ts = document.getElementById('titleScreen'); ts.classList.add('gone'); ts.style.display = 'none'; }
     if (opts.steer !== undefined) { keys.left = opts.steer > 0; keys.right = opts.steer < 0; }
     if (opts.gas !== undefined) keys.up = !!opts.gas;
     if (opts.boost !== undefined) keys.boost = !!opts.boost;
+    if (opts.dive !== undefined) keys.dive = !!opts.dive;
     if (opts.jump) { P.y += 1.9; P.vy = 6.2; P.airborne = true; P.airTime = 0.55; }
     const steps = Math.max(1, Math.round(seconds * 30));
     for (let i = 0; i < steps; i++) tick(1 / 30);
     renderer.render(scene, camera);
     return {
+      mode: P.mode,
       t: +simT.toFixed(2),
       mph: Math.round(Math.abs(P.speed) * 2.237),
-      y: +P.y.toFixed(2),
+      y: +(P.mode === 'swim' ? P.swY : P.y).toFixed(2),
+      underwater: +P.underwaterBlend.toFixed(2),
       airborne: P.airborne,
       calls: renderer.info.render.calls,
       tris: renderer.info.render.triangles,
