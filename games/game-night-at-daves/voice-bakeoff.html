@@ -41,13 +41,26 @@
   header h1 { margin: 0 0 6px; font-size: 21px; letter-spacing: 1px; color: #90ee90; }
   header p { margin: 0; font-size: 13px; line-height: 1.45; color: #d6ffd6; }
   .playall { display: flex; gap: 10px; margin-bottom: 14px; }
-  .row {
+  .row, .xrow {
     background: rgba(0, 0, 128, 0.88);
     border: 1px solid #3a3ab0;
     border-radius: 10px;
     padding: 12px;
     margin-bottom: 12px;
   }
+  .xrow { border-color: #0e7a6d; background: rgba(0, 64, 64, 0.88); }
+  .section-head {
+    background: #000080;
+    border: 2px solid #90ee90;
+    border-radius: 10px;
+    padding: 12px 14px 10px;
+    text-align: center;
+    margin: 18px 0 12px;
+  }
+  .section-head h2 { margin: 0 0 5px; font-size: 17px; letter-spacing: 1px; color: #90ee90; }
+  .section-head p { margin: 0; font-size: 12.5px; line-height: 1.45; color: #d6ffd6; }
+  .from { font-size: 12.5px; color: #bfefff; margin: 0 0 8px; }
+  .from b { color: #7ef0e0; }
   .who {
     display: inline-block;
     background: #000;
@@ -76,6 +89,8 @@
   }
   button.sam   { background: #001a4d; color: #90ee90; border-color: #90ee90; }
   button.mimic { background: #2a1a4d; color: #ffd75e; border-color: #ffd75e; }
+  button.extra { background: #003a33; color: #7ef0e0; border-color: #7ef0e0; font-size: 16px; }
+  button.extra.playing { background: #7ef0e0; color: #000; }
   button.all   { min-height: 56px; font-size: 16px; }
   button.playing { background: #90ee90; color: #000; border-color: #fff; }
   button.mimic.playing { background: #ffd75e; }
@@ -97,6 +112,14 @@
 </div>
 
 <main id="rows"></main>
+
+<div class="section-head">
+  <h2>🎧 MORE STYLES — ONE LINE EACH</h2>
+  <p>Five more famous game voices, each tried on a single line — mostly Dave's
+     Berzerk line: &ldquo;Chicken, fight like a robot!&rdquo;</p>
+</div>
+
+<main id="extraRows"></main>
 
 <footer>
   <b>SAM</b> — the 1982 classic software voice (sam-js port, used with permission of the house).<br>
@@ -351,6 +374,302 @@ global.MimicRender = render;
 global.MimicPhonemes = PH;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
+<script>/* ============================================================================
+   BAKE-OFF EXTRAS — five more famous game-voice styles, each an original
+   mini-synth written from scratch for this page. No external assets, no
+   SAM code (the two styles that transform a spoken line take their source
+   buffer from the page's own MIMIC / SAM renders at call time).
+   All renderers return Float32Array at 22050 Hz, peak-normalized ~0.72.
+     ExtrasAnimalese(text, {pitch})      Animal Crossing letter chatter
+     ExtrasBanjo(phString, timbre)       Banjo-Kazooie syllable mumbles
+     ExtrasQbert()                       Q*bert random gibberish burst
+     ExtrasCrush(buf)                    Gauntlet/Blades of Steel 4-bit crush
+     ExtrasMidna(buf, text)              Twilight Princess scrambled voice
+   ============================================================================ */
+(function (global) {
+'use strict';
+
+var SR = 22050;
+
+function normalize(out, peakTarget) {
+  var peak = 0, i;
+  for (i = 0; i < out.length; i++) { var a = Math.abs(out[i]); if (a > peak) peak = a; }
+  if (peak > 0.01) { var g = (peakTarget || 0.72) / peak; for (i = 0; i < out.length; i++) out[i] *= g; }
+  return out;
+}
+
+/* Deterministic PRNG (mulberry-ish LCG) for the seeded styles. */
+function lcg(seed) {
+  var s = (seed >>> 0) || 1;
+  return function () {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+/* One-pole lowpass state helper. */
+function lowpassCoef(freq) { return 1 - Math.exp(-2 * Math.PI * freq / SR); }
+
+/* ----------------------------------------------------------------------------
+   1. ANIMALESE — Animal Crossing. Every letter becomes a short pitched
+   syllable blip; letters blur together at speech cadence. Vowels ring
+   fuller, consonants are shorter and drier. Pitch wanders per letter in a
+   deterministic sing-song pattern around the character's base pitch.
+   ------------------------------------------------------------------------- */
+var VOWEL_SET = { a:1, e:1, i:1, o:1, u:1, y:1 };
+/* Five generic vowel colourings [F1, F2] a letter can take. */
+var LETTER_FORMANTS = [[730,1090],[390,1990],[570,840],[300,870],[640,1190]];
+
+function ExtrasAnimalese(text, voice) {
+  var base = (voice && voice.pitch) || 220;
+  var chars = String(text).toLowerCase().split('');
+  /* Build the event list: {durMs, letter|null} — null = gap. */
+  var events = [];
+  for (var ci = 0; ci < chars.length; ci++) {
+    var c = chars[ci];
+    if (c === ' ') { events.push({ gap: 55 }); continue; }
+    if (c === ',' ) { events.push({ gap: 110 }); continue; }
+    if (c === '.' || c === '!' || c === '?') { events.push({ gap: 170 }); continue; }
+    if (c < 'a' || c > 'z') continue;
+    events.push({ letter: c, vowel: !!VOWEL_SET[c], v: c.charCodeAt(0) - 97 });
+  }
+  var BLIP = 62, totalMs = 40;
+  for (var ei = 0; ei < events.length; ei++) totalMs += events[ei].gap || BLIP;
+  var total = Math.floor(totalMs * SR / 1000);
+  var out = new Float32Array(total);
+  var rnd = lcg(1234567 + base * 31 + String(text).length * 977);
+
+  /* Two resonant bandpass states for the vowel colouring. */
+  function BP() { return { x1:0, x2:0, y1:0, y2:0 }; }
+  var bp1 = BP(), bp2 = BP();
+  function runBP(st, x, freq, bw) {
+    var q = Math.max(0.4, freq / bw);
+    var w = 2 * Math.PI * Math.min(freq, 9000) / SR;
+    var alpha = Math.sin(w) / (2 * q);
+    var a0 = 1 + alpha;
+    var b0 = alpha / a0, b2 = -alpha / a0;
+    var a1 = -2 * Math.cos(w) / a0, a2 = (1 - alpha) / a0;
+    var y = b0 * x + b2 * st.x2 - a1 * st.y1 - a2 * st.y2;
+    st.x2 = st.x1; st.x1 = x; st.y2 = st.y1; st.y1 = y;
+    return y;
+  }
+
+  var pos = Math.floor(20 * SR / 1000);
+  for (var e = 0; e < events.length; e++) {
+    var ev = events[e];
+    if (ev.gap) { pos += Math.floor(ev.gap * SR / 1000); continue; }
+    var len = Math.floor((ev.vowel ? BLIP : BLIP * 0.72) * SR / 1000);
+    /* Deterministic per-letter pitch wander: sing-song, not monotone. */
+    var wander = 0.88 + (((ev.v * 7 + e * 3) % 10) / 10) * 0.34;
+    var f0 = base * wander;
+    var fm = LETTER_FORMANTS[ev.v % LETTER_FORMANTS.length];
+    var phase = rnd() * 0.2;
+    var lp = 0, lpA = lowpassCoef(2600);
+    for (var n = 0; n < len && pos + n < total; n++) {
+      var frac = n / len;
+      phase += f0 * (1 + 0.06 * Math.sin(frac * Math.PI)) / SR;
+      if (phase >= 1) phase -= 1;
+      /* Harmonic pulse: the Animalese "voice" is buzzy, not a pure tone. */
+      var src = Math.sin(2 * Math.PI * phase) * 0.7
+              + Math.sin(4 * Math.PI * phase) * 0.35
+              + Math.sin(6 * Math.PI * phase) * 0.18;
+      lp += lpA * (src - lp);
+      var v = runBP(bp1, lp, fm[0] * (base / 220) + 300, 220) * 0.9
+            + runBP(bp2, lp, fm[1], 500) * 0.45
+            + lp * 0.35;
+      var env = Math.sin(Math.PI * Math.min(1, frac * 1.06)); /* soft blip */
+      out[pos + n] += v * env * (ev.vowel ? 0.85 : 0.55);
+    }
+    pos += Math.floor(BLIP * SR / 1000);
+  }
+  return normalize(out);
+}
+
+/* ----------------------------------------------------------------------------
+   2. BANJO MUMBLE — Banjo-Kazooie. One grunt/honk per syllable (vowel
+   nucleus of the phoneme string). The text is irrelevant to the sound —
+   it's all timbre and rhythm. Dave: low double-pulse "guh-huh" through a
+   dark lowpass. Sudz: harsh squawk, pitch swooping with a honk tremolo.
+   ------------------------------------------------------------------------- */
+var BANJO_VOWELS = { IY:1, IH:1, EY:1, EH:1, AE:1, AA:1, AO:1, OW:1, UH:1, UW:1, AH:1, ER:1, AY:1, AW:1, OY:1 };
+
+function banjoSyllables(phString) {
+  var toks = String(phString).split(/\s+/).filter(function (t) { return t && t !== '|' && t !== '||'; });
+  var count = 0;
+  for (var i = 0; i < toks.length; i++) if (BANJO_VOWELS[toks[i]]) count++;
+  return Math.max(1, count);
+}
+
+function ExtrasBanjo(phString, timbre) {
+  var syll = banjoSyllables(phString);
+  var dave = (timbre !== 'sudz');
+  var gruntMs = dave ? 175 : 135;
+  var gapMs = dave ? 34 : 26;
+  var total = Math.floor((30 + syll * (gruntMs + gapMs) + 40) * SR / 1000);
+  var out = new Float32Array(total);
+  var rnd = lcg(dave ? 424242 : 131313);
+  var base = dave ? 86 : 305;
+  var lpA = lowpassCoef(dave ? 640 : 2400);
+  var lp = 0, phase = 0;
+  var pos = Math.floor(15 * SR / 1000);
+
+  for (var sIdx = 0; sIdx < syll; sIdx++) {
+    var len = Math.floor(gruntMs * (0.9 + rnd() * 0.25) * SR / 1000);
+    var pMul = 0.92 + rnd() * 0.18;
+    for (var n = 0; n < len && pos + n < total; n++) {
+      var frac = n / len;
+      var f;
+      if (dave) {
+        /* guh-huh: pitch bumps up, sags, little lift at the tail. */
+        f = base * pMul * (1.12 - 0.28 * Math.sin(Math.PI * Math.min(1, frac * 1.15)) + (frac > 0.78 ? (frac - 0.78) * 0.5 : 0));
+      } else {
+        /* squawk: fast rise, wobbling fall. */
+        f = base * pMul * (0.78 + 0.55 * Math.sin(Math.PI * Math.min(1, frac * 1.25)) + 0.07 * Math.sin(frac * 44));
+      }
+      phase += f / SR;
+      if (phase >= 1) phase -= 1;
+      var raw;
+      if (dave) {
+        raw = (phase < 0.5 ? 1 : -1);                    /* square = hollow grunt */
+      } else {
+        raw = 2 * phase - 1;                            /* saw = harsh honk */
+        raw = Math.tanh(raw * 2.2);
+      }
+      lp += lpA * (raw - lp);
+      var env = Math.pow(Math.sin(Math.PI * Math.min(1, frac)), 0.7);
+      if (dave) env *= 0.72 + 0.28 * Math.abs(Math.sin(Math.PI * frac * 2)); /* double pulse */
+      else env *= 0.8 + 0.2 * Math.sin(frac * 52);                          /* honk tremolo */
+      out[pos + n] += lp * env * (dave ? 1.5 : 1.1);
+    }
+    pos += len + Math.floor(gapMs * SR / 1000);
+  }
+  return normalize(out);
+}
+
+/* ----------------------------------------------------------------------------
+   3. Q*BERT — pure cartoon gibberish. A fresh random burst of chirps and
+   sweeps on every call: the famous "@!#?@!" made audible. Ignores text.
+   ------------------------------------------------------------------------- */
+function ExtrasQbert() {
+  var chirps = 7 + Math.floor(Math.random() * 5);       /* 7–11 chirps */
+  var parts = [];
+  var totalMs = 30;
+  for (var i = 0; i < chirps; i++) {
+    var dur = 50 + Math.random() * 85;
+    var gap = 12 + Math.random() * 55;
+    parts.push({ dur: dur, gap: gap,
+                 f0: 220 + Math.random() * 720,
+                 bend: 0.3 + Math.random() * 2.3,
+                 sq: Math.random() < 0.55 });
+    totalMs += dur + gap;
+  }
+  var total = Math.floor((totalMs + 40) * SR / 1000);
+  var out = new Float32Array(total);
+  var pos = Math.floor(15 * SR / 1000);
+  for (var p = 0; p < parts.length; p++) {
+    var ch = parts[p];
+    var len = Math.floor(ch.dur * SR / 1000);
+    var phase = 0;
+    for (var n = 0; n < len && pos + n < total; n++) {
+      var frac = n / len;
+      var f = ch.f0 * Math.pow(ch.bend, frac);          /* exponential sweep */
+      phase += f / SR;
+      if (phase >= 1) phase -= 1;
+      var v = ch.sq ? (phase < 0.5 ? 0.8 : -0.8)
+                    : Math.sin(2 * Math.PI * phase) * 0.9;
+      out[pos + n] += v * Math.sin(Math.PI * frac);
+    }
+    pos += len + Math.floor(ch.gap * SR / 1000);
+  }
+  return normalize(out);
+}
+
+/* ----------------------------------------------------------------------------
+   4. 8-BIT SHOUT — the digitized-sample bark of Gauntlet / Blades of
+   Steel: take a spoken render and crush it like a 1985 arcade board did —
+   hot level into a hard clip, sample-rate reduction, 4-bit quantization.
+   ------------------------------------------------------------------------- */
+function ExtrasCrush(buf) {
+  var HOLD = 3;                       /* 22050 / 3 = 7350 Hz effective */
+  var out = new Float32Array(buf.length);
+  var held = 0;
+  for (var i = 0; i < buf.length; i++) {
+    if (i % HOLD === 0) held = buf[i];
+    var x = held * 1.7;                               /* drive it hot */
+    if (x > 0.85) x = 0.85; else if (x < -0.85) x = -0.85;
+    x = Math.round(x * 8) / 8;                        /* 4-bit: 16 steps */
+    out[i] = x;
+  }
+  return normalize(out, 0.8);
+}
+
+/* ----------------------------------------------------------------------------
+   5. MIDNA — Twilight Princess. Midna's voice is a real voice chopped
+   and scrambled: within each word the little chunks are reordered and
+   some play backwards, so it hovers at the edge of language. We do the
+   same to the SAM render of the line, using word lengths to find the
+   word regions. Deterministic, so every tap sounds the same.
+   ------------------------------------------------------------------------- */
+function ExtrasMidna(buf, text) {
+  /* Trim lead/tail silence so the word math lines up with the speech. */
+  var lo = 0, hi = buf.length;
+  while (lo < hi && Math.abs(buf[lo]) < 0.02) lo++;
+  while (hi > lo && Math.abs(buf[hi - 1]) < 0.02) hi--;
+  if (hi - lo < SR * 0.3) { lo = 0; hi = buf.length; }
+  var body = buf.subarray(lo, hi);
+
+  var words = String(text).replace(/[^A-Za-z' ]/g, '').split(/\s+/).filter(Boolean);
+  if (!words.length) words = ['x'];
+  var weights = words.map(function (w) { return w.length + 0.7; });
+  var wSum = weights.reduce(function (a, b) { return a + b; }, 0);
+
+  var rnd = lcg(777000 + body.length);
+  var pieces = [];                                     /* output sample ranges */
+  var cursor = 0;
+  for (var wi = 0; wi < words.length; wi++) {
+    var wLen = Math.floor(body.length * weights[wi] / wSum);
+    if (wi === words.length - 1) wLen = body.length - cursor;
+    var wStart = cursor;
+    cursor += wLen;
+    /* Split the word into 2–4 chunks of ~70–120 ms. */
+    var chunkMs = 70 + Math.floor(rnd() * 50);
+    var chunkLen = Math.max(256, Math.floor(chunkMs * SR / 1000));
+    var chunks = [];
+    for (var cs = wStart; cs < wStart + wLen; cs += chunkLen) {
+      chunks.push({ s: cs, e: Math.min(wStart + wLen, cs + chunkLen), rev: false });
+    }
+    /* Scramble: reorder within the word, reverse about half the chunks. */
+    if (wi % 2 === 0) chunks.reverse();
+    else if (chunks.length > 2) { var t0 = chunks[0]; chunks[0] = chunks[chunks.length - 1]; chunks[chunks.length - 1] = t0; }
+    for (var ci = 0; ci < chunks.length; ci++) if (rnd() < 0.5) chunks[ci].rev = true;
+    for (var cj = 0; cj < chunks.length; cj++) pieces.push(chunks[cj]);
+  }
+
+  var out = new Float32Array(body.length);
+  var FADE = Math.floor(0.004 * SR);                   /* 4 ms edge fades */
+  var wpos = 0;
+  for (var pi = 0; pi < pieces.length; pi++) {
+    var pc = pieces[pi];
+    var plen = pc.e - pc.s;
+    for (var n = 0; n < plen && wpos + n < out.length; n++) {
+      var srcIdx = pc.rev ? (pc.e - 1 - n) : (pc.s + n);
+      var g = 1;
+      if (n < FADE) g = n / FADE;
+      else if (n > plen - FADE) g = (plen - n) / FADE;
+      out[wpos + n] = body[srcIdx] * g;
+    }
+    wpos += plen;
+  }
+  return normalize(out);
+}
+
+global.ExtrasAnimalese = ExtrasAnimalese;
+global.ExtrasBanjo = ExtrasBanjo;
+global.ExtrasQbert = ExtrasQbert;
+global.ExtrasCrush = ExtrasCrush;
+global.ExtrasMidna = ExtrasMidna;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
 <script>/* Bake-off line set — text taken verbatim from the game's LINES table and
    sudden-death lines in integration/index.html. `ph` is the hand-written
    MIMIC phoneme transcription (ARPAbet-style tokens, | = word gap). */
@@ -443,10 +762,9 @@ var MIMIC_VOICES = {
     if (curBtn) { curBtn.classList.remove('playing'); curBtn = null; }
   }
 
-  function play(i, engine, btn, done) {
+  function playSamples(samples, btn, done) {
     var ac = audio();
     stopCurrent();
-    var samples = (engine === 'sam') ? renderSam(i) : renderMimic(i);
     var buf = ac.createBuffer(1, samples.length, 22050);
     buf.copyToChannel(samples, 0);
     var src = ac.createBufferSource();
@@ -461,6 +779,11 @@ var MIMIC_VOICES = {
       if (done) done();
     };
     src.start();
+  }
+
+  function play(i, engine, btn, done) {
+    var samples = (engine === 'sam') ? renderSam(i) : renderMimic(i);
+    playSamples(samples, btn, done);
   }
 
   function playAll(engine, btn) {
@@ -509,13 +832,91 @@ var MIMIC_VOICES = {
     playAll('mimic', document.getElementById('allMimic'));
   });
 
+  /* ---- MORE STYLES section: five famous voices, one line each. ---- */
+  var DAVE_LINE = BAKE_LINES[0], SUDZ_LINE = BAKE_LINES[2];
+  var xcache = {};
+  function xCached(key, fn) { if (!xcache[key]) xcache[key] = fn(); return xcache[key]; }
+
+  var EXTRA_DEFS = [
+    { style: 'ANIMALESE', game: 'Animal Crossing', who: 'DAVE + SUDZ',
+      lines: [DAVE_LINE.text, SUDZ_LINE.text],
+      buttons: [
+        { label: '\u25B6 DAVE', fn: function () { return xCached('animDave', function () { return ExtrasAnimalese(DAVE_LINE.text, { pitch: 190 }); }); } },
+        { label: '\u25B6 SUDZ', fn: function () { return xCached('animSudz', function () { return ExtrasAnimalese(SUDZ_LINE.text, { pitch: 320 }); }); } }
+      ] },
+    { style: 'BANJO MUMBLE', game: 'Banjo-Kazooie', who: 'DAVE + SUDZ',
+      lines: [DAVE_LINE.text, SUDZ_LINE.text],
+      buttons: [
+        { label: '\u25B6 DAVE (guh-huh)', fn: function () { return xCached('banjoDave', function () { return ExtrasBanjo(DAVE_LINE.ph, 'dave'); }); } },
+        { label: '\u25B6 SUDZ (squawk)', fn: function () { return xCached('banjoSudz', function () { return ExtrasBanjo(SUDZ_LINE.ph, 'sudz'); }); } }
+      ] },
+    { style: 'Q*BERT', game: 'Q*bert (1982)', who: 'Q*BERT',
+      lines: ['@!#?@!'],
+      buttons: [
+        { label: '\u25B6 GIBBERISH (new every tap)', fn: function () { return ExtrasQbert(); } }
+      ] },
+    { style: '8-BIT SHOUT', game: 'Gauntlet / Blades of Steel', who: 'DAVE',
+      lines: [DAVE_LINE.text],
+      buttons: [
+        { label: '\u25B6 DAVE \u2014 CRUSHED SAMPLE', fn: function () { return xCached('shout', function () { return ExtrasCrush(renderMimic(0)); }); } }
+      ] },
+    { style: 'MIDNA', game: 'Zelda: Twilight Princess', who: 'DAVE',
+      lines: [DAVE_LINE.text],
+      buttons: [
+        { label: '\u25B6 DAVE \u2014 SCRAMBLED', fn: function () { return xCached('midna', function () { return ExtrasMidna(renderSam(0), DAVE_LINE.text); }); } }
+      ] }
+  ];
+
+  var xrows = document.getElementById('extraRows');
+  EXTRA_DEFS.forEach(function (def) {
+    var row = document.createElement('section');
+    row.className = 'xrow';
+    var who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = def.style;
+    var from = document.createElement('p');
+    from.className = 'from';
+    from.innerHTML = 'from <b></b> \u00B7 voice: ';
+    from.querySelector('b').textContent = def.game;
+    from.appendChild(document.createTextNode(def.who));
+    row.appendChild(who);
+    row.appendChild(from);
+    def.lines.forEach(function (t) {
+      var p = document.createElement('p');
+      p.className = 'line';
+      p.textContent = '\u201C' + t + '\u201D';
+      row.appendChild(p);
+    });
+    var btns = document.createElement('div');
+    btns.className = 'btns';
+    def.buttons.forEach(function (b) {
+      var btn = document.createElement('button');
+      btn.className = 'extra';
+      btn.textContent = b.label;
+      btn.addEventListener('click', function () { chain++; playSamples(b.fn(), btn); });
+      btns.appendChild(btn);
+    });
+    row.appendChild(btns);
+    xrows.appendChild(row);
+  });
+
   /* Test hook: lets the headless verifier render every line on both engines. */
   window.BAKEOFF = {
     lines: BAKE_LINES,
     samVoices: SAM_VOICES,
     mimicVoices: MIMIC_VOICES,
     renderSam: renderSam,
-    renderMimic: renderMimic
+    renderMimic: renderMimic,
+    extras: {
+      defs: EXTRA_DEFS.map(function (d) { return { style: d.style, game: d.game, nButtons: d.buttons.length }; }),
+      animaleseDave: function () { return EXTRA_DEFS[0].buttons[0].fn(); },
+      animaleseSudz: function () { return EXTRA_DEFS[0].buttons[1].fn(); },
+      banjoDave: function () { return EXTRA_DEFS[1].buttons[0].fn(); },
+      banjoSudz: function () { return EXTRA_DEFS[1].buttons[1].fn(); },
+      qbert: function () { return EXTRA_DEFS[2].buttons[0].fn(); },
+      shout: function () { return EXTRA_DEFS[3].buttons[0].fn(); },
+      midna: function () { return EXTRA_DEFS[4].buttons[0].fn(); }
+    }
   };
 })();
 </script>
