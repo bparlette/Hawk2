@@ -175,6 +175,10 @@ function concreteTex(base,seed,stain=1){const[c,x]=cnv(512,512);const rng=mulber
   blotches(x,512,512,16,rng,'rgba(20,18,14,1)',0.16*stain,40,150);
   blotches(x,512,512,8,rng,'rgba(96,88,70,1)',0.10*stain,30,90);
   streaks(x,512,512,26,rng); cracks(x,512,512,6,rng);
+  for(let i=0;i<7;i++){const px=rng()*470,py=rng()*470,pw=22+rng()*54,ph=16+rng()*40;   // peeling paint over bare substrate
+    x.fillStyle='rgba(24,22,18,0.5)';x.beginPath();x.ellipse(px+3,py+4,pw/2,ph/2,0,0,6.29);x.fill();
+    x.fillStyle='rgba(196,190,172,0.55)';x.beginPath();x.ellipse(px,py,pw/2,ph/2,rng(),0,6.29);x.fill();
+    x.fillStyle='rgba(120,112,96,0.5)';x.beginPath();x.ellipse(px-pw*0.14,py-ph*0.1,pw/4,ph/4,0,0,6.29);x.fill();}
   x.fillStyle='rgba(0,0,0,0.16)';x.fillRect(0,255,512,2);x.fillRect(0,0,2,512);
   const g=x.createLinearGradient(0,380,0,512);g.addColorStop(0,'rgba(8,8,6,0)');g.addColorStop(1,'rgba(8,8,6,0.5)');
   x.fillStyle=g;x.fillRect(0,380,512,132);
@@ -186,6 +190,10 @@ function floorTexF(){const[c,x]=cnv(512,512);const rng=mulberry32(77);
   blotches(x,512,512,7,rng,'rgba(70,66,50,1)',0.14,20,70);
   x.strokeStyle='rgba(12,12,14,0.85)';x.lineWidth=3;
   for(let i=0;i<=2;i++){x.beginPath();x.moveTo(i*256,0);x.lineTo(i*256,512);x.stroke();x.beginPath();x.moveTo(0,i*256);x.lineTo(512,i*256);x.stroke();}
+  const wg=x.createLinearGradient(0,0,512,0);wg.addColorStop(0,'rgba(0,0,0,0.14)');wg.addColorStop(0.5,'rgba(210,205,190,0.07)');wg.addColorStop(1,'rgba(0,0,0,0.14)');x.fillStyle=wg;x.fillRect(0,0,512,512);   // traffic wear lane
+  x.strokeStyle='rgba(8,8,10,0.35)';x.lineWidth=2;
+  for(let i=0;i<10;i++){x.beginPath();x.arc(rng()*512,rng()*512,14+rng()*40,rng()*3,rng()*2+0.6);x.stroke();}   // scuff arcs
+  speckle(x,512,512,2600,rng,['#191a1c','#6a6a60'],0.12);   // grit / debris
   return c;}
 function ceilTexF(){const[c,x]=cnv(512,512);const rng=mulberry32(31);
   x.fillStyle='#333336';x.fillRect(0,0,512,512);
@@ -255,7 +263,7 @@ function spillTexF(){const[c,x]=cnv(128,128);const g=x.createLinearGradient(0,0,
   g.addColorStop(0,'rgba(255,255,255,0.85)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,128,128);return c;}
 // --- new textures for Dead Hall ---
 function yellowWallTexF(){const[c,x]=cnv(512,512);const rng=mulberry32(1234);
-  x.fillStyle='#8a7434';x.fillRect(0,0,512,512);
+  x.fillStyle='#ad8c31';x.fillRect(0,0,512,512);
   // damask-ish pattern: rows of diamonds
   x.fillStyle='rgba(60,48,16,0.35)';
   for(let ry=0;ry<8;ry++)for(let rx=0;rx<8;rx++){const cx=rx*64+(ry%2?32:0),cy=ry*64;
@@ -264,6 +272,10 @@ function yellowWallTexF(){const[c,x]=cnv(512,512);const rng=mulberry32(1234);
   speckle(x,512,512,5000,rng,['#3a2f10','#c9ae5a','#6b5622'],0.10);
   blotches(x,512,512,14,rng,'rgba(50,40,14,1)',0.20,30,120);
   streaks(x,512,512,20,rng);
+  x.strokeStyle='rgba(70,54,14,0.4)';x.lineWidth=3;   // water-stain rings
+  for(let i=0;i<4;i++){x.beginPath();x.ellipse(rng()*512,rng()*300,20+rng()*46,12+rng()*30,0,0,6.29);x.stroke();}
+  x.fillStyle='rgba(226,205,140,0.5)';x.beginPath();x.ellipse(400,120,34,22,0.4,0,6.29);x.fill();   // peeling patch
+  x.fillStyle='rgba(90,72,26,0.55)';x.beginPath();x.ellipse(404,124,26,16,0.4,0,6.29);x.fill();
   const g=x.createLinearGradient(0,400,0,512);g.addColorStop(0,'rgba(30,24,6,0)');g.addColorStop(1,'rgba(30,24,6,0.55)');
   x.fillStyle=g;x.fillRect(0,400,512,112);
   return c;}
@@ -272,43 +284,69 @@ function carpetTexF(){const[c,x]=cnv(512,512);const rng=mulberry32(555);
   speckle(x,512,512,22000,rng,['#2e2410','#7d662f','#99813f','#241b08'],0.16);
   blotches(x,512,512,16,rng,'rgba(24,18,6,1)',0.30,40,140);   // damp stains
   blotches(x,512,512,8,rng,'rgba(90,80,40,1)',0.18,30,90);
+  x.strokeStyle='rgba(30,22,8,0.25)';x.lineWidth=1;   // carpet fibre
+  for(let i=0;i<380;i++){const sx=rng()*512,sy=rng()*512;x.beginPath();x.moveTo(sx,sy);x.lineTo(sx+(rng()-0.5)*7,sy+(rng()-0.5)*7);x.stroke();}
+  blotches(x,512,512,5,rng,'rgba(12,10,4,1)',0.34,50,120);   // soaked patches
   return c;}
 function dressTexF(base,seed){const[c,x]=cnv(256,256);const rng=mulberry32(seed);
   x.fillStyle=base;x.fillRect(0,0,256,256);
   speckle(x,256,256,3200,rng,['#000','#fff','#22201c'],0.08);
   blotches(x,256,256,10,rng,'rgba(16,14,10,1)',0.28,14,60);
   streaks(x,256,256,10,rng);
+  x.globalAlpha=0.05;x.strokeStyle='#000';x.lineWidth=1;         // weave
+  for(let i=0;i<256;i+=3){x.beginPath();x.moveTo(i,0);x.lineTo(i,256);x.stroke();}
+  x.globalAlpha=0.04;x.strokeStyle='#fff';
+  for(let i=0;i<256;i+=3){x.beginPath();x.moveTo(0,i);x.lineTo(256,i);x.stroke();}
+  x.globalAlpha=1;
+  for(let i=0;i<7;i++){const fx=rng()*256,fw=10+rng()*22;const fg=x.createLinearGradient(fx,0,fx+fw,0);fg.addColorStop(0,'rgba(0,0,0,0)');fg.addColorStop(0.5,'rgba(0,0,0,0.20)');fg.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=fg;x.fillRect(fx,0,fw,256);}   // fold shadows
+  for(let i=0;i<5;i++){const fx=rng()*256,fw=6+rng()*12;const fg=x.createLinearGradient(fx,0,fx+fw,0);fg.addColorStop(0,'rgba(255,255,255,0)');fg.addColorStop(0.5,'rgba(255,255,255,0.07)');fg.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=fg;x.fillRect(fx,0,fw,256);}   // fold highlights
+  const hg=x.createLinearGradient(0,190,0,256);hg.addColorStop(0,'rgba(8,6,4,0)');hg.addColorStop(1,'rgba(8,6,4,0.45)');x.fillStyle=hg;x.fillRect(0,190,256,66);   // hem grime
   return c;}
 function skinTexF(seed){const[c,x]=cnv(256,256);const rng=mulberry32(seed);
   x.fillStyle='#9aa48e';x.fillRect(0,0,256,256);
+  const vg=x.createLinearGradient(0,0,0,256);vg.addColorStop(0,'rgba(255,246,225,0.10)');vg.addColorStop(1,'rgba(20,24,16,0.16)');x.fillStyle=vg;x.fillRect(0,0,256,256);
   speckle(x,256,256,2600,rng,['#5d6852','#c3cbb2','#47503e'],0.13);
+  speckle(x,256,256,5200,rng,['#6d7860','#8b957c','#3c4636'],0.06);   // fine pores
   blotches(x,256,256,12,rng,'rgba(70,80,60,1)',0.3,10,50);
   blotches(x,256,256,6,rng,'rgba(96,60,52,1)',0.22,6,26);   // bruise tones
+  blotches(x,256,256,7,rng,'rgba(112,84,66,1)',0.16,8,34);  // mottled flush / dirt
+  x.strokeStyle='rgba(74,52,58,0.35)';x.lineWidth=1.1;         // veins
+  for(let i=0;i<9;i++){let px=rng()*256,py=rng()*256;x.beginPath();x.moveTo(px,py);const sg=3+(rng()*4|0);for(let s2=0;s2<sg;s2++){px+=(rng()-0.5)*44;py+=rng()*26;x.lineTo(px,py);}x.stroke();}
+  x.strokeStyle='rgba(52,60,66,0.25)';
+  for(let i=0;i<5;i++){let px=rng()*256,py=rng()*256;x.beginPath();x.moveTo(px,py);const sg=3+(rng()*3|0);for(let s2=0;s2<sg;s2++){px+=(rng()-0.5)*38;py+=rng()*22;x.lineTo(px,py);}x.stroke();}
   return c;}
 function faceTexF(kind){const[c,x]=cnv(256,256);const rng=mulberry32(kind.length*131+7);
   x.clearRect(0,0,256,256);
   const eye=(cx,cy,r,col)=>{x.fillStyle=col;x.beginPath();x.ellipse(cx,cy,r,r*1.25,0,0,6.29);x.fill();};
+  const sock=(cx,cy,r)=>{const g=x.createRadialGradient(cx,cy,1,cx,cy,r);g.addColorStop(0,'rgba(10,6,6,0.55)');g.addColorStop(1,'rgba(10,6,6,0)');x.fillStyle=g;x.fillRect(cx-r,cy-r,r*2,r*2);};
   if(kind==='woman'||kind==='twin'){
+    sock(88,104,30); sock(168,104,30);
     eye(88,104,11,'rgba(8,6,6,0.95)'); eye(168,104,11,'rgba(8,6,6,0.95)');
-    x.fillStyle='rgba(20,8,8,0.9)';x.beginPath();x.ellipse(128,182,17,26,0,0,6.29);x.fill();  // open mouth
+    x.fillStyle='rgba(24,10,10,0.35)';x.beginPath();x.ellipse(128,140,5,16,0,0,6.29);x.fill();  // nose shadow
+    const mg=x.createRadialGradient(128,182,2,128,182,26);mg.addColorStop(0,'rgba(46,10,10,0.95)');mg.addColorStop(1,'rgba(14,5,5,0.9)');x.fillStyle=mg;x.beginPath();x.ellipse(128,182,17,26,0,0,6.29);x.fill();  // open mouth, shaded interior
     x.fillStyle='rgba(40,20,20,0.5)';x.fillRect(80,96,4,44);x.fillRect(172,96,4,44);            // tear streaks
   } else if(kind==='grin'){
+    sock(84,96,26); sock(172,96,26);
     eye(84,96,9,'rgba(6,6,6,0.95)'); eye(172,96,9,'rgba(6,6,6,0.95)');
     x.fillStyle='#e8e4da';x.beginPath();x.ellipse(128,176,58,20,0,0,Math.PI);x.fill();          // too-wide grin
     x.strokeStyle='rgba(10,10,10,0.7)';x.lineWidth=2;for(let i=0;i<7;i++){x.beginPath();x.moveTo(82+i*15,168);x.lineTo(82+i*15,186);x.stroke();}
   } else if(kind==='hulk'){
+    sock(84,108,34); sock(172,108,34);
     eye(84,108,21,'rgba(5,5,5,0.97)'); eye(172,108,21,'rgba(5,5,5,0.97)');
     x.fillStyle='rgba(12,6,6,0.92)';x.beginPath();x.ellipse(128,198,46,22,0,0,6.29);x.fill();
     x.fillStyle='rgba(230,225,210,0.9)';for(let i=0;i<6;i++)x.fillRect(92+i*13,186,9,17);       // teeth
     x.fillStyle='rgba(24,10,10,0.35)';x.beginPath();x.ellipse(58,52,44,20,0.5,0,6.29);x.fill();x.beginPath();x.ellipse(196,70,30,14,-0.4,0,6.29);x.fill(); // bruise smears
   } else if(kind==='mascot'){
+    sock(84,100,30); sock(172,100,30);
     eye(84,100,16,'rgba(8,8,8,0.97)'); eye(172,100,16,'rgba(8,8,8,0.97)');
     x.fillStyle='rgba(255,255,255,0.9)';x.beginPath();x.arc(88,95,4.5,0,6.29);x.arc(176,95,4.5,0,6.29);x.fill();
     x.strokeStyle='rgba(240,235,220,0.92)';x.lineWidth=7;x.beginPath();x.arc(128,158,52,0.25,Math.PI-0.25);x.stroke(); // fixed grin arc
     x.fillStyle='rgba(20,10,8,0.55)';x.fillRect(30,30,60,26);x.fillRect(170,210,50,20);          // damage smears
   } else if(kind==='crawler'){
+    x.fillStyle='rgba(8,6,6,0.30)';x.fillRect(52,62,152,18);   // brow shadow band
+    sock(88,100,28); sock(168,100,28);
     eye(88,100,12,'rgba(6,6,6,0.96)'); eye(168,100,12,'rgba(6,6,6,0.96)');
-    x.fillStyle='rgba(16,6,6,0.92)';x.beginPath();x.ellipse(128,190,24,20,0,0,6.29);x.fill();
+    const mg2=x.createRadialGradient(128,190,2,128,190,24);mg2.addColorStop(0,'rgba(40,8,8,0.95)');mg2.addColorStop(1,'rgba(12,4,4,0.92)');x.fillStyle=mg2;x.beginPath();x.ellipse(128,190,24,20,0,0,6.29);x.fill();
   }
   speckle(x,256,256,300,rng,['#000','#3a3226'],0.10);
   return c;}
@@ -344,19 +382,26 @@ scene.add(new THREE.HemisphereLight(0x2a3a52,0x0a0a0c,0.66));
 const camLight=new THREE.PointLight(0xbfd0e0,4.6,12,2); scene.add(camLight);   // the bodycam's own LED
 
 // ---------- materials ----------
-const wallMat  =new THREE.MeshStandardMaterial({map:tex(concreteTex('#76736a',11),6,1),roughness:0.96});
-const wallMat2 =new THREE.MeshStandardMaterial({map:tex(concreteTex('#6b6f6e',23),3,1),roughness:0.96});
-const roomWallMat=new THREE.MeshStandardMaterial({map:tex(concreteTex('#5f6258',37,1.3),3,1),roughness:0.97});
-const yellowMat=new THREE.MeshStandardMaterial({map:tex(yellowWallTexF(),5,1),roughness:0.94});
-const floorMat =new THREE.MeshStandardMaterial({map:tex(floorTexF(),2,16),roughness:0.94});
+const wallTexA=tex(concreteTex('#76736a',11),6,1);
+const wallMat  =new THREE.MeshStandardMaterial({map:wallTexA,bumpMap:wallTexA,bumpScale:0.4,roughness:0.96});
+const wallTexB=tex(concreteTex('#6b6f6e',23),3,1);
+const wallMat2 =new THREE.MeshStandardMaterial({map:wallTexB,bumpMap:wallTexB,bumpScale:0.4,roughness:0.96});
+const roomWallTex=tex(concreteTex('#5f6258',37,1.3),3,1);
+const roomWallMat=new THREE.MeshStandardMaterial({map:roomWallTex,bumpMap:roomWallTex,bumpScale:0.4,roughness:0.97});
+const yellowTex=tex(yellowWallTexF(),5,1);
+const yellowMat=new THREE.MeshStandardMaterial({map:yellowTex,bumpMap:yellowTex,bumpScale:0.35,roughness:0.94});
+const floorTex=tex(floorTexF(),2,16);
+const floorMat =new THREE.MeshStandardMaterial({map:floorTex,bumpMap:floorTex,bumpScale:0.3,roughness:0.94});
 const carpetMat=new THREE.MeshStandardMaterial({map:tex(carpetTexF(),2,10),roughness:1});
 const ceilMat  =new THREE.MeshStandardMaterial({map:tex(ceilTexF(),3,16),roughness:0.98});
 const rustMat  =new THREE.MeshStandardMaterial({map:tex(rustTexF(),2,1),roughness:0.62,metalness:0.55});
 const darkMetal=new THREE.MeshStandardMaterial({color:0x2c2f33,roughness:0.55,metalness:0.6});
 const crateMat =new THREE.MeshStandardMaterial({map:tex(crateTexF()),roughness:0.9});
 const rubbleMat=new THREE.MeshStandardMaterial({map:tex(concreteTex('#55534e',61),1,1),roughness:1});
-const doorMat  =new THREE.MeshStandardMaterial({map:tex(doorTexF(3),1,1),roughness:0.85});
-const doorMat2 =new THREE.MeshStandardMaterial({map:tex(doorTexF(8),1,1),roughness:0.85});
+const doorTexA=tex(doorTexF(3),1,1);
+const doorMat  =new THREE.MeshStandardMaterial({map:doorTexA,bumpMap:doorTexA,bumpScale:0.25,roughness:0.85});
+const doorTexB=tex(doorTexF(8),1,1);
+const doorMat2 =new THREE.MeshStandardMaterial({map:doorTexB,bumpMap:doorTexB,bumpScale:0.25,roughness:0.85});
 const blackMat =new THREE.MeshBasicMaterial({color:0x010102});
 const glowTex=tex(glowTexF()); glowTex.wrapS=glowTex.wrapT=THREE.ClampToEdgeWrapping;
 const spillTex=tex(spillTexF()); spillTex.wrapS=spillTex.wrapT=THREE.ClampToEdgeWrapping;
@@ -664,11 +709,16 @@ const neonRooms=applyNeonRoomsPass(scene);
 window.__neon=neonRooms;
 
 // ---------- figure factory: every character is primitives + generated textures ----------
-const skinMatA=new THREE.MeshStandardMaterial({map:tex(skinTexF(4),1,1),roughness:0.85});
-const skinMatB=new THREE.MeshStandardMaterial({map:tex(skinTexF(9),1,1),roughness:0.85});
-const dressMatA=new THREE.MeshStandardMaterial({map:tex(dressTexF('#7d7468',15),1,1),roughness:0.95});  // stained pale dress
-const dressMatB=new THREE.MeshStandardMaterial({map:tex(dressTexF('#5d6a72',21),1,1),roughness:0.95});  // twins' matching dresses
-const clothDark=new THREE.MeshStandardMaterial({map:tex(dressTexF('#2e3134',31),1,1),roughness:0.97});
+const skinTexA=tex(skinTexF(4),1,1);
+const skinMatA=new THREE.MeshStandardMaterial({map:skinTexA,bumpMap:skinTexA,bumpScale:0.15,roughness:0.85});
+const skinTexB=tex(skinTexF(9),1,1);
+const skinMatB=new THREE.MeshStandardMaterial({map:skinTexB,bumpMap:skinTexB,bumpScale:0.15,roughness:0.85});
+const dressTexA=tex(dressTexF('#7d7468',15),1,1);
+const dressMatA=new THREE.MeshStandardMaterial({map:dressTexA,bumpMap:dressTexA,bumpScale:0.2,roughness:0.95});  // stained pale dress
+const dressTexB=tex(dressTexF('#5d6a72',21),1,1);
+const dressMatB=new THREE.MeshStandardMaterial({map:dressTexB,bumpMap:dressTexB,bumpScale:0.2,roughness:0.95});  // twins' matching dresses
+const clothDarkTex=tex(dressTexF('#2e3134',31),1,1);
+const clothDark=new THREE.MeshStandardMaterial({map:clothDarkTex,bumpMap:clothDarkTex,bumpScale:0.2,roughness:0.97});
 const clothRust=new THREE.MeshStandardMaterial({map:tex(rustTexF(),1,1),roughness:0.8,metalness:0.3});   // mascot hide
 const statueMat=new THREE.MeshStandardMaterial({color:0xb9bcb4,roughness:0.45,metalness:0.08});
 const seekMat=new THREE.MeshStandardMaterial({color:0x060607,roughness:1});
@@ -708,7 +758,7 @@ function makeFigure(cfg={}){
   };
   const foreL=mkArm(armL), foreR=mkArm(armR);
   const headG=new THREE.Group(); headG.position.set(0,torsoLen,0); torsoG.add(headG);
-  const headR=Hh*0.078*(cfg.mascot?1.9:1);
+  const headR=Hh*0.073*(cfg.mascot?1.9:1);
   if(cfg.statue){ // spring neck: stacked rings
     for(let i=0;i<3;i++){ const ring=new THREE.Mesh(new THREE.TorusGeometry(0.05*s,0.016*s,6,14),statueMat);
       ring.rotation.x=Math.PI/2; ring.position.y=0.03+i*0.045*s; headG.add(ring); }
