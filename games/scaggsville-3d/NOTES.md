@@ -25,7 +25,7 @@ Extraction: `research/extract.py` (rerunnable) → `src/data.js` (397 KB).
   lat/lon deltas between roster stops; the graph file's "10" label is wrong).
 - **Route**: Dijkstra shortest path over the real road graph:
   Brad → Floyds → Jason → Grant → Lazaris → Rigg → Kosack → Atholton HS,
-  **22.94 km** of real roads (stored ordered since Nov 21, `tools/rebuild_route.py`; it was the right streets in jumbled order, 46.9 km end to end, labelled 23.09 km).
+  **22.78 km** of real roads (stored ordered since Nov 21, `tools/rebuild_route.py`; it was the right streets in jumbled order, 46.9 km end to end, labelled 23.09 km).
 - **Kept geometry**: 1,165 roads / 2,027 buildings / 8 parking polygons /
   36 cul-de-sacs within a corridor of the route and the crew streets.
   Polylines simplified at 1.2 m tolerance — simplified, never moved.
@@ -183,7 +183,7 @@ convoy drives the same real roads the player drove.
 ## Proofs
 
 - `tools/proof.mjs` — node: steps the real drive code along the real
-  22.94 km route with the full convoy; asserts every stop triggers in
+  22.78 km route with the full convoy; asserts every stop triggers in
   rally order and the run finishes at Atholton.
 - `tools/verify.mjs` — headless Chromium (SwiftShader): zero page errors,
   pick-screen → drive → collect → finish via `__proof` hooks, screenshots
@@ -304,3 +304,19 @@ Measured with `tools/lookdev/` at 390×844 (SwiftShader). Before = `273a4ed`.
 - **Not touched (other owners):** vehicles are the largest remaining draw cost, about 180 main-pass plus 43 shadow
   draws at the spawn (`gpvehicles.js` cars are 130–175 meshes each; glass `MeshPhysicalMaterial` also triggers a
   transmission pre-pass). Merging static car parts by material is the next lever.
+
+## Driveway stops (Nov 21, after the ×0.5 compression)
+
+Every house stop now sits on its own street at the mouth of the house's actual
+driveway (the `planHouses` driveway kerb end projected onto the road), following
+the Floyds move. Brad → Stansfield Rd (-12.9, 8.2); Jason → Susini Dr
+(-304.4, -518.7) — this also fixes his old stop, which sat 5.7 m inside his
+house collider; Grant → Sand Cherry Ln (-1253.5, -939.5) (his driveway exits
+that side, not Early Bud Way); Lazaris → Sweet Cherry Ln (-1258.9, -1222.0);
+Rigg → Hammond Branch Way (-860.9, -1556.3). Kosack's stop was already at his
+Derby Dr frontage point (39, -1950) and the Floyds stop was already at its
+driveway — both verified, unmoved. Atholton HS has no driveway; its stop is
+unchanged. Route rebuilt with `tools/rebuild_route.py`: 11.47 → 11.49 km.
+Verified with the game's own push-out reachability (every stop: closest
+approach 0.4 m, inside-collider depth 0, 16.6 m margin in the 17 m radius) and
+a live collection run in rally order (all six house stops collected).
