@@ -1,0 +1,68 @@
+// Dead Hall headless combat playtest harness: node tools/combat-harness.mjs
+// Plays encounters with scripted inputs at 60 Hz and prints PASS/FAIL per required path + timing tables.
+import { ROOMS, TUNING, planRun } from '../src/combat/rooms.js';
+import { createEncounter, createRun } from '../src/combat/encounter.js';
+const DT = 1 / 60; let fails = 0;
+const check = (name, ok, detail) => { if(!ok) fails++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`); };
+function play(enc, script, maxT = 40){ const ev = []; enc.on(e => ev.push(e)); let t = 0;
+  while(!enc.done && t < maxT){ const a = script(t, enc, ev); if(a) enc.input(a); enc.step(DT); t += DT; } return ev; }
+const T = (ev, type, f = () => true) => (ev.find(e => e.type === type && f(e)) || {}).t;
+// a fair human-ish player: stabs 0.30 s into the counter window, then thrusts once per pulse plus 3 taps/s between
+const human = (react = 0.30) => (t, e) => {
+  if(e.state === 'counter' && e.stateT >= react) return 'stab';
+  if(e.state === 'finish'){ if(e.onPulse() && e._lastP !== Math.floor(e.stateT / 0.55)){ e._lastP = Math.floor(e.stateT / 0.55); return 'stab'; }
+    if(Math.floor(e.stateT * 3) !== e._lastQ){ e._lastQ = Math.floor(e.stateT * 3); return 'stab'; } }
+  return null; };
+const finishOnly = (t, e) => human(99)(t, e);
+
+console.log('== 1. counter-success path (room 3) ==');
+{ const enc = createEncounter(2); const ev = play(enc, human());
+  const lunge = T(ev, 'lunge'), st = T(ev, 'stagger'), head = T(ev, 'headThrust');
+  console.log(`   spike ${T(ev,'meterSpike')} s, dread ${T(ev,'state',e=>e.to==='dread')} s, lunge ${lunge} s (window ${enc.window} s), stagger ${st} s, head thrust ${head} s, taps ${enc.taps}, bite ${enc.bite.toFixed(2)}`);
+  check('stab in window -> stagger -> finish -> walk resumes', enc.result === 'win' && st > lunge && st - lunge < enc.window && T(ev, 'walkResume') !== undefined && !T(ev, 'biteSurge')); }
+
+console.log('== 2. miss path (room 3, no counter stab) ==');
+{ const enc = createEncounter(2); const ev = play(enc, finishOnly);
+  console.log(`   bite surge ${T(ev,'biteSurge')} s -> bite ${(ev.find(e=>e.type==='biteSurge')||{}).bite}, hard finish ${enc.hard}, head thrust ${T(ev,'headThrust')} s, final bite ${enc.bite.toFixed(2)}, taps ${enc.taps}`);
+  check('no stab -> bite surge -> harder finish, still winnable', enc.result === 'win' && enc.hard && T(ev, 'biteSurge') !== undefined && !T(ev, 'signalLost')); }
+console.log('   miss path in EVERY live room (same player):');
+for(let i = 0; i < 12; i++){ if(ROOMS[i].kind !== 'live') continue; const enc = createEncounter(i); play(enc, finishOnly);
+  console.log(`     room ${String(i+1).padStart(2)}  window ${TUNING[i].window.toFixed(2)} s  bite/s ${TUNING[i].biteRate.toFixed(3)}  -> ${enc.result} (final bite ${enc.bite.toFixed(2)})`);
+  check(`   room ${i+1} miss still winnable`, enc.result === 'win'); }
+
+const di = ROOMS.map((r, i) => r.kind === 'decoy' ? i : -1).filter(i => i >= 0);
+console.log(`== 3. decoy right path (rooms ${di.map(i=>i+1).join(', ')}: withhold) ==`);
+for(const i of di){ const enc = createEncounter(i); const ev = play(enc, () => null);
+  const d = ev.find(e => e.type === 'dispatch');
+  console.log(`   room ${i+1}: burst ${T(ev,'burst')} s, tells ${T(ev,'tells')} s, decision point ${T(ev,'decisionPoint')} s, flee ${T(ev,'flee')} s, card "${d && d.text}"`);
+  check(`room ${i+1} withhold -> flees, dispatch card fires`, enc.result === 'spared' && T(ev,'tells') < T(ev,'decisionPoint') && /civ, hold fire/.test(d && d.text)); }
+
+console.log('== 4. decoy wrong path (stab at the decision point) ==');
+{ const ctx = { lightLoose: false, shrink: 0 };
+  for(const [k, i] of di.entries()){ const enc = createEncounter(i, TUNING[i], ctx); const ev = play(enc, (t, e) => e.state === 'decoy' && e.stateT >= 0.45 ? 'stab' : null);
+    const c = ev.find(e => e.type === 'consequence');
+    console.log(`   wrong stab #${k+1} (room ${i+1}): consequence ${c && c.what}, result ${enc.result}, ctx ${JSON.stringify(ctx)}`);
+    check(`room ${i+1} wrong stab -> consequence, no SIGNAL LOST`, enc.result === 'wrongStab' && !!c && !T(ev, 'signalLost')); }
+  const nxt = createEncounter(8, TUNING[8], ctx);
+  console.log(`   next live encounter (room 9) counter window: ${nxt.window.toFixed(2)} s (tuned ${TUNING[8].window.toFixed(2)} s)`);
+  check('window-shrink consequence lands on the next live encounter', nxt.window < TUNING[8].window); }
+
+console.log('== 5. full scripted 12-room clear (seed 0, then seeds 1-5) ==');
+for(const seed of [0, 1, 2, 3, 4, 5]){
+  const run = createRun(seed), ev = []; run.on(e => ev.push(e)); const p = human(); let t = 0;
+  while(!run.cleared && t < 400){ const e = run.enc; const a = e.kind === 'decoy' ? null : p(t, e); if(a) run.input(a); run.step(DT); t += DT; }
+  const plan = run.plan.map(r => r.kind[0].toUpperCase() + (r.swapped ? '*' : '')).join(' ');
+  console.log(`   seed ${seed}: plan [${plan}]  results ${run.results.join(',')}  restarts ${run.restarts}  time ${t.toFixed(1)} s  dispatch cards ${ev.filter(e=>e.type==='dispatch').length}`);
+  check(`seed ${seed} clears all 12 rooms with no restart`, run.cleared && run.results.length === 12 && run.restarts === 0 && run.results[11] === 'empty'); }
+
+console.log('== 6. SIGNAL LOST path (never stab) ==');
+{ const run = createRun(0), ev = []; run.on(e => ev.push(e)); let t = 0;
+  while(!ev.some(e => e.type === 'feedCut') && t < 200){ run.step(DT); t += DT; }
+  const sl = ev.find(e => e.type === 'signalLost');
+  console.log(`   SIGNAL LOST in room ${sl && sl.room} at ${sl && sl.t} s into the room; after restart: room ${run.room + 1}, ctx ${JSON.stringify(run.ctx)}, results ${JSON.stringify(run.results)}, restarts ${run.restarts}, enc state ${run.enc.state}`);
+  check('bite fills -> feed cuts -> restart state clean', !!sl && run.room === 0 && run.restarts === 1 && !run.ctx.lightLoose && run.ctx.shrink === 0 && run.results.length === 0 && run.enc.state === 'idle'); }
+
+console.log('== timing table (per room, from the module) ==');
+for(let i = 0; i < 12; i++){ const r = ROOMS[i], tu = TUNING[i];
+  console.log(`   room ${String(i+1).padStart(2)} ${r.kind.padEnd(5)} ${r.id.padEnd(13)} ` + (r.kind === 'live' ? `spike ${(tu.dreadAt-1).toFixed(1)} s, dread ${tu.dreadAt.toFixed(1)} s, counter window ${tu.window.toFixed(2)} s, bite ${tu.biteRate.toFixed(3)}/s (x1.35 after a miss), strikes ${tu.strikes} (cap 25)` : r.kind === 'empty' ? `walk ${tu.walk} s, no monster` : r.kind === 'decoy' ? 'tells +0.15 s, decision +0.45 s, withhold 2.0 s' : `spike ${(tu.dreadAt-1).toFixed(1)} s, vanish ${(tu.dreadAt+tu.dread).toFixed(1)} s`)); }
+console.log(fails ? `\n${fails} FAILED` : '\nALL PATHS PASS'); process.exit(fails ? 1 : 0);
