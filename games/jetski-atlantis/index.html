@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>APEX WAKE — Atlantis Bake-Off</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #0a2e47; touch-action: none; user-select: none; -webkit-user-select: none;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+    color: #f2f8fc;
+  }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  body:not(.g) #gl { filter: blur(5px) brightness(0.78); }
+  #vig {
+    position: fixed; inset: 0; pointer-events: none; z-index: 10;
+    background: radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 58%, rgba(2,16,28,0.30) 100%);
+  }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 1150; }
+  body:not(.g) #hud { display: none; }
+  body:not(.g) .tcov { display: none; }
+  .panel {
+    background: rgba(5, 20, 34, 0.44); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(180, 238, 255, 0.22); border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(0, 12, 24, 0.32);
+  }
+  #topLeft { position: absolute; top: 14px; left: 14px; padding: 10px 14px; display: flex; flex-direction: column; gap: 3px; }
+  #brand { font-size: 11px; font-weight: 800; letter-spacing: 0.24em; color: #ffd9a0; }
+  #scoreLine { font-size: 20px; font-weight: 800; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+  #subLine { font-size: 11px; font-weight: 600; color: rgba(226, 246, 255, 0.8); letter-spacing: 0.08em; }
+  #topRight { position: absolute; top: 14px; right: 14px; display: flex; gap: 8px; pointer-events: auto; }
+  .pillBtn {
+    background: rgba(5, 22, 36, 0.56); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(180, 238, 255, 0.28); color: #effaff; border-radius: 999px;
+    padding: 8px 13px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; cursor: pointer; touch-action: manipulation;
+  }
+  .pillBtn:active { transform: scale(0.94); }
+  #speedo { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 22px 12px; min-width: 180px; text-align: center; }
+  #mphVal { font-size: 38px; font-weight: 900; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  #mphUnit { font-size: 11px; font-weight: 700; letter-spacing: 0.24em; color: #ffd9a0; margin-left: 4px; }
+  #boostTrack { margin-top: 8px; height: 7px; border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.16); }
+  #boostFill { height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg, #ffb347, #ff5340); }
+  #callout {
+    position: absolute; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+    font-size: 26px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: #fff;
+    text-shadow: 0 3px 22px rgba(255, 158, 87, 0.9), 0 2px 6px rgba(0, 0, 0, 0.75);
+    opacity: 0; transition: opacity 0.18s, transform 0.18s; pointer-events: none; text-align: center; white-space: nowrap;
+  }
+  #callout.show { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  #title {
+    position: fixed; inset: 0; z-index: 1200; display: flex; flex-direction: column;
+    align-items: center; justify-content: space-between; padding: 58px 22px 46px; text-align: center;
+    pointer-events: auto; cursor: pointer;
+    background: linear-gradient(180deg, rgba(4, 20, 36, 0.42) 0%, rgba(4, 20, 36, 0.05) 45%, rgba(4, 20, 36, 0.55) 100%);
+    transition: opacity 0.45s ease;
+  }
+  #title.gone { opacity: 0; pointer-events: none; }
+  #title h1 {
+    margin: 0; font-size: clamp(38px, 9vw, 68px); font-weight: 900; letter-spacing: 0.16em;
+    background: linear-gradient(180deg, #ffffff 20%, #ffd9a0 90%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 6px 24px rgba(0, 30, 60, 0.7));
+  }
+  #title .sub { margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.34em; color: #ffe9c4; text-shadow: 0 2px 10px rgba(0,0,0,0.65); }
+  #bar { width: min(420px, 74vw); height: 3px; margin: 18px auto 10px; background: rgba(255, 217, 160, 0.25); border-radius: 999px; overflow: hidden; }
+  #barFill { height: 100%; width: 100%; background: linear-gradient(90deg, #ffb347, #ffe9c4); transform: scaleX(0.04); transform-origin: left; transition: transform 0.3s ease; }
+  #status { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; color: rgba(255, 240, 214, 0.92); min-height: 16px; }
+  #title .cta {
+    display: inline-block; margin-top: 20px; padding: 15px 34px; border-radius: 999px;
+    font-size: 14px; font-weight: 800; letter-spacing: 0.22em;
+    background: linear-gradient(135deg, #ffb347, #ff7a3c); color: #2a1402;
+    border: 1px solid rgba(255, 255, 255, 0.55); box-shadow: 0 10px 30px rgba(255, 140, 60, 0.4);
+  }
+  #title .hint { margin-top: 14px; font-size: 11.5px; letter-spacing: 0.1em; color: rgba(230, 248, 255, 0.88); text-shadow: 0 1px 6px rgba(0,0,0,0.85); }
+  .lvRow { margin-top: 16px; display: flex; gap: 8px; justify-content: center; }
+  .lvBtn {
+    padding: 7px 14px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    background: rgba(5, 22, 36, 0.5); color: rgba(230, 248, 255, 0.75);
+    border: 1px solid rgba(180, 238, 255, 0.3); cursor: pointer;
+  }
+  .lvBtn.on { background: rgba(255, 179, 71, 0.85); color: #2a1402; border-color: #ffe9c4; }
+  #err {
+    position: fixed; inset: 0; z-index: 1300; display: none; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 30px;
+    background: linear-gradient(180deg, #123a5e, #0a2e47);
+  }
+  #errTitle { font-size: 24px; font-weight: 900; letter-spacing: 0.06em; margin-bottom: 12px; }
+  #errMsg { font-size: 15px; line-height: 1.55; max-width: 430px; color: rgba(240, 248, 255, 0.92); }
+  @media (max-width: 540px) {
+    #speedo { bottom: 104px; padding: 7px 16px 9px; min-width: 150px; }
+    #mphVal { font-size: 28px; }
+    #topLeft { top: 10px; left: 10px; padding: 6px 10px; }
+    #brand { font-size: 9px; letter-spacing: 0.16em; }
+    #scoreLine { font-size: 15px; }
+    #subLine { font-size: 9.5px; }
+    #topRight { top: 10px; right: 10px; gap: 5px; }
+    .pillBtn { padding: 5px 8px; font-size: 9px; letter-spacing: 0.06em; }
+    #callout { font-size: 17px; letter-spacing: 0.1em; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="vig"></div>
+<div id="hud">
+  <div id="topLeft" class="panel">
+    <div id="brand">APEX WAKE · ATLANTIS BUILD</div>
+    <div id="scoreLine">0 PTS</div>
+    <div id="subLine">FREE RIDE · GOLDEN HOUR</div>
+  </div>
+  <div id="topRight">
+    <button class="pillBtn" id="qualBtn">QUALITY</button>
+    <button class="pillBtn" id="muteBtn">SFX ON</button>
+  </div>
+  <div id="callout"></div>
+  <div id="speedo" class="panel">
+    <div><span id="mphVal">0</span><span id="mphUnit">MPH</span></div>
+    <div id="boostTrack"><div id="boostFill"></div></div>
+  </div>
+</div>
+<div id="title">
+  <div>
+    <h1>APEX WAKE</h1>
+    <div class="sub">FREE RIDE · GOLDEN HOUR</div>
+  </div>
+  <div>
+    <div id="bar"><div id="barFill"></div></div>
+    <div id="status">Decompressing…</div>
+    <div class="cta">TAP TO RIDE</div>
+    <div class="hint">STICK / WASD — THROTTLE &amp; STEER · BOOST +10 MPH · TRICK — FLIPS &amp; DIVES</div>
+    <div class="lvRow">
+      <button class="lvBtn" data-lv="0">LOW</button>
+      <button class="lvBtn" data-lv="1">MED</button>
+      <button class="lvBtn" data-lv="2">HIGH</button>
+    </div>
+  </div>
+</div>
+<div id="err">
+  <div id="errTitle"></div>
+  <div id="errMsg"></div>
+</div>
+<script>
+(function () {
+  var P = "m{6t6Ĝ.Y x+QFEēĖYhĊI|'ĜV07$''zĄ&ĒĝēNĞ=fĉxmĐ[d6ĝđK4$2[dIĀvCXOp>ĒğTĢJD2;R{ĜwyabĂĖ&OĘE,,$Ė~+,,UX1ęqJĒiX7Ēm0I'ėăē)/ĘĐ+Ğ-YcRo.^!W=ā'8M|tK3TēĜYŜpĆRĖHvjĐč,z}V4ĜſtjĐ}meěĚ?8bvď&C1{Lkz2bNNLK]J'ąH/ĊXK|IO])y#eēH9lM.FăR+CğŜĚTM9SėSnąy#eĀK'ĉċĎČċ+DjĐ E,1Hy&eWĆĕWĆ5IĂĢdJĢ@%-Nğ9}EJ(fėv.ĄWŜļĝTeĈĚzonĞ=wtu!Ěp.K>=wjPkĎOL_5Gmċĉ9AĂĀrZĄ&QXJ%ě5'm>9jKz]dĢ2FQoĔ}iėg ěğw;āa~Ę?iđ7  čĊK7*N*RZ$Ěw;5Ď/Ēr[s4#ĐČ8ě0ďpně77Ĝfr}N+ahLe]čG)_ěk0=%nwYbkRn,z,ĘH:ă)Ċ+ik28ĝę[ą|Ģ2Ćkpx^58>iajpX2ļſV{ĂhRmqĜ_rĆRWļITěpF1YBqĆRĜH:WĔPc=wc/>9/sĄă.ą#ečCaą7:nċLIFcaG.izŜgwJ|![cċL5Đčwg]Ē_=ĖD}Egw:$iĐ&ĖIěT2wJ6aM$l3ngOěĖăďăau@Dĕ[ĢmPh$wŜĈ6:nĕEl3.iſ}ſ|?IļSĒ/*zhuFĒR9;ĔrĆļAęĂaLYėŜR5Ooė%Rv8*2'%6IğŜvF%ſZ4{=iŜdw.9}R@ěKJR^ąWV!1=Q ĒĜĉ[ēs.gĕ;Ē=o[pRlTSa^6jĒn jċ8}čĊJRčFĆċěėT'#ĚČčĊk~tĉ*~ŜgqĊHTrĉě-l*Ā(ěĉėVAp2*~c`ĉ#W.WċFſsneXėIz&.A&eW/&Bv8bEkĎċ0Ģ;muxlćĎTſĖ7H#!/ĐuFćxČĔčĊĖ]ěA44a] ăvĕoLĝčF5ĎwJ7b=m]ĈFsOğka@FgFMĎdċnEăćĖŜċoS=JďČă:kVx'hĎĈo4a)^?ągoĔğuCQYŜa_j`:OD=euŜZĢ#PĀėă)YPſ`NZ!y|9#KQAĘt,ĎWNſ}y+PR8D_#qjqAăUoččĊĄE^6'g5ċvL,'X / 6ĒU219ĀTğ?V+ĔĖWğqJļS2^V^'uĜĢļĄĆĀċ5;ćAtT>0+VēJU#eSĝUą#4ęĔb1ďkn$#CĊS*Ę:|[{tC'ā{B;Pqjė_5Đđ/6 WuiI5ětZĆ=ğq%|wĆ:;`oaA6|mM^ě0vđI(lNď4wĀhď]Đ&dv/$ `TĝĞh3jI$dĎ?t;ćt/Ĉ^ĘWOſT(L~21:xbĜR3EiUėĊS]Cė&/ė/LvĎ^Ęm}XĘ}]UbĘJEyKKğſą+ĎC&/Ė'ğ/N~ĞVĜ=fĢ9:Lļ9Č:ĝ/PNĢA:MX ĆC.,RđĜp|č}[{ďĐE2_ĝy`-/Fčy.xCvZ1/dKađOAoċHęhoS:-'wAălWēT!3t*ĔĜ&Fjl:b7/Dd+DMČėwļWNX?0ďHW^ğ~axĀlTVv$]qHl&FI4ĉX-ĕď7YĕM)āX$Ēu2pVĊ[?,9d+-6e!LāQēĆąğ!JRMi&9;KYęĕĖmbR?lčGsm&Y],ĞaĊI}ęU[lTlVj3=ğę?ļtxE.e3]EĕđĎ;=ċK>Y}?Imo?ſ=#WBĘĞ[ĕVĔĕ'UUdiſ%N>ſ}wď)HĞcsTĢy_REuDĢĒ#GĢy~{okĕć;LG;Ďwĝ2Ğn3=đViNHěNDdSaU?Ēv$DĄŜvĘt`,sORFCXļ);ĀaĜ4*HĐr-`~YmļĚĎ[s2#ObĊ>PďQSćmIHĕ|P;DNZBďČzđ*Ğ5GUĀ-e!ę|iĂXC4FđZeĀāĝ#TY9jĎ7BdĢ Ĝeąk*XğČ>ļĚĕ;3Dě'Ŝě$Ě#R9Ē]ajx&F:3-iČYISnļ+Ě'66(w&+:ă)wFOđoyļĔLJ7ĀĘ23#y|YaZIĝ$7|VMĜ{3ăſ@ļ2ę:3CdrTNd6hVMČċ[ĆS,Fdr$FaĔKĝ$3>+Ėg~l`ğĐOļFndě3ě-ěěMYĜIg)ĈH5mdĚ3ě$>CB@ļċ@aĊr-$ĝKāZěĢspW9Dn@_ĝ#4Ėgh?Ď~včQěp7ſĈMmXBďĎďQyč^cl`ĀsĈmĒg2MnLĚK7:sjl&S;ă;P6HĔGIrĘ)^LTăĒm`$ěĘi&ę)wĈ5l_g-Ąĝ._Ĝ#rdĆI[WIHėĝę'b!_O$x]mĜ#TēaDĜ7/+HĄďđqąXĈēYĊĄL_B$2ĕĘļTIMĊĔ@_B$6*@0Lğ$_rIļsdFĚI7&2MIč%3BQ7y$uS9DJ[ĒĈn$čŜĎHĀĢĕĐĘaēt2ĈĔ>včQrĄĂě)ăVOEğI1ğďcrpğČEJ+|6ĎQę^?eyN3sćzĄX8āċNo ĄSaXČ{ĉ*7MĜi1M(UJĢŜĘU[b':,1UJađ!ueČĞR:kcēĝVG*UĒQRvćďě;TqQfqćēMĝjG#VĐĆDGhDu%UzpiŜS??>H>xdawĈĝělĆX=đĚPkZ;Ĉ_ěĘhiSiIpb@.;Čv$ĝYAĖXe`ĀwğfāěMĈXyĈălPę;ę`:mq#Ā6K.3vp@čmĈXQ[Ā|(ą3SNC>ŜOCVw#h}Z.ĀlT5k_ČU6LVm+n_H3dĆlk`Y^@6ļTnrĝAM)s;ă3i9KW CkĔFſ`ěĢĞR=Ě3?[Q_[}pĚĀ4eUtZf^Ĉ5ĖGbďěekĚ'VęS.kĜěMěJV5-8ā7D8ĢMċz9(+ğGmĎ1EMe(ĝę[yğQzXāą+CďěKs^WWcYLJN4BDVYčĞ8S(sO2ă3ę2306sev&85xJŜĘd5LB1Ė'p+nĉSĔĢ$,ŜTrĉďJS:MnbĎGNQčĈČb4OĜ0LęĊ~HuĚ]bbSMXĚ~}$$^EFĔZ4xBės:d=lb'4N>T64JěĀqdJ)MĊ5#3$K)1|MmqsJĖHĐŜ(OĐm0%T4CĔWRĐY=đ*&oĆiaĈS!čM+ěĔVĆkČĀĝ!ěT2VKm)WUJmą9C>YH[4Ć:ė$#{T92OZĆ%,ČēējĆ)9xĔ=đ5(g*1f,RėčlJ`ea+'o|ĄVą2ă]]df KaTēwĆĎwĒđW}đěU&Ŝ.g@āx93ă-F.ĝĀkāPĀ[Ę@jQu2@LmČPcĈFYWKŜC,ZĀ(/ā({đĄd8ČKW-GĘu3@:ċ@:ČbI}Ŝĝę7B9*1L,NĞ3MĆsđM!]il6Ę4GĔMĝmG:{5]ĝ]mE5r$ċBĞućC19Ģd@ŜĊĄ=ĉ7ąoLGĊ@fĔd&-DčąIMRYVLGlLRě-ěĞĜ@-RYiflĔc MM*Hĕ:3Z9CGXę-20!n1|ćoĞĞ2cSĐEď*ă~ŜTĐ[a(č[ AĈKĊRFwmKxmāg/*-3N6uoĚğq]{NęJėqSļZćĞ~PĢFfZļĉ_Ė#ĜětĆĆ2L;ĎNzſĕNJĝY&'&ul4:6XYmŜćN28NĀpwĊL{FĖg!ČāAXă3ČĆvTĝ0JĝěDēc'UqpĔUkz{T:MY_IwĞeeĜ;0&i4hĎ)ā.0Ĕil&JăBĝĉĕV9ďąğ`@UĉPfĖĘ#a59JĘ4]],!ă'ėĢ4[fldNJh5zĎĢWuĘIĔ` %eEQ$S.Sěč%|IčĖBR%Wu*ĚMMĀQĝ9Ę*ę4Ě1ĖFĢĎ:mQ*ęMD.kĆE|ĂNL?ĚwQ-=Me#}ĆĢv41$z0G)1=qMJg=oO+fi9/9Rğgfiğ~zK?ĎRďĞhI6}ĈyPUO41ā]&RU_ďBĎuē-Ć3ćĄĞn#ZĎěđĜĀXćB:zĉă&4ĘInnđ6@Ę|uč:[XpČąMb$`j_QWKl@o}ĝĈ>ĝcĝpFĖ&ĄO2ăYC>ĒğHğtēěăěć}/,/Ĕ2V;ĀđļtēĐC70jv'Ŝ/XMĞ;0eNl+ĈqLOK@ęsWd!Oy)ĖċĀĎą#fRrF5wxLol ĞYă)OmwYē,ęĈGěJNď$cK.ĒĂbqnF]SnXěĘqĎ4L{ff[Ģnx4Ę^0ć&Ŝč/DRAċąą=d;3>eē.pq}9/BIwċ8]NDtěwxgWLč$ci[gſ!zmi_Ğė9bvuDdK&ĊĒĐW=i9ĎĐāĒĕ'f%)@f8ĜŜN8cR0,bD4Au!)ĐLBĉfJgq:4R{qŜdĖM,Fcn *ZrFē0MĐĜĕčZ'm1ďđĝěďćėŜDtŜ3fąĘ]pE]SaČĊYĄ+ď7gCāėđy>ęĔę:āĀğĈ_Đ-ćcďē ĊĒėALIĄċ&RLh'WCĢĊ4qT=WhĢ$sē,ďĀyĉ%m*Ğ95QXċ2xI;j^t'ęi'(6c{zăć^ēĖIr)-9!oZ_0ē9!ĖĊēnYĔĊğFYJċsĘ^'}38ęĖMEmQ9o$ĢĚęwE$17bMBĞcuOrBD?>{+)ĒčFĢ.ć$Ďąă ĂYdĎ8*Ē;'BK>ćvė1ėē`k{:ę^Ěię?Ęq2=8jĞ&$3^ĕėēJČ:ąI-Ěu.KĒnI0`IĐX$17ĘrĆJąDBC9iağ];z[!*'n_;9Ĉ8ĚKĢ-feiļd%ĒqIb^sL/ěĉ;m)wpŜmqF1:E5fW%pwap2ļbĕ'0ĖĐz$8đryċPēLĘRęğLYX8(2PěąĉIę_vlėWo^ļu|wCwO^ſuPĢINGCkĒ8xsĜĈĝė70eđqxĎĀfĉā6ėăSa+aę9Ģ)n8&Ą[9Q88&^JĐS|Yl(U=nFC31{BČkZĝMZ'fyJĎđI9yL/{{swnğſGoćſrt'gođ+PĈ/ăzb]Sğ_>~f}Ăp)ĎXoċļ,Ĕ($$ċļdĊ1DĀ1Ŝ:yf/_NĒĢ,ĞĒ@4EĎ8LĊĄđRĔNĢ?ĊčDĈ{`Sėdr`Sė/Ĉďqą&YMĘě}VZ8zl}K??~{Swo_;yc/oğğdN;2LĂāěcĈpą&9$NN$=+nSi4lěĖGĈObĊjlďļA)čĈtĜ*@Bi/q3ėĀGă`eyĆĖſL:zuMKė>9w:=č-n_F>čx`*8QJĖwTĒĎ`~u4_#tvGnO]!ę@pĐ^@cMqglh'cKSSn8Ă(ě&@W!Ēēae : 'Ă?wFSĉĐcČrEuĎĂ$^@ĄđcPę.čĜ?Dh1cf1/`a?ăB8wni?~~c//Ŝ8~ĎęfĀ`DğYSvĝĀĐvď0#kĜvTčHĒČ_.Ğ{ĝ,ă(,3ļnĉĆĈ}Ĕqm8ćDYAĈdxrt`xċkLF5ĉ:ě^Ĝďqamębĝĝā%y~T6ļ~j9ĜęU5Ċo>č;?HPļ{4)ČOzF-3Ěl1(ČQ`^EKyRĢRĢKZJ'A*cāXĕĆcA(LLđ ~Čk6PUĉ?8B8ăv1_k!ğČUui%RĆ[&ē4ĔVYęJB7uĄ'(J.ĆĜn)/`uļ~lďNĜQ+`VPėXt~Aq`V^Ĉ>!bbjĄ4Ĉ7FMĀęQ$~Đ[X^Ē$9K],ĆRmAďĎă`2nU/N^'Ę.ĐĝQ+,ļSjĢKI9Ćkė@ (xgsg3>m};ėO^yyUsCPđy.ĀxA~LĞ^ĀĎjĔP9Nđėđălĉ^'AjzuMaKğ_9~So/^9ďjĊoĕYŜ0ċsyhċ9)6ĝj)4ćaQĎH]ėYğ}q`ğxFĔĖŜėU*!{a&')13+`ĖVJrE=X-ĘČ}|#9qĞD'QAć#$Ā~ęāſ$Vm9xkěx0$Ĕm26|wręBĉVĝĉzđĜeSę-DuĀĜ_yLĖ`>kĉăĐGęmĄ{=Ēt?PďAĜğĘXğfđHČPa @Đ8'09XWEĊSvvĖCP&`vx2j=ăX9}ĉęWĘAGLB;?Hĉ2ę#ĖsdrĆYJđ+925CĄ2$Đ'ĂěDď*01r`H?UĘČiėěĀkO&āďeIęMWĀ4*%[ĕOltLf{0:TYmĚfĂUĆx1Bſ0BďKę:&ċ=ĘĞjĂ?l#VeĜċ!5pQTFđkrĆďi,D4ĎYVX,'JY.1YNTe:5CGĔfĚHQKyfUMVeMfUŜĕHSĐĐkZL5.mXĂěĔĄd[ĀLČĐGćvđĕčpA*ă|HsğLpcĆ~Ę.āĚĖĂĚĖĂĚ)āĚđĂĚ)ĀzĢ$wAĊ]ăĒ-;ČĆrrčđxGj(ĄĘGp}Ĕ,bCTo*$/ąě1xċq8{BėpāVĒĂĎ[Čba61Mi!ğYoĆēălV'ěā{ēă;$?OiĢJėDčĆ8?Ĉ2Ā ĞċzſĐ`ĉeKė0b-VĔ,ğĚěĄs[BFWfČ'>/Ċ3J:fāThGėĐ@v)Db/f]Y3!_ļ^XĀxPļ9~ŜĖq{&Ŝ2ăiVĐFĞe!37ėYē5ěi}FT]dQ2jđđăFćKZvJkćl-X0]0Č~IrĂJl0ĉ1Č~)E1BĘ&Ĉ3D1Z]=zĊ}4cčČpmSqſ0Ğo9zhiĆąYp9*1ď]8Z},?CBLćcUXė.Ĝ;Ŝď`&ĖăgB1WĘeEvOzXĔğ{CkbĔGOwĞjPĐĎWě*EVğm~đFNL[}5ęĘĎĝRğ:ĎR$ĒBjļqS>,!S!{BĀ{Nċğ^8āĀ[ăBj?~x'zcgĚĔdZěĝ,KrlqS}=ĐC88r1ĕ:oynď;Ď7(HYX-,, ěmgĊq?Ċgą$t4ſEĎhdSqPXĄmgď}T]Čſė^*J.Gml17(H4ļę(/8ăf1=nKĊĉuQċG/ĀrĞĉFm>đIv6whāIZcďćĞh5ĆĝāĂO`ğm#dJěIĊĈzEď;OAĖKļtąDtPſļďvJs!`i-đ?C)oĆHď/Ćsb2Ğ:j8Z!adkŜxegg(>pļ{tĕmļĘ&`oąOăĄWqĢon|rrpyoaeĆ4cĒc:ė%lċđ_ě6~$Zļă$QYĚT|ąĈ3_ăęP|}ĄJ'ąilS1{$*ĆĢĀĝaTĜĢpuą2ĔĕL02BĕĢ)aĊĐ|]BĒē)7ěN Xb2l5~$f*ĂđE$ć%}Ě]Ģċ#as8%ćRŜwfvHĊě$M]=8đCĖVĚzYEFafafĎQ.(&Yė#ļ9ĒrFċĒjd2/vğ`7ĕ|ăBHĜDLWGd*āĕgĚ[ďuĜj34ğnVfě{zzM=]f^6Pg!@JăſKĜx~{F6ą{]RT!@ĘLG:ČfĞcQ#JR>ĆĜx^ĝjętVIĚė/Ē+dDkw'Ċĕ=Yĉ?Ē9:Eąajse6I'weEđrĊ2Ċ%ęgHiĜM7yrL&*ę:ĚkĜM1rg'3xztiļs4NGI3#ďě-ĒğV.H1ĖFjĐDě)BRĚĊqĜĂ8eXV-ĊV$2*yĄĆdU2;k8kDjQ`KOslĆėTCſĢuVſ:2hz/B[6YčqaJtzĐĕſWf!U'il!Ė)oa!2E~WCCĖĘBļĈĎ1$ĒĎ.ĆĜ2N6{ĕM&ĐğMAPĚvăch+ćd,ăĄĚĐy/DY;ċTv}PjaaļaDkėOg]g&ăUă:EĈ@ğ||ğnſznyoMğā)k3>Pvseą{ČL4jēkāC~]O?ļJČĒCB/Ģ6~ďſy~9ĜcĔP*ĊĖpmBMpk7wN^}}Đbw|ms'oſ[s=ſ_ėok'?~}EKWnCăĚ(BgySw~-y_ļ3ſ|_NDQR;%mP*Re/|rs-kO+nI6irEpL%*DbVu ŜO,,:;Ĕrg/ĀA4pċĜw`b/Gx@ĉ{Ģyj.GDJĜ^$ĊĄ?KāĄHX8gvTDJČĚ]T%rfĢrĖ,Ĉ)SdQXĊkRċ^LČKĀRđŜB2SD$WiĉHUĢ).Q&ĞfA,đĊex5XqqYeTK]0l~G?VĚĉkJwļ3simđ?čmĎsbZ3ć1Ŝ7ćvD;ĚĉA]Mĕ;Ĝć2;1f+ğybĖi*hsHĖlĞXBGQ$TĔ@ćJļě.ęĔ@$ąĕ(KIĚđnpgi$Ą~`JdēgąI?čAKļ}__č&ļ8]JBĒvHmſx'āqĀZ!ĚĢ1wDć%tC[đĢ,ą[${TizĖğŜŜ[ĕA>NPęk!~'70;fW=NmQ~ĒŜ/đĀ'oĞQāěovhğ9]@F+ě~jF:ZąPĜ[hė4YrĀgIca1,KCFĐĕĆ`ĒĊć4PĆĉ,uDĔYĈĆSsEċlĀMĚuDdI+ĔĘg*&lhyğ]A-yĘ: &]}oHĉ4O]%ĂjYtĊrbjļĂ&$ Y,`'qx =Ď.ĆĔX3W0WR%bē5Jdp6eDCHČ=ĀJT)Rkz;%*)đ~QĢ,S9ćĎP_HĚkknqcG[;!đďğ>ŜWKHĒĎH])kēTh18Wā]UUČĘė=ğk.[Qmiă)č,ĢDJ7*Ē#D^ćYi[ĕĒ.qGIĈoā3ěRCĒY=ĜđăĄUĐſN27ĆSCĂwlĄLGČZ6hnH9ćGaXUuzĎF~ĘĢh3JTuY5k:X$m}XZĊ*Mx77`n#ĀQ#Gĉ)Ā2ĀUNe@ča&xnĎ>ā2lĆP{zqĀbT0+M2ăěLĝFuT_'ā81HlĚnLL@ą!,/0_ċ9$ċ=NLssNy??đ6OĝċĆcĎ-ĖWHZĀ4V1tĆēb[ĄcďFċkďXĀE%ć%1]z37HĖĎh>2ſcğyăifWĜċ~Pe ZČ$ěaſĎ)^ļa7BPĆĜpn`W-*7K`aſ}W;DKă&ir0`Ė,-/XSĝRe__]=QqL=1ć6g3`>ĉ+CZR.ivĕwo6/ ^)E`0Y:Ć.TCk|L>%qH9gY@D7ĖĐGĀ]C9ĎČ.#Jb!Ć-;ėĎyĊUă;dmċ4&i:6#Ģ9tāmh2ě0@gěğW@ĊBĀ*,-g6ĈFŜĔĖ.WĔĞmg5i*ēlĉĘ]2R>ĀĄ)ċRę(JĂvvEhą>ĀdćRmzZuĖ#ć.9uĘqOĉćlĕg%MĔfiĒMĕăqĢw7l`VčJ&KđRĜām(KCĊ>S>mč 5Mač# .8h$$-38/Hđ ċođ$ĔgĝHKĎB9qđĢj20ěBĝJbx.X]Ŝ|{[R&6P_zm_=;yoęļļc.ukćQuăļĞrĐSKſ.$qNqvM(&tcNhCC;X8BbĊxvM5ſVBwHĖ/&|ď:F,čjĂ?rďl!ćj{qěĊ+EćRĞi7|`X6#8ĞČ;oK(XĐ+Č gmĒ*jjć:ĈĂ8aX$vąRĒď@2IļRēRĎKĄN(ĕ7#`ĀĀj[7$KeċhŜēD])DČ=ĔD]ĖnĆĈfě+_ipL3Ģ1U*Đl-3ğĊČWČ/Wlđ5In)$ć%fĞ6:*reĊ0ğ7CjwHNHnI>Ā5A-BĈđrHĎJnĉrćſvv*$ăRVĞM.jĔ!m? j*đ;Lą~ĂFj %N[ĉ(ŜbVd6.đFMRĘĞđEĆDŜĉ&1Węč;ēĒĊ+ē+Aą~JĖh5a~Č[]%$mĢ&ċđKĈr@!ļXĝ2%AOfĔMzmi_o^ļ0Ģ~ĝXĊA?qJ1!5(]nPĔĖĂ!fC;3Ćc4Hę~]'fBa.Ē9A7ěVċ@vBUDHZĐvlf5ėrEtVuĕmČěċ7čĆ.ėĈęikĘ^ĆćāwĈĔČbVb&ĝ_*?l08ęĐ5Ij87ăN9āē1@HfWDČDļCDxfĈ8fĉIYKsČĚ5ĝĜcĐFon+0čĚĘfĝ8ĜĂf9GL8oC-ĈIĚ+B`pČP)jS5ăĀ%ĞVĞą.)wne^ĄĜĘlęSbFhtĎ6ĕērĈuēE5ļĕ0pTėĐ#rUĂĚM5Lĝ]E_ĢĒXU -Ćd|lbvkfm;Ę(;1ſ4ĔēJaiĀlQ{u{PA}9ě;`NKPĞďaMſ]Mc4@U^Ċēĕ U-;DQc^Zy-h^(nvMLJTRdt>ăĖZvĘZ=A09Ċg0ČXrI=vP~7D0u{'rĖĢfĝ`/Ŝ-.3bĝ#ſ&CIIĈąė3:2p'LLĐę2ă/lcL, ēnę45āDb,6@Q@qĆO2Tļr0bĝS4Ě[ČVč*ĎW>ĕ/{TCkĞ_T0ŜċaĒ>L,`8SĜqN)čĊuĄę&m*ăqP6ĕFĢŜT#5XļNČC]M8H12L8ĈAZĐĕfqğ>s*Ą9C7]Đdsd`ą!ąIę>{bď1ĐoĎĉnĄ[ěĖl0ċĢr|9p>Ėq>Ĝc;>}-LiodĖY6gAzU;D?Ĝ{Ć.RĂğ*c>,ĄQĐlH0čĚĂ,^0Yā$iėfċ`TĈĐĖĂyCYuTNb76Ě2ĜĆ3ČlT@G-(GĈcč@đhċŜBQ^;ċĆF}0`&ěEurĎiĚ0ďŜ.0%FBIbČāy9W5Y|Ć0QBfAĝă2q.XSmrekďt@}āĘe/?0TĂMĘĈċĎ{jW1^.ſěĘ,ſd.qćy*9&`7q`2QN.Čď>Loēvgxl8IWxg1ĐĖ6p|uě8[e@0ă}EqĂką+ĜR(ěDĔ@'ĎJ[iJmb@VNAe;@A*XMĊ8|ſCėē/~t|M{4aŜĝĝ)}O!8CćhWrJ=1lč'e3nĐ*.DirqtĢĄUMYLĔĕ.dWę4đĔčLē{kv4lKuL.ĕē/jĖ/s*v t~Đt__eAſ}-đ,cTĈĈLDHD7q~kApsOĢu#5%*0[ka.ĆHa/oh2xoĜ~;sM`Oą}ĄLBĉ`Ĕ%@`[Wă?f^ &lċ8mQĈHėĂ^QĘ| ĄuwWk:a5Q0ſyč`a`ćXPĈ4kčĘfvu`AĀ78sēŜuĎſĚx_()NWĐ*Đ1NĀv*Cā.Sa5ĢcāĐ3np.#ĞpP)Ğ'Ē~0d%ĢďI8`)x#Aď4?Ę?ĂLĔPLĄ}bK0y;]qEXp:8BY>P%WĝĢPĉĄsĂOăLğ1h:7cĐ)dĎov&ĊVėttĂ{Ĕ*YoJċăŜČz)ĜgsČ=lTăęāxwđĆāp4āh,okkċďf@Āą8->Y`0,9ŜKQăĖoywđ2}?Đ+ĆĈ+pc}X`@|V(Đ='čćĜ`PĆē?aeă&KUfĕ.OĕĞ`ĜjŜb5M`:K}xLf(PĔČXxOxHĘIĈTHZO1Ĝ{ĘDēvąfĒTGRT~C_iP+Ăpď7Ję'ēqN$CqĚĈCăB;|XĘH@YFČ_6gPaĘwTĝ=dXĝqRĢ%a,LJ4Liğą#EJ_4ěĊvćđĎĊwąĆ}SĀ-_ač/Ē&UĐŜėĘ sčĂerċzGEA5Z'(llLeW%ĐČ{MX29ĜlĎ`EDY(Ě!{!L@5YIēĜ}XĒĕ^Ģ9rĐď+alX9{2SIę7Ďĉ&&-Y9$iČ[ĝdĆF_QVLěBqęēO(Qi+,Ĕē-#Ē5xIc6GjTurĄYĆg2Ě.pĖČX9cRFēr93kŜrP)k5ĕTčĜ'j;DbĚaĖJćĖđ5ğBfď5ğbh~Kė{ēđPēďĒ3Ę0Đ%Rſ ğRJē*Crğ8`uIĒĊāwğvć-ĆVs=+GPSĕ$b#jĄę^ĕ&-ĉęC@j ĀmpĒD3'Ŝz|JMdVēc:2Ăſu@Ā Ć8ĂĎćf(A;ĒĎā%đ~m3j`ĝ>ĒlěhĖĐG`]Jān`v[80&ĖČwĈGCOč[U,RĞV%wĎċAĉ7ĎćĘ;?{HC%1qF{ėF=ēę22#QBēP$2Ă,VcK`PĝĂJ*$&ĚqQ1ĞV.+LOFkVĈĈ_ĝ%|!f|qſrĕgT>;Jj->;zĄmā?xc3~0ĀĢćă'z`_E&ONSĐGCĝe6'ĢĐ*Ę8X7{4x_bT!e-@t[SMmĚCjăUPyHvHĚ.Ě W[K-6ghI,EĚRsJJmhQ9%32Ry_Ęą3Vrt$^ĢQĀ2Ē/&Ŝ!'6vAĆzx ĉMſrĕVCpĜXTčV0Cć74D;ŜeĖām č#RnąS!~Č7EĒſĄB|ėĝčď+āYt)}aĀyė#uědăĆ}=d_LĐĖ`,5(ĊĐ[kcĕ!W&đſRēſ2Ēſ2`ſLd_ZqĔ2Gn`%mD+j@ĢĎ&aā0pGM}vĈSlĎ1BLĒď9G-ąWăĔXĈČdpdć:ĀK`f@~%9ſpĒJ3Đ,SS]UUH4J&ĎvĂď+$SMi4ēb2Ēć_:4=-,$ļ!6ĜĆfĔv6Jč-Ę*;_bbQgĚ>Z6gĂĊG92!ď:2!1sq1}xĊĆă)22kĞ#LLdIZ]EX8ĄAĊ|m3ĈIĐďĕX2ĕĄ+kfzĕ5V]w/3l*p%'v!2$}XXĖe?Kğ2CEĉ!,XR|XXz,Fa!ZRBU&6II-;:t| Kia}H5Z(ăS6*Ğ=xH@8T0Ĝ/Ę'Ŝ$ğS6ąX)Ŝ$ĝS6%!qWĖgĆx!Dē#@]@WhĖăĆŜă.X)55ZSjlKtcCLASQČECĒ-&udĚėěM@5ĘJsđs*]V[9Y5Y9YĉdXēQčĞeĆX_Lāgd?9R0Ĝ9ČFēK@oddĝ`Ėt_Đ2kĢuěI2h/ļdĒrļ2b?ļĔě0D2-I,sZē%Ģ9ĒZiJl`ďĀę8ĚQ+]Ĕ2MUrRĊsR>5.^)ęRĔpaW'e.Ć#đ>ď#ļ|_>ďĉ{ĔV-@JiX@XGx=ĊkċF|}Ğċ#~1O5g* Jě;KMO7mAvĘ;LĊĒr['ŜĎp~E%;l!uĖtſĞęċ}do4hW+ćĎ`T*uI6p)ŜĝĆRċ4ČdvSj7Gĕ#V7lYVL*GĉĕM8+ċ8}_FaGod>sĞvĖĖğ~8IqysywKĖN3ć!8c>0gč&wTadĄ5hte}/>?6Ēđz+'*!ĒāQ[:RJ]ŜvdJGęĀă8,Vļ'DK2VUR*D~ČMjĢďVļMm#MIĉbOė?ăKĖ LM*ČēDafĉęĚSz3MēIĖſ&3Ē V7hčĈđĉ(}ěMē@IEK]]Nđs-0ĝ+ugI5N!ĜĀeč0e%Ăěeď`2ERmĐāD?Āq/Ă0Čđā,LĀĔF`tKT6BcWĈĂ0Ka[mAIbpć+`@OėuĔU4ĄeJ'dĀNjļĀŜĊhZbbFY*5)`X0kćLĢĖly}}-ZppėăAJ.ēFĎĝ?^CIQĀ[;:Ēğh&6@woĊFŜ/ŜXvĔĒ!ė4Ę^Ā!č(ąęŜCdck1t/#ąXFj~ĒH`đĚĀČĚeYŜ/Ğ#lębNēvč2Ĝ#FsdxĆĈŜć&ĎyĜnDrĉ~!q_Oğğ*,4ďgZlębIScyĖ;ĎĖ[G7Zlě`3ĞĢC%ĜĀĆq0ĎsrdĎR`[ĚNĜſ;C}EKkęj ĖAē_ĖAG8ļSrrič'&y^.;,y4ę#u`~Ďă;8=ĕ#ĝyfeMĖXLNē+9ĊĂ2-0đ?C,A]Efeļċ@IĕĆVĎ4*GăLj!V1Ć+ĘCUčĘr:P)ĝĎ4*ć.mhkg%ĞăyHXąěĜH*X=ĎdĀ`HlĖ&k0FJW2MĂ6Āu:V)`ăP4FI0NJWru@r;ĀmPrUM: ě[ĀqGĀmę5Ĉz+5Ĉ:-5HYĢĆ6Q=FzczſfVĉ}ę-ēz3Z&tg7MqLĚĂă'5ĄFOj(U5v-{8eĢ'ęĎċĖ>9vuiUďĉOā~Q+ăzb_ĆĖ6@ĝāĖN$Ć#s.PwĖā'Mrd$1zp[S7Ā[}čeēĈ$ağOğwĂĎyěĔ|SĘ[l]&v[ĉ?Hğ*B|{'0nĖ_]daGČ|'ĀĚĖ?X~(i!Ā;{aRCX&61?Nđoļ|ăxĢkOyDI7ĞhĉWđ{Ģ]ſ)Un&āę(}v&H ućIqzĘ2?ĈzĖĈ&&X$2_čNGĔ2plč+HIp4ĞęAWqMĐNĝĝsę;ĔYt;_>U'ytGėČď),5ăFĒĜĖ9gĎĀ[rGĀjkkGaL8ĄKdH$N$6XĚB|đ::Ă8ČďĚILāNjb`ŜNNd[Ē9Ĉ4@ēXĘ8#''ĀCĒĄĚ`Q+Ĉ41ĜqēnĄ}p!&'r:2c 2Ć!@āăt,`Ĉy@'TēĜ8=đQ^ĀĎŜďSHAĀą#āJ^ĆJ^HSĘ`(`.(Ģ#ĝĔ1ĉč58ią(Ĉk^>4T4vė;ĜRW:ĜrĂEdpatĈę^OĄgċ(LĞJQć&`qC|ĢZ6Ĉ]ă~i]ē-ďD>Ą~i_ēm1DēCYQJZĔUFČ+čdXjĄC.xWĊO03Z4z^.ĂęsĂO{tCć`kļ Ŝ>ěAZ+p71tĂſzĘ@$ļTĂĂďkhć!=Ęĉ^XRănchaE{ă~fđrANeUċSwĒ-:MĎ u6ăďĀaăg(ĉ4]VSăēĢĜM,bcĘqQ-ĉQ7CČČFXĊ;z0b.!ĢlĈĝ}E?XjQs>č:{nėėPćFtX~ĐĢz6Č>ČrkĆ^Ę2ĐFĢmě4:Č.Ą4ĉc61Ā[Dy6UĐĕJ2ćĆ5{HĈcJNĀĆbDwdp}Ăſ0RdGN$ia{ďĒ`ă:.WO&R0ļq8'ĞB ēċļĆB;FPĈCd>ĢW!!ĢPĐđoĉhbEbDJEęMQĐaCH7ĄĆVSyj'ă+o`2Tw)cćĀđJ6?~ČſĞzāT@ā,ċJā(E*ę|hĂAJfiŜ%8Yh4~D.c.ĖĂć3Q-Bek@ĐvćĎ$@Ĕoē:-ćď|Ğ(LY{`AĒsm4&9ĂŜĔŜWDćX=X:ĝĈĊuĀVėrēJi,3Ēąs^ĜAĈĖw8^lKt[ČČqſ1Ē337Ď@>#čyH1a'9ĄĜNvğĄyđēed t#d#Ĝ5đvfq5[ğ8[mċQ,kaĉ0ě1Ba:Yeĉ}ďtr%TY*PcĊJzĢ$y{nza%NLĈĊll#XyKXdDoN$y6ēPjQğYF nP6po=h12BmĊ2ěTeuď8KĕŜĢg,,_h;IbXQX{d2iBu]X i%v|T7ě_Ē+ĝ;?6K!kkē|hGKĕ],āq č2{ođIęv9vWĐĊėzđa%&BAtĉjĀĞD4r|ċ%6H$ēĚ?ĂWēaUE,D~Ģ;v`%z.VĉA}ŜļăVg/ĄĎ#4wĖ0ļĄ~Qw0-ċ,r]ďĂhĂ0Ŝ8ćėĄ05TXŜoFQď15@Yy;o:(KăF1@Ęĝzb-rEV(UĄFi#Ā[SĄ{ĘĖĔĊi*v] z)-9đj,9[+cĖ#ė~S;ċIĕęcp]}=lHĄć G{JuEtna;ă`ďaĝĔēnqęČ}Bđ'w?wXăČI~F!ćLĐq.ćėċĎ=@xālr!rav~zqNĜċF;S&6_ćH1ďċď7y{{FDBdā.eĝWb=T/[ďbN-uoĒh]?{)!XĔėăDğ$`Ėh{ ğDăć*đN uĚ?(.yČ@Đ ă|2_(Fļđė}Ĉ)!P&fŜĀĢ}vavvă3^Ě9q};dEWĉĊ/IĈo/HĈ_%ĜŜ(Ėļ?mčD;dBoęČAEĖheĎđEV':H~ſ^qgpměto4xęāXĕ}ĈHĞZ##ba[7Ě[ĕ$ĒĚtm8wMČĒĞuGfm/MzW^@3ſDļIſnu?#I/y&_^d eA7!}ė.ěĈēĆUh[rĊŜJĜA{&IHwdpměpėtVHĈĞ$ĢLLğZuxqclĎĘRSğ/meB.J`-+;##jZ'ļ '{(=yw{h=)PNĒ7RdiĝFL|u.}ēOĂčjxb/}ĕ|@ed4+ŜXBjĕ~=!_Ģh(ĂmBQĖC^ ĊĚ*)31lD -Ĝc1]&ėĝDĊp1Ćq,,!mĘĘ39:{QĊ7/5fFP,?F^Eohf?B}ĕ`LKm$3GYčEfEfdqZFėč=Z#ęzBĎphhcUS%CĊmRēL1BĊ0iyDĝvXvUĆĐjHHi?č*ďā=ćWĢĝđYEĖnAāqGKS02]c=4$đĕN,_Ğęě]>=:Ĝanu|ZJoď#vu`ĐĀf_Ć y.5_7Ċtz[qĒď=ąUcļĔěčZxYQL}ąċ@lTćf9 ^ĝMU>@i/.xĉĞĐAąWĔĘP+YjėĀ;ĕė|6ĎQ+ĀĚ,9ļpčQPV,8-!xąhĈ|D>OcĖR`'(oB9~]z[OĎğĖĐCqe8B{@ĖĉĐIHC,Fxv.w2C@%8ĊQ@6muĚ11t$ĄhjĖĒ.;ĉĘYČāąĖ:TBŜ@ĄwzċCāC&ĝD#$-Ė},mĊe8-FĜ`āOX`NĔ,đn^pd=!qvč.]J)9IPO@;ąy]ā K:+yĞUė% -Tē5=;.5#āŜĈĖbă+H*ESă(ſ4Ysā4!ČTboēqx!%MZN&'*ĘĄ5R2ă0m7:RJZ1'-Ăf#WĢTZh#ĘčTJbH+%ąxbRTĚ@ĐčŜĉVĖUYĖUĉS2ĢNJTs01Ŝ5ĉH(Yĕ?Pk:ćp2Bh'gSM&MYV[ĂmğYN:[j`eĝ[W)ĎŜĂpuĊ~>ątk?/@>y|7[47-ăĈW|pąo!{ĂpJĕCčBp:e.7cāĖěđěļĒ)`ĀĂčU Hğ2ĝ{ĂĎĐDYJ]-Cě BE+Ă;ĒĂDĆUāă+č5KYĜkĈJĄ*ăĉ;Vz%nĂ'i.`0Ā.[|eYMĈăėFTr($2LIĢĚĆēb1oĉlĚąvxqjąYaĉĊē=ĘF2ļ~w{Ĝ2ąěchď9&4ąV9Ą|ĢrS?^9z:e?Mſ}nM,!Ŝ=tg:32Y8PĚ?ļu|MOXjw;ăNċKAĉĈ=xnYoO^:{ėh{Ę_ŜA>)yupwehLgĒA7^/[ēďeĜ7:]_đg|Z[_ŜļsĞxEĆ2AVeB]K[r*$!eĈ;g-nKĜ~3}ė9,t`$ŜſĂēĝZ|^%:RM@7~R3dĄ_Več4uj#&ċAuGğzbiy]Ŝi_]QĐkďſq5ĉ~skĒ|S==o$ļiN!gSjIuGp1phVcļ|[adi8ļ_ĜěMp@`zcċ6G{U Ā@aW'eċĢPxċċā(ſz#oIon4ę  yI ttz#/SiBypĊđhI5]jĀſĘK!mxēė0ćĈu_}4ā4V}ĎĢ|)lſėv0ąoec]ĂVTrEYĂĖ^ĂŜſć3IoWĞvcĒ_ğſě0,/qf[26)Ģě%AĄĕ0wRėĐ/āě0[;Ęo}ļąć{klZaęXElikď_JėčēābzZ4C/KĀĆ.ſ].ė. pg:`x6cĂq0*Yc#cBGpyh=KYĄĉğbċc@s-ŜobfC'Phfb3]rs&HĎ}>IM4O|vFrĉ_Ŝx@GěbĀ-?|G*LL5}q?V>nXpĚ!ĕĢn^6qğ`Ěċs;~zgtā3#ĜėĖĊgěĢKA`%UP@ĘnğĊ_ſē{}ğċ_!đ1ČČĀq^Ĕ0Āhċ*Ĝ{IU5ĖŜ(elė(_[xT>3?trĂoĂTNxĄ:;s-&`zğsRĜ%ėZąĐ*{L{=0ąļMJ.đAVFE&PĀąďZJĜ|ehLb1kĔ*8mĞs6Ě4&~ĊĎnoďHFĈF4ĘKX@jmG,EEmćAfĞNĆGZĢYfyuZ$lYXZĘ&NDGZĢě;@7ėpRnăWNĝ8uĖpR281Č`2#K=f=Ĉ(ĆhxVk*.w?Ĉ4ĚasĉVEĀuĈĢčĖāxĘ5o*QĀĈĞ2ĀF7^)9pDYĘTWsĊėĖ`_F)ŜL~uļbmS5P~ļĖ.đċ5ĉăNCZX^ĢĊĔĈ9(EPĀMTV]*;KHg)Ą8H/Eq{KſğNfſęĜMſn5|ſſeę-ză]hQqDĜhĂjtogğtſďc2eĜ?NUę~]Hğ:sĉziKWļZtGnŜēŜĎT?vċHeăW6Ēt8GXć9qMJYopąVć#vĉ7csg,Čfgx_LJěNFca5|Hk:e~/Ďs][Ě|rĕ.gAă/EĐD9ĎĆ čĊąB~Y=aĕė%^?=C,F^QęXw`yjlG}KqZgk.Đ[ėBm>/r>892~ē|Jğ%_dKěBAĔDGĕ[aċH>;yFrysjK./X3Ę#Ĝ1$^Wċ4ĝBqaċĐAgqtFea(ĚQļĂ/ĝăr:gvxĖēĔD,}||97Oą!8Ŝ6g&Ęp2ĀĊ_Ğ?F>ĊAĐ`;#?ļia_ļĉD1ăměYPļđd)FsĔcM;}Ďh~xCkęsBďLAF~)Ċb2Z*.aW>b8ixyDŜaqAwnĎ.i&|v$rF=a%ěRēaUĆĈG=I|I$Ă|RI6D8>sA)xTļĖ/Đq&ćtVMĖvYĞ`ēĖ[Đy6YđIč@'O75-;GğzR-Kĉ7Ŝĕqz]ē)ĖaNĈčĕmſ^Z&!jWVė{8Ēt/&]V5Oēĝğ0h;ĢękŜċĔ}e?ČćcĎ7ŜĕF]g W~ğxĘăĆ-7Ĕē%B>O#ĊOč[AĀ?blQē&ļiļ;ėĔzdcę4ĊtĀBh#L=ĄĚſŜ-WXĜ^$d7gYĖIFmAĄlĔĎ`ĐxĂ(rV.}?ĐpďEE?|zĖĜm%Dčſ1ĐĜ~zFć)ſlFoi+5;Č^'Soj FĞĝ16ėĚęx-zkĈGiĄPĊĐ{~'4}pJfĎEŜāgY9Oođ3:EoĊĉZ_Bčg!zs>T`đċāRĝwSpćěČ%ăğ9'yęrx2ĚčĆĒ0ăOeĝčĜwcEFZ}=ĖKzĝ~j}fĎw4q14^>xĄ.We^ē-Đ%ĝn)MoĞvz-?Ģ7[[ſĔĈuToMYl>o,PeK:ėĒăē. @VſZL$=SyVĉV8Eh`)na :P/WKĚTĂăL!uĀiſ āCĞEZāziļĒu.4-z@[nē-ĉ7lě5y])h?Ēđ{DėĘCďĐk]0M@#KăſGiNiqi)(Hğ7fiyVĉ'W2OąFĆ5ăěĄ7(ċ5Čj510^ĕĖ{ęĊ&,c{l,pcZ]ěN{luAuJ0t6ĜČYgXWĞĂ}3bMrŜ$glđtP0WFczR#1A5,ŜĂ~Ā*CgawB14XĖ.ď]ĘČĔgĐ4#2bv;Q#ĘĕčetĕĊ#ěĐIiĉSNQ*Ĝ16Tml9ăĎh$;+ą[ē]'!_Q$bNSazrčDĊ6b]p:J7@ęā>ĝvsp6Ob9jc&FeJĞ6=-Cl%TąVĂęğu2,,/ A~7čĊĘ&Ĕ_gč$ſqĄ0CxĂā7|ěĘ*Ğ4Ğ8Ā+$1CMb-6N|ċđącĈVZmęZDđďē/Fy'ĖĆnŜ3!0sĎ6@_=pēlČrkĊ4cXğĜyX!ŜUXĝIĐė_;Ě%yză3SZDi0D'K3iĄ8nMQĐqNČa[u=+ğYĈ.9k{ĉlāJ-zĝJĊ)7qĈĖ7Y&I.[xĊĂVlĔIĖďęė>q*A)ěX/;^G@J|6J'N,ē-ďwPcrdwĉy%Qk92ćkēĖ;%'>;JmĔ).Đ%'&Yė9JċtiIsĀDċĀH.N3+ā?ĊeUč+đGs>ă`}Ć/0ą=ſQċKrMsĞXb(Tk7ďđĊkč?ĀZ@ęſG&i/H'đ;Ēq-ĕĞću[PŜ;@|_ācę7Ă&]?25>ěĒēsv`L{g`ĂX(FCNļmĒ78E3ğąWŜ1hkB+Vė[ĎlhĢq0ĚĄo2ĉĞĄpe 4ę%wļ--~0ĄIs!lt51kKjbIkbIZē Oğ/`cNO`XĆF2LĜ(.ĈLļQUĆZrĐX1^ĖFrpBĕk$'-9xćĞ8Ď.Ģ#}Ęĕ:2`OeĆąIs_slwėUċzĝpIsJ'KĔOBKić07r]wJgS`7ċċ/m8ěv&Ē.'#ĉĂnăāĈ5_Ċ;#Eg#ŜLZXs0wO1sĘx^?ug%ğ?~[['oĝ==ĈHĚğvacrčFĆeēHO;=gAg'euHāx:ĔĜ]Č M 9FnAćOļNAFqĐ>',dĂĝhxqė_Č^o@ZUČtwēQ02PđF,*&ēĞğH&Cċă&8VPqąAĈ$c^IG%Ąn_;yl/9ĄĎękĐh)!`h6ĢČF^pėćypĐtĉļ3g4jwĎhI$juFćtĄVğN:yćĈF%,ċu%5ĝėvZĝ8@ĔėMwĂHQ:2ĜĢy|yĀċSGĜ=ſlćwOĕćd2e Q'$=ppĝeFđ-)OFď',IĔMz4ęk8Ą:7O&,IVĔď),M(2ĕĈBP}UěſmsgĘĈ%X|ĚR$g)C%H>(L~Sp:Ā  +ĖDPNĊ!]rN&ĕpFaĚD>ĒĂAvZĂĘĆċR6-AX)peĊČăiĜM$yObVĢG#Oğ?wĝDnw_cĔpqF-[#pĔKėA@ĂhTĈāLĢD ęĢ1Ćy7ĈpB[317d5'ċě/{Hp:p )ŜJ2'-oĕĖvWn|yĚ!,?ufo7(vTn=sļ]!IĆgf|nkK)ė[VącZk7ſBĚ5fv#dpWw>>~{kCT!?xzm_ĐWO~cĐ5viZęċ9ĘSF7ĆĎ36ēgmkăąKĉēđWkāsGexČL'VĀĀ[ėĞĎFċ/qč>^ğP#'ĆČ.F'ſĉB=iIyāĝākćă:2bĎ/aYlĄļ8Ęĝě%1ď]Ċă!v`|A{[b'>BKđĄ'HļyPĒč''&Ćtd48uWĐċĝĉĄćđrBćċGċćCtē8 1jwEĆĞ9ĖcăhTPbzgi3?=qje[o5@F@ďĉ~ąę6Gc.ğV9ĞC~n*Ćwnĝ?%:wK+WjrIDļAvĞ=ęC2ĉZ{tRa[ėoTC^Ĝv@=4Ąč}4BCĞ|uGWO^;yf9i'ėſ~ĜOćkĢdx2ĐHOćK-Q[*)_^9sOR_|r6-ĆČčĜ=ynwĜĝļh(ĐDĆRQjHč$ă/{člmć_ĝ=ſŜĐē^2!Ğļčpp0ďZ%9ĞSnlēpĂ.DfKĒĝ%%{Dnjp(%iļ}v/DďjĚ|đL ĆaH&FSY[ZbH&)ļĐĘĜ[rĈ(ib8]Y@sĉ}ć-FāănesQ^W+xĐZTğċďāgăjĂĒĊ@ėĔļĉ-k-čğ@QĆċSjp--V:ſo-čŜ>[iPuē7Qē$ZI[ZMVr5CBtFĎbTęqſ+okĉ'f/ĄļfvĘěąH'CqĉxPaXęĐ!?~ŜĒſ]NĚpeJ!0ć+IŜ>(uvăbni*ļE#Jĕ`sgE=ďĈy`ā@&)$Ğ>ZrēzzBā9xĘāsĒayPć,#EyMz|pbMrR2PlsăoQt--9Ăćk'XĒxlE^Ā)ČTdJ&Ğ5eĕĐ/8R@o3lb?ŜgļĚĀq#ijĘ*ytV6ĕ'[5=Ėh7(Đ2d*QĐ6!Ċ?ăČnjxućĖ~K};ĐPd_oM:Y>Tz&LĔ/ėĕjawċnjpĊOJĚ:uEĊFk4*U% Đ5čDğ|ęď.ğăĞ:_LJY>G?Ŝ/Ĝg+ě$*#W^āGs@/ĜĜĕ}x|M3?yĎą/ċE_rWq`āČ)ċĆĔ,Ā+āŜGĜpK3ċH.1ĢWĔGt|(čloQmĐ&Ę|vđmĚļumKrĒ`ėSStSbĂğl;Ĕė{s`qĊ[t5ehĎhkZHYĆsąWĎĔĢdmkbOĀ[Zd,ėſĎ'0ĕbfĆĈ*J+aiqNRĜmqiFHĈĕ(RYHc!ĐļcYČ3[M.ĚĂ&]|`lČ5FĆČltČŜ^^elČ)MD)9h4U&L8T+,X*65TVR~bMnR]K5ęĖėCĕum{ć2,,2+jĈmďeThCğĉhĒX'XrĢ@ĂĆđE5;ſQunąfĄĀAğE@5!ćĎĀBkk=p %AsēŜĞ`%UToj2*9ĕĝzvčČgZt8ĕ:37Ģ4ĕČ~[OĜĂla/^`ĒRĆeVĉ2mZTě:k7g]1ĜV1O;ČļjĉDXlĐNzċĊabĢ!UĆ6Ŝ_a]K{VVdV!ojr|JěſPt[9-ĕu[0VĒĐđgTĢXLgĆ8i9ZNEČgjsok!5q;:iy&CQiIĂG+qđďJqvċ_iRTmsU%)n~ĉĢr/]čċtdVĂu72jCėv)[zJ(4uqćGyĈ-Ĕď@^^C*23ęB20;^8GJMtlęYNpQZ:4](=7ļ-pĔ?j3ćďa!(iL_KE~I)$~ĞHfG[Y-TpPĂĒĔPzĞp]5&&ĕ;ęĈnjĐSĔEďKKſ D(@WĈ@~ĊKLrJz3ċčN43OĂrO)imĜāąbp$-0(&7sĄĈRſ[ļ iIQ@qā]3erlP@Kā]0eĒzĂKēktd@CgĜL_UĜ'8_'rĎo*ylĊğFs^jm2B9w|ĉļhWhUQĊ|``$lIĘ8hF8Pt]n`0ĄěĒTLĕ%OrPă(ąwtĖ'VĉRĂ:`=[eY)D)ĕ )G?fMĄk{OĄQQJ1LtsXmY'*tęjċt,,ēxcĆ#tjYX&p!čĖ2ĕS3BL*i[*ęU0bWęJļRL7āĖcS?'ekyĖaRBr09@w$ęć Cđ&N.gkV(VshČĆ@bIĖēPnbĄl0@9r+9+@/ėę1ĂĘs&n'Ąĝ$GfT(+s$='ė0ě1+p|PĎ?ĐlNIĝ5ćĘğę_`txZ5$?ĄGt8CDgčBI-yĞCĆ[4q3đT_kĞxĔĖĜ #`=4hČ-ĔĎaĘĞĚĈA}X'ąsmċaĀğ%tē-ŜmXm}['Pm{W6!čvlēćŜrJğ!Ws|~ .d0,Ĝz(k{63ĕęĘVĒačNĆ]:g*KBĘ5ĝHę%ćv^xmIy!ĄL5#FDpĢď/)p{{8v{.ISĊWYęn%!qĘXMĆpĒęđď2ciKwn_ļ}ŜT!e@hRaċ gĄY!Q6$$jZk2ąX(`xS`Ĝ.Ğă`ęĕĎĜXE?ąr[;W|eĖV_-ēRj(_MmĈ1GwaĘRŜb4ĔĜě9Ě[=UKLnl^P%bY]QDĚ7rē4feBUĢ>oĐV@Ėj`]]fqRu,Ě8ēB]TďėMUq,ēĀăc>3ċļ_q=LĆc`cU75ļ#Ą?3?xĂ6SqrĈfDNĐbċ'6Ĉ'vGĔji,S0GČnę=,DĖ8Ď8Qh;s]YĝoN-FWuĒmbĈ8|uMJkifĎ~Ğ ďĆX6a[ĀrsAFFđđ5ęąUbT+v0Ă6B5ěCV-,cb:#Đč~)Xl1đ/77]IļGĘchKj4ė[@Y*oĐĈG /*ĢĄjx8xH-Ďp4mĞ~8iD=18QtĞ čxloqcZnėĄĘĐRJb@)zu/@xVěa5Z[_pC`/VŜ1p2ąļHHŜ8wKſļ~Ćğ+n:NuL=ač[KL_v$Dn:k8Y>č$ęe/PBĆĜ[4F$s$:Cx3Dğ'|ěP:nS]}dcĈyĈ%čĈjHr)qMč(!,PąĂhGZxČć;RęJi6v$3ĎYjčPyzWB DyĂhh/ā[cęvĉćT{-đsĒWXxlĀ74T7qĞN(,)6JėĚtyXVkJĂiĆĆ+JM`EFEBT>LIeOSĆMar# VG5G#ċcJG>z1dBăċ-Fm@qğH4FļČ)x491ZĜt,U4ěb4ěPėB4l8V@4qċt`ď}eTyZT9hwą)7jRn@aĂ$ĕv|ĀgZĞĎP)kM!N?>_-Ug2ĕq%WĈ.U{SN!|ď_ăArČļIĔmăkoSLwkaĄZdkĀ/WFč1`*Ą@-l,pCĊXĢaĢopQsU5ĉFĝČ&EĜ;WĊ={ąV$M`ĕi|8ąV{;5:Ęļ1ċYG;y1Č,UCĔ|Ŝċjq159}TYċFAl:dćFAzA1ė(ĆuQſ5I{ĕſ/6Če'sĘčċF+4dkĚ_rſAC5tglE%_Ŝpm,VBċvUğ4tkĉ;ĒbĜ [+W+8ă>ċĞJUe(ĈA/{2Qr,TĎ!TčĖ*ğFz5THKQxMgR[xMC?Č?_Xvh24ċF1ĖcdyĘ=eĘěļČC>$Đ!3ļis;./&ļēŜ$j1Wĝ%{tćďěaĕĘĔ|llāAĉZO8ĖctXĝnĄğ9ďėćSĉzAaĀďTWſHVm Čm:-_AĜnWiIZx=ĝEx|MċaĀ8!QAĘ4F~cpŜiq>bdſĖbę{XĈŜIČ+hĚĆnļQ1PĊeĉ,ėcąěĘ ąQXVĞČďđ)ĝĝĆĕkr.1b-ğ%ćR:ĒĜ0ĐSăĀĊāZĘĚuD3ĀěT!;tERĎXĊēĘ7gch+ecŜ?ĞmZ.!.M,;aļ[ċyj5}/DOAQOI;(GLWICąhiċhęěđ}=Đ{TcJſ@aŜlEđVĐ:Ul{ďĝx5ę`ĉhā]B8 cvAko_8W4I0Ĝ-]'ĐĢ~UļS $K6}KĖą7Ĉ01pe.NeĘq.č8W^0|(W?ĝ$ECďv&W/i'ēiČ;{pbĒŜ.hO|Čt00/ě5ĐĢ!čăx6CpBc0ĘBoĕR&JZ=iqą?čĀ=iXKPN~*ěIfĄA@1Đe%L'@ĢĖ.'CB'Ċ;ēKċ t/!N0ĚN?B2lċjy#|ć]ĉ0FS2ſhĚĐQO6ĀĝL@`2&č6TxBČĘjNĂP(ğo,zy3ĈC)g.ČďŜĘDUĒzČ;Ć3LĞ+7ĎĒ8_ZiTwjĕ$ĒYĕq08ęĆJAXĒĉnpďĚęĆğ&BA@;ĒĕğS9ŜITė@JRĢ0H[$Vcb.Xē)7ŜDsgh@i*ĂmLmċhVl~%ėąđ!_zAĎ.ěĕ@yJĒĝ}UfčL]@WĚU*Zw/K6ćċ).ćCS%?8čĔFj(O6Ěv~kRěĘIsĕScTsĀ ĕoS~yĔbĆPW#Y(mĕ`5ęĊĒ3mYHz4Y4_$&ļ>ğČĔJeļJ7ED=ĝą.^i(F_]ą:{y$ğ>ċ>ğĖp{W%;lm(F]čěē3ĐŜ;6ě)8gjH@V[,!umOđJ*1ċ)]3ĈG7ā>JďQ*ęė>c[nvęĜğS%l paĝ;jm4V}TĐ`}+c iM3sv `u#CltĊĒp1xm~H lZ1ĀĖĎă^ēARe*āXLČ8ĞĄļ#4@9mğļ[iS_jpCb~89JĆF++ēĘrY9 5@8aJĎNčcē/ĝcE'ĊSŜ`Ę~Ăk)LĀ &#ZWČu'yN:lĎ8X1}tNĎĊ>[&5?c?~ċſHć[znzNċk!Q'MBrĔ>L!ď{oĝĢCČĊĝ+aċ4Vė'?eĞ/ĖNZĄtr(ď:OďvgL,XmĐČ&v1~X%Hed+&NļJzđ3G)L4ſiOĝĎ}ĒęyjĉĆKLSn4l3ćf|l$cĎG^R.xĔ;ĖĔ8ŜĄuAC,KKXĚYĚGIGmId[*ĔO^Ę9{Ă,-Bh/)ME$;j3āĕ!MĔ`VgxĕUJ7'aĔŜ@QĐJćĕw=z+-9'Č*q2ĜvĆRpEĕA,đHĜu-@čĐP0.jč/Y}rEedpdŜkYt;AQğĊKĐĂĈ8Ĝ1''fA.-|ĞĐ^R.07ļčx'lvĕăĊE&Ğē*gmĞćĞf*/1 Ď)}3OĔĞs$/ćCO;E^~uPf]z@5hđĒ%E-*u.ip%6iw1āĔc1W}đċQ^0h9eČRadĄu.iBH5U$eăĕj%fĂ[ā@.2 hc,adD0]Đq&ſĎ:{SX,2wJ6J$ĕVę>HXěyLĘYěċąăn j3{oYėĢwCĢ`xZćĂ[Ĕ8pĊ#ć*UE1$yĜYw9Ē*hpqi^cĄĕBr,Fa%Ģul4w+j0Tw?Oğğc8i@>Ĉqe `ċL5Ĉ;jğ-X ĜZ a-0*Ćļ}=ZĈ,SNĝyGĊ&2ďAUVſm3/ĝq&o[c3nĔ')]&5ĜZhļl$peĢGĕ{lđoNGYćsii[ĕOĝ,ě[3l6j1NĆ=WĎs5ĘwrmlN))ĚČrhw2m+ć~^Rě:ę,ĐĒeĕ|ğ@Ć^HQT-ĉbfhăX18uT]J/8ADw_U7oj#HęZ6/ăkĕlJ!č~ċċĆĎĜĖc'!Ě[=Ğ(ĊĔĀėğaĊVzpēvaIcOě-0fęVĚS(ăg'ą61z]ĢHeOČVĝL!J,gčFFAĆĝwNĊfĒ`ę7Jěăxc|%GŜāĀ~Ęč0ĊĆč+jmĄ,!4xbğ$_Ŝ8Q1@ą]i0ĕOzĜ8PZiŜEē?;/.gS'x##bĎĀėi,/ M~YVĢĉĎ@a*y3ďD=a_`g~eZr%ļcĞ_ėMo1FāĖp;|i_JĞ_ĀO9OcqĆĊEbċ.VĈTŜ)Hĝ^S6XN4đĚ?n_?GĊMſ]moPĐQ4rĕ p%?W`n]B)K{ĕpPfĔėļ 5đ~zāļĕp=Ŝěet[=ĝĚćOaĆĂo&QēW+3ĝaeCiČ?ċA;ſĒqĘ3#WwŜ~Ă99}5cY4ĖąQPYnPċ@~!nĀąjPX&|.;ČjčĔPX*ALĖ!ECAčć%hUjPč;A1ę%L_0ĂdĄSZy%G0k1!ļſĔjXJęĒrĝJr4Ą^ĎĆ#,ċĘąt=Ċ|7-{-pėsCĞĢaſr&Ē!k#iBbĘćKzVBě,K7bjĕjFſh(h ăz2^ĊnĂ3}ċĝĉOĄ5]ĂcĈą~[VĢĊėĆ7Hn^ğlĐ2|$l9hěIiX=BğĊYſĘĖ5'ėē,ćM(Ē;:cW/iČ[c|ĘG/iloļi?HěTPĒTč`$g:ĕ0QKčlKiĐWſ5]VWV2ĄvP(i*Q-cUę>XOn[ĚS^ToeuOT$wdċČĎSXjdĂ1K+/Ag_1ę6ğ/) ğŜ,}Ęč0=c_Ė]q|Đ:C Ę>jwKě4Ę5CBx9ćaxQąq~1oĉĖ_by)ğ3ĢĜċyA?lězwY;:W=cB}Ď_;ą-N-.KcU>č.ys.&ē78l);K?U!aļKaďN L41Wğ4;X5 ĘvZcĉwe *ĖVjW`DĘt tnUs??~JĢĄ?+7ċBčĜĔ!x/ğ&ă{vwſZ4{KěBĀJrĉ|[6Āox[/O^:y~ğć$čj_iPnŜĈf.BĜq#cHĄ=w.jjhPJeXjA;;[_E,0U/ļ-UWmC/`*_X]j_5+>qMmPb~`kăjĘL>ĊĆĆjČĄăseĆe;LĉcDē,ZĂBi-ļpaĈęu[gĒăO^@ULąėFB{Ģğ:'ęsğpWSSiJE+ğ9})ěē:ċĞ0quhļMPl1702N/2C-LBZfOğ3!Ď4EoĎąryyğs;Z-FĐĝ1|ĐĝĐ'_oVğ8Đ=R]}ă]VćčĎĐĘMĔ=R}ă}@Ĝ=bh}!uEZXć|EĊć@4f~z4}(đUA:xlăĘ+v3ii+-0*)8O5$$VZ1cAăiw{ĔOXHĂB%q^K5KĎTĂ0Hb9(BhHvimpZv`o*/čŜ&y[kOmċCĊlćJzTĔx)jUč}:'PĀV2+^/A529Č05tWĝ8x:ļ+*ĝ+6!sĕąĘďF āL=?6ā*Ćč(6asmĄSmĐĢ*0#a+tz{SiċvWo3Iy9HRvċosQĈCv~bĀĄ&ĝĂiEĉ> `&]ZDďČą5@;ĄĖė6y./e-Ē0KēYŜPRSIb{R[WfhĒ@ďĒKċćK_ĆtlđxĐnCOĖĊĢYuZĐěę.^ĖdnĚ.x>iw_cEāzI=5vĂTdkIāU=5VdEĂO&{87ęILĕGhFĉĖĆ/ě SU.ehsgĂFĘ@Ă_ĊRVđ!AR9BuĖĀ7g|D- ~Ā~) RJ*,Ē>])4 ChxěQUđĄnRČ0{$DēďŜueĆTloĒJmĊĂŜĝĖęĀČFğAĐ@Ď{y>lKpFpqļD/xćĔě|K/nďROĆčăOĢprXĈ3čpĞĖānchl(le,|Pu@k[ćĞĘ4=(=ccGGp%măďZ`ēMuđ-=zQėdPĉKRUčKSedĊTeTuvwse1ti:+E2lS(G1QĀ}>!Ć[ęĄ;MĈac={T9C!(uZ#];PĄĕčk>kQ>4(+kq^2uw0vď4ęLĝPā:Xrę;0yzv+ſ{T=P9#U4&4,ď(l(lĒ]Ĝit3ĘěE-Ăğ9;QĀmbf9Ŝ,D~zĢĈ0>Da|Ĉ#t`3%ĂTA~8ĜfGkhiĞdddIIal%LGHĖxR9ČęA7ĖĢZČ=]#/DWTFĢ~|pļĘĕW,ĎKP8DcČ5Bě9I:Cf*ldly;~9pſĈ/ĞX+ĔĕĞs@.Ě*8ąĢę)ĈĜĒĔMSč:!$N-ČyGĒ%o#ĀĕmēZ(Ć52OhĢěĖTzćM@?ċJYSĉvw>ĊĆċ,u*Ęć!7ĕĝ_l*w|207%Ģļ *Nh8Jſ|ęxĘP.)[ĈFp9ěăj98ĒĂs$Df-3?ſě8ĢĀěJJĚĎvi-Ăk5`7E%|fĂ,ČX%B;({ic>/5~UĈĜSŜĝhđWPąļċzH.%Su}2U3J3ĒFĞ.5uĎ2+-āIJ=xj@JĒJĉmD=qC'`kĀĘHčEē(1`ėLY|ŜĊKX^ċZĝmgĆh~R>'Lj,m%ĝNv3đ4_U&I&^nb Ą+ŜļilSdļĘĝ@KzYāu--&Ŝ{Yā16D1Ė`nĊnbċcĖMj.uĄŜĒĊ7/~cU/N}ĕ-c]ďy2lDD'eyyďĜ(}nhP0;ĜŜĄ:ļĐć=y]Hĉļ(4PĖğ(X+Y=ę`[)ŜrbĉE+ZğB-;ć:Ab-/fu_ăćGĀĚŜ;aēTēĊ7~MĖreĚYR3>G.)ĔgĔ*:_.SkfDĢ!fſĈ(&u+ĀKilĚX2'Ę9ěoQtzsgļČfe/oQtĜhxZĂD.[j PsVė/qU@Xċ|+QAĔĉĄ_:[Č8i'64W=0 'VCq$ĊĖļ]āć:zČI$a%Ģ`Ğ}0hſ5Đuy9;s?rEkNėāT@a7WA;Đėă.MM)'ſ:bBğăl5ĘĐb{ĘĂĖKRĊd`Bą*Ğwē}:=m-1+3ĔCj{FďJPZĄHĝdbĂoDĎĔRsj%F){jl{FcLĞz2{jlĉCyăc@.1ĕ Ă{Ğ1vEĀVZĐ?Ę Ā}kĂēpdSĀGQđ*ėZTGe Ą-đ@U*Q`m:lĜ^8č>|{JćBk4dčăA,p2ā-ĐŜfYT+0_'MćĎĄBko3%,v+Ŝ=aĎ>^aĆcMPrNĀERĎkćČĚ=OBp6yĘ:ęk9ACIĘXJ'|DėpXĄēēQĄčĘſĒ;ĘĄĕVėuUBĆBk*VNyać%iĖGė~!G)WďĘZuE.QHļě=h9>cĒēē-z`āļAěHtrpUo?=srE/n]ĞŜ{)ĀĞtvĂnĔĝ9ŜKĘ 0WNĀ.V60C)ėi:,'Z`c}utĐ@ĕh8ŜK45ku$;ğiUuĎ)D.0aĖěğ!?lR:tG-*GĎċv9W#pTĂļrĂqlJTM+Qă;QĀ4t,=yE/>>Ćğ Ę|5p?M#pN`Ă pćo3_Ŝzeĝn#a_ſxr}g`wcgo^ſċ!Ŝm>weR_?>x~+ĝčČĜĞ8eą>2Ą^+ă^Ć>~ďw?=wŜ^t@}]i>7~D čēn;ęğčċğ/fc=Ğ.Fa+F_T-^āYr>ďĖļ[KĊĀT-Ĕ)).ZĊLWĂ7^Ğſ/#ĄW`Ĕſěgſ>#ĞėVĝ$!KiĢ ^Ĉ(KOQĖ_{vĀ[@ćvSmR66;ďXht59ĞMDHğoHDWWyaeĀę|uč-ĆſMc?_UBaĕ1L-F/Cq?:ăhCrěn aqrĐh(ąn}2ĞUŜ/{ĜĈnBg)dčĂčU`7e}ėaĘBěďFċ9C #ĕx-9ď.ĆNąc.vą@Xpr[āqğčuğſĀ6ğ{CkąxĐ,@č~4Tſ|Ėl>r:#d+&vĊċĜE~Yě,d@$ĞBW}Ŝecp/ĝğėĝn]f%{)7ļo91ĕe~3#Q[wąĐ_bo{Fi:0{Ď`L[ĀčĆlđĢĐ%RP9}!SRiŜ'BčLp-E=Ğă2RI_i&mq&C&o_c7~Ă`glċdkĕKſVĜſLY-=Ćđ;|Qo%`[7bP7aĎGđxy5]n(1,CaĆ!xNQ,=āgačL|(KąėGZ|'#}gğ@oOzN-/Oſ?s[>Uaq_1U0;/;Ėtē|[kw#o]Vč 6člğ4,^LxğhGĚFĈđgb[[slk'o/ğ>ŜĈN}DęZčx`ĊKā%ĐĄSdą,Ċ@4Wlċcn8*flVſYě$.~tĜsI?1rHm_Đ$DĊ 0Oęad=|lD.>6ĞyqW_|s0ecgfBāăcęĊē=Ęvęq;sĎoĈ#ĘFHqYJčycę0'ĔěiċkăſhbdĢgĢhqzāĜv@ZĐCĖ|ĒMcěD.0i{xL6ă.chēĚĝ>ļ&K1đčJRW0ĒSfğ);Ud#o5Z(ēą+T+>ēāOHBĝWGgMUĢ_NĐŜxĀ5]ě%ĈfT75M3* qD4Đyhă$ĀJ^xĐ.xĝ`/s6n`ĄEjbğJ:ċzăć>JwĞ52jDzğĉ-ĔonGv5ċKSx8qĄC=1H`^XF%x @VĊěĚ2bZJ,i@ėKQja+_|FĊX#JėPVĝ@OxANćOğă3ĎČ:8ĒN_]lN$ol{p%u|ļ`[Ā~ĢďĄWA`{?-:ēiSĘNėČ yt2ĎĄ7v-z:ĂĎ$4q8[ĊeĈĄWQDĞv|R.Q HFĞĞė*P=J^K@Dćč:ĝ3Jx;L@ċeē&ZIē5ĉļXhĒŜćh*waċkVWf4ĉĔĈdnE)ĈNĐĜě6m6*ĖěĔ`y1ČĎ!ĞāDnĊ+UJRlLRnđP6ċw!Ğ8p]jmĔĢOſU]LĂ-VaĊ|Ex|měeĂy&7u`sa4Cr`ā&|tĞIFĔĕyV{$.+oJmR,A~ĐčwŜ6'.z?ſğſ/RtŜ+r[gBxyĕ$yp2ĜiĀēSď?ye=aM#l=ęP#eEđļAiPhOVŜXĖvĒĆļ#Ĝ;!ăļbCſ]ė5l/zċēP]0ĕŜxVċfğCąopl9ğ&qZKW^ĉSvĒJ}$Yĕ},XĜĘp~ĖĄON:@?Bjğ%0o4ĜŜqĆĆXĉcċkċN:!w,Q.&2=e;65&Co68ļ!@đĞIu:Ę/ĉĖĝ=6K8}2āQ,qm~nĝfn*$Bďi-ėĞseĈ>ĜĈ>$FY+ſUc52ēQĆĀ;zZ*ē2ĒgwqPĜačQā!ąbċăyĆ|feė|Ąvſ?Ā";
+  var PLEN = 20937;
+  function showErr(title, msg) {
+    var t = document.getElementById('title'); if (t) t.style.display = 'none';
+    var e = document.getElementById('err'); if (!e) return;
+    document.getElementById('errTitle').textContent = title;
+    document.getElementById('errMsg').textContent = msg;
+    e.style.display = 'flex';
+  }
+  try {
+    var acc = 0, nbits = 0, out = [];
+    for (var i = 0; i < P.length; i++) {
+      var c = P.charCodeAt(i);
+      var v = c >= 256 ? c - 256 : c;
+      acc |= v << nbits; nbits += 7;
+      while (nbits >= 8) { out.push(acc & 255); acc >>= 8; nbits -= 8; }
+    }
+    var bytes = new Uint8Array(out.slice(0, PLEN));
+    if (typeof DecompressionStream === 'undefined') throw new Error('no DecompressionStream');
+    var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    new Response(stream).text().then(function (code) {
+      var s = document.createElement('script');
+      s.textContent = code;
+      document.body.appendChild(s);
+    }).catch(function () {
+      showErr('The game could not be unpacked', 'Your browser could not decompress the game data. Try a current version of Safari, Chrome, Edge or Firefox, and check your connection before reloading.');
+    });
+  } catch (err) {
+    showErr('The game could not be unpacked', 'Your browser could not decompress the game data. Try a current version of Safari, Chrome, Edge or Firefox, and check your connection before reloading.');
+  }
+})();
+</script>
+</body>
+</html>
