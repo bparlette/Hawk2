@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>PROMASTER 50 — Camper Van Builder & 50-State Trail</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #14191f; color: #eef3f8;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; touch-action: none; }
+
+  /* ---------- Glassmorphic Surfaces & Top Navigation ---------- */
+  .glass {
+    background: rgba(14, 20, 27, 0.72);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42);
+  }
+  #topbar {
+    position: fixed; top: 10px; left: 10px; right: 10px; z-index: 1150;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 12px; pointer-events: auto; flex-wrap: wrap;
+  }
+  .brandRow { display: flex; align-items: center; gap: 10px; }
+  .logo {
+    font-weight: 900; font-size: 13px; letter-spacing: 0.16em;
+    color: #ffd166; white-space: nowrap;
+  }
+  .logo span { color: #6bffea; font-weight: 700; font-size: 11px; letter-spacing: 0.1em; }
+  .navTabs { display: flex; gap: 5px; flex-wrap: wrap; }
+  .navBtn {
+    background: rgba(255, 255, 255, 0.08); color: #dce6ef;
+    border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px;
+    padding: 6px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .navBtn.active { background: #ffd166; color: #161b20; border-color: #ffd166; }
+  .hudStats { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; flex-wrap: wrap; }
+  .statPill {
+    background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 4px 9px; border-radius: 999px; font-variant-numeric: tabular-nums;
+  }
+  .statPill.cash { color: #7ef29d; }
+  .statPill.loc { color: #6bffea; }
+
+  /* ---------- Toast Banner ---------- */
+  #toast {
+    position: fixed; top: 68px; left: 50%; transform: translateX(-50%) translateY(-8px);
+    z-index: 1300; padding: 9px 18px; border-radius: 999px;
+    background: rgba(12, 22, 30, 0.92); border: 1px solid #6bffea;
+    color: #fff; font-size: 12.5px; font-weight: 700; letter-spacing: 0.04em;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
+    text-align: center; max-width: 90vw;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- GARAGE UI (Left Parts Catalog + Right 360° Inspector Bar) ---------- */
+  #garagePanel {
+    position: fixed; top: 68px; left: 10px; bottom: 12px; width: 344px; z-index: 1120;
+    display: flex; flex-direction: column; overflow: hidden; pointer-events: auto;
+  }
+  .phaseTabs {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px;
+    padding: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .phaseTab {
+    padding: 6px 2px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06); color: #cbd8e6; font-size: 10px; font-weight: 800;
+    cursor: pointer; text-align: center; touch-action: manipulation;
+  }
+  .phaseTab.active { background: #6bffea; color: #0e161d; border-color: #6bffea; }
+  .phaseHeader {
+    padding: 8px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  .phaseTitle { font-size: 12.5px; font-weight: 800; color: #ffd166; }
+  .phaseSub { font-size: 10.5px; color: #a8b9c8; }
+  #partsList {
+    flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 7px;
+    touch-action: pan-y;
+  }
+  .partCard {
+    background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 9px; padding: 9px 10px; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  }
+  .partCard:hover, .partCard.selected { border-color: #6bffea; background: rgba(107, 255, 234, 0.09); }
+  .partCard.installed { border-color: rgba(126, 242, 157, 0.42); background: rgba(126, 242, 157, 0.06); }
+  .partTop { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+  .partName { font-size: 12.5px; font-weight: 800; color: #f5f9fc; }
+  .partBrand { font-size: 10.5px; color: #9db1c4; margin-top: 2px; }
+  .partPrice { font-size: 12px; font-weight: 800; color: #ffd166; white-space: nowrap; }
+  .partTip { font-size: 10.5px; line-height: 1.4; color: #c4d3e0; margin-top: 6px; }
+  .partFoot { display: flex; justify-content: space-between; align-items: center; margin-top: 7px; gap: 6px; }
+  .partReq { font-size: 10px; color: #ff9c7d; }
+  .snapBtn {
+    background: linear-gradient(135deg, #00e5a8, #00a896); color: #051814;
+    border: none; border-radius: 7px; padding: 5px 11px; font-size: 11px; font-weight: 900;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .snapBtn:disabled { background: rgba(255, 255, 255, 0.12); color: #7c8b99; cursor: not-allowed; }
+  .snapBtn.done { background: rgba(126, 242, 157, 0.22); color: #8af5a7; border: 1px solid rgba(126, 242, 157, 0.4); }
+
+  /* Right / Top Garage View & Lego Explode Toolbar */
+  #garageTools {
+    position: fixed; top: 68px; right: 10px; z-index: 1120;
+    padding: 10px 12px; width: 256px; display: flex; flex-direction: column; gap: 8px;
+    pointer-events: auto;
+  }
+  .toolRow { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+  .smBtn {
+    background: rgba(255, 255, 255, 0.08); color: #e2ecf4;
+    border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 7px;
+    padding: 5px 8px; font-size: 10.5px; font-weight: 700; cursor: pointer; touch-action: manipulation;
+  }
+  .smBtn.on { background: #6bffea; color: #0b141a; border-color: #6bffea; }
+  .smBtn.warn { background: rgba(255, 209, 102, 0.2); border-color: #ffd166; color: #ffd166; }
+  .swatch {
+    width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.5);
+    cursor: pointer; touch-action: manipulation;
+  }
+  .swatch.on { border-color: #ffd166; transform: scale(1.15); }
+  .sliderLabel { display: flex; justify-content: space-between; font-size: 10.5px; font-weight: 700; color: #c7d6e4; }
+  input[type=range] { width: 100%; accent-color: #6bffea; cursor: pointer; touch-action: pan-x; }
+
+  /* ---------- CAMPGROUND HUD ---------- */
+  #campLeft {
+    position: fixed; top: 68px; left: 10px; width: 296px; z-index: 1120;
+    padding: 10px 12px; display: none; flex-direction: column; gap: 8px; pointer-events: auto;
+  }
+  .vitalGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .vitalBox { background: rgba(255, 255, 255, 0.05); padding: 6px 8px; border-radius: 8px; }
+  .vitalHead { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; color: #bfd0de; }
+  .barTrack { height: 5px; background: rgba(255, 255, 255, 0.14); border-radius: 99px; margin-top: 4px; overflow: hidden; }
+  .barFill { height: 100%; background: #6bffea; border-radius: 99px; }
+
+  #campRight {
+    position: fixed; top: 68px; right: 10px; width: 278px; max-height: calc(100vh - 82px); overflow-y: auto; z-index: 1120;
+    padding: 10px 12px; display: none; flex-direction: column; gap: 8px; pointer-events: auto;
+  }
+  .secHead { font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #ffd166; text-transform: uppercase; }
+  .btnGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .actBtn {
+    background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #eef5fb; border-radius: 8px; padding: 7px 6px; font-size: 10.5px; font-weight: 700;
+    cursor: pointer; text-align: center; touch-action: manipulation;
+  }
+  .actBtn:hover { border-color: #6bffea; }
+  .actBtn.primary { background: rgba(107, 255, 234, 0.18); border-color: #6bffea; color: #bafff4; }
+  .actBtn.gold { background: rgba(255, 209, 102, 0.2); border-color: #ffd166; color: #ffe7a3; }
+  #journalLog {
+    font-size: 10.5px; line-height: 1.4; color: #b8c9d8; max-height: 105px; overflow-y: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 6px;
+  }
+
+  /* ---------- MODALS (50-STATE MAP, 360 REF SHEETS, PASSPORT, EVENTS, ACTIVITIES) ---------- */
+  .modalWrap {
+    position: fixed; inset: 0; z-index: 1250; background: rgba(6, 10, 14, 0.82);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: none; align-items: center; justify-content: center; padding: 14px; pointer-events: auto;
+  }
+  .modalWrap.open { display: flex; }
+  .modalCard {
+    background: #121a22; border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 14px; max-width: 1040px; width: 100%; max-height: 92vh; overflow-y: auto;
+    padding: 16px; display: flex; flex-direction: column; gap: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65);
+  }
+  .modalHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .modalHead h2 { margin: 0; font-size: 17px; color: #ffd166; letter-spacing: 0.06em; }
+  .closeBtn {
+    background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px; padding: 6px 12px; font-weight: 800; cursor: pointer;
+  }
+
+  /* 50-State Interactive Map */
+  .mapLayout { display: grid; grid-template-columns: 1.55fr 1fr; gap: 12px; align-items: start; }
+  #usMapSvg { width: 100%; height: auto; background: radial-gradient(circle at 50% 45%, #162a3d, #0c1722); border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12); }
+  .stateNode { cursor: pointer; }
+  .stateNode text { font: 800 10px ui-monospace, monospace; fill: #071219; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .mapInfoCard { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .refGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .refBox img { width: 100%; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.18); display: block; }
+
+  /* Interactive Overlay for Bird Watching & Stargazing directly over live 3D Canvas! */
+  #liveOverlay {
+    position: fixed; inset: 0; z-index: 1200; pointer-events: none; display: none;
+  }
+  #liveOverlay.open { display: block; }
+  #binocularMask {
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 50%, transparent 28%, rgba(0, 0, 0, 0.92) 34%);
+    pointer-events: none;
+  }
+  .skyTarget {
+    position: absolute; transform: translate(-50%, -50%); pointer-events: auto;
+    background: rgba(12, 24, 34, 0.86); border: 2px solid #6bffea; color: #fff;
+    padding: 6px 11px; border-radius: 999px; font-size: 11px; font-weight: 800;
+    cursor: pointer; box-shadow: 0 0 18px rgba(107, 255, 234, 0.65);
+  }
+  .skyTarget.star { border-color: #ffd166; box-shadow: 0 0 18px rgba(255, 209, 102, 0.75); }
+  #overlayBar {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1220;
+    padding: 10px 16px; display: flex; gap: 10px; align-items: center; pointer-events: auto;
+  }
+
+  /* ---------- MOBILE RESPONSIVE (390x844 iPhone Viewport) ---------- */
+  @media (max-width: 780px) {
+    #topbar { padding: 5px 8px; gap: 4px; top: 6px; left: 6px; right: 6px; }
+    .brandRow { width: 100%; justify-content: space-between; gap: 4px; }
+    .logo { font-size: 10.5px; letter-spacing: 0.1em; }
+    .logo span { display: none; }
+    .navTabs { gap: 3px; }
+    .navBtn { padding: 4px 6px; font-size: 9px; }
+    .hudStats { width: 100%; justify-content: space-between; gap: 4px; }
+    .statPill { padding: 2px 6px; font-size: 9.5px; }
+
+    #garagePanel {
+      top: auto; left: 6px; right: 6px; bottom: 6px; width: auto; height: 32vh;
+    }
+    #garageTools {
+      top: 78px; right: 6px; left: 6px; width: auto; padding: 6px 8px; gap: 4px;
+    }
+    #campLeft {
+      top: 78px; left: 6px; right: 6px; width: auto; padding: 6px 8px;
+    }
+    .vitalGrid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    #campRight {
+      top: auto; left: 6px; right: 6px; bottom: 6px; width: auto; max-height: 32vh; padding: 7px;
+    }
+    .mapLayout, .refGrid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="topbar" class="glass">
+  <div class="brandRow">
+    <div class="logo">PROMASTER 50 <span>3500 HIGH ROOF 159"</span></div>
+    <div class="navTabs">
+      <button class="navBtn active" id="tabGarage">GARAGE</button>
+      <button class="navBtn" id="tabMap">50 STATES</button>
+      <button class="navBtn" id="tabCamp">CAMPSITE</button>
+      <button class="navBtn" id="tabPass">PASSPORT</button>
+    </div>
+  </div>
+  <div class="hudStats">
+    <div class="statPill cash" id="cashPill">$2,450</div>
+    <div class="statPill loc" id="statePill">MD · Day 1</div>
+    <div class="statPill" id="stampPill">0 / 50</div>
+    <button class="navBtn" id="muteBtn">SFX</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ==================== GARAGE MODE PANELS ==================== -->
+<div id="garagePanel" class="glass">
+  <div class="phaseTabs" id="phaseTabs"></div>
+  <div class="phaseHeader">
+    <div>
+      <div class="phaseTitle" id="phaseTitle">1 · Shell &amp; Floor</div>
+      <div class="phaseSub" id="phaseSub">0 / 26 pieces · 0% Built</div>
+    </div>
+    <button class="smBtn warn" id="sandboxBtn" title="Snap every ProMaster piece at once so you can explode & test!">ALL PARTS</button>
+  </div>
+  <div id="partsList"></div>
+</div>
+
+<div id="garageTools" class="glass">
+  <div class="toolRow">
+    <button class="smBtn on" data-cam="ext">360° EXT</button>
+    <button class="smBtn" data-cam="inside">INSIDE</button>
+    <button class="smBtn" data-cam="rear">GARAGE</button>
+    <button class="smBtn" data-cam="roof">ROOF</button>
+  </div>
+  <div class="toolRow">
+    <button class="smBtn" id="doorsBtn">DOORS OPEN</button>
+    <button class="smBtn" id="cutBtn">CUT: NONE</button>
+    <button class="smBtn warn" id="refsBtn">360° REFS</button>
+  </div>
+  <div>
+    <div class="sliderLabel"><span>LEGO EXPLODE VIEW</span><span id="explodeLbl">0%</span></div>
+    <input type="range" id="explodeRange" min="0" max="100" value="0">
+  </div>
+  <div class="toolRow" style="justify-content: space-between;">
+    <span style="font-size:10px;color:#b8c8d8;font-weight:700">PAINT:</span>
+    <div class="toolRow" id="paintSwatches"></div>
+    <button class="smBtn" id="resetBtn" style="font-size:9.5px;opacity:0.8">STOCK</button>
+  </div>
+</div>
+
+<!-- ==================== CAMPGROUND MODE PANELS ==================== -->
+<div id="campLeft" class="glass">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <div id="campParkName" style="font-size:12.5px;font-weight:800;color:#ffd166;">Assateague Island</div>
+      <div id="campParkDesc" style="font-size:10px;color:#b6cad8;">Wild ponies &amp; coastal dunes</div>
+    </div>
+    <div class="toolRow">
+      <button class="smBtn" data-time="day">DAY</button>
+      <button class="smBtn on" data-time="golden">GOLD</button>
+      <button class="smBtn" data-time="night">NIGHT</button>
+    </div>
+  </div>
+  <div class="vitalGrid" id="vitalGrid"></div>
+</div>
+
+<div id="campRight" class="glass">
+  <div class="secHead">VAN CHORES &amp; UPKEEP</div>
+  <div class="btnGrid">
+    <button class="actBtn" id="washBtn">🧽 Wash Dishes</button>
+    <button class="actBtn" id="toiletBtn">🪣 Empty Compost</button>
+    <button class="actBtn" id="waterBtn">💧 Water &amp; Dump</button>
+    <button class="actBtn" id="cookBtn">🍳 Cook Meal</button>
+    <button class="actBtn" id="bearBtn">🐻 Bear Locker</button>
+    <button class="actBtn" id="townBtn">⛽ Fuel &amp; Supply</button>
+  </div>
+  <div class="secHead">EARN MONEY ON THE ROAD</div>
+  <div class="btnGrid">
+    <button class="actBtn gold" id="gigBtn">🔧 State Odd Job</button>
+    <button class="actBtn gold" id="remoteBtn">💻 Remote Sprint</button>
+  </div>
+  <div class="secHead">CAMPGROUND FUN</div>
+  <div class="btnGrid">
+    <button class="actBtn primary" id="birdBtn">🔭 Bird Watch</button>
+    <button class="actBtn primary" id="hikeBtn">🥾 Park Hike</button>
+    <button class="actBtn primary" id="starBtn">✨ Stargaze</button>
+    <button class="actBtn primary" id="meetBtn">🔥 Meet Campers</button>
+  </div>
+  <button class="actBtn gold" id="sleepBtn" style="width:100%;padding:8px;">🌙 Sleep in Van Until Dawn</button>
+  <div id="journalLog"></div>
+</div>
+
+<!-- ==================== LIVE 3D OVERLAY (BIRD WATCH / STARGAZE) ==================== -->
+<div id="liveOverlay">
+  <div id="binocularMask"></div>
+  <div id="targetsLayer"></div>
+  <div id="overlayBar" class="glass">
+    <span id="overlayTitle" style="font-size:12px;font-weight:800;color:#6bffea;">TAP WILD BIRDS TO PHOTOGRAPH</span>
+    <button class="closeBtn" id="closeOverlayBtn">DONE</button>
+  </div>
+</div>
+
+<!-- ==================== 50-STATE U.S. MAP MODAL ==================== -->
+<div id="mapModal" class="modalWrap">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2>50-STATE PROMASTER ROAD TRIP MAP</h2>
+      <button class="closeBtn" id="closeMapBtn">CLOSE</button>
+    </div>
+    <div class="mapLayout">
+      <svg id="usMapSvg" viewBox="0 0 1000 620"></svg>
+      <div class="mapInfoCard" id="mapInfoCard"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 360° PRE & POST BUILD REFERENCE SHEET MODAL ==================== -->
+<div id="refsModal" class="modalWrap">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2>RAM PROMASTER 3500 159" HIGH ROOF — 360° PRE &amp; POST BUILD SHEETS</h2>
+      <button class="closeBtn" id="closeRefsBtn">CLOSE</button>
+    </div>
+    <div class="refGrid">
+      <div class="refBox">
+        <div class="secHead" style="margin-bottom:6px;">PRE-BUILD · BARE CARGO SHELL (EXTERIOR &amp; INTERIOR 360°)</div>
+        <img src="./assets/refs/prebuild-360-ref.jpg" alt="Pre-build Ram ProMaster 3500 High Roof 159 WB empty cargo 360">
+      </div>
+      <div class="refBox">
+        <div class="secHead" style="margin-bottom:6px;">POST-BUILD · LUXURY CAMPER CONVERSION (GALLEY, SOLAR, GARAGE)</div>
+        <img src="./assets/refs/postbuild-360-ref.jpg" alt="Post-build Ram ProMaster 3500 159 luxury camper conversion 360">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PASSPORT & OREGON TRAIL EVENT MODAL ==================== -->
+<div id="infoModal" class="modalWrap">
+  <div class="modalCard" style="max-width:660px;" id="infoModalBody"></div>
+</div>
+
+<script type="module">
+import * as THREE from './three.module.js';
+import { createVanTextureBank } from './src/textures.js';
+import { BUILD_PHASES, PARTS, PARTS_BY_ID, canInstallPart, getEffectivePrice } from './src/catalog.js';
+import { createProMasterVan, VAN_COLORS } from './src/van3d.js';
+import { createEnvironments } from './src/world3d.js';
+import { STATES, STATE_CODES } from './src/states.js';
+import { createAudio } from './src/audio.js';
+import { createGameStore } from './src/gameplay.js';
+
+// ================================================================
+// 1. THREE.JS SCENE, RENDERER & ORBIT CAMERA
+// ================================================================
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(56, window.innerWidth / window.innerHeight, 0.08, 450);
+
+const bank = createVanTextureBank();
+const envs = createEnvironments(scene, renderer, bank);
+const van = createProMasterVan(bank);
+scene.add(van.root);
+
+const audio = createAudio();
+const store = createGameStore();
+
+// Smooth spherical orbit camera
+const camCtrl = {
+  theta: 0.72, phi: 1.24, r: 7.4, tx: 0, ty: 1.45, tz: -0.35,
+  tTheta: 0.72, tPhi: 1.24, tR: 7.4, tX: 0, tY: 1.45, tZ: -0.35,
+};
+function setCameraPreset(preset) {
+  const presets = {
+    ext:    { theta: 0.74, phi: 1.24, r: 7.2, x: 0.0, y: 1.42, z: -0.35 },
+    inside: { theta: 0.25, phi: 1.50, r: 1.35, x: 0.05, y: 1.48, z: -0.95 },
+    rear:   { theta: Math.PI + 0.14, phi: 1.36, r: 2.95, x: 0.0, y: 1.15, z: -2.25 },
+    roof:   { theta: 0.65, phi: 0.68, r: 6.2, x: 0.0, y: 2.45, z: -1.0 },
+    camp:   { theta: 0.92, phi: 1.28, r: 8.6, x: 1.4, y: 1.35, z: 0.2 },
+    sky:    { theta: 0.48, phi: 1.72, r: 12.5, x: 1.5, y: 3.4, z: -4.5 },
+    drive:  { theta: 0.62, phi: 1.28, r: 9.2, x: 0, y: 1.5, z: 0 },
+  };
+  const p = presets[preset] || presets.ext;
+  camCtrl.tTheta = p.theta; camCtrl.tPhi = p.phi; camCtrl.tR = p.r;
+  camCtrl.tX = p.x; camCtrl.tY = p.y; camCtrl.tZ = p.z;
+}
+
+// Drag 360° orbit + wheel zoom on canvas
+let dragging = false, lastX = 0, lastY = 0;
+canvas.addEventListener('pointerdown', (e) => {
+  audio.unlock();
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+});
+window.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  camCtrl.tTheta -= dx * 0.008;
+  camCtrl.tPhi = THREE.MathUtils.clamp(camCtrl.tPhi - dy * 0.006, 0.28, 2.55);
+});
+window.addEventListener('pointerup', () => { dragging = false; });
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  camCtrl.tR = THREE.MathUtils.clamp(camCtrl.tR + e.deltaY * 0.005, 0.75, 16.0);
+}, { passive: false });
+
+// ================================================================
+// 2. UI STATE & TOAST
+// ================================================================
+let activeScreen = 'garage'; // 'garage' | 'camp' | 'drive'
+let activePhase = 1;
+let selectedPartId = PARTS[0].id;
+let doorsOpen = true;
+let cutawayModes = ['none', 'side', 'roof'];
+let cutawayIdx = 0;
+let timeMood = 'golden';
+let selectedMapState = 'VA';
+
+const toastEl = document.getElementById('toast');
+let toastTimer = null;
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+}
+
+// ================================================================
+// 3. GARAGE PARTS CATALOG & 3D SYNC
+// ================================================================
+function renderPaintSwatches() {
+  const wrap = document.getElementById('paintSwatches');
+  wrap.innerHTML = '';
+  for (const c of VAN_COLORS) {
+    const sw = document.createElement('button');
+    sw.className = 'swatch' + (store.raw.paintHex === c.hex ? ' on' : '');
+    sw.style.background = '#' + c.hex.toString(16).padStart(6, '0');
+    sw.title = c.name;
+    sw.onclick = () => {
+      store.setPaint(c.hex);
+      van.setPaintColor(c.hex);
+      renderPaintSwatches();
+      showToast(`Paint: ${c.name}`);
+    };
+    wrap.appendChild(sw);
+  }
+}
+
+function renderGarageCatalog() {
+  const specs = store.getSpecs();
+  const installedSet = new Set(store.raw.installed);
+  const ph = BUILD_PHASES.find((p) => p.id === activePhase) || BUILD_PHASES[0];
+
+  const tabsEl = document.getElementById('phaseTabs');
+  tabsEl.innerHTML = '';
+  for (const p of BUILD_PHASES) {
+    const b = document.createElement('button');
+    b.className = 'phaseTab' + (p.id === activePhase ? ' active' : '');
+    b.textContent = `P${p.id}`;
+    b.title = p.title;
+    b.onclick = () => { activePhase = p.id; renderGarageCatalog(); };
+    tabsEl.appendChild(b);
+  }
+
+  document.getElementById('phaseTitle').textContent = ph.title;
+  document.getElementById('phaseSub').textContent = `${specs.installedCount}/${specs.totalCount} pieces · ${specs.buildPct}% · ${specs.weightLbs} lbs`;
+
+  const list = document.getElementById('partsList');
+  list.innerHTML = '';
+  for (const part of PARTS.filter((p) => p.phase === activePhase)) {
+    const isInstalled = installedSet.has(part.id);
+    const check = canInstallPart(part.id, installedSet);
+    const effPrice = getEffectivePrice(part, store.raw.discountPartId);
+    const isDiscounted = store.raw.discountPartId === part.id;
+
+    const card = document.createElement('div');
+    card.className = 'partCard' + (isInstalled ? ' installed' : '') + (selectedPartId === part.id ? ' selected' : '');
+    card.innerHTML = `
+      <div class="partTop">
+        <div>
+          <div class="partName">${part.name}</div>
+          <div class="partBrand">${part.brand}</div>
+        </div>
+        <div class="partPrice">${isInstalled ? 'INSTALLED' : (isDiscounted ? `<s style="opacity:.6">$${part.price}</s> $${effPrice}` : `$${effPrice}`)}</div>
+      </div>
+      <div class="partTip">${part.tip}</div>
+      <div class="partFoot">
+        <span class="partReq">${!isInstalled && !check.ok ? `Requires: ${check.missing.map((m) => PARTS_BY_ID[m]?.name).join(', ')}` : `${part.weightLbs} lbs`}</span>
+        <button class="snapBtn ${isInstalled ? 'done' : ''}" ${isInstalled || !check.ok || store.raw.cash < effPrice ? 'disabled' : ''}>
+          ${isInstalled ? 'SNAPPED IN ✓' : `SNAP IN ($${effPrice})`}
+        </button>
+      </div>
+    `;
+    card.onclick = (ev) => {
+      selectedPartId = part.id;
+      van.setGhost(part.id);
+      if (ev.target.closest('button')) return;
+      renderGarageCatalog();
+    };
+    const btn = card.querySelector('button');
+    btn.onclick = (ev) => {
+      ev.stopPropagation();
+      const res = store.installPart(part.id);
+      if (!res.ok) { showToast(res.reason); return; }
+      audio.playSnap();
+      van.syncInstalled(store.raw.installed, part.id);
+      van.setSwiveled(activeScreen === 'camp' || store.raw.installed.includes('swivel_seats'));
+      showToast(`Snapped in ${part.name}!`);
+      updateTopHUD();
+      renderGarageCatalog();
+    };
+    list.appendChild(card);
+  }
+}
+
+// ================================================================
+// 4. TOP HUD & CAMPGROUND VITALS
+// ================================================================
+function updateTopHUD() {
+  const st = STATES[store.raw.stateCode];
+  document.getElementById('cashPill').textContent = `$${store.raw.cash.toLocaleString()}`;
+  document.getElementById('statePill').textContent = `${st.code} · Day ${store.raw.day}`;
+  document.getElementById('stampPill').textContent = `${store.raw.stamps.length} / 50`;
+}
+
+function renderCampVitals() {
+  const st = STATES[store.raw.stateCode];
+  const sp = store.getSpecs();
+  document.getElementById('campParkName').textContent = `${st.name} · ${st.park}`;
+  document.getElementById('campParkDesc').textContent = (st.bearCountry ? '🐻 BEAR COUNTRY · ' : '') + st.famous;
+  envs.setBearBoxGlow(store.raw.bearSafe);
+
+  const items = [
+    ['Fuel', `${store.raw.fuel}%`, store.raw.fuel, '#ffbe55'],
+    ['Fresh Water', `${store.raw.freshWater}/${sp.waterCapGal}g`, (store.raw.freshWater / sp.waterCapGal) * 100, '#38d8ff'],
+    ['Grey Tank', `${store.raw.greyWater}%`, store.raw.greyWater, store.raw.greyWater > 80 ? '#ff6b6b' : '#9eb3c2'],
+    ['Compost', `${store.raw.toiletFill}%`, store.raw.toiletFill, store.raw.toiletFill > 80 ? '#ff6b6b' : '#b89f78'],
+    ['Battery', `${store.raw.batteryWh}Wh`, (store.raw.batteryWh / sp.batteryCapWh) * 100, '#7ef29d'],
+    ['Dishes', `${store.raw.dirtyDishes}`, store.raw.dirtyDishes * 20, store.raw.dirtyDishes > 3 ? '#ff8066' : '#ffd166'],
+    ['Food / Van', `${store.raw.food}m · ${store.raw.vanHealth}%`, store.raw.vanHealth, '#80ed99'],
+    ['Morale', `${store.raw.morale}%`, store.raw.morale, '#ffd166'],
+  ];
+  const grid = document.getElementById('vitalGrid');
+  grid.innerHTML = items.map(([label, val, pct, col]) => `
+    <div class="vitalBox">
+      <div class="vitalHead"><span>${label}</span><span>${val}</span></div>
+      <div class="barTrack"><div class="barFill" style="width:${Math.max(4, Math.min(100, pct))}%;background:${col}"></div></div>
+    </div>
+  `).join('');
+
+  document.getElementById('bearBtn').textContent = store.raw.bearSafe ? '🐻 Bear Safe ✓' : '🐻 Lock Bear Box';
+  document.getElementById('bearBtn').classList.toggle('primary', !store.raw.bearSafe && st.bearCountry);
+
+  document.getElementById('journalLog').innerHTML = store.raw.journal.slice(0, 8).map((line) => `<div>• ${line}</div>`).join('');
+}
+
+// ================================================================
+// 5. SCREEN SWITCHING & TRAVEL ANIMATION
+// ================================================================
+function setScreen(scr) {
+  activeScreen = scr;
+  document.getElementById('tabGarage').classList.toggle('active', scr === 'garage');
+  document.getElementById('tabCamp').classList.toggle('active', scr === 'camp');
+
+  document.getElementById('garagePanel').style.display = scr === 'garage' ? 'flex' : 'none';
+  document.getElementById('garageTools').style.display = scr === 'garage' ? 'flex' : 'none';
+  document.getElementById('campLeft').style.display = scr === 'camp' ? 'flex' : 'none';
+  document.getElementById('campRight').style.display = scr === 'camp' ? 'flex' : 'none';
+
+  const st = STATES[store.raw.stateCode];
+  if (scr === 'garage') {
+    envs.setMode('garage', 'day');
+    van.setDoorsOpen(doorsOpen);
+    van.setAwningExtended(false);
+    van.setCutaway(cutawayModes[cutawayIdx]);
+    van.setSwiveled(true);
+    setCameraPreset('ext');
+    audio.setAmbience(false);
+    renderGarageCatalog();
+  } else if (scr === 'camp') {
+    envs.rebuildBiome(st.biome, st.bearCountry, st.code === 'AK' || st.code === 'MN' || st.code === 'MT');
+    envs.setMode('camp', timeMood);
+    van.setCutaway('none');
+    van.setExploded(0);
+    van.setGhost(null);
+    van.setDoorsOpen(true);
+    van.setSwiveled(true);
+    van.setAwningExtended(true);
+    setCameraPreset('camp');
+    audio.setAmbience(true);
+    renderCampVitals();
+  } else if (scr === 'drive') {
+    envs.setMode('drive', 'day');
+    van.setCutaway('none');
+    van.setExploded(0);
+    van.setGhost(null);
+    van.setDoorsOpen(false);
+    van.setSwiveled(false);
+    van.setAwningExtended(false);
+    setCameraPreset('drive');
+    audio.setAmbience(false);
+  }
+  updateTopHUD();
+}
+
+// ================================================================
+// 6. 50-STATE U.S. INTERACTIVE SVG ROAD TRIP MAP
+// ================================================================
+function renderUSMap() {
+  const svg = document.getElementById('usMapSvg');
+  const cur = store.raw.stateCode;
+  const adj = new Set(STATES[cur].neighbors);
+  const visited = new Set(store.raw.visited);
+  const stamps = new Set(store.raw.stamps);
+
+  let html = `
+    <!-- Stylized Continental U.S. + Alaska/Hawaii Inset Borders -->
+    <rect x="26" y="454" width="166" height="142" rx="10" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.14)"/>
+    <text x="42" y="474" fill="#7c96aa" font-size="11" font-weight="800">ALASKA</text>
+    <rect x="206" y="492" width="114" height="104" rx="10" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.14)"/>
+    <text x="220" y="512" fill="#7c96aa" font-size="11" font-weight="800">HAWAII</text>
+  `;
+
+  // Highway connection lines
+  const drawn = new Set();
+  for (const code of STATE_CODES) {
+    const a = STATES[code];
+    for (const nbCode of a.neighbors) {
+      const key = [code, nbCode].sort().join('-');
+      if (drawn.has(key)) continue;
+      drawn.add(key);
+      const b = STATES[nbCode];
+      const highlight = code === cur || nbCode === cur;
+      const isFerry = a.ferry || b.ferry;
+      html += `<line x1="${a.mx}" y1="${a.my}" x2="${b.mx}" y2="${b.my}"
+        stroke="${highlight ? '#6bffea' : 'rgba(255,255,255,0.16)'}"
+        stroke-width="${highlight ? 2.4 : 1.1}"
+        ${isFerry || highlight ? 'stroke-dasharray="5 4"' : ''}/>`;
+    }
+  }
+
+  // Clickable 50 State Pins
+  for (const code of STATE_CODES) {
+    const s = STATES[code];
+    const isCur = code === cur;
+    const isNext = adj.has(code);
+    const hasStamp = stamps.has(code);
+    const isSel = code === selectedMapState;
+    const fill = isCur ? '#ffd166' : (hasStamp ? '#7ef29d' : (visited.has(code) ? '#38b6ff' : (isNext ? '#6bffea' : '#8ea2b4')));
+    const r = isCur || isSel ? 15 : 12.5;
+    html += `
+      <g class="stateNode" data-code="${code}">
+        ${isSel ? `<circle cx="${s.mx}" cy="${s.my}" r="${r + 4}" fill="none" stroke="#fff" stroke-width="2"/>` : ''}
+        <circle cx="${s.mx}" cy="${s.my}" r="${r}" fill="${fill}" stroke="#0b151e" stroke-width="1.8"/>
+        <text x="${s.mx}" y="${s.my}">${code}</text>
+      </g>
+    `;
+  }
+  svg.innerHTML = html;
+
+  svg.querySelectorAll('.stateNode').forEach((g) => {
+    g.onclick = () => {
+      selectedMapState = g.getAttribute('data-code');
+      renderUSMap();
+    };
+  });
+
+  // State details card
+  const dst = STATES[selectedMapState];
+  const route = store.getRouteInfo(selectedMapState);
+  const info = document.getElementById('mapInfoCard');
+  info.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h3 style="margin:0;color:#ffd166;font-size:17px;">${dst.name} (${dst.code})</h3>
+      <span style="font-size:11px;font-weight:800;color:#6bffea;">${stamps.has(dst.code) ? 'STAMPED ✓' : 'UNSTAMPED'}</span>
+    </div>
+    <div style="font-size:12px;font-weight:700;color:#fff;">🏞️ ${dst.park} ${dst.bearCountry ? '· 🐻 Bear Country' : ''}</div>
+    <div style="font-size:11.5px;color:#bfd0de;line-height:1.45;"><b>Famous Highlight:</b> ${dst.famous}</div>
+    <div style="font-size:11.5px;color:#bfd0de;"><b>Native Birds:</b> ${dst.birds.join(' · ')}</div>
+    <div style="font-size:11.5px;color:#ffd166;"><b>Local Gig:</b> ${dst.gig.title} (+$${dst.gig.pay})</div>
+    ${route ? `
+      <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:8px;font-size:11px;color:#d6e6f2;">
+        Drive from <b>${STATES[cur].name}</b>: <b>~${route.approxMiles} mi</b> · Fuel: <b>-${route.fuelUse}%</b>
+        ${route.ferryFee ? ` · Ferry Ticket: <b>$${route.ferryFee}</b>` : ''}
+        ${!route.isNeighbor ? '<br><span style="color:#ffd166">Interstate express run (adjacent states use less fuel)</span>' : ''}
+      </div>
+      <button class="actBtn primary" id="driveGoBtn" style="padding:10px;font-size:12.5px;">🚐 DRIVE PROMASTER TO ${dst.name.toUpperCase()}</button>
+    ` : '<div style="font-size:12px;color:#7ef29d;font-weight:700;">You are currently camped right here!</div>'}
+  `;
+
+  const driveBtn = document.getElementById('driveGoBtn');
+  if (driveBtn) {
+    driveBtn.onclick = () => triggerTravel(selectedMapState);
+  }
+}
+
+function triggerTravel(targetCode) {
+  const res = store.travelTo(targetCode);
+  if (!res.ok) { showToast(res.msg); return; }
+  document.getElementById('mapModal').classList.remove('open');
+  setScreen('drive');
+  showToast(`Cruising ${res.miles} mi into ${res.state.name}...`);
+
+  setTimeout(() => {
+    setScreen('camp');
+    openOregonTrailEvent(res.state, res.eventText);
+  }, 1500);
+}
+
+function openOregonTrailEvent(st, eventText) {
+  const modal = document.getElementById('infoModal');
+  const body = document.getElementById('infoModalBody');
+  const sp = store.getSpecs();
+  body.innerHTML = `
+    <div class="modalHead">
+      <h2>🚐 2026 OREGON TRAIL LOG — ${st.name.toUpperCase()}</h2>
+      <button class="closeBtn" id="evClose">CONTINUE</button>
+    </div>
+    <p style="margin:0;font-size:13px;line-height:1.55;color:#d6e5f2;">${eventText}</p>
+    <div class="btnGrid" style="grid-template-columns:1fr;">
+      <button class="actBtn primary" id="evOpt1">Drive Cautiously &amp; Inspect Suspension (Slow pace, -2% Van Wear)</button>
+      <button class="actBtn gold" id="evOpt2">Press On Using ${sp.buildPct >= 50 ? 'Upgraded Rig Specs' : 'Stock Suspension'} (+$45 Scenic Tip, -5 Morale)</button>
+      <button class="actBtn" id="evOpt3">Pull Over for Pour-Over Coffee &amp; View (+12 Morale)</button>
+    </div>
+  `;
+  modal.classList.add('open');
+  const finish = (choice) => {
+    store.applyTrailChoice(choice);
+    modal.classList.remove('open');
+    renderCampVitals();
+    updateTopHUD();
+    showToast(choice.note);
+  };
+  document.getElementById('evClose').onclick = () => modal.classList.remove('open');
+  document.getElementById('evOpt1').onclick = () => finish({ healthDelta: 3, moraleDelta: 4, note: `Arrived safely at ${st.park}!` });
+  document.getElementById('evOpt2').onclick = () => finish({ cashDelta: 45, moraleDelta: sp.comfort > 60 ? 5 : -5, note: `Captured roadside dashcam scenery (+$45)!` });
+  document.getElementById('evOpt3').onclick = () => finish({ moraleDelta: 12, note: `Brewed coffee overlooking ${st.name} scenery (+12 Morale).` });
+}
+
+// ================================================================
+// 7. CAMPGROUND ACTIVITIES (BIRD WATCH, HIKE, STARGAZE, MEET PEOPLE)
+// ================================================================
+function startBirdWatch() {
+  const st = STATES[store.raw.stateCode];
+  const ol = document.getElementById('liveOverlay');
+  const mask = document.getElementById('binocularMask');
+  const layer = document.getElementById('targetsLayer');
+  document.getElementById('overlayTitle').textContent = `🔭 ${st.name.toUpperCase()} BIRDS — TAP TO PHOTOGRAPH`;
+  mask.style.display = 'block';
+  ol.classList.add('open');
+
+  layer.innerHTML = '';
+  st.birds.forEach((bird, idx) => {
+    const b = document.createElement('button');
+    b.className = 'skyTarget';
+    b.textContent = `🐦 ${bird}`;
+    b.style.left = `${24 + idx * 25}%`;
+    b.style.top = `${26 + (idx % 2) * 14}%`;
+    b.onclick = () => {
+      audio.playShutter();
+      const res = store.logBird(bird);
+      b.style.borderColor = '#7ef29d';
+      b.textContent = `📸 ${bird} (+$${res.bounty})`;
+      showToast(res.isNew ? `NEW BIRD! ${bird} +$${res.bounty}` : `${bird} photographed (+$${res.bounty})`);
+      updateTopHUD();
+      renderCampVitals();
+    };
+    layer.appendChild(b);
+  });
+}
+
+function startStargaze() {
+  const st = STATES[store.raw.stateCode];
+  timeMood = 'night';
+  envs.applyTimeMood('night');
+  setCameraPreset('sky');
+  const ol = document.getElementById('liveOverlay');
+  const mask = document.getElementById('binocularMask');
+  const layer = document.getElementById('targetsLayer');
+  mask.style.display = 'none';
+  document.getElementById('overlayTitle').textContent = `✨ TRACE CONSTELLATIONS ABOVE ${st.name.toUpperCase()}`;
+  ol.classList.add('open');
+
+  const stars = [
+    ['★ Orion', 26, 26],
+    ['★ Ursa Major', 48, 20],
+    ['★ Cassiopeia', 72, 28],
+    ['★ Cygnus', 38, 40],
+    ['★ Scorpius', 64, 44],
+  ];
+  layer.innerHTML = '';
+  stars.forEach(([label, px, py]) => {
+    const b = document.createElement('button');
+    b.className = 'skyTarget star';
+    b.textContent = label;
+    b.style.left = `${px}%`;
+    b.style.top = `${py}%`;
+    b.onclick = () => {
+      audio.playStamp();
+      const res = store.logConstellation(label.replace('★ ', ''));
+      b.style.borderColor = '#7ef29d';
+      showToast(`Logged ${label} (+$${res.pay}, +8 Morale)`);
+      updateTopHUD();
+      renderCampVitals();
+    };
+    layer.appendChild(b);
+  });
+}
+
+function openHikeModal() {
+  const st = STATES[store.raw.stateCode];
+  const modal = document.getElementById('infoModal');
+  document.getElementById('infoModalBody').innerHTML = `
+    <div class="modalHead">
+      <h2>🥾 ${st.park.toUpperCase()}</h2>
+      <button class="closeBtn" id="hClose">CLOSE</button>
+    </div>
+    <p style="margin:0;font-size:13px;color:#d6e5f2;">Famous attraction: <b>${st.famous}</b></p>
+    <div class="btnGrid" style="grid-template-columns:1fr;">
+      <button class="actBtn primary" id="hEasy">🌲 Scenic Overlook Trail (Earn State Stamp + $75 Park Photo Fee)</button>
+      <button class="actBtn gold" id="hSum">⛰️ High Ridge Summit Scramble (Earn State Stamp + $140 Assignment)</button>
+    </div>
+  `;
+  modal.classList.add('open');
+  document.getElementById('hClose').onclick = () => modal.classList.remove('open');
+  const go = (mode) => {
+    const r = store.completeHike(mode);
+    audio.playStamp();
+    modal.classList.remove('open');
+    updateTopHUD();
+    renderCampVitals();
+    showToast(r.isNewStamp ? `🎉 EARNED ${st.name.toUpperCase()} PASSPORT STAMP (${r.totalStamps}/50)!` : `Hike logged +$${r.pay}`);
+  };
+  document.getElementById('hEasy').onclick = () => go('easy');
+  document.getElementById('hSum').onclick = () => go('summit');
+}
+
+function openPassportModal() {
+  const modal = document.getElementById('infoModal');
+  const stamps = new Set(store.raw.stamps);
+  document.getElementById('infoModalBody').innerHTML = `
+    <div class="modalHead">
+      <h2>📘 50-STATE NATIONAL PARK PASSPORT (${stamps.size}/50 STAMPS)</h2>
+      <button class="closeBtn" id="pClose">CLOSE</button>
+    </div>
+    <div style="font-size:12px;color:#b8cad9;">
+      Total Driven: <b>${store.raw.miles.toLocaleString()} mi</b> · Birds Logged: <b>${store.raw.birdsSpotted.length}</b> · Constellations: <b>${store.raw.constellations.length}</b> · Van Build: <b>${store.getSpecs().buildPct}%</b>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px;">
+      ${STATE_CODES.map((c) => {
+        const has = stamps.has(c);
+        return `<div style="padding:7px;border-radius:8px;text-align:center;font-size:11px;font-weight:800;
+          background:${has ? 'rgba(126,242,157,0.2)' : 'rgba(255,255,255,0.04)'};
+          border:1px solid ${has ? '#7ef29d' : 'rgba(255,255,255,0.1)'};color:${has ? '#9ef5b4' : '#7a8a98'}">
+          ${c} ${has ? '✓' : ''}
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+  modal.classList.add('open');
+  document.getElementById('pClose').onclick = () => modal.classList.remove('open');
+}
+
+// ================================================================
+// 8. WIRE ALL BUTTON HANDLERS
+// ================================================================
+document.getElementById('tabGarage').onclick = () => setScreen('garage');
+document.getElementById('tabCamp').onclick = () => setScreen('camp');
+document.getElementById('tabMap').onclick = () => { renderUSMap(); document.getElementById('mapModal').classList.add('open'); };
+document.getElementById('tabPass').onclick = openPassportModal;
+document.getElementById('muteBtn').onclick = () => {
+  const m = audio.toggleMute();
+  document.getElementById('muteBtn').textContent = m ? 'MUTED' : 'SFX';
+};
+
+document.querySelectorAll('#garageTools [data-cam]').forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll('#garageTools [data-cam]').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on');
+    setCameraPreset(b.getAttribute('data-cam'));
+  };
+});
+
+document.getElementById('doorsBtn').onclick = (e) => {
+  doorsOpen = !doorsOpen;
+  van.setDoorsOpen(doorsOpen);
+  e.target.textContent = doorsOpen ? 'DOORS OPEN' : 'DOORS SHUT';
+  e.target.classList.toggle('on', doorsOpen);
+};
+
+document.getElementById('cutBtn').onclick = (e) => {
+  cutawayIdx = (cutawayIdx + 1) % cutawayModes.length;
+  const m = cutawayModes[cutawayIdx];
+  van.setCutaway(m);
+  e.target.textContent = `CUT: ${m.toUpperCase()}`;
+  e.target.classList.toggle('on', m !== 'none');
+};
+
+document.getElementById('explodeRange').oninput = (e) => {
+  const v = Number(e.target.value);
+  document.getElementById('explodeLbl').textContent = `${v}%`;
+  van.setExploded(v / 100);
+};
+
+document.getElementById('sandboxBtn').onclick = () => {
+  store.unlockAllSandbox();
+  audio.playSnap();
+  van.syncInstalled(store.raw.installed);
+  van.setSwiveled(true);
+  renderGarageCatalog();
+  updateTopHUD();
+  showToast('Full 26-piece ProMaster 159" build loaded — try LEGO EXPLODE VIEW!');
+};
+
+document.getElementById('resetBtn').onclick = () => {
+  store.resetToStock();
+  van.syncInstalled(store.raw.installed);
+  van.setPaintColor(store.raw.paintHex);
+  document.getElementById('explodeRange').value = 0;
+  document.getElementById('explodeLbl').textContent = '0%';
+  van.setExploded(0);
+  renderPaintSwatches();
+  renderGarageCatalog();
+  updateTopHUD();
+  showToast('Reset to stock Ram ProMaster 3500 cargo shell');
+};
+
+document.getElementById('refsBtn').onclick = () => document.getElementById('refsModal').classList.add('open');
+document.getElementById('closeRefsBtn').onclick = () => document.getElementById('refsModal').classList.remove('open');
+document.getElementById('closeMapBtn').onclick = () => document.getElementById('mapModal').classList.remove('open');
+document.getElementById('closeOverlayBtn').onclick = () => {
+  document.getElementById('liveOverlay').classList.remove('open');
+  if (activeScreen === 'camp') setCameraPreset('camp');
+};
+
+document.querySelectorAll('#campLeft [data-time]').forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll('#campLeft [data-time]').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on');
+    timeMood = b.getAttribute('data-time');
+    envs.applyTimeMood(timeMood);
+  };
+});
+
+document.getElementById('washBtn').onclick = () => { const r = store.washDishes(); if (r.ok) audio.playSplash(); showToast(r.msg); renderCampVitals(); };
+document.getElementById('toiletBtn').onclick = () => { const r = store.emptyToilet(); showToast(r.msg); renderCampVitals(); updateTopHUD(); };
+document.getElementById('waterBtn').onclick = () => { const r = store.refillWaterAndDump(); if (r.ok) audio.playSplash(); showToast(r.msg); renderCampVitals(); updateTopHUD(); };
+document.getElementById('cookBtn').onclick = () => { const r = store.cookMeal(); showToast(r.msg); renderCampVitals(); };
+document.getElementById('bearBtn').onclick = () => { const r = store.lockBearBox(); showToast(r.msg); renderCampVitals(); };
+document.getElementById('townBtn').onclick = () => { const r = store.serviceVan(); showToast(r.msg); renderCampVitals(); updateTopHUD(); };
+document.getElementById('gigBtn').onclick = () => { const r = store.doLocalGig(); audio.playSnap(); showToast(`${r.title}: +$${r.pay}`); renderCampVitals(); updateTopHUD(); };
+document.getElementById('remoteBtn').onclick = () => { const r = store.doRemoteSprint(); showToast(r.ok ? `Remote Sprint Earned +$${r.pay}` : r.msg); renderCampVitals(); updateTopHUD(); };
+document.getElementById('birdBtn').onclick = startBirdWatch;
+document.getElementById('hikeBtn').onclick = openHikeModal;
+document.getElementById('starBtn').onclick = startStargaze;
+document.getElementById('meetBtn').onclick = () => { const r = store.meetCamper(); audio.playStamp(); showToast(r.note); renderCampVitals(); };
+document.getElementById('sleepBtn').onclick = () => {
+  const r = store.sleepNight();
+  timeMood = 'golden';
+  envs.applyTimeMood('golden');
+  renderCampVitals();
+  showToast(r.alert || 'Good morning! Solar topped up & ready to roll.');
+};
+
+// ================================================================
+// 9. MAIN LOOP & DETERMINISTIC HEADLESS VERIFICATION HOOK
+// ================================================================
+let simT = 0;
+let lastNow = performance.now();
+let stepMode = false;
+
+function stepScene(dt) {
+  simT += dt;
+  const k = Math.min(1, dt * 8.0);
+  camCtrl.theta += (camCtrl.tTheta - camCtrl.theta) * k;
+  camCtrl.phi += (camCtrl.tPhi - camCtrl.phi) * k;
+  camCtrl.r += (camCtrl.tR - camCtrl.r) * k;
+  camCtrl.tx += (camCtrl.tX - camCtrl.tx) * k;
+  camCtrl.ty += (camCtrl.tY - camCtrl.ty) * k;
+  camCtrl.tz += (camCtrl.tZ - camCtrl.tz) * k;
+
+  const sinP = Math.sin(camCtrl.phi);
+  camera.position.set(
+    camCtrl.tx + camCtrl.r * sinP * Math.sin(camCtrl.theta),
+    Math.max(0.85, camCtrl.ty + camCtrl.r * Math.cos(camCtrl.phi)),
+    camCtrl.tz + camCtrl.r * sinP * Math.cos(camCtrl.theta)
+  );
+  camera.lookAt(camCtrl.tx, camCtrl.ty, camCtrl.tz);
+
+  van.update(dt, simT);
+  envs.update(simT, dt, van, store.raw.installed.length);
+}
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  if (stepMode) return;
+  const dt = Math.min(0.05, (now - lastNow) / 1000);
+  lastNow = now;
+  stepScene(dt);
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+window.__promaster = {
+  setScreen,
+  setCam: setCameraPreset,
+  installAll: () => { store.unlockAllSandbox(); van.syncInstalled(store.raw.installed); van.setSwiveled(true); renderGarageCatalog(); updateTopHUD(); },
+  setExploded: (v) => { van.setExploded(v); document.getElementById('explodeRange').value = Math.round(v * 100); document.getElementById('explodeLbl').textContent = `${Math.round(v * 100)}%`; },
+  setCutaway: (m) => {
+    cutawayIdx = Math.max(0, cutawayModes.indexOf(m));
+    van.setCutaway(m);
+    const cb = document.getElementById('cutBtn');
+    cb.textContent = `CUT: ${m.toUpperCase()}`;
+    cb.classList.toggle('on', m !== 'none');
+  },
+  setDoors: (open) => {
+    doorsOpen = open;
+    van.setDoorsOpen(open);
+    const db = document.getElementById('doorsBtn');
+    db.textContent = open ? 'DOORS OPEN' : 'DOORS SHUT';
+    db.classList.toggle('on', open);
+  },
+  setGhost: (partId) => { van.setGhost(partId); },
+  setTime: (m) => {
+    timeMood = m;
+    envs.applyTimeMood(m);
+    document.querySelectorAll('#campLeft [data-time]').forEach((x) => x.classList.toggle('on', x.getAttribute('data-time') === m));
+  },
+  openMap: (code) => { if (code) selectedMapState = code; renderUSMap(); document.getElementById('mapModal').classList.add('open'); },
+  closeModals: () => { document.querySelectorAll('.modalWrap').forEach((m) => m.classList.remove('open')); },
+  travelTo: (code, refuel = false) => {
+    if (refuel) store.serviceVan();
+    const res = store.travelTo(code);
+    setScreen('camp');
+    return res;
+  },
+  openRefs: (open) => { document.getElementById('refsModal').classList.toggle('open', open); },
+  step: (sec = 0.8) => {
+    stepMode = true;
+    const steps = Math.max(1, Math.round(sec * 30));
+    for (let i = 0; i < steps; i++) stepScene(1 / 30);
+    renderer.render(scene, camera);
+    return {
+      screen: activeScreen,
+      state: store.raw.stateCode,
+      installed: store.raw.installed.length,
+      calls: renderer.info.render.calls,
+      tris: renderer.info.render.triangles,
+    };
+  },
+};
+
+// Boot state sync
+van.setPaintColor(store.raw.paintHex);
+van.syncInstalled(store.raw.installed);
+van.setDoorsOpen(true);
+van.setGhost(PARTS[0].id);
+renderPaintSwatches();
+setScreen('garage');
+stepScene(1 / 30);
+renderer.render(scene, camera);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
