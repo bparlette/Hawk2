@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Dead Hall — Neon Figure &amp; Motion Test Harness</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#000; overflow:hidden; touch-action:none;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; -webkit-user-select:none; user-select:none; color:#e5eee3; }
+  #gl { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:10; text-shadow:0 1px 4px #000; }
+  .tl { position:absolute; top:10px; left:10px; max-width:60%; font-size:9.5px; line-height:1.4; letter-spacing:.04em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tr { position:absolute; top:10px; right:10px; max-width:38%; font-size:9.5px; line-height:1.4; text-align:right; letter-spacing:.04em; }
+  .bl { position:absolute; left:12px; bottom:56px; right:12px; font-size:10.5px; line-height:1.4; color:#cdd8ca; background:rgba(0,0,0,.45); padding:6px 8px; border-left:2px solid #9fe870; }
+  #rec { display:inline-block; width:8px; height:8px; border-radius:50%; background:#ff2d20; box-shadow:0 0 6px #ff2d20; margin-right:5px; }
+  #controls { position:fixed; left:8px; right:8px; bottom:10px; z-index:1200; display:flex; gap:6px; justify-content:center; }
+  #controls button { background:rgba(20,24,22,.88); color:#e5eee3; border:1px solid rgba(200,220,200,.35);
+    padding:8px 10px; font:600 11px ui-monospace, monospace; border-radius:4px; touch-action:manipulation; }
+  #vig { position:fixed; inset:0; pointer-events:none; z-index:20;
+    background:radial-gradient(ellipse at 50% 46%, transparent 54%, rgba(0,0,0,.42) 84%, rgba(0,0,0,.82) 100%); }
+  body.nv #gl { filter: sepia(1) hue-rotate(68deg) saturate(2.8) brightness(1.08); }
+  body.clean #controls { display:none; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hud">
+  <div class="tl"><b id="figLabel">NEON MOTION BAY</b><br><span id="figMeta">UNIT 2210 · SPEC TEST</span></div>
+  <div class="tr"><span id="rec"></span>REC · <span id="timeRead">t=0.00s</span><br><span id="perfRead">calls: 0</span></div>
+  <div class="bl" id="specRead">Loading pinned figure specs...</div>
+</div>
+<div id="controls">
+  <button id="prevBtn">PREV</button>
+  <button id="modeBtn">MODE</button>
+  <button id="nextBtn">NEXT</button>
+  <button id="lineupBtn">LINEUP</button>
+</div>
+<div id="vig"></div>
+
+<script type="module">
+import * as THREE from '../three.module.js';
+import { createNeonTextureBank, ROOM_TEXTURE_CATALOG } from '../src/neon/textures.js';
+import { FIGURE_SPECS, FIGURE_IDS, createFigure, animateFigure, measureFigure } from '../src/neon/figures.js';
+
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.24;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x030405);
+scene.fog = new THREE.FogExp2(0x030405, 0.055);
+
+const camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.08, 60);
+camera.position.set(0, 1.52, 3.6);
+camera.lookAt(0, 1.15, 0);
+
+// Bodycam lighting: faint ambient + camera-mounted LED + subtle practical rim behind figure
+const hemi = new THREE.HemisphereLight(0x2c3c52, 0x0c0c0e, 0.78);
+scene.add(hemi);
+const camLight = new THREE.PointLight(0xc8d9ea, 4.2, 9.5, 1.8);
+camLight.position.set(0, 1.48, 3.4);
+scene.add(camLight);
+const rimLight = new THREE.PointLight(0xffd29a, 14, 10, 2);
+rimLight.position.set(0, 2.75, -2.6);
+scene.add(rimLight);
+
+const bank = createNeonTextureBank();
+
+// Condemned corridor test bay (3.4m wide x 3.2m high — matches bodycam-corridor proportions)
+const bayGroup = new THREE.Group();
+scene.add(bayGroup);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 14), bank.roomWall('scuffedLinoleum', 2, 5));
+floor.rotation.x = -Math.PI / 2;
+floor.position.set(0, 0, -1);
+bayGroup.add(floor);
+const ceil = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 14), bank.roomWall('acousticCeiling', 2, 5));
+ceil.rotation.x = Math.PI / 2;
+ceil.position.set(0, 3.2, -1);
+bayGroup.add(ceil);
+const backWall = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 3.2), bank.roomWall('peelingPlaster', 2, 1));
+backWall.position.set(0, 1.6, -4.2);
+bayGroup.add(backWall);
+const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(14, 3.2), bank.roomWall('tallIndustrialWall', 4, 1));
+leftWall.rotation.y = Math.PI / 2;
+leftWall.position.set(-2.6, 1.6, -1);
+bayGroup.add(leftWall);
+const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(14, 3.2), bank.roomWall('moldDrywall', 4, 1));
+rightWall.rotation.y = -Math.PI / 2;
+rightWall.position.set(2.6, 1.6, -1);
+bayGroup.add(rightWall);
+
+// Height scale markers on back wall (1m, 2m, 3m) for honest visual spec verification
+const scaleMat = new THREE.MeshBasicMaterial({ color: 0x55605a, transparent: true, opacity: 0.45 });
+for (const hm of [1.0, 2.0, 3.0]) {
+  const bar = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 0.015), scaleMat);
+  bar.position.set(0, hm, -4.18);
+  bayGroup.add(bar);
+}
+
+const stage = new THREE.Group();
+scene.add(stage);
+
+const figCache = new Map();
+function getFig(id) {
+  if (!figCache.has(id)) figCache.set(id, createFigure(id, bank));
+  return figCache.get(id);
+}
+
+const MODES = ['idle', 'walk', 'lunge', 'crawl', 'sprint', 'unfold', 'flicker_step', 'hatch_emerge', 'decoy_flee'];
+let curIdx = 0;
+let curMode = null;
+let viewMode = 'single'; // 'single' | 'lineup' | 'textures'
+let simT = 0;
+let stepMode = false;
+let lastNow = performance.now();
+
+const figLabelEl = document.getElementById('figLabel');
+const figMetaEl = document.getElementById('figMeta');
+const timeReadEl = document.getElementById('timeRead');
+const perfReadEl = document.getElementById('perfRead');
+const specReadEl = document.getElementById('specRead');
+
+function clearStage() {
+  while (stage.children.length) stage.remove(stage.children[0]);
+  document.body.classList.remove('nv');
+}
+
+function showSingle(id, mode = null, t = 0) {
+  viewMode = 'single';
+  clearStage();
+  curIdx = Math.max(0, FIGURE_IDS.indexOf(id));
+  const spec = FIGURE_SPECS[id];
+  curMode = mode || spec.defaultMotion;
+  simT = t;
+
+  const fig = getFig(id);
+  fig.position.set(0, 0, 0);
+  fig.rotation.set(0, id === 'corner_figure' && curMode === 'idle' ? Math.PI * 0.85 : 0, 0);
+  stage.add(fig);
+
+  if (id === 'crawler') document.body.classList.add('nv');
+
+  // Frame camera to show full silhouette clearly at 390x844
+  const camZ = id === 'tall_figure' ? 4.35 : (id === 'twins' ? 2.85 : (id === 'crawler' ? 2.65 : 3.25));
+  const lookY = id === 'tall_figure' ? 1.48 : (id === 'crawler' ? 0.48 : (id === 'hatch_crawler' ? 0.58 : (id === 'twins' ? 0.62 : 1.02)));
+  camera.position.set(0, Math.max(1.1, lookY + 0.28), camZ);
+  camera.lookAt(0, lookY, 0);
+  camLight.position.set(0, camera.position.y - 0.1, camZ - 0.25);
+
+  animateFigure(fig, curMode, t);
+  renderer.render(scene, camera);
+
+  const m = measureFigure(fig);
+  figLabelEl.textContent = `R${spec.room} · ${spec.label.toUpperCase()}`;
+  figMetaEl.textContent = `ID: ${spec.id} · MOTION: ${curMode.toUpperCase()}`;
+  timeReadEl.textContent = `t=${t.toFixed(2)}s`;
+  perfReadEl.textContent = `calls:${renderer.info.render.calls} · figMeshes:${m.meshes}`;
+  specReadEl.textContent = `PINNED H:${spec.totalHeight}m (meas ${m.boundsM.h}m) · SH:${spec.shoulderWidth}m · ST:${spec.stanceWidth}m · HEAD:${(spec.headRatio * 100).toFixed(1)}%`;
+  return {
+    id,
+    mode: curMode,
+    t,
+    calls: renderer.info.render.calls,
+    tris: renderer.info.render.triangles,
+    figureMetrics: m,
+    spec,
+    textureBank: bank.stats(),
+  };
+}
+
+function showLineup(ids = ['twins', 'crawler', 'mascot', 'tall_figure', 'mannequin'], t = 0.45) {
+  viewMode = 'lineup';
+  clearStage();
+  const count = ids.length;
+  const span = count <= 2 ? 1.15 : 2.85;
+  ids.forEach((id, i) => {
+    const fig = getFig(id);
+    const x = -span * 0.5 + (count > 1 ? (i / (count - 1)) * span : 0);
+    fig.position.set(x, 0, -0.4);
+    fig.rotation.set(0, 0, 0);
+    animateFigure(fig, FIGURE_SPECS[id].defaultMotion, t);
+    stage.add(fig);
+  });
+  const camZ = count <= 2 ? 3.55 : 6.6;
+  camera.position.set(0, 1.42, camZ);
+  camera.lookAt(0, 1.25, -0.4);
+  camLight.position.set(0, 1.4, camZ - 0.4);
+  renderer.render(scene, camera);
+  figLabelEl.textContent = count <= 2 ? 'DECOY FAIRNESS TELLS' : 'SILHOUETTE LINEUP (390px)';
+  figMetaEl.textContent = ids.join(' · ');
+  timeReadEl.textContent = `t=${t.toFixed(2)}s`;
+  perfReadEl.textContent = `calls:${renderer.info.render.calls}`;
+  specReadEl.textContent = count <= 2
+    ? 'Guard (navy + brass badge + torch) · Worker (hardhat + hi-vis stripes + torch)'
+    : 'twins(1.12m) · crawler(0.78m) · mascot(1.98m) · tall(2.95m) · mannequin(1.82m)';
+  return { ids, calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
+}
+
+function showTextures() {
+  viewMode = 'textures';
+  clearStage();
+  const keys = Object.keys(ROOM_TEXTURE_CATALOG);
+  const cols = 3;
+  keys.forEach((k, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.76, 0.76), bank.roomWall(k, 1, 1));
+    panel.position.set((col - 1) * 0.86, 2.55 - row * 0.84, 0.2);
+    stage.add(panel);
+  });
+  camera.position.set(0, 1.18, 3.6);
+  camera.lookAt(0, 1.18, 0.2);
+  camLight.position.set(0, 1.2, 3.3);
+  renderer.render(scene, camera);
+  figLabelEl.textContent = 'PROCEDURAL TEXTURE VARIANTS (13 ROOM MAPS)';
+  figMetaEl.textContent = '0 EXTERNAL IMAGES · SEEDED CANVAS';
+  timeReadEl.textContent = 'SWATCHES';
+  perfReadEl.textContent = `calls:${renderer.info.render.calls}`;
+  specReadEl.textContent = keys.join(' · ');
+  return { count: keys.length, calls: renderer.info.render.calls, textureBank: bank.stats() };
+}
+
+document.getElementById('prevBtn').onclick = () => showSingle(FIGURE_IDS[(curIdx - 1 + FIGURE_IDS.length) % FIGURE_IDS.length]);
+document.getElementById('nextBtn').onclick = () => showSingle(FIGURE_IDS[(curIdx + 1) % FIGURE_IDS.length]);
+document.getElementById('modeBtn').onclick = () => {
+  const nextM = MODES[(MODES.indexOf(curMode) + 1) % MODES.length];
+  showSingle(FIGURE_IDS[curIdx], nextM, simT);
+};
+document.getElementById('lineupBtn').onclick = () => showLineup();
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (stepMode) return;
+  const dt = Math.min(0.05, (now - lastNow) / 1000);
+  lastNow = now;
+  simT += dt;
+  if (viewMode === 'single') {
+    const id = FIGURE_IDS[curIdx];
+    const fig = getFig(id);
+    animateFigure(fig, curMode, simT);
+    timeReadEl.textContent = `t=${simT.toFixed(2)}s`;
+    renderer.render(scene, camera);
+  }
+}
+
+window.__harness = {
+  ids: () => FIGURE_IDS.slice(),
+  specs: () => FIGURE_SPECS,
+  show: (id, mode = null, t = 0) => {
+    stepMode = true;
+    document.body.classList.add('clean');
+    return showSingle(id, mode, t);
+  },
+  lineup: (ids, t = 0.45) => {
+    stepMode = true;
+    document.body.classList.add('clean');
+    return showLineup(ids, t);
+  },
+  textures: () => {
+    stepMode = true;
+    document.body.classList.add('clean');
+    return showTextures();
+  },
+};
+
+showSingle(FIGURE_IDS[0], null, 0);
+requestAnimationFrame(loop);
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
