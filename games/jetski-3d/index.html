@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>APEX WAKE — Realistic 3D Jet Ski</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #02182b; touch-action: none; user-select: none; -webkit-user-select: none;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+    color: #f2f8fc;
+  }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #lens { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
+
+  /* ---------- Glassmorphic Marine Telemetry HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 100; }
+  .panel {
+    background: rgba(5, 20, 34, 0.44);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(180, 238, 255, 0.22);
+    border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(0, 12, 24, 0.32);
+  }
+  #topLeft {
+    position: absolute; top: 14px; left: 14px; padding: 10px 14px;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  #brand { font-size: 11px; font-weight: 800; letter-spacing: 0.24em; color: #5ef2ff; }
+  #scoreLine { font-size: 20px; font-weight: 800; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+  #subLine { font-size: 11px; font-weight: 600; color: rgba(226, 246, 255, 0.8); letter-spacing: 0.08em; }
+
+  #topRight {
+    position: absolute; top: 14px; right: 14px; display: flex; gap: 8px;
+    pointer-events: auto; z-index: 1150;
+  }
+  .pillBtn {
+    background: rgba(5, 22, 36, 0.56);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(180, 238, 255, 0.28);
+    color: #effaff; border-radius: 999px;
+    padding: 8px 13px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .pillBtn:active { transform: scale(0.94); background: rgba(0, 216, 240, 0.35); }
+
+  /* Speedometer + Boost gauge */
+  #speedo {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    padding: 10px 22px 12px; min-width: 196px; text-align: center;
+  }
+  #mphVal { font-size: 38px; font-weight: 900; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  #mphUnit { font-size: 11px; font-weight: 700; letter-spacing: 0.24em; color: #7ae8ff; margin-left: 4px; }
+  #boostTrack {
+    margin-top: 8px; height: 7px; border-radius: 999px; overflow: hidden;
+    background: rgba(255, 255, 255, 0.16);
+  }
+  #boostFill {
+    height: 100%; width: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, #00e5ff, #ffae24, #ff4526);
+    transition: width 0.06s linear;
+  }
+
+  /* Center callout banner (AIRTIME! / GATE x3!) */
+  #callout {
+    position: absolute; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+    font-size: 26px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase;
+    color: #fff; text-shadow: 0 3px 22px rgba(0, 210, 255, 0.85), 0 2px 6px rgba(0, 0, 0, 0.75);
+    opacity: 0; transition: opacity 0.18s, transform 0.18s; pointer-events: none; text-align: center;
+    white-space: nowrap;
+  }
+  #callout.show { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+
+  /* ---------- Mobile / Touch Controls (z-index >= 1100) ---------- */
+  #touchControls {
+    position: fixed; inset: 0; pointer-events: none; z-index: 1120;
+  }
+  #steerPad {
+    position: absolute; left: 16px; bottom: 22px; width: 146px; height: 74px;
+    display: flex; gap: 10px; pointer-events: auto;
+  }
+  .tBtn {
+    flex: 1; border-radius: 18px; border: 1.5px solid rgba(190, 240, 255, 0.34);
+    background: rgba(6, 26, 42, 0.46); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    color: #f4fbff; font-size: 20px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: auto; touch-action: none;
+  }
+  .tBtn.on { background: rgba(0, 218, 245, 0.42); border-color: #7df6ff; transform: scale(0.95); }
+  #rightPad {
+    position: absolute; right: 16px; bottom: 22px; display: flex; gap: 10px; align-items: flex-end;
+    pointer-events: auto;
+  }
+  #gasBtn { width: 78px; height: 78px; border-radius: 50%; font-size: 13px; letter-spacing: 0.1em; background: rgba(0, 178, 128, 0.48); border-color: rgba(110, 255, 200, 0.55); }
+  #boostBtn { width: 64px; height: 64px; border-radius: 50%; font-size: 11px; letter-spacing: 0.08em; background: rgba(255, 118, 24, 0.48); border-color: rgba(255, 200, 120, 0.6); }
+
+  /* ---------- Title / Launch Overlay ---------- */
+  #titleScreen {
+    position: fixed; inset: 0; z-index: 1200;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 58px 22px 46px; text-align: center; pointer-events: auto; cursor: pointer;
+    background: linear-gradient(180deg, rgba(2, 22, 40, 0.64) 0%, rgba(2, 22, 40, 0.12) 45%, rgba(2, 22, 40, 0.72) 100%);
+    transition: opacity 0.45s ease;
+  }
+  #titleScreen.gone { opacity: 0; pointer-events: none; }
+  #titleScreen h1 {
+    margin: 0; font-size: clamp(38px, 8vw, 68px); font-weight: 900; letter-spacing: 0.18em;
+    background: linear-gradient(180deg, #ffffff 15%, #7df4ff 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 6px 24px rgba(0, 30, 60, 0.7));
+  }
+  #titleScreen .sub {
+    margin-top: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.34em; color: #c8f1ff;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
+  }
+  #titleScreen .cta {
+    padding: 15px 34px; border-radius: 999px; font-size: 14px; font-weight: 800; letter-spacing: 0.22em;
+    background: linear-gradient(135deg, #00d8f0, #0088cc); color: #021828;
+    border: 1px solid rgba(255, 255, 255, 0.55); box-shadow: 0 10px 30px rgba(0, 210, 255, 0.45);
+  }
+  #titleScreen .hint {
+    margin-top: 12px; font-size: 11.5px; letter-spacing: 0.12em; color: rgba(230, 248, 255, 0.85);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+  }
+
+  @media (max-width: 540px) {
+    #speedo { bottom: 108px; padding: 7px 16px 9px; min-width: 156px; }
+    #mphVal { font-size: 30px; }
+    #topLeft { top: 10px; left: 10px; padding: 6px 10px; }
+    #brand { font-size: 9px; letter-spacing: 0.16em; }
+    #scoreLine { font-size: 15px; }
+    #subLine { font-size: 9.5px; }
+    #topRight { top: 10px; right: 10px; gap: 5px; flex-wrap: wrap; justify-content: flex-end; max-width: 54%; }
+    .pillBtn { padding: 5px 8px; font-size: 9px; letter-spacing: 0.06em; }
+    #callout { font-size: 17px; letter-spacing: 0.1em; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="lens"></canvas>
+
+<div id="hud">
+  <div id="topLeft" class="panel">
+    <div id="brand">APEX WAKE · SVHO</div>
+    <div id="scoreLine">0 PTS</div>
+    <div id="subLine">GATE 1/10 · x1 COMBO</div>
+  </div>
+  <div id="topRight">
+    <button class="pillBtn" id="camBtn">CAM: CHASE</button>
+    <button class="pillBtn" id="skyBtn">TROPICAL</button>
+    <button class="pillBtn" id="muteBtn">SFX ON</button>
+  </div>
+  <div id="callout">AIRTIME!</div>
+  <div id="speedo" class="panel">
+    <div><span id="mphVal">0</span><span id="mphUnit">MPH</span></div>
+    <div id="boostTrack"><div id="boostFill"></div></div>
+  </div>
+</div>
+
+<div id="touchControls">
+  <div id="steerPad">
+    <button class="tBtn" id="leftBtn">◀</button>
+    <button class="tBtn" id="rightBtn">▶</button>
+  </div>
+  <div id="rightPad">
+    <button class="tBtn" id="boostBtn">BOOST</button>
+    <button class="tBtn" id="gasBtn">GAS</button>
+  </div>
+</div>
+
+<div id="titleScreen">
+  <div>
+    <h1>APEX WAKE</h1>
+    <div class="sub">REALISTIC OCEAN WATERCRAFT · GERSTNER SWELLS</div>
+  </div>
+  <div>
+    <div class="cta">TAP OR PRESS SPACE TO RIDE</div>
+    <div class="hint">WASD / ARROWS TO CARVE · SPACE BOOST · C CAMERA · L SKY</div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from './three.module.js';
+import { SKY_PRESETS, createSkySystem, createOcean, sampleWave } from './src/ocean.js';
+import { createJetSki } from './src/jetski.js';
+import { createRider } from './src/rider.js';
+import { createWaterFX, createLensDroplets } from './src/fx.js';
+import { createWorld, ISLANDS } from './src/world.js';
+import { createMarineAudio } from './src/audio.js';
+
+// ================================================================
+// 1. RENDERER, SCENE, LIGHTING & ENVIRONMENT REFLECTIONS
+// ================================================================
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = SKY_PRESETS.tropical.exposure;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.12, 1200);
+
+const PRESET_KEYS = ['tropical', 'noon', 'sunset'];
+let presetIdx = 0;
+let curPreset = SKY_PRESETS[PRESET_KEYS[presetIdx]];
+
+const sunLight = new THREE.DirectionalLight(curPreset.sunColor, curPreset.sunIntensity);
+sunLight.position.copy(curPreset.sunDir).multiplyScalar(180);
+scene.add(sunLight);
+
+const hemiLight = new THREE.HemisphereLight(curPreset.hemiSky, curPreset.hemiGround, curPreset.hemiInt);
+scene.add(hemiLight);
+
+// Subtle warm rim bounce from water surface onto rider & hull undersides
+const waterBounce = new THREE.DirectionalLight(0x38d8d8, 0.65);
+waterBounce.position.set(-40, -25, 60);
+scene.add(waterBounce);
+
+const sky = createSkySystem(scene, curPreset);
+sky.updateEnv(renderer, curPreset);
+const ocean = createOcean(scene, curPreset, ISLANDS);
+const fx = createWaterFX(scene, curPreset);
+const lens = createLensDroplets(document.getElementById('lens'));
+const world = createWorld(scene);
+const audio = createMarineAudio();
+
+function applyLightingPreset(key) {
+  curPreset = SKY_PRESETS[key];
+  sunLight.color.copy(curPreset.sunColor);
+  sunLight.intensity = curPreset.sunIntensity;
+  sunLight.position.copy(curPreset.sunDir).multiplyScalar(180);
+  hemiLight.color.setHex(curPreset.hemiSky);
+  hemiLight.groundColor.setHex(curPreset.hemiGround);
+  hemiLight.intensity = curPreset.hemiInt;
+  renderer.toneMappingExposure = curPreset.exposure;
+  sky.updateEnv(renderer, curPreset);
+  ocean.applyPreset(curPreset);
+  fx.applyPreset(curPreset);
+  document.getElementById('skyBtn').textContent = key.toUpperCase();
+}
+
+// ================================================================
+// 2. PLAYER JET SKI + SCULPTED RIDER + 2 AI RIVAL WATERCRAFT
+// ================================================================
+const playerSki = createJetSki('apex');
+const playerRider = createRider({ skinTone: '#c98e6a', vestAccent: '#00e5ff', shortColor: 0x112030, hairColor: 0x1a130e });
+playerSki.root.add(playerRider.root);
+scene.add(playerSki.root);
+
+// 2 AI Rival riders carving the slalom circuit alongside the player
+const rivals = [
+  {
+    ski: createJetSki('solar'),
+    rider: createRider({ skinTone: '#b27452', vestAccent: '#ffd016', shortColor: 0x1d1c22, hairColor: 0x121010 }),
+    gateIdx: 1, x: 14, y: 0, z: -26, yaw: 0.12, speed: 21, steer: 0, roll: 0, pitch: 0,
+  },
+  {
+    ski: createJetSki('crimson'),
+    rider: createRider({ skinTone: '#d49d7a', vestAccent: '#ff3342', shortColor: 0x182636, hairColor: 0x3b2616 }),
+    gateIdx: 9, x: -16, y: 0, z: -18, yaw: -0.1, speed: 19.5, steer: 0, roll: 0, pitch: 0,
+  },
+];
+for (const rv of rivals) {
+  rv.ski.root.add(rv.rider.root);
+  scene.add(rv.ski.root);
+}
+
+// ================================================================
+// 3. REALISTIC WATERCRAFT PHYSICS STATE
+// ================================================================
+const P = {
+  x: 0, y: 0.2, z: 0,
+  vx: 0, vy: 0, vz: 0,
+  yaw: Math.PI, // faces -Z toward Gate 1 & tropical islands!
+  speed: 0,
+  steer: 0,
+  pitch: 0,
+  roll: 0,
+  airborne: false,
+  airTime: 0,
+  impactJolt: 0,
+  boost: 1.0,
+  boostOn: false,
+  score: 0,
+  combo: 1,
+  nextGate: 0,
+  lap: 1,
+  started: false,
+  demoMode: true,
+};
+
+// ================================================================
+// 4. INPUTS (Keyboard + Touch Buttons)
+// ================================================================
+const keys = { left: false, right: false, up: false, down: false, boost: false };
+const CAM_MODES = ['CHASE', 'LOW ACTION', 'POV', 'ORBIT'];
+let camModeIdx = 0;
+
+function startPlaying() {
+  audio.unlock();
+  if (!P.started) {
+    P.started = true;
+    P.demoMode = false;
+    document.getElementById('titleScreen').classList.add('gone');
+  }
+}
+
+document.getElementById('titleScreen').addEventListener('pointerdown', startPlaying);
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !P.started) { e.preventDefault(); startPlaying(); return; }
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') { keys.up = true; startPlaying(); }
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = true;
+  if (e.code === 'Space' || e.code === 'ShiftLeft') { e.preventDefault(); keys.boost = true; }
+  if (e.code === 'KeyC') cycleCamera();
+  if (e.code === 'KeyL') cycleSky();
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.up = false;
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = false;
+  if (e.code === 'Space' || e.code === 'ShiftLeft') keys.boost = false;
+});
+
+function bindTouchBtn(id, keyName) {
+  const el = document.getElementById(id);
+  const set = (v) => {
+    keys[keyName] = v;
+    el.classList.toggle('on', v);
+    if (v) startPlaying();
+  };
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.setPointerCapture(e.pointerId); set(true); });
+  el.addEventListener('pointerup', () => set(false));
+  el.addEventListener('pointercancel', () => set(false));
+}
+bindTouchBtn('leftBtn', 'left');
+bindTouchBtn('rightBtn', 'right');
+bindTouchBtn('gasBtn', 'up');
+bindTouchBtn('boostBtn', 'boost');
+
+function cycleCamera() {
+  camModeIdx = (camModeIdx + 1) % CAM_MODES.length;
+  document.getElementById('camBtn').textContent = `CAM: ${CAM_MODES[camModeIdx]}`;
+}
+function cycleSky() {
+  presetIdx = (presetIdx + 1) % PRESET_KEYS.length;
+  applyLightingPreset(PRESET_KEYS[presetIdx]);
+}
+document.getElementById('camBtn').onclick = cycleCamera;
+document.getElementById('skyBtn').onclick = cycleSky;
+document.getElementById('muteBtn').onclick = () => {
+  audio.unlock();
+  const m = audio.toggleMute();
+  document.getElementById('muteBtn').textContent = m ? 'SFX OFF' : 'SFX ON';
+};
+
+// Callout toast helper
+const calloutEl = document.getElementById('callout');
+let calloutTimer = 0;
+function showCallout(text) {
+  calloutEl.textContent = text;
+  calloutEl.classList.add('show');
+  calloutTimer = 1.35;
+}
+
+// ================================================================
+// 5. SIMULATION STEP (4-Point Buoyancy, Deep-V Carving, Ramps, Rivals)
+// ================================================================
+const _nozzleW = new THREE.Vector3();
+const _fwd = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _back = new THREE.Vector3();
+const _hullPos = new THREE.Vector3();
+const _camPos = new THREE.Vector3(0, 3.2, 6.8);
+const _camLook = new THREE.Vector3(0, 1.0, -4);
+
+function stepPlayer(dt, t) {
+  // Demo autopilot on title screen so the live background is already carving sunlit waves!
+  let inThrottle = keys.up ? 1 : (keys.down ? -0.45 : 0);
+  let inSteer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+  let inBoost = keys.boost;
+
+  if (P.demoMode) {
+    const ng = world.gates[P.nextGate % world.gates.length];
+    const desiredYaw = Math.atan2(ng.x - P.x, ng.z - P.z);
+    let diff = desiredYaw - P.yaw;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    inSteer = THREE.MathUtils.clamp(diff * 1.65, -1, 1);
+    inThrottle = 0.88;
+    inBoost = Math.abs(diff) < 0.25 && P.boost > 0.35;
+  }
+
+  // Smooth steering response
+  P.steer += (inSteer - P.steer) * Math.min(1, dt * 8.5);
+
+  // Boost energy management
+  P.boostOn = Boolean(inBoost && P.boost > 0.04 && inThrottle > 0.1);
+  if (P.boostOn) {
+    P.boost = Math.max(0, P.boost - dt * 0.34);
+  } else {
+    P.boost = Math.min(1, P.boost + dt * (0.085 + Math.abs(P.steer) * 0.06));
+  }
+
+  // Forward / right unit vectors from yaw (+Z local = bow)
+  const sinY = Math.sin(P.yaw), cosY = Math.cos(P.yaw);
+  _fwd.set(sinY, 0, cosY);
+  _right.set(cosY, 0, -sinY);
+  _back.copy(_fwd).negate();
+
+  // Sample exact ocean surface at 4 hull stations (bow, stern, port, starboard)
+  const wCenter = sampleWave(P.x, P.z, t);
+  const wBow = sampleWave(P.x + sinY * 1.45, P.z + cosY * 1.45, t);
+  const wStern = sampleWave(P.x - sinY * 1.35, P.z - cosY * 1.35, t);
+  const wPort = sampleWave(P.x + cosY * 0.58, P.z - sinY * 0.58, t);
+  const wStbd = sampleWave(P.x - cosY * 0.58, P.z + sinY * 0.58, t);
+
+  // Check if riding up a floating jump ramp
+  const ramp = world.sampleRampHeight(P.x, P.z);
+  const supportY = wCenter.y + 0.14 + (ramp.onRamp ? ramp.heightOffset : 0);
+
+  // Speed & water propulsion (jet pump loses thrust when airborne!)
+  const maxSpeed = P.boostOn ? 34.5 : 26.5; // m/s (~60-77 MPH supercharged SVHO!)
+  if (!P.airborne) {
+    const accel = inThrottle > 0 ? (P.boostOn ? 24.5 : 16.5) * inThrottle : 10.0 * inThrottle;
+    P.speed += accel * dt;
+    // Hydrodynamic drag increases during hard carves
+    const drag = 0.52 + Math.abs(P.steer) * 0.24;
+    P.speed *= Math.max(0, 1 - drag * dt);
+    P.speed = THREE.MathUtils.clamp(P.speed, -6.5, maxSpeed);
+
+    // Steering turn rate (requires jet thrust or forward flow — authentic PWC handling!)
+    const steerAuth = 0.42 + Math.min(1, Math.abs(P.speed) / 14) * 1.55;
+    P.yaw += P.steer * steerAuth * dt;
+  } else {
+    // Minimal air drag + slight yaw control
+    P.speed *= 1 - 0.08 * dt;
+    P.yaw += P.steer * 0.45 * dt;
+  }
+
+  // Planar velocity with slight hydro-drift slide on sharp carves
+  const targetVx = Math.sin(P.yaw) * P.speed;
+  const targetVz = Math.cos(P.yaw) * P.speed;
+  const grip = P.airborne ? 0.4 : 5.8;
+  P.vx += (targetVx - P.vx) * Math.min(1, dt * grip);
+  P.vz += (targetVz - P.vz) * Math.min(1, dt * grip);
+
+  P.x += P.vx * dt;
+  P.z += P.vz * dt;
+
+  // Soft island shoreline repulsion (keeps jet ski cleanly in navigable water)
+  for (const isl of ISLANDS) {
+    const dx = P.x - isl.x, dz = P.z - isl.z;
+    const dist = Math.hypot(dx, dz);
+    const minR = isl.beachR + 5.0;
+    if (dist < minR && dist > 0.001) {
+      const nx = dx / dist, nz = dz / dist;
+      P.x = isl.x + nx * minR;
+      P.z = isl.z + nz * minR;
+      P.vx += nx * 6.0;
+      P.vz += nz * 6.0;
+      P.speed *= 0.85;
+    }
+  }
+  // Keep within open bay (~360m radius)
+  const bayDist = Math.hypot(P.x, P.z);
+  if (bayDist > 350) {
+    const k = 350 / bayDist;
+    P.x *= k; P.z *= k;
+  }
+
+  // Vertical buoyancy, wave-crest launches & ramp airtime!
+  const wavePitch = Math.atan2(wBow.y - wStern.y, 2.8) + (ramp.onRamp ? ramp.launchSlope : 0);
+  const waveRoll = Math.atan2(wPort.y - wStbd.y, 1.16);
+
+  if (P.y <= supportY + 0.06) {
+    // Touchdown splashdown check!
+    if (P.airborne && P.vy < -2.6) {
+      const impact = Math.abs(P.vy);
+      P.impactJolt = Math.min(1.0, impact / 9.5);
+      _hullPos.set(P.x, supportY, P.z);
+      fx.emitSplashdown(_hullPos, impact);
+      lens.splatter(Math.min(14, Math.ceil(impact * 1.4)));
+      audio.splash(impact / 7.0);
+      if (P.airTime > 0.48) {
+        const pts = Math.round(P.airTime * 280) * P.combo;
+        P.score += pts;
+        showCallout(`AIRTIME ${P.airTime.toFixed(1)}s · +${pts}`);
+      }
+    }
+    P.airborne = false;
+    P.airTime = 0;
+
+    // Buoyancy spring + wave-crest upward impulse when hitting swells fast
+    const depth = supportY - P.y;
+    P.vy += (depth * 42.0 - P.vy * 6.8) * dt;
+    // Launching off steep upward wave slope or ramp lip!
+    const launchSpeed = Math.max(0, P.speed) * Math.sin(Math.max(0, wavePitch));
+    if (launchSpeed > 3.2 || (ramp.onRamp && P.speed > 12)) {
+      P.vy = Math.max(P.vy, launchSpeed * (ramp.onRamp ? 1.45 : 0.88));
+    }
+    P.y += P.vy * dt;
+    if (P.y > supportY + 0.24 && P.vy > 2.2) {
+      P.airborne = true;
+    }
+  } else {
+    P.airborne = true;
+    P.airTime += dt;
+    P.vy -= 14.8 * dt;
+    P.y += P.vy * dt;
+    if (P.y <= supportY) {
+      P.y = supportY;
+    }
+  }
+
+  P.impactJolt = Math.max(0, P.impactJolt - dt * 3.4);
+
+  // Expressive hull pitch & deep-V carving roll
+  const throttleNoseLift = Math.max(0, P.speed / 30) * 0.14 + (P.boostOn ? 0.08 : 0);
+  const targetPitch = P.airborne
+    ? THREE.MathUtils.clamp(-P.vy * 0.055, -0.35, 0.35)
+    : -(wavePitch * 0.88 + throttleNoseLift);
+  const carveBank = -P.steer * Math.min(1, Math.abs(P.speed) / 14) * 0.48;
+  const targetRoll = (P.airborne ? carveBank * 0.7 : waveRoll * 0.65 + carveBank);
+
+  P.pitch += (targetPitch - P.pitch) * Math.min(1, dt * 8.5);
+  P.roll += (targetRoll - P.roll) * Math.min(1, dt * 9.0);
+
+  // Apply transform to jet ski
+  playerSki.root.position.set(P.x, P.y, P.z);
+  playerSki.root.rotation.order = 'YXZ';
+  playerSki.root.rotation.set(P.pitch, P.yaw, P.roll);
+
+  const mph = Math.abs(P.speed) * 2.237;
+  const speed01 = THREE.MathUtils.clamp(Math.abs(P.speed) / 32, 0, 1);
+  const rpm01 = THREE.MathUtils.clamp(0.12 + speed01 * 0.82 + (P.boostOn ? 0.15 : 0), 0, 1);
+  playerSki.setControls(P.steer, Math.max(0, inThrottle), mph, rpm01, P.boost);
+  playerSki.root.updateMatrixWorld(true);
+
+  // Update anatomically sculpted rider with live handlebar IK!
+  playerRider.update(playerSki.parts, P.steer, speed01, P.airborne ? Math.min(1, P.airTime * 2.5 + 0.4) : 0, P.impactJolt, t);
+
+  // Emit water FX & wake trail when hull is in the water
+  playerSki.parts.nozzleExit.getWorldPosition(_nozzleW);
+  _hullPos.set(P.x, P.y, P.z);
+  if (!P.airborne) {
+    fx.emitRoosterTail(_nozzleW, _back, _right, Math.abs(P.speed), P.steer, P.boostOn);
+    fx.emitCarveSpray(_hullPos, _right, _fwd, Math.abs(P.speed), P.steer);
+    if (Math.abs(P.steer) > 0.68 && P.speed > 18 && Math.random() < dt * 5.0) {
+      lens.splatter(2);
+    }
+  }
+  ocean.update(t, dt, P.x, P.z, _nozzleW, P.airborne ? 0 : Math.min(1.4, Math.abs(P.speed) / 18));
+
+  // Gate detection for slalom race combo & boost refill!
+  const ng = world.gates[P.nextGate % world.gates.length];
+  if (Math.hypot(P.x - ng.x, P.z - ng.z) < ng.halfW + 1.8) {
+    P.nextGate = (P.nextGate + 1) % world.gates.length;
+    if (P.nextGate === 0) P.lap++;
+    P.combo = Math.min(5, P.combo + 1);
+    P.boost = Math.min(1, P.boost + 0.35);
+    const pts = 250 * P.combo;
+    P.score += pts;
+    audio.gateChime(P.combo);
+    if (!P.demoMode) showCallout(`GATE CLEAR · x${P.combo} (+${pts})`);
+  }
+
+  // Update AI rival watercraft carving the bay
+  for (const rv of rivals) {
+    const tgt = world.gates[rv.gateIdx % world.gates.length];
+    const desiredYaw = Math.atan2(tgt.x - rv.x, tgt.z - rv.z);
+    let diff = desiredYaw - rv.yaw;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    rv.steer += (THREE.MathUtils.clamp(diff * 1.4, -1, 1) - rv.steer) * Math.min(1, dt * 6);
+    rv.yaw += rv.steer * 1.45 * dt;
+    rv.x += Math.sin(rv.yaw) * rv.speed * dt;
+    rv.z += Math.cos(rv.yaw) * rv.speed * dt;
+    if (Math.hypot(rv.x - tgt.x, rv.z - tgt.z) < 12) {
+      rv.gateIdx = (rv.gateIdx + 1) % world.gates.length;
+    }
+    const rw = sampleWave(rv.x, rv.z, t);
+    rv.y = rw.y + 0.14;
+    rv.pitch += (-(rw.slopeZ * Math.cos(rv.yaw) + rw.slopeX * Math.sin(rv.yaw)) * 0.7 - 0.10 - rv.pitch) * Math.min(1, dt * 7);
+    rv.roll += (-rv.steer * 0.42 - rv.roll) * Math.min(1, dt * 7);
+    rv.ski.root.position.set(rv.x, rv.y, rv.z);
+    rv.ski.root.rotation.order = 'YXZ';
+    rv.ski.root.rotation.set(rv.pitch, rv.yaw, rv.roll);
+    rv.ski.setControls(rv.steer, 0.85, rv.speed * 2.237, 0.72, 0.5);
+    rv.ski.root.updateMatrixWorld(true);
+    rv.rider.update(rv.ski.parts, rv.steer, 0.7, 0, 0, t);
+    // Rival rooster tail if within visible range
+    if (Math.hypot(rv.x - P.x, rv.z - P.z) < 95) {
+      const rExit = new THREE.Vector3();
+      rv.ski.parts.nozzleExit.getWorldPosition(rExit);
+      const rBack = new THREE.Vector3(-Math.sin(rv.yaw), 0, -Math.cos(rv.yaw));
+      const rRight = new THREE.Vector3(Math.cos(rv.yaw), 0, -Math.sin(rv.yaw));
+      fx.emitRoosterTail(rExit, rBack, rRight, rv.speed * 0.85, rv.steer, false);
+    }
+  }
+
+  // Update dynamic camera
+  updateCamera(dt, t, speed01);
+
+  // Update sound & HUD
+  audio.update(rpm01, speed01, Math.abs(P.steer), P.airborne ? 1 : 0, P.boostOn);
+  document.getElementById('mphVal').textContent = String(Math.round(mph));
+  document.getElementById('boostFill').style.width = `${Math.round(P.boost * 100)}%`;
+  document.getElementById('scoreLine').textContent = `${P.score.toLocaleString()} PTS`;
+  document.getElementById('subLine').textContent = `GATE ${P.nextGate + 1}/10 · x${P.combo} · LAP ${P.lap}`;
+
+  if (calloutTimer > 0) {
+    calloutTimer -= dt;
+    if (calloutTimer <= 0) calloutEl.classList.remove('show');
+  }
+}
+
+function updateCamera(dt, t, speed01) {
+  const mode = CAM_MODES[camModeIdx];
+  const sinY = Math.sin(P.yaw), cosY = Math.cos(P.yaw);
+
+  if (mode === 'POV') {
+    // Realistic first-person rider-eye perspective right over the handlebars & live LCD dash!
+    const eyeLocal = new THREE.Vector3(-P.steer * 0.12, 1.48, -0.22);
+    eyeLocal.applyQuaternion(playerSki.root.quaternion).add(playerSki.root.position);
+    const lookLocal = new THREE.Vector3(0, 1.32, 8.0);
+    lookLocal.applyQuaternion(playerSki.root.quaternion).add(playerSki.root.position);
+    camera.position.copy(eyeLocal);
+    camera.lookAt(lookLocal);
+    camera.fov += (72 + speed01 * 10 - camera.fov) * Math.min(1, dt * 6);
+    camera.updateProjectionMatrix();
+    return;
+  }
+
+  let tgtPos, tgtLook, tgtFov;
+  if (mode === 'LOW ACTION') {
+    // Low dramatic action-cam skimming the waves right off the rear-quarter chine
+    const dist = 4.5 + speed01 * 0.8;
+    const sideOff = -P.steer * 1.15;
+    tgtPos = new THREE.Vector3(
+      P.x - sinY * dist + cosY * sideOff,
+      Math.max(sampleWave(P.x - sinY * dist, P.z - cosY * dist, t).y + 0.72, P.y + 1.38),
+      P.z - cosY * dist - sinY * sideOff
+    );
+    tgtLook = new THREE.Vector3(P.x + sinY * 4.2, P.y + 0.92, P.z + cosY * 4.2);
+    tgtFov = 66 + speed01 * 10 + (P.boostOn ? 6 : 0);
+  } else if (mode === 'ORBIT') {
+    // Hero showcase orbit around jet ski & rider
+    const ang = P.yaw + 0.78 + Math.sin(t * 0.35) * 0.45;
+    const rad = 4.35;
+    tgtPos = new THREE.Vector3(P.x + Math.sin(ang) * rad, P.y + 1.75, P.z + Math.cos(ang) * rad);
+    tgtLook = new THREE.Vector3(P.x, P.y + 0.85, P.z);
+    tgtFov = 54;
+  } else {
+    // Classic dynamic CHASE cam (lags slightly into carves so you see the rider & hull profile!)
+    const dist = 5.4 + speed01 * 1.15 + (P.boostOn ? 0.55 : 0);
+    const sideOff = -P.steer * 1.45;
+    const camX = P.x - sinY * dist + cosY * sideOff;
+    const camZ = P.z - cosY * dist - sinY * sideOff;
+    const waveAtCam = sampleWave(camX, camZ, t).y;
+    tgtPos = new THREE.Vector3(camX, Math.max(waveAtCam + 1.05, P.y + 2.15), camZ);
+    tgtLook = new THREE.Vector3(P.x + sinY * 4.8, P.y + 0.95, P.z + cosY * 4.8);
+    tgtFov = 60 + speed01 * 9 + (P.boostOn ? 6 : 0);
+  }
+
+  const smooth = Math.min(1, dt * 6.5);
+  _camPos.lerp(tgtPos, smooth);
+  _camLook.lerp(tgtLook, Math.min(1, dt * 9.0));
+  camera.position.copy(_camPos);
+  camera.lookAt(_camLook);
+  camera.fov += (tgtFov - camera.fov) * Math.min(1, dt * 5);
+  camera.updateProjectionMatrix();
+}
+
+// ================================================================
+// 6. MAIN LOOP & DETERMINISTIC VERIFICATION HOOK
+// ================================================================
+let simT = 0;
+let lastNow = performance.now();
+let stepMode = false;
+
+function tick(dt) {
+  simT += dt;
+  stepPlayer(dt, simT);
+  world.update(simT, P.nextGate);
+  fx.update(dt);
+  lens.update(dt);
+  sky.update(simT, camera.position);
+}
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  if (stepMode) return;
+  const dt = Math.min(0.05, (now - lastNow) / 1000);
+  lastNow = now;
+  tick(dt);
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  lens.resize();
+});
+
+// Expose deterministic inspection API for automated visual verification
+window.__jetski = {
+  start: () => { startPlaying(); },
+  setCam: (idx) => { camModeIdx = idx % CAM_MODES.length; document.getElementById('camBtn').textContent = `CAM: ${CAM_MODES[camModeIdx]}`; },
+  setSky: (key) => { applyLightingPreset(key); },
+  step: (seconds, opts = {}) => {
+    stepMode = true;
+    if (opts.hideTitle) { P.started = true; P.demoMode = false; const ts = document.getElementById('titleScreen'); ts.classList.add('gone'); ts.style.display = 'none'; }
+    if (opts.steer !== undefined) { keys.left = opts.steer > 0; keys.right = opts.steer < 0; }
+    if (opts.gas !== undefined) keys.up = !!opts.gas;
+    if (opts.boost !== undefined) keys.boost = !!opts.boost;
+    if (opts.jump) { P.y += 1.9; P.vy = 6.2; P.airborne = true; P.airTime = 0.55; }
+    const steps = Math.max(1, Math.round(seconds * 30));
+    for (let i = 0; i < steps; i++) tick(1 / 30);
+    renderer.render(scene, camera);
+    return {
+      t: +simT.toFixed(2),
+      mph: Math.round(Math.abs(P.speed) * 2.237),
+      y: +P.y.toFixed(2),
+      airborne: P.airborne,
+      calls: renderer.info.render.calls,
+      tris: renderer.info.render.triangles,
+    };
+  },
+};
+
+// Prime initial ocean & rider pose on frame 0
+tick(1 / 30);
+renderer.render(scene, camera);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
