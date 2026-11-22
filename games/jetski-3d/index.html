@@ -21,7 +21,10 @@
   }
 
   /* ---------- Glassmorphic Marine Telemetry HUD ---------- */
-  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 100; }
+  /* z 1150 keeps the #topRight pills (the only pointer-events:auto children)
+     clickable ABOVE the full-screen gptouch overlay (z 1100) — the pills'
+     own z-index only applies inside this stacking context. */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 1150; }
   .panel {
     background: rgba(5, 20, 34, 0.44);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
@@ -78,29 +81,23 @@
   }
   #callout.show { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
 
-  /* ---------- Mobile / Touch Controls (z-index >= 1100) ---------- */
+  /* ---------- Swim contextual button (driving uses the gptouch overlay, z 1100) ---------- */
   #touchControls {
     position: fixed; inset: 0; pointer-events: none; z-index: 1120;
   }
-  #steerPad {
-    position: absolute; left: 16px; bottom: 22px; width: 146px; height: 74px;
-    display: flex; gap: 10px; pointer-events: auto;
-  }
   .tBtn {
-    flex: 1; border-radius: 18px; border: 1.5px solid rgba(190, 240, 255, 0.34);
+    border-radius: 50%; border: 1.5px solid rgba(190, 240, 255, 0.34);
     background: rgba(6, 26, 42, 0.46); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    color: #f4fbff; font-size: 20px; font-weight: 800;
+    color: #f4fbff; font-weight: 800;
     display: flex; align-items: center; justify-content: center;
     pointer-events: auto; touch-action: none;
   }
   .tBtn.on { background: rgba(0, 218, 245, 0.42); border-color: #7df6ff; transform: scale(0.95); }
-  #rightPad {
-    position: absolute; right: 16px; bottom: 22px; display: flex; gap: 10px; align-items: flex-end;
-    pointer-events: auto;
+  #diveBtn {
+    position: absolute; right: 24px; bottom: 200px; width: 64px; height: 64px;
+    font-size: 11px; letter-spacing: 0.06em; background: rgba(0, 155, 215, 0.55);
+    border-color: rgba(120, 240, 255, 0.7); display: none;
   }
-  #gasBtn { width: 78px; height: 78px; border-radius: 50%; font-size: 13px; letter-spacing: 0.1em; background: rgba(0, 178, 128, 0.48); border-color: rgba(110, 255, 200, 0.55); }
-  #boostBtn { width: 64px; height: 64px; border-radius: 50%; font-size: 11px; letter-spacing: 0.08em; background: rgba(255, 118, 24, 0.48); border-color: rgba(255, 200, 120, 0.6); }
-  #diveBtn { width: 64px; height: 64px; border-radius: 50%; font-size: 11px; letter-spacing: 0.06em; background: rgba(0, 155, 215, 0.55); border-color: rgba(120, 240, 255, 0.7); display: none; }
   .pillBtn.swimHot { background: rgba(0, 195, 225, 0.62); border-color: #8bfaff; color: #021826; }
 
   /* ---------- Title / Launch Overlay ---------- */
@@ -142,10 +139,7 @@
     #topRight { top: 10px; right: 10px; gap: 5px; flex-wrap: wrap; justify-content: flex-end; max-width: 56%; }
     .pillBtn { padding: 5px 8px; font-size: 9px; letter-spacing: 0.06em; }
     #callout { font-size: 17px; letter-spacing: 0.1em; }
-    #steerPad { left: 10px; bottom: 18px; width: 112px; height: 58px; gap: 6px; }
-    #rightPad { right: 10px; bottom: 18px; gap: 6px; }
-    #gasBtn { width: 64px; height: 64px; font-size: 11px; }
-    #boostBtn, #diveBtn { width: 52px; height: 52px; font-size: 9.5px; }
+    #diveBtn { right: 14px; bottom: 196px; width: 52px; height: 52px; font-size: 9.5px; }
   }
 </style>
 </head>
@@ -174,15 +168,7 @@
 </div>
 
 <div id="touchControls">
-  <div id="steerPad">
-    <button class="tBtn" id="leftBtn">◀</button>
-    <button class="tBtn" id="rightBtn">▶</button>
-  </div>
-  <div id="rightPad">
-    <button class="tBtn" id="diveBtn">DIVE ▼</button>
-    <button class="tBtn" id="boostBtn">BOOST</button>
-    <button class="tBtn" id="gasBtn">GAS</button>
-  </div>
+  <button class="tBtn" id="diveBtn">DIVE ▼</button>
 </div>
 
 <div id="titleScreen">
@@ -205,6 +191,7 @@ import { createWaterFX, createLensDroplets } from './src/fx.js';
 import { createWorld, ISLANDS } from './src/world.js';
 import { createUnderwaterWorld, sampleSeabedY } from './src/underwater.js';
 import { createMarineAudio } from './src/audio.js';
+import { TouchController, isTouchDevice } from './src/gptouch.js';
 
 // ================================================================
 // 1. RENDERER, SCENE, LIGHTING & ENVIRONMENT REFLECTIONS
@@ -306,6 +293,10 @@ const P = {
   impactJolt: 0,
   boost: 1.0,
   boostOn: false,
+  surge: 0,        // touch BOOST headroom above the speed cap (m/s), decays away
+  trick: null,     // active trick name (visual layer over physics) or null
+  trickT: 0,
+  lastTrick: null,
   score: 0,
   combo: 1,
   nextGate: 0,
@@ -331,29 +322,58 @@ const keys = { left: false, right: false, up: false, down: false, boost: false, 
 const CAM_MODES = ['CHASE', 'LOW ACTION', 'POV', 'ORBIT'];
 let camModeIdx = 0;
 
+// gamepress touch standard (src/gptouch.js, per gamepress docs/TOUCH.md):
+// floating joystick anchoring anywhere on the LEFT half — pushing it FORWARD
+// is the throttle (there is no gas button), sideways steers — plus circular
+// BOOST / TRICK buttons bottom-right. PointerEvent pointerId isolation,
+// getInput() merged with the keyboard below. ?touch=1 forces the overlay on
+// (testing); ?touch=0 forces it off. Desktop without touch: TC is null and
+// the keyboard path runs untouched.
+const forceTouch = new URLSearchParams(location.search).get('touch') === '1';
+const TC = (isTouchDevice() || forceTouch) ? new TouchController({
+  buttons: [
+    { id: 'a', label: 'BOOST', size: 88 },
+    { id: 'b', label: 'TRICK', size: 72 },
+  ],
+  maxRadius: 56,
+  deadzone: 0.18,
+  zIndex: 1100,
+  force: forceTouch,
+}) : null;
+if (TC) {
+  // Crisp text labels on the round buttons (gptouch's default font scales with size).
+  TC._buttons.a.el.style.fontSize = '16px';
+  TC._buttons.b.el.style.fontSize = '13px';
+  TC._buttons.a.el.style.letterSpacing = '0.06em';
+  TC._buttons.b.el.style.letterSpacing = '0.06em';
+}
+let touchIn = null; // latest TC.getInput(), refreshed exactly once per tick
+
 function updateControlLabels() {
   const swimBtn = document.getElementById('swimBtn');
   const diveBtn = document.getElementById('diveBtn');
-  const boostBtn = document.getElementById('boostBtn');
-  const gasBtn = document.getElementById('gasBtn');
+  const aBtn = TC ? TC._buttons.a.el : null;
+  const bBtn = TC ? TC._buttons.b.el : null;
   if (P.mode === 'swim') {
     const distSki = Math.hypot(P.swX - P.x, P.swZ - P.z);
     swimBtn.textContent = distSki < 7.5 ? 'BOARD SKI' : `SKI ${Math.round(distSki)}M`;
     swimBtn.classList.toggle('swimHot', distSki < 7.5);
     diveBtn.style.display = 'flex';
-    boostBtn.textContent = 'RISE ▲';
-    gasBtn.textContent = 'SWIM';
+    if (aBtn) aBtn.textContent = 'RISE';
+    if (bBtn) bBtn.style.display = 'none';
   } else {
     swimBtn.textContent = 'DIVE / SWIM';
     swimBtn.classList.add('swimHot');
     diveBtn.style.display = 'none';
-    boostBtn.textContent = 'BOOST';
-    gasBtn.textContent = 'GAS';
+    if (aBtn) aBtn.textContent = 'BOOST';
+    if (bBtn) bBtn.style.display = 'flex';
   }
 }
 
 function toggleSwimMode() {
   startPlaying();
+  P.trick = null; // tricks are ski-only; never carry one across a mode switch
+  P.trickT = 0;
   if (P.mode === 'ski') {
     // Leap cleanly off the port side of the jet ski into the water!
     P.mode = 'swim';
@@ -443,10 +463,8 @@ function bindTouchBtn(id, keyName) {
   el.addEventListener('pointerup', () => set(false));
   el.addEventListener('pointercancel', () => set(false));
 }
-bindTouchBtn('leftBtn', 'left');
-bindTouchBtn('rightBtn', 'right');
-bindTouchBtn('gasBtn', 'up');
-bindTouchBtn('boostBtn', 'boost');
+// Only the swim-contextual DIVE button remains a bespoke touch button;
+// driving input (stick + BOOST + TRICK) comes from the gptouch overlay.
 bindTouchBtn('diveBtn', 'dive');
 
 function cycleCamera() {
@@ -472,6 +490,104 @@ function showCallout(text) {
   calloutEl.textContent = text;
   calloutEl.classList.add('show');
   calloutTimer = 1.35;
+}
+
+// ================================================================
+// 4b. TOUCH BOOST SURGE (+10 MPH) & TRICK SYSTEM (5 tricks)
+// ================================================================
+const SURGE_MS = 10 / 2.237; // +10 MPH in m/s (HUD mph = |speed| * 2.237)
+
+// BOOST button: an INSTANT +10 MPH surge on top of current speed. The surge
+// also raises the speed cap while it decays (see stepPlayer), so drag settles
+// the ski back toward throttle speed naturally — never a permanent +10.
+function doBoostSurge() {
+  if (P.mode !== 'ski') return false;
+  startPlaying();
+  P.speed += SURGE_MS;
+  P.surge = Math.max(P.surge, SURGE_MS);
+  lens.splatter(3);
+  return true;
+}
+
+const TRICKS = {
+  backflip:   { label: 'BACKFLIP!',    dur: 1.05 },
+  barrelroll: { label: 'BARREL ROLL!', dur: 1.0 },
+  spin360:    { label: '360 SPIN!',    dur: 0.95 },
+  subdive:    { label: 'SUB DIVE!',    dur: 1.25 },
+  bunnyhop:   { label: 'BUNNY HOP!',   dur: 0.8 },
+};
+const AIR_TRICKS = ['backflip', 'barrelroll', 'spin360'];
+const WATER_TRICKS = ['subdive', 'bunnyhop'];
+
+// TRICK button: one random trick per press from the context pool — air pool
+// (incl. the backflip) while jumping, water pool (incl. the submarine
+// dive-pop) on the surface — never repeating the trick that just played.
+// Tricks are visual layers over the physics: steering and throttle stay live.
+function startTrick(forced) {
+  if (P.mode !== 'ski' || P.trick) return null;
+  startPlaying();
+  const pool = P.airborne ? AIR_TRICKS : WATER_TRICKS;
+  let name = (forced && pool.includes(forced)) ? forced : null;
+  if (!name) {
+    const choices = pool.filter((n) => n !== P.lastTrick);
+    name = choices[Math.floor(Math.random() * choices.length)];
+  }
+  P.trick = name;
+  P.trickT = 0;
+  P.lastTrick = name;
+  showCallout(TRICKS[name].label);
+  if (name === 'subdive') {
+    fx.emitSplashdown(new THREE.Vector3(P.x, P.y + 0.2, P.z), 4.5);
+    audio.splash(0.6);
+    audio.bubbles();
+  } else if (name === 'bunnyhop') {
+    audio.splash(0.3);
+  }
+  return name;
+}
+
+// Advance the active trick; returns visual offsets layered onto the ski root
+// transform (physics state itself is never touched by a trick).
+const _trickOff = { pitch: 0, yaw: 0, roll: 0, y: 0 };
+function updateTrick(dt) {
+  _trickOff.pitch = 0; _trickOff.yaw = 0; _trickOff.roll = 0; _trickOff.y = 0;
+  if (!P.trick) return _trickOff;
+  P.trickT += dt;
+  const def = TRICKS[P.trick];
+  const p = Math.min(1, P.trickT / def.dur);
+  const s = Math.sin(Math.PI * p);
+  switch (P.trick) {
+    case 'backflip': _trickOff.pitch = -Math.PI * 2 * p; break;
+    case 'barrelroll': _trickOff.roll = Math.PI * 2 * p; break;
+    case 'spin360': _trickOff.yaw = Math.PI * 2 * p; break;
+    case 'subdive':
+      // Ski submarines under the surface and pops back up, rider mounted.
+      _trickOff.y = -1.7 * s;
+      _trickOff.pitch = 0.6 * Math.sin(2 * Math.PI * p); // nose down in, nose up out
+      if (p > 0.2 && p < 0.85 && Math.random() < dt * 14) {
+        underwaterWorld.emitBreathBubbles(P.x, P.y - 0.4, P.z, 2);
+      }
+      break;
+    case 'bunnyhop':
+      _trickOff.y = 1.15 * s;
+      _trickOff.pitch = -0.18 * s;
+      break;
+  }
+  if (p >= 1) {
+    const done = P.trick;
+    P.trick = null;
+    P.trickT = 0;
+    P.score += 150;
+    if (done === 'subdive') {
+      fx.emitSplashdown(new THREE.Vector3(P.x, P.y + 0.15, P.z), 6.0);
+      lens.splatter(8);
+      audio.splash(0.8);
+    } else if (done === 'bunnyhop') {
+      fx.emitSplashdown(new THREE.Vector3(P.x, P.y + 0.1, P.z), 3.0);
+      audio.splash(0.4);
+    }
+  }
+  return _trickOff;
 }
 
 // ================================================================
@@ -502,10 +618,17 @@ function stepSwimmer(dt, t) {
   playerSki.setControls(0, 0, 0, 0.08, P.boost);
 
   // Natural 3D swimming & underwater free-diving physics
-  const inSteer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
-  const inSwim = keys.up ? 1 : 0;
+  let inSteer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+  let inSwim = keys.up ? 1 : 0;
   const inDive = (keys.dive || keys.down) ? 1 : 0;
-  const inRise = keys.boost ? 1 : 0;
+  let inRise = keys.boost ? 1 : 0;
+  if (touchIn) {
+    // Touch while swimming: stick steers, stick forward swims, and the
+    // BOOST button (relabeled RISE in this mode) held = rise.
+    inSteer = THREE.MathUtils.clamp(inSteer - touchIn.x, -1, 1);
+    if (touchIn.y < -0.25) inSwim = 1;
+    if (touchIn.a) inRise = 1;
+  }
 
   P.steer += (inSteer - P.steer) * Math.min(1, dt * 7.0);
   P.swYaw += P.steer * 1.85 * dt;
@@ -672,6 +795,17 @@ function stepPlayer(dt, t) {
   let inSteer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
   let inBoost = keys.boost;
 
+  if (touchIn) {
+    // Touch (gptouch), merged with the keyboard: stick sideways steers;
+    // stick FORWARD is the throttle, proportional to deflection (no gas
+    // button); pulling the stick back brakes/reverses like the down key.
+    inSteer = THREE.MathUtils.clamp(inSteer - touchIn.x, -1, 1);
+    const tThrottle = touchIn.y < 0 ? -touchIn.y : -0.45 * touchIn.y;
+    inThrottle = THREE.MathUtils.clamp(inThrottle + tThrottle, -0.45, 1);
+    if (touchIn.aPressed) doBoostSurge();
+    if (touchIn.bPressed) startTrick();
+  }
+
   if (P.demoMode) {
     const ng = world.gates[P.nextGate % world.gates.length];
     const desiredYaw = Math.atan2(ng.x - P.x, ng.z - P.z);
@@ -712,7 +846,7 @@ function stepPlayer(dt, t) {
   const supportY = wCenter.y + 0.14 + (ramp.onRamp ? ramp.heightOffset : 0);
 
   // Speed & water propulsion (jet pump loses thrust when airborne!)
-  const maxSpeed = P.boostOn ? 34.5 : 26.5; // m/s (~60-77 MPH supercharged SVHO!)
+  const maxSpeed = (P.boostOn ? 34.5 : 26.5) + P.surge; // m/s (~60-77 MPH supercharged SVHO!) + BOOST-surge headroom
   if (!P.airborne) {
     const accel = inThrottle > 0 ? (P.boostOn ? 24.5 : 16.5) * inThrottle : 10.0 * inThrottle;
     P.speed += accel * dt;
@@ -729,6 +863,9 @@ function stepPlayer(dt, t) {
     P.speed *= 1 - 0.08 * dt;
     P.yaw += P.steer * 0.45 * dt;
   }
+  // BOOST surge headroom bleeds off (~1 s), so the +10 MPH settles back to
+  // whatever the throttle alone sustains.
+  P.surge = Math.max(0, P.surge - dt * 4.5);
 
   // Planar velocity with slight hydro-drift slide on sharp carves
   const targetVx = Math.sin(P.yaw) * P.speed;
@@ -818,10 +955,11 @@ function stepPlayer(dt, t) {
   P.pitch += (targetPitch - P.pitch) * Math.min(1, dt * 8.5);
   P.roll += (targetRoll - P.roll) * Math.min(1, dt * 9.0);
 
-  // Apply transform to jet ski
-  playerSki.root.position.set(P.x, P.y, P.z);
+  // Apply transform to jet ski (plus the active trick's visual offsets)
+  const tOff = updateTrick(dt);
+  playerSki.root.position.set(P.x, P.y + tOff.y, P.z);
   playerSki.root.rotation.order = 'YXZ';
-  playerSki.root.rotation.set(P.pitch, P.yaw, P.roll);
+  playerSki.root.rotation.set(P.pitch + tOff.pitch, P.yaw + tOff.yaw, P.roll + tOff.roll);
 
   const mph = Math.abs(P.speed) * 2.237;
   const speed01 = THREE.MathUtils.clamp(Math.abs(P.speed) / 32, 0, 1);
@@ -973,6 +1111,7 @@ let stepMode = false;
 
 function tick(dt) {
   simT += dt;
+  touchIn = TC ? TC.getInput() : null; // exactly once per frame (edges auto-consume)
   stepPlayer(dt, simT);
   world.update(simT, P.nextGate);
   underwaterWorld.update(simT, dt, camera.position, P.underwaterBlend);
@@ -1003,6 +1142,13 @@ window.__jetski = {
   setCam: (idx) => { camModeIdx = idx % CAM_MODES.length; document.getElementById('camBtn').textContent = `CAM: ${CAM_MODES[camModeIdx]}`; },
   setSky: (key) => { applyLightingPreset(key); },
   toggleSwim: () => { toggleSwimMode(); },
+  boost: () => {
+    const mphBefore = Math.abs(P.speed) * 2.237;
+    const ok = doBoostSurge();
+    return { ok, mphBefore: +mphBefore.toFixed(1), mphAfter: +(Math.abs(P.speed) * 2.237).toFixed(1) };
+  },
+  trick: (name) => startTrick(name),
+  touchUI: () => (TC ? { enabled: TC.enabled, buttons: Object.keys(TC._buttons) } : null),
   diveTo: (x, y, z, yaw = Math.PI) => {
     if (P.mode !== 'swim') toggleSwimMode();
     P.swX = x; P.swY = y; P.swZ = z; P.swYaw = yaw; P.swPitch = -0.25;
@@ -1018,6 +1164,8 @@ window.__jetski = {
     if (opts.boost !== undefined) keys.boost = !!opts.boost;
     if (opts.dive !== undefined) keys.dive = !!opts.dive;
     if (opts.jump) { P.y += 1.9; P.vy = 6.2; P.airborne = true; P.airTime = 0.55; }
+    if (opts.trick) startTrick(opts.trick === true ? undefined : opts.trick);
+    if (opts.surge) doBoostSurge();
     const steps = Math.max(1, Math.round(seconds * 30));
     for (let i = 0; i < steps; i++) tick(1 / 30);
     renderer.render(scene, camera);
@@ -1025,6 +1173,10 @@ window.__jetski = {
       mode: P.mode,
       t: +simT.toFixed(2),
       mph: Math.round(Math.abs(P.speed) * 2.237),
+      speedMs: +P.speed.toFixed(2),
+      surge: +P.surge.toFixed(2),
+      trick: P.trick,
+      lastTrick: P.lastTrick,
       y: +(P.mode === 'swim' ? P.swY : P.y).toFixed(2),
       underwater: +P.underwaterBlend.toFixed(2),
       airborne: P.airborne,
