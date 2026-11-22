@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>STERN 40TH ANNIVERSARY PINBALL</title>
+  <style>
+    :root {
+      --bg: #0b0e18;
+      --panel: #14192b;
+      --border: #2a3554;
+      --gold: #ffca3a;
+      --red: #e12525;
+      --cyan: #3be8ff;
+      --cream: #f7efd8;
+      --dmd: #ff9c2a;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 25%, #1c2440 0%, #090c14 75%);
+      color: var(--cream);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .app {
+      width: 100%;
+      height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 8px 10px;
+    }
+
+    /* Main Pinball Cabinet Column */
+    .cabinet {
+      height: 100%;
+      max-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    /* Classic Amber Arcade DMD Header */
+    .dmd-bar {
+      width: 100%;
+      max-width: 440px;
+      background: #0a0908;
+      border: 2px solid #3c2a14;
+      border-radius: 10px;
+      padding: 5px 10px;
+      box-shadow: inset 0 0 18px rgba(255, 145, 25, 0.22), 0 4px 14px rgba(0, 0, 0, 0.5);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .dmd-left {
+      min-width: 0;
+    }
+
+    .dmd-score-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-family: "Courier New", Courier, monospace;
+      color: var(--dmd);
+      text-shadow: 0 0 8px rgba(255, 156, 42, 0.7);
+    }
+
+    .dmd-score {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      line-height: 1.05;
+    }
+
+    .dmd-meta {
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffd18a;
+      opacity: 0.92;
+      white-space: nowrap;
+    }
+
+    .dmd-msg {
+      font-family: "Courier New", Courier, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffbd66;
+      letter-spacing: 0.4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+    }
+
+    .dmd-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .mini-btn {
+      background: #1b2238;
+      color: var(--cream);
+      border: 1px solid #3c4a72;
+      border-radius: 6px;
+      padding: 4px 7px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .mini-btn:hover { background: #273152; }
+    .mini-btn:active { transform: translateY(1px); }
+
+    /* Edition Switcher Strip (compact on mobile, synced with side panel) */
+    .edition-strip {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .ed-pill {
+      flex: 1;
+      border: 1.5px solid #354166;
+      background: #141a2e;
+      color: #b7c4e6;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      cursor: pointer;
+      transition: all 0.14s ease;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .ed-pill.active[data-ed="dark"] {
+      background: #1f2b52;
+      border-color: var(--cyan);
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(59, 232, 255, 0.35);
+    }
+
+    .ed-pill.active[data-ed="main"] {
+      background: #4e8777;
+      border-color: var(--cream);
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(116, 171, 156, 0.45);
+    }
+
+    .ed-pill.active[data-ed="foil"] {
+      background: linear-gradient(90deg, #ff9ec4, #ffe98a, #9ef2d2, #9fd2ff, #cfa8ff);
+      border-color: #ffffff;
+      color: #161426;
+      box-shadow: 0 0 12px rgba(255, 220, 255, 0.5);
+    }
+
+    /* Playfield Canvas Wrapper — auto-scales preserving 540:900 (3:5) ratio */
+    .stage-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+    }
+
+    #pinballCanvas {
+      height: 100%;
+      width: auto;
+      max-width: 100%;
+      aspect-ratio: 540 / 900;
+      border-radius: 14px;
+      border: 3px solid #0b0d14;
+      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      touch-action: none;
+      display: block;
+      background: #12182b;
+    }
+
+    /* Bottom Arcade Control Bar (Desktop clickable + Mobile thumb-friendly) */
+    .controls-bar {
+      width: 100%;
+      max-width: 440px;
+      display: grid;
+      grid-template-columns: 1.25fr 0.9fr 0.72fr 1.25fr;
+      gap: 6px;
+      flex-shrink: 0;
+      z-index: 1200;
+      touch-action: none;
+    }
+
+    .ctrl-btn {
+      border: 2px solid #0c101a;
+      border-radius: 10px;
+      padding: 10px 6px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      touch-action: none;
+      box-shadow: 0 3px 0 #090c14;
+      transition: transform 0.06s ease, filter 0.08s ease;
+    }
+
+    .ctrl-btn:active, .ctrl-btn.pressed {
+      transform: translateY(2px);
+      box-shadow: 0 1px 0 #090c14;
+      filter: brightness(1.18);
+    }
+
+    .btn-flip {
+      background: linear-gradient(180deg, #e73838 0%, #b71c1c 100%);
+      color: var(--cream);
+    }
+
+    .btn-launch {
+      background: linear-gradient(180deg, #ffcf48 0%, #d99512 100%);
+      color: #141210;
+    }
+
+    .btn-nudge {
+      background: linear-gradient(180deg, #4b7ec2 0%, #2a4c82 100%);
+      color: var(--cream);
+    }
+
+    /* Desktop Side Cabinet Info Panel (hidden on narrow mobile) */
+    .side-panel {
+      width: 280px;
+      max-height: calc(100dvh - 20px);
+      overflow-y: auto;
+      background: rgba(16, 21, 37, 0.92);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .side-title {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 900;
+      letter-spacing: 0.6px;
+      color: var(--gold);
+      line-height: 1.15;
+    }
+
+    .side-sub {
+      margin: 3px 0 0;
+      font-size: 11.5px;
+      color: #a9b8dc;
+    }
+
+    .card {
+      background: rgba(10, 14, 26, 0.72);
+      border: 1px solid #283456;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .card h3 {
+      margin: 0 0 6px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      color: var(--cyan);
+      text-transform: uppercase;
+    }
+
+    .rules-list {
+      margin: 0;
+      padding-left: 16px;
+      font-size: 12px;
+      line-height: 1.48;
+      color: #dce4f7;
+    }
+
+    .rules-list li {
+      margin-bottom: 4px;
+    }
+
+    .rules-list b {
+      color: var(--gold);
+    }
+
+    .keys-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 5px 10px;
+      font-size: 11.5px;
+      align-items: center;
+    }
+
+    .kbd {
+      background: #232d4b;
+      border: 1px solid #485b8c;
+      border-radius: 5px;
+      padding: 2px 6px;
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--cream);
+      text-align: center;
+    }
+
+    .hs-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+      font-weight: 800;
+    }
+
+    .hs-val {
+      color: var(--gold);
+      font-family: "Courier New", monospace;
+    }
+
+    @media (max-width: 899px) {
+      .side-panel {
+        display: none;
+      }
+      .app {
+        padding: 4px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+      }
+      .dmd-score {
+        font-size: 18px;
+      }
+      .ctrl-btn {
+        padding: 11px 4px;
+        font-size: 11.5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="cabinet">
+      <!-- Amber Arcade DMD Header -->
+      <div class="dmd-bar">
+        <div class="dmd-left">
+          <div class="dmd-score-row">
+            <span class="dmd-score" id="dmdScore">0</span>
+            <span class="dmd-meta" id="dmdMeta">BALL 1/3 · 1X</span>
+          </div>
+          <div class="dmd-msg" id="dmdMsg">STERN 40TH ANNIVERSARY — PULL PLUNGER</div>
+        </div>
+        <div class="dmd-actions">
+          <button class="mini-btn" id="btnMute" title="Toggle Sound (M)">SFX</button>
+          <button class="mini-btn" id="btnReset" title="New Game (R)">NEW</button>
+        </div>
+      </div>
+
+      <!-- Live Poster Edition Switcher -->
+      <div class="edition-strip" role="group" aria-label="Poster Edition">
+        <button class="ed-pill active" data-ed="dark">DARK ALT (X/15)</button>
+        <button class="ed-pill" data-ed="main">MAIN (X/40)</button>
+        <button class="ed-pill" data-ed="foil">FOIL (X/10)</button>
+      </div>
+
+      <!-- 540x900 Playfield Canvas -->
+      <div class="stage-wrap">
+        <canvas id="pinballCanvas" width="540" height="900"></canvas>
+      </div>
+
+      <!-- Touch & Mouse Arcade Controls -->
+      <div class="controls-bar">
+        <button class="ctrl-btn btn-flip" id="btnLeftFlip">◀ L FLIP</button>
+        <button class="ctrl-btn btn-launch" id="btnLaunch">LAUNCH</button>
+        <button class="ctrl-btn btn-nudge" id="btnNudge">NUDGE</button>
+        <button class="ctrl-btn btn-flip" id="btnRightFlip">R FLIP ▶</button>
+      </div>
+    </div>
+
+    <!-- Desktop Side Panel -->
+    <aside class="side-panel">
+      <div>
+        <h1 class="side-title">STERN PINBALL<br/>40TH ANNIVERSARY</h1>
+        <p class="side-sub">Playable screen-print poster table with all 3 collector editions.</p>
+      </div>
+
+      <div class="card">
+        <h3>High Score</h3>
+        <div class="hs-row">
+          <span>BEST SCORE</span>
+          <span class="hs-val" id="sideHighScore">0</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Table Features</h3>
+        <ul class="rules-list">
+          <li><b>S-T-E-R-N Ramp:</b> Shoot the mid-left glowing arrow to ride the elevated crimson track for 2X–4X combos!</li>
+          <li><b>0-Spiral Vortex:</b> Enter the lower-right blue <b>0</b> whirlpool to swirl for +15K &amp; light a STERN letter.</li>
+          <li><b>Y-E-A-R-S-! Bank:</b> Knock down all 6 drop targets to unleash <b>40TH 3-BALL MULTIBALL</b>!</li>
+          <li><b>4-0-TH Lanes:</b> Complete top rollovers to boost Playfield Multiplier up to <b>5X</b>.</li>
+          <li><b>STERN Jackpot:</b> Light all 5 center letters for +100K &amp; Ball Save.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Controls</h3>
+        <div class="keys-grid">
+          <span class="kbd">Z / ←</span><span>Left Flipper</span>
+          <span class="kbd">/ / →</span><span>Right Flipper</span>
+          <span class="kbd">SPACE / ↓</span><span>Hold &amp; Release Plunger</span>
+          <span class="kbd">↑ / X</span><span>Nudge Table</span>
+          <span class="kbd">1 / 2 / 3</span><span>Switch Poster Edition</span>
+          <span class="kbd">M / R</span><span>Mute / New Game</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script type="module">
+    import { PinballAudio } from './src/audio.js';
+    import { PinballEngine } from './src/physics.js';
+    import { PinballRenderer } from './src/render.js';
+
+    const canvas = document.getElementById('pinballCanvas');
+    const dmdScore = document.getElementById('dmdScore');
+    const dmdMeta = document.getElementById('dmdMeta');
+    const dmdMsg = document.getElementById('dmdMsg');
+    const sideHighScore = document.getElementById('sideHighScore');
+    const btnMute = document.getElementById('btnMute');
+    const btnReset = document.getElementById('btnReset');
+    const btnLeftFlip = document.getElementById('btnLeftFlip');
+    const btnRightFlip = document.getElementById('btnRightFlip');
+    const btnLaunch = document.getElementById('btnLaunch');
+    const btnNudge = document.getElementById('btnNudge');
+    const editionPills = [...document.querySelectorAll('.ed-pill')];
+
+    const audio = new PinballAudio();
+    const engine = new PinballEngine(audio);
+    const renderer = new PinballRenderer(canvas);
+
+    function setEdition(edKey) {
+      renderer.setEdition(edKey);
+      editionPills.forEach((p) => p.classList.toggle('active', p.dataset.ed === edKey));
+    }
+
+    editionPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        audio.unlock();
+        setEdition(pill.dataset.ed);
+      });
+    });
+
+    btnMute.addEventListener('click', () => {
+      audio.unlock();
+      const muted = audio.toggleMute();
+      btnMute.textContent = muted ? 'MUTE' : 'SFX';
+    });
+
+    btnReset.addEventListener('click', () => {
+      audio.unlock();
+      engine.resetGame();
+    });
+
+    // Pointer bindings for tactile buttons (works cleanly on desktop mouse & iOS/Android touch)
+    function bindHoldButton(el, onDown, onUp) {
+      const down = (e) => {
+        e.preventDefault();
+        audio.unlock();
+        el.classList.add('pressed');
+        onDown();
+      };
+      const up = (e) => {
+        e.preventDefault();
+        el.classList.remove('pressed');
+        onUp();
+      };
+      el.addEventListener('pointerdown', down);
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+      el.addEventListener('pointerleave', (e) => {
+        if (el.classList.contains('pressed')) up(e);
+      });
+    }
+
+    bindHoldButton(
+      btnLeftFlip,
+      () => engine.setFlipper('left', true),
+      () => engine.setFlipper('left', false)
+    );
+    bindHoldButton(
+      btnRightFlip,
+      () => engine.setFlipper('right', true),
+      () => engine.setFlipper('right', false)
+    );
+    bindHoldButton(
+      btnLaunch,
+      () => engine.startPlunger(),
+      () => engine.releasePlunger()
+    );
+
+    btnNudge.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      audio.unlock();
+      btnNudge.classList.add('pressed');
+      engine.nudge(0);
+    });
+    btnNudge.addEventListener('pointerup', () => btnNudge.classList.remove('pressed'));
+    btnNudge.addEventListener('pointercancel', () => btnNudge.classList.remove('pressed'));
+
+    // Direct canvas tap/touch: left half = left flipper, right half = right flipper, or replay on game over
+    const activeCanvasPointers = new Map();
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      audio.unlock();
+      if (engine.gameOver) {
+        engine.resetGame();
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
+      const relX = (e.clientX - rect.left) / rect.width;
+      // If ball is sitting in shooter lane and player taps far right bottom corner, launch it!
+      const ballInShooter = engine.balls.some((b) => b.inShooter);
+      if (ballInShooter && relX > 0.84) {
+        activeCanvasPointers.set(e.pointerId, 'plunger');
+        engine.startPlunger();
+        return;
+      }
+      const side = relX < 0.5 ? 'left' : 'right';
+      activeCanvasPointers.set(e.pointerId, side);
+      engine.setFlipper(side, true);
+    });
+
+    const releaseCanvasPointer = (e) => {
+      const role = activeCanvasPointers.get(e.pointerId);
+      if (!role) return;
+      activeCanvasPointers.delete(e.pointerId);
+      if (role === 'plunger') engine.releasePlunger();
+      else engine.setFlipper(role, false);
+    };
+    canvas.addEventListener('pointerup', releaseCanvasPointer);
+    canvas.addEventListener('pointercancel', releaseCanvasPointer);
+
+    // Keyboard controls
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      audio.unlock();
+      const k = e.code;
+      if (k === 'ArrowLeft' || k === 'KeyZ' || k === 'KeyA' || k === 'ShiftLeft') {
+        e.preventDefault();
+        btnLeftFlip.classList.add('pressed');
+        engine.setFlipper('left', true);
+      } else if (k === 'ArrowRight' || k === 'Slash' || k === 'KeyD' || k === 'ShiftRight') {
+        e.preventDefault();
+        btnRightFlip.classList.add('pressed');
+        engine.setFlipper('right', true);
+      } else if (k === 'Space' || k === 'ArrowDown' || k === 'Enter') {
+        e.preventDefault();
+        btnLaunch.classList.add('pressed');
+        engine.startPlunger();
+      } else if (k === 'ArrowUp' || k === 'KeyX') {
+        e.preventDefault();
+        engine.nudge(0);
+      } else if (k === 'Digit1') {
+        setEdition('dark');
+      } else if (k === 'Digit2') {
+        setEdition('main');
+      } else if (k === 'Digit3') {
+        setEdition('foil');
+      } else if (k === 'KeyM') {
+        const muted = audio.toggleMute();
+        btnMute.textContent = muted ? 'MUTE' : 'SFX';
+      } else if (k === 'KeyR') {
+        engine.resetGame();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const k = e.code;
+      if (k === 'ArrowLeft' || k === 'KeyZ' || k === 'KeyA' || k === 'ShiftLeft') {
+        btnLeftFlip.classList.remove('pressed');
+        engine.setFlipper('left', false);
+      } else if (k === 'ArrowRight' || k === 'Slash' || k === 'KeyD' || k === 'ShiftRight') {
+        btnRightFlip.classList.remove('pressed');
+        engine.setFlipper('right', false);
+      } else if (k === 'Space' || k === 'ArrowDown' || k === 'Enter') {
+        btnLaunch.classList.remove('pressed');
+        engine.releasePlunger();
+      }
+    });
+
+    // HUD sync
+    let lastScore = -1;
+    let lastMsg = '';
+    let lastMeta = '';
+    function syncHud() {
+      if (engine.score !== lastScore) {
+        lastScore = engine.score;
+        dmdScore.textContent = engine.score.toLocaleString();
+        sideHighScore.textContent = engine.highScore.toLocaleString();
+      }
+      const meta = `BALL ${engine.ballNum}/${engine.maxBalls} · ${engine.multiplier}X${engine.ballSaveTimer > 0 ? ' · SAVE' : ''}`;
+      if (meta !== lastMeta) {
+        lastMeta = meta;
+        dmdMeta.textContent = meta;
+      }
+      const msg = engine.dmdSub ? `${engine.dmdText} — ${engine.dmdSub}` : engine.dmdText;
+      if (msg !== lastMsg) {
+        lastMsg = msg;
+        dmdMsg.textContent = msg;
+      }
+    }
+
+    // Main 60Hz loop
+    let lastTs = performance.now();
+    function frame(ts) {
+      const dt = Math.min((ts - lastTs) / 1000, 0.033);
+      lastTs = ts;
+      engine.step(dt);
+      renderer.render(engine);
+      syncHud();
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    // Deterministic verification hook
+    window.__pinball = {
+      setEdition: (ed) => {
+        setEdition(ed);
+        renderer.render(engine);
+        syncHud();
+      },
+      launch: (power = 0.85) => {
+        engine.releasePlunger(power);
+        renderer.render(engine);
+        syncHud();
+      },
+      flip: (side, pressed) => {
+        engine.setFlipper(side, pressed);
+      },
+      triggerMultiball: () => {
+        engine.triggerMultiball();
+        renderer.render(engine);
+        syncHud();
+      },
+      step: (frames = 1) => {
+        for (let i = 0; i < frames; i++) engine.step(1 / 60);
+        renderer.render(engine);
+        syncHud();
+      },
+      state: () => ({
+        edition: renderer.editionKey,
+        score: engine.score,
+        ballNum: engine.ballNum,
+        balls: engine.balls.length,
+        multiplier: engine.multiplier,
+        multiballActive: engine.multiballActive,
+        gameOver: engine.gameOver,
+        tilted: engine.tilted,
+      }),
+    };
+  </script>
+</body>
+</html>
