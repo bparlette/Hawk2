@@ -659,6 +659,7 @@ let dustGeo, dustBase;
   const pts=new THREE.Points(dustGeo,new THREE.PointsMaterial({size:0.02,map:dot,transparent:true,opacity:0.45,depthWrite:false,color:0xcfe0ee}));
   scene.add(pts);
 }
+
 const neonRooms=applyNeonRoomsPass(scene);
 window.__neon=neonRooms;
 
@@ -948,6 +949,10 @@ const doorFig=makeFigure({h:2.2,cloth:clothDark,skin:new THREE.MeshStandardMater
     eye.position.set(ex,0.20,0.163); p.headG.add(eye); } }
 place(doorFig,-27.75,-51,-Math.PI/2);
 
+// the Double-Look figure (corridor beat C2): gaunt, stands mid-hall behind you
+const dblFig=makeFigure({h:1.8,cloth:clothDark,face:'crawler'});
+place(dblFig,-6,-44,Math.PI/2); dblFig.visible=false;
+
 // ---------- HUD ----------
 const el=id=>document.getElementById(id);
 const clockEl=el('clock'), battEl=el('battpct'), battFill=el('battfill'), roomEl=el('room'),
@@ -1013,7 +1018,7 @@ function credit(n){ if(!G.credited.has(n)){ G.credited.add(n); G.rooms++; roomEl
 
 // ---------- game state ----------
 const G={ state:'title', t:0, d:0, rooms:0, stabs:0, credited:new Set(), run:0,
-  enc:null, interact:null, decoy:null, doorlight:null, chase:null, nvSeq:null, cornerT:null, tallT:null,
+  enc:null, interact:null, decoy:null, doorlight:null, chase:null, nvSeq:null, cornerT:null, tallT:null, dbl:null, dblArm:0,
   bite:0, pts:0, thrust:0, shake:0, fovPunch:0, bloodT:0, grainBoost:0, cutT:0, nvOn:false,
   faceBack:0, faceBackTarget:0, lookTarget:null, lookW:0, lookWTarget:0,
   radioUntil:-1, threatT:0, heartT:0, inStatue:false, statueClock:0, statueStep:0, statueFlick:0,
@@ -1028,6 +1033,7 @@ const ENCS={
   hulk:   {fig:()=>hulkFig,   needed:10, bite:4.2, counter:1.15, credit:3, chargeSpd:8},
   crawler:{fig:()=>crawlerFig,needed:12, bite:3.9, counter:1.10, credit:4, low:true},
   woman:  {fig:()=>womanFig,  needed:14, bite:3.6, counter:1.05, faceBack:true},
+  double: {fig:()=>dblFig,   needed:16, bite:3.3, counter:1.00},
   hatch:  {fig:()=>hatchFig,  needed:16, bite:3.4, counter:1.00, credit:6, low:true},
   doorfig:{fig:()=>doorFig,   needed:18, bite:3.0, counter:0.95, credit:8},
   tall:   {fig:()=>tallFig,   needed:18, bite:3.2, counter:0.95, credit:9, high:true},
@@ -1083,6 +1089,7 @@ function finishKill(){
   if(enc.def.credit) credit(enc.def.credit);
   if(enc.key==='crawler') setNV(false);
   if(enc.key==='mascot'){ radio('<span class="who">DISPATCH:</span> 2210 — GET OUT. GET OUT <b>NOW</b>.',3.2); G.pendingChase=true; G.chaseT=1.4; }
+  if(enc.key==='double') radio('<span class="me">2210:</span> Contact — mid-hall. It\'s down. Moving on.',2.8);
   if(enc.onKill==='win'){ winGame(); return; }
   G.state='walk';
 }
@@ -1141,6 +1148,7 @@ function buildBeats(){ BEATS=[
   {d:ANC.creak-3, fn:()=>{ G.creakT=0; sfxCreak(1.1); }},
   {d:ANC.r2-0.4, fn:()=>{ G.state='nv'; G.nvSeq={t:0}; crawlerFig.visible=true; G.cutT=0.55; }},
   {d:ANC.cabinet-1.7, fn:()=>startInteract({type:'push',need:5,got:0,label:'PUSH',prompt:'PUSH THE CABINET ASIDE'})},
+  {d:ANC.cornerB+2.2, fn:()=>startDbl1()},
   {d:ANC.cornerB-1, fn:()=>radio('<span class="who">DISPATCH:</span> 2210, east stairwell next. Keep that light on.',3.8)},
   {d:ANC.twins-4.5, fn:()=>{ G.twinsVanishT=0.35; G.cutT=0.42; sfxZap(); }},
   {d:ANC.twins+2, fn:()=>credit(1)},
@@ -1179,6 +1187,17 @@ function doAction(){
     lightStatEl.textContent='CAM LIGHT · STRONG';
     radio('<span class="me">2210:</span> Light\'s strong again. Moving.',2.6); endInteract(); }
   else if(it.type==='slam'){ startHold(); }
+}
+// ---------- the double-look (corridor beat C2) ----------
+function startDbl1(){
+  G.state='dbl'; G.dbl={phase:'noise1',t:0}; G.threatT=1.3; sfxDread(); G.faceBackTarget=1;
+}
+function startDbl2(){
+  G.state='dbl'; G.dbl={phase:'noise2',t:0}; G.threatT=1.3; sfxDread(); sfxThump(0.25);
+  const bp=curve.getPointAt(clamp((G.d-6.5)/pathLen,0,1));
+  dblFig.position.set(bp.x,0,bp.z);
+  dblFig.rotation.y=Math.atan2(camera.position.x-bp.x,camera.position.z-bp.z);
+  dblFig.visible=true; G.faceBackTarget=1;
 }
 // ---------- door light sequence (worker decoy + tall figure + hold) ----------
 const doorBar=box(1.5,0.09,0.09,rustMat,-28.2,1.15,-51); doorBar.visible=false;
@@ -1252,7 +1271,7 @@ function resetPose(fig){ const p=fig.userData.parts;
 function resetRun(countRun=true){
   if(countRun){ G.run++; try{ localStorage.setItem('dh_runs',String(G.run)); }catch(e){} }
   G.d=0; G.rooms=0; G.credited=new Set(); roomEl.textContent='0 / 12'; G.stabs=0; G.bite=0; G.pts=0;
-  G.enc=null; G.interact=null; G.decoy=null; G.doorlight=null; G.chase=null; G.nvSeq=null; G.hold=null;
+  G.enc=null; G.interact=null; G.decoy=null; G.doorlight=null; G.chase=null; G.nvSeq=null; G.hold=null; G.dbl=null; G.dblArm=0;
   G.inStatue=false; G.statueStep=0; G.statueClock=0; G.inYellow=false; G.hatchRiseT=-1; G.hatchSink=false;
   G.lightBoost=1; G.lightHurt=false; lightStatEl.textContent='CAM LIGHT · OK'; G.sprintCounterCut=false;
   G.faceBack=0; G.faceBackTarget=0; G.lookTarget=null; G.lookWTarget=0; G.lookW=0;
@@ -1272,6 +1291,7 @@ function resetRun(countRun=true){
   resetPose(seekFig); place(seekFig,-29.5,-73.2,Math.PI/2); seekFig.visible=false;
   workerFig.visible=false; guardFig.visible=false;
   resetPose(doorFig); place(doorFig,-27.75,-51,-Math.PI/2); doorFig.visible=false;
+  resetPose(dblFig); place(dblFig,-6,-44,Math.PI/2); dblFig.visible=false;
   creakDoor.rotation.y=0; r3Door.rotation.y=0; stDoor2.rotation.y=0; cellarDoor.rotation.y=0; G.stDoorOpen=false;
   cabinet.position.set(0.25,0,-40.6); cabinet.rotation.y=0.5;
   fallPanel.position.set(-0.6,3.24,-11.5); fallPanel.rotation.set(0.04,0.4,0.03);
@@ -1298,6 +1318,7 @@ function stepSim(dt){
   if(G.radioUntil>0&&G.t>G.radioUntil){ radioEl.style.display='none'; G.radioUntil=-1; }
   G.thrust=Math.max(0,G.thrust-dt*5);
   G.fovPunch=Math.max(0,G.fovPunch-dt*2.2);
+  G.shake=Math.max(0,G.shake-dt*2.6);
   G.faceBack+=(G.faceBackTarget-G.faceBack)*Math.min(1,dt*3.2);
   if(G.womanVanishT>0){ G.womanVanishT-=dt; if(G.womanVanishT<=0) womanFig.visible=false; }
   if(G.twinsVanishT>0){ G.twinsVanishT-=dt; if(G.twinsVanishT<=0){ twinA.visible=false; twinB.visible=false; } }
@@ -1340,10 +1361,11 @@ function stepSim(dt){
     for(const w of WARNS){ if(!G.warned.has(w)&&G.d>=w-1.7){ G.warned.add(w); G.threatT=1.3; sfxDread(); } }
     while(beatIdx<BEATS.length&&BEATS[beatIdx].d<=G.d){ const b=BEATS[beatIdx++]; b.fn(); if(G.state!=='walk') break; }
     if(G.pendingChase){ G.chaseT-=dt; if(G.chaseT<=0){ G.pendingChase=false; startChase(); } }
+    if(G.dblArm&&G.d>=G.dblArm&&G.state==='walk'){ G.dblArm=0; startDbl2(); }
     if(G.d>=pathLen-0.4&&G.state==='walk'){ /* safety */ G.d=pathLen-0.4; }
   }
   else if(st==='lunge'&&G.enc){
-    const enc=G.enc; enc.t+=dt; G.shake=0.55;
+    const enc=G.enc; enc.t+=dt; G.shake=0.32;
     if(enc.t>=enc.dur){ G.state='grab'; enc.phase='counter'; enc.counterT=0; G.bite=0; G.pts=0;
       showMeters('grab'); setBtn('STAB!','stab'); setPrompt('COUNTER — STAB ON THE LUNGE'); }
   }
@@ -1359,7 +1381,7 @@ function stepSim(dt){
         enc.grabDist=Math.max(0.58,enc.grabDist-dt*0.22); }
       if(G.bite>=1){ die(); }
     }
-    G.shake=0.34+G.bite*0.4;
+    G.shake=0.15+G.bite*0.20;
   }
   else if(st==='kill'){ G.killT+=dt; if(G.killT>=1.25) finishKill(); }
   else if(st==='nv'&&G.nvSeq){
@@ -1386,6 +1408,18 @@ function stepSim(dt){
     if(G.interact.type==='grab'){ G.interact.t+=dt; if(G.interact.t>G.interact.window) endInteract(); }
     if(G.interact.type==='slam'){ G.interact.t=(G.interact.t||0)+dt;
       if(G.interact.t>G.interact.window){ G.interact=null; setBtn(null); setPrompt(null); holdBreak(); } }
+  }
+  else if(st==='dbl'&&G.dbl){
+    const db=G.dbl; db.t+=dt;
+    if(db.phase==='noise1'&&db.t>=1.0){ db.phase='look1'; db.t=0; }
+    else if(db.phase==='look1'&&db.t>=1.15){ G.dbl=null; G.faceBackTarget=0; G.dblArm=G.d+4.2; G.state='walk'; }
+    else if(db.phase==='noise2'&&db.t>=0.55){ db.phase='look2'; db.t=0; }
+    else if(db.phase==='look2'&&db.t>=1.25){ db.phase='snap'; db.t=0; G.faceBackTarget=0; }
+    else if(db.phase==='snap'&&G.faceBack<0.2){ G.dbl=null;
+      const fp=curve.getPointAt(clamp((G.d+6.5)/pathLen,0,1));
+      dblFig.position.set(fp.x,0,fp.z);
+      dblFig.rotation.y=Math.atan2(camera.position.x-fp.x,camera.position.z-fp.z);
+      startEncounter('double',{dur:0.75}); }
   }
   else if(st==='doorlight'&&G.doorlight){
     const dl=G.doorlight; dl.t+=dt;
@@ -1464,9 +1498,9 @@ function updateScene(){
   neonRooms.update(G, 1/30);
   const st=G.state, u=clamp(G.d/pathLen,0,1);
   const pos=curve.getPointAt(u), aheadP=curve.getPointAt(clamp(u+6.5/pathLen,0,1));
-  const bobY=0.03*Math.sin(G.d*7.0)+0.008*Math.sin(G.t*1.4);
+  const bobY=0.008*Math.sin(G.d*7.0)+0.004*Math.sin(G.t*1.4);
   camera.position.set(pos.x,1.62+bobY,pos.z);
-  const look=new THREE.Vector3(aheadP.x,1.48+0.4*bobY,aheadP.z);
+  const look=new THREE.Vector3(aheadP.x,1.48+0.25*bobY,aheadP.z);
   if(st==='walk') for(const gl of GLANCES){ const w=bump(G.d,gl.d0,gl.d1,1.8); if(w>0.001) look.lerp(gl.t,w*0.85); }
   if(G.faceBack>0.01){ const behind=new THREE.Vector3(pos.x*2-look.x,look.y,pos.z*2-look.z);
     look.lerp(behind,sstep(0.15,0.85,G.faceBack)); }
@@ -1489,11 +1523,11 @@ function updateScene(){
   camera.lookAt(look);
   if(st==='walk'){ yawOff+=(yawT-yawOff)*0.12; pitchOff+=(pitchT-pitchOff)*0.12;
     camera.rotateY(yawOff); camera.rotateX(pitchOff); }
-  camera.rotateZ(0.010*Math.sin(G.t*0.9)+0.006*Math.sin(G.t*Math.PI*2*1.75+0.6));
+  camera.rotateZ(0.004*Math.sin(G.t*0.9)+0.0015*Math.sin(G.t*Math.PI*2*1.75+0.6));
   if(G.shake>0.01){ const s=G.shake;
-    camera.rotateZ((hash1(Math.floor(G.t*43))-0.5)*0.09*s);
-    camera.rotateX((hash1(Math.floor(G.t*39)+7)-0.5)*0.07*s);
-    camera.position.y+=(hash1(Math.floor(G.t*47)+3)-0.5)*0.03*s; }
+    camera.rotateZ((hash1(Math.floor(G.t*43))-0.5)*0.055*s);
+    camera.rotateX((hash1(Math.floor(G.t*39)+7)-0.5)*0.045*s);
+    camera.position.y+=(hash1(Math.floor(G.t*47)+3)-0.5)*0.018*s; }
   const fov=72+G.fovPunch*13;
   if(Math.abs(camera.fov-fov)>0.05){ camera.fov=fov; camera.updateProjectionMatrix(); }
   camLight.position.set(pos.x,1.5+bobY,pos.z);
