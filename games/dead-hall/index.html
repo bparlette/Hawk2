@@ -61,12 +61,15 @@
     letter-spacing:.3em; color:#ffd76a; display:none; white-space:nowrap; }
   /* ---------- full-screen states ---------- */
   #screen { position:fixed; inset:0; z-index:1200; display:flex; flex-direction:column; align-items:center;
-    justify-content:center; text-align:center; color:#e8f0e6; background:rgba(0,0,0,.45);
-    pointer-events:auto; cursor:pointer; padding:0 22px; }
-  #screen h1 { font-size:44px; letter-spacing:.22em; margin:0 0 6px; color:#ff3b30; text-shadow:0 0 26px rgba(255,40,30,.6); }
-  #screen h2 { font-size:15px; letter-spacing:.3em; margin:0 0 20px; color:#cfe8ff; font-weight:400; }
-  #screen p { font-size:13.5px; line-height:1.75; letter-spacing:.06em; max-width:420px; margin:0 0 26px; color:rgba(232,240,230,.92); }
-  #screen .tap { font-size:15px; letter-spacing:.34em; color:#ffd76a; animation:blink 1.4s steps(1) infinite; }
+    justify-content:space-between; text-align:center; color:#e8f0e6;
+    background:linear-gradient(180deg, rgba(0,0,0,.74) 0%, rgba(0,0,0,.18) 34%, rgba(0,0,0,.28) 66%, rgba(0,0,0,.86) 100%),
+      url('./assets/load-bg.jpg') center/cover no-repeat;
+    pointer-events:auto; cursor:pointer; padding:54px 22px 46px; box-sizing:border-box; }
+  #screen h1 { font-size:44px; letter-spacing:.22em; margin:0 0 6px; color:#ff3b30; text-shadow:0 2px 24px rgba(0,0,0,.95), 0 0 26px rgba(255,40,30,.6); }
+  #screen h2 { font-size:14px; letter-spacing:.28em; margin:0 0 auto; color:#cfe8ff; font-weight:400; text-shadow:0 1px 10px rgba(0,0,0,.95); }
+  #screen p { font-size:13px; line-height:1.65; letter-spacing:.05em; max-width:420px; margin:0 0 20px; color:rgba(232,240,230,.95);
+    text-shadow:0 1px 10px rgba(0,0,0,.95); background:rgba(0,0,0,.42); padding:10px 14px; border-radius:6px; border:1px solid rgba(255,255,255,.1); }
+  #screen .tap { font-size:15px; letter-spacing:.34em; color:#ffd76a; text-shadow:0 1px 12px rgba(0,0,0,.95); animation:blink 1.4s steps(1) infinite; }
   #screen .stats { font-size:14px; letter-spacing:.14em; line-height:2; color:#9fe870; margin-bottom:26px; }
   #lost { position:fixed; inset:0; z-index:1190; display:none; align-items:center; justify-content:center;
     background:radial-gradient(ellipse at center, rgba(60,0,0,.88), rgba(0,0,0,.97) 75%); color:#ff2d20;
@@ -137,6 +140,7 @@
 <script type="importmap">{ "imports": { "three": "./three.module.js" } }</script>
 <script type="module">
 import * as THREE from 'three';
+import { applyNeonRoomsPass } from './src/neon/rooms.js';
 
 /* ================================================================
    DEAD HALL — a bodycam jump-scare rail horror game.
@@ -655,6 +659,8 @@ let dustGeo, dustBase;
   const pts=new THREE.Points(dustGeo,new THREE.PointsMaterial({size:0.02,map:dot,transparent:true,opacity:0.45,depthWrite:false,color:0xcfe0ee}));
   scene.add(pts);
 }
+const neonRooms=applyNeonRoomsPass(scene);
+window.__neon=neonRooms;
 
 // ---------- figure factory: every character is primitives + generated textures ----------
 const skinMatA=new THREE.MeshStandardMaterial({map:tex(skinTexF(4),1,1),roughness:0.85});
@@ -1272,6 +1278,7 @@ function resetRun(countRun=true){
   for(const p of chaseProps){ p.g.rotation.x=0; p.tipped=false; p.tipT=0; }
   for(const e of chaseEyes) e.material.opacity=0;
   batteryProp.visible=true; doorBar.visible=false;
+  neonRooms.reset();
   btx.clearRect(0,0,390,844); bloodC.style.opacity='0';
   lostEl.style.display='none'; droneStop();
   showMeters(null); setBtn(null); setPrompt(null);
@@ -1454,6 +1461,7 @@ const UP=new THREE.Vector3(0,1,0);
 let yawOff=0,pitchOff=0,yawT=0,pitchT=0;
 // ---------- per-frame scene update (poses, camera, lights — all from sim state) ----------
 function updateScene(){
+  neonRooms.update(G, 1/30);
   const st=G.state, u=clamp(G.d/pathLen,0,1);
   const pos=curve.getPointAt(u), aheadP=curve.getPointAt(clamp(u+6.5/pathLen,0,1));
   const bobY=0.03*Math.sin(G.d*7.0)+0.008*Math.sin(G.t*1.4);
