@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Game Night at Dave's</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#17100b;overflow:hidden;overscroll-behavior:none;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+    font-family:"Courier New",monospace;}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#17100b;}
+  canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;background:#241610;}
+  #muteBtn{position:fixed;top:calc(8px + env(safe-area-inset-top));right:10px;z-index:1200;
+    width:44px;height:44px;border-radius:10px;border:2px solid #0d0906;background:rgba(38,24,14,.92);
+    color:#ffd98a;font-size:21px;line-height:1;cursor:pointer;padding:0;}
+  #errBox{position:fixed;inset:0;z-index:1300;display:none;align-items:center;justify-content:center;
+    background:rgba(10,6,4,.94);color:#ffe9c4;text-align:center;padding:24px;}
+  #errBox .card{max-width:320px;border:3px solid #b3543f;padding:20px;background:#241610;}
+  #errBox button{margin-top:14px;font:inherit;font-weight:bold;background:#ffd98a;color:#241610;
+    border:2px solid #0d0906;padding:10px 18px;cursor:pointer;}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv" width="390" height="844"></canvas></div>
+<button id="muteBtn" aria-label="Toggle sound">🔊</button>
+<div id="errBox"><div class="card"><div style="font-size:20px;font-weight:bold;">TAPE EJECTED</div>
+<div style="margin-top:10px;">Something glitched in the game room.<br>No save files were harmed.</div>
+<button onclick="location.reload()">REWIND &amp; RELOAD</button></div></div>
+<script>
+"use strict";
+window.addEventListener("error",function(){var b=document.getElementById("errBox");if(b)b.style.display="flex";});
+
+/* ============================== UTILS ============================== */
+var W=390,H=844;
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function lerp(a,b,t){return a+(b-a)*t;}
+function mulberry32(seed){var a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function qs(name){var m=new RegExp("[?&]"+name+"=([^&]*)").exec(location.search);return m?decodeURIComponent(m[1]):null;}
+function shuffle(arr,rng){for(var i=arr.length-1;i>0;i--){var j=Math.floor(rng()*(i+1));var t=arr[i];arr[i]=arr[j];arr[j]=t;}return arr;}
+
+/* ============================== AUDIO ============================== */
+var Audio8={
+  ctx:null,master:null,muted:false,musicTimer:null,musicStep:0,
+  init:function(){
+    if(this.ctx)return;
+    try{ if(navigator.audioSession) navigator.audioSession.type="playback"; }catch(e){}
+    var AC=window.AudioContext||window.webkitAudioContext; if(!AC)return;
+    var c=this.ctx=new AC();
+    var comp=c.createDynamicsCompressor();
+    comp.threshold.value=-14; comp.knee.value=22; comp.ratio.value=10;
+    this.master=c.createGain(); this.master.gain.value=this.muted?0:0.5;
+    this.master.connect(comp); comp.connect(c.destination);
+    // silent buffer unlock
+    var buf=c.createBuffer(1,1,c.sampleRate),src=c.createBufferSource();
+    src.buffer=buf; src.connect(this.master); src.start(0);
+    try{ this.muted=localStorage.getItem("gnd_mute")==="1"; this.applyMute(); }catch(e){}
+    this.startMusic();
+  },
+  resume:function(){ if(this.ctx&&this.ctx.state==="suspended") this.ctx.resume(); },
+  applyMute:function(){ if(this.master) this.master.gain.value=this.muted?0:0.5;
+    var b=document.getElementById("muteBtn"); if(b)b.textContent=this.muted?"🔇":"🔊"; },
+  toggleMute:function(){ this.init(); this.muted=!this.muted;
+    try{ localStorage.setItem("gnd_mute",this.muted?"1":"0"); }catch(e){}
+    this.applyMute(); },
+  tone:function(freq,dur,type,vol,delay,slideTo){
+    if(!this.ctx||this.muted)return;
+    var c=this.ctx,t=c.currentTime+(delay||0);
+    var o=c.createOscillator(),g=c.createGain();
+    o.type=type||"square"; o.frequency.setValueAtTime(freq,t);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t+dur);
+    g.gain.setValueAtTime(vol||0.16,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+dur+0.02);
+  },
+  noise:function(dur,vol,delay){
+    if(!this.ctx||this.muted)return;
+    var c=this.ctx,t=c.currentTime+(delay||0);
+    var len=Math.floor(c.sampleRate*dur),buf=c.createBuffer(1,len,c.sampleRate),d=buf.getChannelData(0);
+    for(var i=0;i<len;i++)d[i]=(Math.random()*2-1)*(1-i/len);
+    var s=c.createBufferSource(); s.buffer=buf;
+    var f=c.createBiquadFilter(); f.type="bandpass"; f.frequency.value=900; f.Q.value=0.8;
+    var g=c.createGain(); g.gain.value=vol||0.2;
+    s.connect(f); f.connect(g); g.connect(this.master); s.start(t);
+  },
+  shout:function(){ // distant "PHLEGM!!" — detuned saws through a bandpass sweep
+    if(!this.ctx||this.muted)return;
+    var c=this.ctx,t=c.currentTime;
+    var f=c.createBiquadFilter(); f.type="bandpass"; f.Q.value=2.2;
+    f.frequency.setValueAtTime(500,t); f.frequency.linearRampToValueAtTime(1100,t+0.12);
+    f.frequency.linearRampToValueAtTime(420,t+0.34);
+    var g=c.createGain(); g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.22,t+0.05); g.gain.exponentialRampToValueAtTime(0.001,t+0.4);
+    f.connect(g); g.connect(this.master);
+    [196,207].forEach(function(fr){var o=c.createOscillator();o.type="sawtooth";o.frequency.value=fr;o.connect(f);o.start(t);o.stop(t+0.42);});
+  },
+  jingleWin:function(){ var n=[523,659,784,1047]; for(var i=0;i<n.length;i++)this.tone(n[i],0.11,"square",0.15,i*0.07); },
+  jingleLose:function(){ this.tone(220,0.16,"sawtooth",0.14,0,160); this.tone(160,0.24,"sawtooth",0.14,0.13,90); },
+  jingleComedy:function(){ this.tone(880,0.09,"square",0.15,0,1320); this.tone(1174,0.14,"square",0.15,0.1,1568); },
+  startMusic:function(){
+    if(this.musicTimer||!this.ctx)return;
+    var bass=[110,0,110,0,131,0,110,0,98,0,98,0,147,0,165,0];
+    var lead=[440,0,523,0,659,0,523,0,587,0,523,0,440,0,0,0];
+    var self=this;
+    this.musicTimer=setInterval(function(){
+      if(self.muted||!Shell||(Shell.state!=="TITLE"&&Shell.state!=="REVIEW"))return;
+      var s=self.musicStep%16;
+      if(bass[s])self.tone(bass[s],0.14,"triangle",0.20,0);
+      if(lead[s])self.tone(lead[s],0.10,"square",0.05,0);
+      self.musicStep++;
+    },132);
+  },
+  sig:function(id){ // per-microgame 3-note signature
+    var map={sudz:[392,523,659],scott:[330,330,262],brent:[262,330,392],brad:[523,392,784]};
+    var n=map[id]||[440,440,440];
+    for(var i=0;i<n.length;i++)this.tone(n[i],0.09,"square",0.13,i*0.06);
+  }
+};
+
+/* ============================== INPUT ============================== */
+var Input={
+  x:0,y:0,down:false,px:0,py:0, // pointer pos / prev pos
+  moved:0,                       // distance moved this frame while down
+  path:[],                       // recent {x,y,t} while down (for rub analysis)
+  tapEdge:false,releaseEdge:false,
+  keys:{},keyEdge:{},
+  sipEdge:false,                 // set by beer-button hit or B key
+  resetFrame:function(){ this.moved=0; this.tapEdge=false; this.releaseEdge=false; this.sipEdge=false; this.keyEdge={}; }
+};
+function canvasPos(evt){
+  var r=cv.getBoundingClientRect();
+  var cx=(evt.touches&&evt.touches.length)?evt.touches[0].clientX:evt.clientX;
+  var cy=(evt.touches&&evt.touches.length)?evt.touches[0].clientY:evt.clientY;
+  return {x:(cx-r.left)*(W/r.width), y:(cy-r.top)*(H/r.height)};
+}
+var cv=document.getElementById("cv");
+function ptrDown(e){
+  Audio8.init(); Audio8.resume();
+  var p=canvasPos(e);
+  Input.x=p.x; Input.y=p.y; Input.px=p.x; Input.py=p.y;
+  Input.down=true; Input.tapEdge=true; Input.path=[{x:p.x,y:p.y,t:performance.now()}];
+  if(Shell)Shell.onTap(p.x,p.y);
+  if(e.cancelable)e.preventDefault();
+}
+function ptrMove(e){
+  var p=canvasPos(e);
+  if(Input.down){ Input.moved+=Math.hypot(p.x-Input.x,p.y-Input.y);
+    Input.path.push({x:p.x,y:p.y,t:performance.now()});
+    if(Input.path.length>90)Input.path.shift(); }
+  Input.px=Input.x; Input.py=Input.y; Input.x=p.x; Input.y=p.y;
+  if(e.cancelable)e.preventDefault();
+}
+function ptrUp(e){
+  Input.down=false; Input.releaseEdge=true; Input.path.length=0;
+  if(e.cancelable)e.preventDefault();
+}
+cv.addEventListener("pointerdown",ptrDown);
+cv.addEventListener("pointermove",ptrMove);
+window.addEventListener("pointerup",ptrUp);
+window.addEventListener("pointercancel",ptrUp);
+document.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+document.addEventListener("dblclick",function(e){e.preventDefault();});
+window.addEventListener("keydown",function(e){
+  Audio8.init(); Audio8.resume();
+  if(!Input.keys[e.code])Input.keyEdge[e.code]=true;
+  Input.keys[e.code]=true;
+  if(e.code==="KeyB")Input.sipEdge=true;
+  if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space"].indexOf(e.code)>=0)e.preventDefault();
+  if(Shell)Shell.onKey(e.code);
+});
+window.addEventListener("keyup",function(e){ Input.keys[e.code]=false; });
+document.addEventListener("visibilitychange",function(){
+  if(!document.hidden)Audio8.resume();
+  if(Shell)Shell.onVisibility(document.hidden);
+});
+document.getElementById("muteBtn").addEventListener("click",function(e){ e.stopPropagation(); Audio8.toggleMute(); });
+try{ if(localStorage.getItem("gnd_mute")==="1"){ Audio8.muted=true; Audio8.applyMute(); } }catch(e){}
+
+
+/* ============================== ART ============================== */
+var g=cv.getContext("2d");
+g.imageSmoothingEnabled=false;
+function R(x,y,w,h,c){ g.fillStyle=c; g.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h)); }
+function T(txt,x,y,size,c,align,weight){
+  g.font=(weight||"bold")+" "+size+"px 'Courier New',monospace";
+  g.textAlign=align||"left"; g.textBaseline="top";
+  g.fillStyle="#0d0906"; g.fillText(txt,x+2,y+2);
+  g.fillStyle=c; g.fillText(txt,x,y);
+}
+function Tplain(txt,x,y,size,c,align){
+  g.font="bold "+size+"px 'Courier New',monospace";
+  g.textAlign=align||"left"; g.textBaseline="top"; g.fillStyle=c; g.fillText(txt,x,y);
+}
+/* chunky pixel rect on a 3px grid, local coords */
+function PX(ctx,x,y,w,h,c){ ctx.g.fillStyle=c; ctx.g.fillRect(ctx.x+Math.round(x)*3,ctx.y+Math.round(y)*3,Math.round(w)*3,Math.round(h)*3); }
+
+var CREW={
+  dave:  {name:"DAVE",  icon:"📼", shirt:"#3a5f8a", shirtD:"#2b4767", pants:"#4a3b2c", skin:"#e8b48c", hair:"#6e6e6e", hairStyle:"flat",  color:"#ffd98a"},
+  sudz:  {name:"SUDZ",  icon:"🩸", shirt:"#c0392b", shirtD:"#8f2a1f", pants:"#333a44", skin:"#d99e6a", hair:"#2b2b2b", hairStyle:"spiky", color:"#ff7a6b"},
+  scott: {name:"SCOTT", icon:"🍺", shirt:"#d9903a", shirtD:"#a86c28", pants:"#5a4632", skin:"#e8b48c", hair:"#7a4a22", hairStyle:"cap",   color:"#ffb84d"},
+  brent: {name:"BRENT", icon:"🏈", shirt:"#3f9e4d", shirtD:"#2e7539", pants:"#e8e4da", skin:"#c98a5a", hair:"#1d1d1d", hairStyle:"flat",  color:"#7ddb8a"},
+  brian: {name:"BRIAN", icon:"🤕", shirt:"#e8e4da", shirtD:"#bdb8ac", pants:"#3c4654", skin:"#eec39c", hair:"#4a3220", hairStyle:"bandage",color:"#ffffff"},
+  brad:  {name:"BRAD",  icon:"🕹️", shirt:"#2e7fc2", shirtD:"#1f5c8f", pants:"#2c3440", skin:"#e8b48c", hair:"#3a2a18", hairStyle:"flat",  color:"#6ec3ff"}
+};
+/* generic pixel person FROM BEHIND — backs of heads, over-the-shoulder.
+   Identity = shirt color + hair silhouette. No faces, by design. */
+function drawBackPerson(x,y,s,p,opts){
+  opts=opts||{};
+  var u=s; // 14 wide, 24 tall in sprite px
+  function r(px,py,pw,ph,c){ R(x+px*u,y+py*u,pw*u,ph*u,c); }
+  var skin=p.skin, sh=p.shirt, shD=p.shirtD, pa=p.pants;
+  // legs / pants
+  if(opts.pose==="sit"){ r(2,19,4,3,pa); r(8,19,4,3,pa); r(2,22,5,2,"#222"); r(7,22,5,2,"#222"); }
+  else { r(3,17,3,6,pa); r(8,17,3,6,pa); r(2,23,4,1,"#222"); r(8,23,4,1,"#222"); }
+  // torso = shirt back
+  r(2,9,10,9,sh); r(2,9,10,1,shD); r(2,17,10,1,shD);
+  r(3,11,2,4,shD); r(9,11,2,4,shD); // shoulder-blade shading
+  // arms reaching forward to a controller in the lap
+  r(0,10,2,6,sh); r(12,10,2,6,sh);
+  r(1,16,2,2,skin); r(11,16,2,2,skin);
+  r(4,16,6,3,"#191919"); r(5,17,1,1,"#c0392b"); r(8,17,1,1,"#2e7fc2"); // controller
+  // neck + ears
+  r(6,8,2,2,skin); r(2,5,1,2,skin); r(11,5,1,2,skin);
+  // back of head: all hair, silhouette by style
+  if(p.hairStyle==="spiky"){ r(3,1,8,8,p.hair); r(3,0,1,2,p.hair); r(6,-1,1,2,p.hair); r(8,0,1,1,p.hair); r(10,0,1,2,p.hair); r(4,2,3,1,"rgba(255,255,255,0.16)"); }
+  else if(p.hairStyle==="cap"){ // backwards cap from behind: dome + strap + brim toward viewer
+    r(3,3,8,6,p.hair); r(2,0,10,4,"#8a2f23"); r(2,0,10,1,"#a8453a"); r(4,4,6,1,"#5a1f16"); r(1,5,12,2,"#8a2f23"); }
+  else if(p.hairStyle==="bandage"){ r(3,1,8,8,p.hair); r(3,1,8,3,"#f4f1e8"); r(3,3,8,1,"#d8d2c2"); r(6,4,2,2,"#f4f1e8"); r(4,5,3,1,"rgba(255,255,255,0.16)"); }
+  else { r(3,1,8,8,p.hair); r(4,2,3,1,"rgba(255,255,255,0.16)"); r(3,7,8,1,"rgba(0,0,0,0.18)"); }
+  if(opts.book){ r(12,11,4,7,"#7a2e2e"); r(12,11,4,1,"#a8453a"); r(13,13,2,1,"#ffd98a"); r(13,15,2,1,"#f4f1e8"); } // grade book at his side
+}
+/* icon-badge medallion — cards identify by badge + name + quote, not faces */
+function drawBadge(cx,cy,r,p){
+  g.beginPath(); g.arc(cx,cy,r,0,6.3); g.fillStyle="#0d0906"; g.fill();
+  g.beginPath(); g.arc(cx,cy,r-3,0,6.3); g.fillStyle=p.color; g.fill();
+  g.beginPath(); g.arc(cx,cy,Math.max(4,r-10),0,6.3); g.fillStyle="#241610"; g.fill();
+  g.font=Math.round(r*0.92)+"px serif"; g.textAlign="center"; g.textBaseline="middle";
+  g.fillText(p.icon,cx,cy+2);
+  g.textBaseline="top"; g.textAlign="left";
+}
+/* ---- the room (staging from Cherie's game-night photos) ---- */
+var SPINE_L=["#e8e4da","#d8d4e8","#bcd2e8","#e8e4da","#9fb6cc","#e8dcc0","#c8d8e8","#e8e4da"];
+var SPINE_R=["#a83a2a","#c25a28","#8a4a6a","#b03a3a","#7a3a2a","#c2782a","#96422e","#a83a5a"];
+function drawShelf(x,y,w,rows,spines,seed){
+  R(x-4,y-4,w+8,rows*34+10,"#14100d");
+  var rng=mulberry32(seed);
+  for(var rI=0;rI<rows;rI++){
+    var sy=y+rI*34;
+    R(x,sy+28,w,4,"#241c16");
+    var sx=x+2;
+    while(sx<x+w-8){
+      var sw=5+rng()*7, sh=20+rng()*6, c=spines[Math.floor(rng()*spines.length)];
+      if(rng()<0.06){ sx+=8; continue; } // gap
+      R(sx,sy+28-sh,sw,sh,c);
+      R(sx,sy+28-sh,sw,2,"rgba(255,255,255,0.25)");
+      if(rng()<0.3)R(sx+1,sy+28-sh+6,Math.max(1,sw-2),2,"rgba(0,0,0,0.35)");
+      sx+=sw+1.5;
+    }
+  }
+}
+function drawLamp(x,y){
+  R(x+9,y,3,120,"#3a2c1c");
+  R(x,y-16,21,16,"#e8a84d"); R(x,y-16,21,3,"#f7c877");
+  var gr=g.createRadialGradient(x+10,y-6,4,x+10,y-6,120);
+  gr.addColorStop(0,"rgba(255,190,90,0.30)"); gr.addColorStop(1,"rgba(255,190,90,0)");
+  g.fillStyle=gr; g.fillRect(x-110,y-126,240,240);
+}
+function drawRoom(topShelfRows){
+  // warm wall + carpet
+  R(0,0,W,H,"#4a3421");
+  R(0,610,W,234,"#8a6f4d"); R(0,610,W,6,"#75592f");
+  for(var i=0;i<40;i++)R((i*97)%W,626+(i*53)%200,26,2,"rgba(0,0,0,0.06)");
+  // floor-to-ceiling shelves: pale spines left, red/orange right (photo 1)
+  drawShelf(6,64,86,topShelfRows,SPINE_L,1234);
+  drawShelf(298,64,86,topShelfRows,SPINE_R,987);
+  drawShelf(102,64,186,1,SPINE_R,555); // shelf band above the TVs
+  drawLamp(352,120);
+  drawLamp(14,120);
+}
+function drawCouch(y,withCrew,exprs){
+  // beige leather recliners (photo 1)
+  R(28,y+38,334,120,"#cbb493");
+  R(28,y+38,334,14,"#dcc7a2");
+  R(28,y+140,334,18,"#b39d76");
+  for(var s=0;s<3;s++){
+    var cx=44+s*110;
+    R(cx,y+46,100,66,"#d3ba96"); R(cx,y+46,100,8,"#e2cdaa");
+    R(cx,y+108,100,34,"#c2aa82"); R(cx+6,y+112,88,4,"#a8906a");
+  }
+  R(28,y+96,20,62,"#bfa87f"); R(342,y+96,20,62,"#bfa87f"); // armrests
+  // cup-holder drinks: a stemmed glass, a beer can (photo 3), a red drink
+  R(36,y+92,10,10,"#5a4632"); R(37,y+88,8,5,"#d8e2e8");
+  R(180,y+92,11,16,"#c8ccd4"); R(180,y+97,11,5,"#e8b020"); R(181,y+93,9,2,"#9a9ea6");
+  R(348,y+92,10,10,"#5a4632"); R(349,y+88,8,5,"#b03a3a");
+  // helmet resting on the right couch arm (photo 2)
+  R(330,y+58,34,20,"#8a8f96"); R(330,y+58,34,5,"#a8adb4"); R(336,y+72,22,6,"#3c4046"); R(344,y+62,8,8,"#565b62");
+  if(withCrew){
+    var crew=["sudz","scott","brent","brian","brad"];
+    var xs=[48,114,170,236,298];
+    for(var i=0;i<crew.length;i++){
+      var p=CREW[crew[i]];
+      // warm amber backlight halo — the SUPER DADS lamp look: big readable silhouettes
+      var gr=g.createRadialGradient(xs[i]+16,y+42,4,xs[i]+16,y+42,40);
+      gr.addColorStop(0,"rgba(255,176,66,0.35)"); gr.addColorStop(1,"rgba(255,176,66,0)");
+      g.fillStyle=gr; g.fillRect(xs[i]-24,y+2,80,80);
+      drawBackPerson(xs[i],y+14,2.35,p,{pose:"sit"});
+    }
+  }
+}
+function drawBigTV(x,y,w,h){
+  // modern flat panel beside the CRT (photo 2): mech-game menu flavor
+  R(x-5,y-5,w+10,h+10,"#0c0c10");
+  R(x,y,w,h,"#1c2a38");
+  R(x+8,y+8,w-16,14,"#2e4a5e");
+  Tplain("VERTICAL TANK — SYSTEM MENU",x+12,y+11,9,"#9fd8e8");
+  for(var i=0;i<4;i++){ R(x+12,y+30+i*13,w-60,7,i===1?"#3f7a94":"#28404f"); }
+  R(x+w-40,y+30,26,40,"#28404f"); R(x+w-34,y+36,14,14,"#3f7a94");
+  R(x+w/2-14,y+h+5,28,6,"#0c0c10");
+}
+function drawSteelBattalion(x,y){
+  // the absurd giant dual-stick controller rig on the coffee table (photo 2)
+  R(x-8,y+26,196,10,"#5a4632"); R(x-2,y+36,8,16,"#4a3826"); R(x+174,y+36,8,16,"#4a3826"); // coffee table
+  R(x,y,180,28,"#23262b"); R(x,y,180,4,"#34383f");
+  // left stick block
+  R(x+8,y-16,34,42,"#2c2f36"); R(x+22,y-30,5,18,"#14161a"); R(x+19,y-34,11,7,"#14161a");
+  // center console: dials, toggles, chunky buttons
+  R(x+52,y-8,76,34,"#2c2f36");
+  R(x+58,y+2,10,10,"#3f444d"); R(x+60,y+4,6,6,"#c8ccd4");
+  R(x+76,y+2,8,8,"#b03a3a"); R(x+88,y+2,8,8,"#3f9e4d"); R(x+100,y+2,8,8,"#d9a03a");
+  R(x+58,y+16,44,3,"#14161a"); R(x+62,y+14,3,7,"#c8ccd4"); R(x+78,y+14,3,7,"#c8ccd4"); R(x+94,y+14,3,7,"#c8ccd4");
+  R(x+108,y+14,16,8,"#14161a"); R(x+110,y+16,12,2,"#57e85e");
+  // right stick block
+  R(x+138,y-16,34,42,"#2c2f36"); R(x+152,y-30,5,18,"#14161a"); R(x+149,y-34,11,7,"#8a2f23");
+}
+function drawSuperDadsLamp(x,y){
+  // backlit pixel-figure lamp on the shelf (photo 4): 4 chunky amber figures on a dark base
+  var gr=g.createRadialGradient(x+40,y+8,4,x+40,y+8,58);
+  gr.addColorStop(0,"rgba(255,176,66,0.5)"); gr.addColorStop(1,"rgba(255,176,66,0)");
+  g.fillStyle=gr; g.fillRect(x-20,y-32,120,64);
+  var figs=[["#c47b2a","#8a5a1d"],["#9a8a6a","#5a5348"],["#f7c948","#d9a03a"],["#bcd2e8","#7fa3c4"]];
+  for(var i=0;i<4;i++){
+    var fx=x+i*19, body=figs[i][0], dark=figs[i][1];
+    R(fx+3,y-26,12,11,"#ffd98a"); R(fx+3,y-26,12,3,dark); // head + hair
+    R(fx+5,y-21,2,3,"#3a2a12"); R(fx+11,y-21,2,3,"#3a2a12"); // eyes
+    R(fx+2,y-15,14,13,body); R(fx+2,y-15,14,2,dark);
+    R(fx+7,y-9,4,4,"#ffe9a8"); // glowing chest/core
+    if(i===2){ R(fx+15,y-34,3,22,"#d8dee8"); R(fx+13,y-14,7,3,"#d9a03a"); } // the big sword
+    if(i===3){ R(fx+15,y-20,3,9,body); }
+  }
+  R(x-4,y-2,84,16,"#232733"); R(x-4,y-2,84,3,"#343a48");
+  Tplain("SUPER DADS",x+38,y+2,10,"#e84d26","center");
+}
+function drawCRTFrame(x,y,w,h){
+  R(x-10,y-10,w+20,h+22,"#191410");
+  R(x-6,y-6,w+12,h+12,"#3a332a");
+  R(x,y,w,h,"#000");
+  // marquee bulbs on top (photo 2)
+  var cols=["#e84d4d","#f7c948","#57e85e","#4da6e8","#e87ac9"];
+  for(var i=0;i<9;i++){ R(x+14+i*((w-28)/8)-3,y-20,6,6,cols[i%5]); }
+}
+function scanlines(x,y,w,h){
+  g.fillStyle="rgba(0,0,0,0.10)";
+  for(var yy=y;yy<y+h;yy+=4)g.fillRect(x,yy,w,1);
+  var gr=g.createRadialGradient(x+w/2,y+h/2,h/3,x+w/2,y+h/2,w*0.75);
+  gr.addColorStop(0,"rgba(0,0,0,0)"); gr.addColorStop(1,"rgba(0,0,0,0.28)");
+  g.fillStyle=gr; g.fillRect(x,y,w,h);
+}
+
+/* ============================== HUD ============================== */
+function drawBeerGlass(x,y,frac){
+  // draining beer glass = the round timer
+  R(x,y,26,36,"rgba(216,226,232,0.25)");
+  R(x+2,y+2,22,32,"rgba(216,226,232,0.12)");
+  var lh=Math.round(30*clamp(frac,0,1));
+  R(x+3,y+34-lh,20,lh,"#e8a020");
+  R(x+3,y+34-lh,20,3,"#f7c948");
+  R(x+2,y+34-Math.min(33,lh+3),22,4,"#f7f2e2"); // foam
+  R(x+24,y+10,5,14,"rgba(216,226,232,0.25)");
+}
+function drawHUD(){
+  R(0,0,W,58,"#1d130b"); R(0,56,W,2,"#0d0906");
+  Tplain("SCORE "+Shell.score,12,10,17,"#ffd98a");
+  Tplain("ROUND "+Math.min(Shell.round+1,Shell.totalRounds)+"/"+Shell.totalRounds,12,33,12,"#c8a878");
+  if(Shell.streak>=2)Tplain("🔥 ×"+Shell.streakMult(),210,10,16,"#ff9a3d");
+  // lives = beers
+  for(var i=0;i<4;i++){
+    var bx=238+i*30, full=i<Shell.beers;
+    R(bx,30,20,22,full?"#e8a020":"#3a2c1c");
+    R(bx,30,20,4,full?"#f7f2e2":"#54432c");
+    R(bx+18,36,4,10,full?"#e8a020":"#3a2c1c");
+  }
+  if(Shell.state==="PLAY")drawBeerGlass(352,8,Shell.timeLeft/Shell.timeTotal);
+}
+
+/* ============================== CARDS ============================== */
+function drawPanel(x,y,w,h,band){
+  R(x-4,y-4,w+8,h+8,"#0d0906");
+  R(x,y,w,h,"#2b1d12");
+  R(x,y,w,10,band);
+  R(x+6,y+16,w-12,h-22,"#3a2817");
+}
+function wrapText(txt,x,y,size,c,maxW,lineH){
+  g.font="bold "+size+"px 'Courier New',monospace"; g.textAlign="left"; g.textBaseline="top";
+  var words=txt.split(" "),lines=[],cur="";
+  for(var i=0;i<words.length;i++){
+    var t=cur?cur+" "+words[i]:words[i];
+    if(g.measureText(t).width>maxW&&cur){lines.push(cur);cur=words[i];}else cur=t;
+  }
+  if(cur)lines.push(cur);
+  for(var j=0;j<lines.length;j++){ g.fillStyle="#0d0906"; g.fillText(lines[j],x+2,y+j*lineH+2); g.fillStyle=c; g.fillText(lines[j],x,y+j*lineH); }
+  return lines.length;
+}
+function drawIntroCard(){
+  var m=Shell.mod,p=CREW[m.friend];
+  drawPanel(30,180,330,330,p.color);
+  Tplain(p.icon+" "+p.name,55,206,30,p.color);
+  Tplain(m.verb,55,246,17,"#f7f2e2");
+  drawBadge(195,348,54,p);
+  var q="\u201C"+m.quoteIntro+"\u201D", qs=19;
+  g.font="italic bold "+qs+"px 'Courier New',monospace";
+  while(g.measureText(q).width>W-64&&qs>11){ qs--; g.font="italic bold "+qs+"px 'Courier New',monospace"; }
+  g.textAlign="center"; g.textBaseline="top";
+  g.fillStyle="#0d0906"; g.fillText(q,W/2+2,428+2);
+  g.fillStyle="#ffe9c4"; g.fillText(q,W/2,428);
+  g.textAlign="left";
+}
+function drawReactCard(){
+  var rc=Shell.react;
+  drawPanel(30,190,330,300,rc.win?"#57b85e":"#b3543f");
+  drawBadge(88,254,32,CREW.dave);
+  Tplain(rc.win?"DAVE APPROVES":"DAVE WINCES",140,232,14,"#c8a878");
+  Tplain("ROUND "+Shell.results.length+" OF "+Shell.totalRounds,140,254,12,"#a8906a");
+  var y=306;
+  y+=wrapText(rc.headline,55,y,20,"#ffe9c4",280,26)*26;
+  if(rc.sub)y+=wrapText(rc.sub,55,y+2,14,"#d8c8a8",280,19)*19;
+  if(rc.attrib)Tplain(rc.attrib,55,y+6,12,"#a8906a");
+  if(rc.points)Tplain((rc.points>=0?"+":"")+rc.points+" PTS",55,446,20,rc.points>0?"#7ddb8a":"#c8a878");
+  if(!rc.win)Tplain("🍺 −1 BEER",232,446,16,"#ff9a8a");
+}
+
+/* ============================== REVIEW ============================== */
+var GRADES=["A+","A","A-","B+","B","B-","C+","C","C-","D+","D","D-","F+","F","F-"];
+function computeGrade(){
+  var played=Shell.results.length; if(!played)return "F-";
+  var wins=0,i; for(i=0;i<played;i++)if(Shell.results[i].win)wins++;
+  var perf=clamp(wins/played+0.03*Shell.bestStreak,0,1);
+  var idx=Math.round((1-perf)*(GRADES.length-1));
+  return GRADES[clamp(idx,0,GRADES.length-1)];
+}
+var FRIEND_LINES={
+  brad:{best:"Your paddle work would make Brad proud.",worst:"Brad is still shouting for two more times."},
+  sudz:{best:"Sudz respects the finger burn.",worst:"Sudz's finger outlasted yours."},
+  scott:{best:"You sipped like a pro while the opponent beat himself.",worst:"Scott drank alone."},
+  brent:{best:"Brent is still talking about that kick.",worst:"Brent's kick is still sailing somewhere."}
+};
+function buildReview(){
+  var grade=computeGrade();
+  var band=grade.charAt(0);
+  var opener={A:"A masterclass in game-night survival.",
+    B:"A solid night on the couch.",
+    C:"An uneven night, but the couch has seen worse.",
+    D:"The crew is being polite. Barely.",
+    F:"A catastrophe of historic proportions."}[band];
+  var closer={A:"Chicken, fight like a robot!",
+    B:"Work with me here!",
+    C:"If I wanted to watch a movie I'd go to Blockbuster.",
+    D:"Made me physically ill.",
+    F:"You'll get more enjoyment out of making fun of this game than actually playing it."}[band];
+  // best / worst friend from results
+  var byFriend={},i,r;
+  for(i=0;i<Shell.results.length;i++){ r=Shell.results[i];
+    if(!byFriend[r.id])byFriend[r.id]={w:0,l:0};
+    if(r.win)byFriend[r.id].w++; else byFriend[r.id].l++; }
+  var best=null,worst=null;
+  for(var id in byFriend){ if(byFriend[id].w>0&&(!best||byFriend[id].w>byFriend[best].w))best=id;
+    if(byFriend[id].l>0&&(!worst||byFriend[id].l>byFriend[worst].l))worst=id; }
+  var mid=[];
+  if(best)mid.push(FRIEND_LINES[best].best);
+  if(worst&&worst!==best)mid.push(FRIEND_LINES[worst].worst);
+  if(!mid.length)mid.push("The crew has no notes. Suspicious.");
+  var text=opener+" "+mid.join(" ")+" "+closer;
+  return {grade:grade,text:text};
+}
+function drawReview(){
+  drawRoom(4);
+  R(18,96,354,560,"#0d0906");
+  R(22,100,346,552,"#f4ead2");
+  R(22,100,346,54,"#7a2e2e");
+  Tplain("THE VERDICT",W/2,112,26,"#f7f2e2","center");
+  Tplain("DAVE REVIEWS: YOU",W/2,140,12,"#e8b48c","center");
+  // grade box
+  R(42,176,104,104,"#241610"); R(46,180,96,96,"#f7f2e2");
+  Tplain(Shell.review.grade,94,206,44,"#7a2e2e","center");
+  drawBadge(292,224,46,CREW.dave);
+  g.fillStyle="#2b1d12";
+  wrapText(Shell.review.text,44,306,17,"#2b1d12",302,24);
+  Tplain("SCORE  "+Shell.score,44,470,17,"#2b1d12");
+  Tplain("BEST STREAK  ×"+Math.max(1,Shell.bestStreak),44,496,15,"#2b1d12");
+  Tplain("ROUNDS  "+Shell.results.length+"   BEERS LEFT  "+Shell.beers,44,522,15,"#2b1d12");
+  Tplain("— Dave, The Video Game Critic",44,556,14,"#7a2e2e");
+  if(Shell.bestGrade)Tplain("BEST SO FAR: "+Shell.bestGrade+" · "+Shell.bestScore,44,582,12,"#8a6f4d");
+  // buttons
+  var blink=Math.floor(performance.now()/500)%2===0;
+  R(42,668,150,52,"#2e7fc2"); R(42,668,150,6,"#6ec3ff");
+  Tplain("PLAY AGAIN",117,684,16,"#ffffff","center");
+  R(206,668,150,52,blink?"#7a2e2e":"#93382f"); R(206,668,150,6,"#c96a5a");
+  Tplain("SHARE 📤",281,684,16,"#ffffff","center");
+}
+function shareReview(){
+  var c2=document.createElement("canvas"); c2.width=390; c2.height=620;
+  var save=g; g=c2.getContext("2d"); g.imageSmoothingEnabled=false;
+  // render a compact review card
+  R(0,0,390,620,"#241610");
+  R(14,14,362,592,"#f4ead2"); R(14,14,362,54,"#7a2e2e");
+  Tplain("GAME NIGHT AT DAVE'S",195,26,19,"#f7f2e2","center");
+  Tplain("THE VERDICT",195,50,12,"#e8b48c","center");
+  R(30,92,104,104,"#241610"); R(34,96,96,96,"#f7f2e2");
+  Tplain(Shell.review.grade,82,122,44,"#7a2e2e","center");
+  drawBadge(292,140,44,CREW.dave);
+  wrapText(Shell.review.text,32,226,17,"#2b1d12",326,24);
+  Tplain("SCORE  "+Shell.score,32,400,17,"#2b1d12");
+  Tplain("— Dave, The Video Game Critic",32,436,14,"#7a2e2e");
+  Tplain("bparlette.github.io/Hawk2/games/game-night-at-daves/",32,560,11,"#8a6f4d");
+  g=save;
+  function fallback(){ var a=document.createElement("a"); a.download="game-night-at-daves-review.png"; a.href=c2.toDataURL("image/png"); a.click(); }
+  if(navigator.canShare&&window.File){
+    c2.toBlob(function(b){ if(!b)return fallback();
+      var f=new File([b],"game-night-review.png",{type:"image/png"});
+      if(navigator.canShare({files:[f]}))navigator.share({files:[f],title:"Game Night at Dave's — The Verdict"}).catch(function(){});
+      else fallback();
+    });
+  } else fallback();
+}
+
+/* ============================== SHELL ============================== */
+var CRT={x:15,y:118,w:360,h:452}; // gameplay CRT screen rect
+var Shell={
+  state:"TITLE", mod:null, modState:null,
+  score:0, streak:0, bestStreak:0, beers:4,
+  round:0, totalRounds:8, order:[], results:[],
+  timeLeft:0, timeTotal:6, speed:1,
+  stateT:0, react:null, review:null, inter:null,
+  rng:mulberry32(1), paused:false,
+  bestScore:0, bestGrade:"",
+  streakMult:function(){ return this.streak>=4?4:this.streak>=3?3:this.streak>=2?2:1; },
+  init:function(){
+    var seed=qs("seed"); this.seedBase=(seed!==null&&seed!=="")?(parseInt(seed,10)||0):(Date.now()%100000);
+    try{ this.bestScore=parseInt(localStorage.getItem("gnd_best_score")||"0",10)||0;
+         this.bestGrade=localStorage.getItem("gnd_best_grade")||""; }catch(e){}
+  },
+  startRun:function(firstId){
+    this.rng=mulberry32(this.seedBase);
+    var ids=["sudz","scott","brent","brad"];
+    var cyc1=shuffle(ids.slice(),this.rng), cyc2=shuffle(ids.slice(),this.rng);
+    this.order=cyc1.concat(cyc2);
+    if(firstId){ var i=this.order.indexOf(firstId); if(i>0){ this.order.splice(i,1); this.order.unshift(firstId); } }
+    this.score=0; this.streak=0; this.bestStreak=0; this.beers=4;
+    this.round=0; this.results=[]; this.review=null;
+    this.nextIntro();
+  },
+  nextIntro:function(){
+    if(this.round>=this.totalRounds||this.beers<=0){ this.toReview(); return; }
+    var id=this.order[this.round];
+    this.mod=MODULES[id];
+    this.speed=1+0.15*Math.floor(this.round/4);
+    this.state="INTRO"; this.stateT=1.5;
+    Audio8.sig(id);
+  },
+  startPlay:function(){
+    var m=this.mod;
+    this.timeTotal=Math.max(4,6-0.5*Math.floor(this.round/4));
+    this.timeLeft=this.timeTotal;
+    this.modState=m.create(this);
+    this.state="PLAY";
+  },
+  endRound:function(win,opts){
+    opts=opts||{};
+    var m=this.mod, pts=0;
+    if(win){
+      this.streak++; if(this.streak>this.bestStreak)this.bestStreak=this.streak;
+      if(opts.comedy){ pts=0; }
+      else { pts=Math.round(1000*this.streakMult()+ (this.timeTotal>0? (this.timeLeft/this.timeTotal)*500:0)) + (opts.bonus||0); }
+    } else {
+      this.streak=0; this.beers--; pts=opts.bonus||0;
+    }
+    this.score+=pts;
+    this.results.push({id:m.id,win:win,comedy:!!opts.comedy,points:pts});
+    if(this.modState&&this.modState.onEnd)this.modState.onEnd();
+    var rc=opts.card||(win?{headline:"NICE!",sub:""}:{headline:"OUCH.",sub:""});
+    rc.win=win; rc.points=pts; rc.ill=!!opts.ill;
+    this.react=rc;
+    if(win)Audio8.jingleWin(); else if(opts.comedy)Audio8.jingleComedy(); else Audio8.jingleLose();
+    if(opts.shout)Audio8.shout();
+    this.state="REACT"; this.stateT=opts.cardT||1.5;
+    this.round++;
+  },
+  toReview:function(){
+    this.review=buildReview();
+    this.state="REVIEW"; this.stateT=0;
+    if(this.score>this.bestScore)this.bestScore=this.score;
+    var gi=GRADES.indexOf(this.review.grade), bi=GRADES.indexOf(this.bestGrade||"F-");
+    if(!this.bestGrade||gi<bi)this.bestGrade=this.review.grade;
+    try{ localStorage.setItem("gnd_best_score",""+this.bestScore);
+         localStorage.setItem("gnd_best_grade",this.bestGrade); }catch(e){}
+  },
+  onTap:function(x,y){
+    if(this.state==="TITLE"){ this.startRun(); }
+    else if(this.state==="REVIEW"){
+      if(y>=660&&y<=730){ if(x<195)this.startRun(); else shareReview(); }
+    }
+    else if(this.state==="PLAY"&&this.modState&&this.modState.onTap)this.modState.onTap(x,y);
+  },
+  onKey:function(code){
+    if(this.state==="TITLE"&&(code==="Space"||code==="Enter"))this.startRun();
+    else if(this.state==="REVIEW"&&(code==="Space"||code==="Enter"))this.startRun();
+    else if(this.state==="PLAY"&&this.modState&&this.modState.onKey)this.modState.onKey(code);
+  },
+  onVisibility:function(hidden){ this.paused=hidden; },
+  update:function(dt){
+    if(this.paused)return;
+    if(this.state==="INTRO"){ this.stateT-=dt; if(this.stateT<=0)this.startPlay(); }
+    else if(this.state==="PLAY"){
+      var st=this.modState;
+      st.update(dt,Input);
+      if(st.state==="playing"){
+        if(!(st.holdTimer&&st.holdTimer())){ this.timeLeft-=dt; }
+        if(this.timeLeft<=0){ this.timeLeft=0; if(st.onTimeout)st.onTimeout(); if(st.state==="playing")st.state="lost"; }
+      }
+      if(st.state!=="playing")this.endRound(st.state==="won",st.result||{});
+    }
+    else if(this.state==="REACT"){ this.stateT-=dt; if(this.stateT<=0)this.nextIntro(); }
+  },
+  speedScale:function(){ return 1; }, // module-internal speeds use Shell.speed; timer runs real-time
+  render:function(){
+    g.clearRect(0,0,W,H);
+    if(this.state==="REVIEW"){ drawReview(); return; }
+    if(this.state==="TITLE"){ drawTitle(); return; }
+    // PLAY / INTRO / REACT scene
+    drawRoom(3);
+    drawCRTFrame(CRT.x,CRT.y,CRT.w,CRT.h);
+    if(this.modState&&(this.state==="PLAY"||this.state==="REACT"))this.modState.render();
+    else { R(CRT.x,CRT.y,CRT.w,CRT.h,"#101018"); }
+    scanlines(CRT.x,CRT.y,CRT.w,CRT.h);
+    drawSteelBattalion(24,648);
+    drawCouch(668,this.state!=="INTRO",null);
+    drawHUD();
+    if(this.state==="PLAY"&&this.modState&&this.modState.renderOverlay)this.modState.renderOverlay();
+    if(this.state==="INTRO")drawIntroCard();
+    if(this.state==="REACT")drawReactCard();
+    if(this.inter){ // Brad extension interstitial, drawn over the CRT
+      R(CRT.x,CRT.y,CRT.w,CRT.h,"rgba(10,8,14,0.88)");
+      drawBadge(CRT.x+CRT.w/2,CRT.y+158,54,CREW.brad);
+      Tplain("\u201COkay, just two",CRT.x+CRT.w/2,CRT.y+300,25,"#6ec3ff","center");
+      Tplain("more times!\u201D",CRT.x+CRT.w/2,CRT.y+332,25,"#6ec3ff","center");
+    }
+  }
+};
+function drawTitle(){
+  drawRoom(5);
+  // framed poster/photo collage on the wall band between the shelves (photo 3)
+  var frames=[[108,66],[140,66],[172,66],[204,66],[108,96],[156,96],[204,96]];
+  var fc=["#a83a2a","#3a5f8a","#c2782a","#5a7a3a","#7a3a5a","#2e7fc2","#96422e"];
+  for(var i=0;i<frames.length;i++){ R(frames[i][0],frames[i][1],26,24,"#14100d"); R(frames[i][0]+2,frames[i][1]+2,22,20,fc[i]); R(frames[i][0]+5,frames[i][1]+5,7,9,"#e8dcc0"); R(frames[i][0]+14,frames[i][1]+12,7,6,"#e8dcc0"); }
+  drawSuperDadsLamp(238,58);
+  // dual screens: big flat TV left, CRT right (photo 2)
+  drawBigTV(28,150,168,116);
+  R(24,272,176,22,"#0d0906");
+  Tplain("GAME NIGHT AT DAVE'S",112,277,13,"#ffd98a","center");
+  drawCRTFrame(216,150,150,116);
+  R(216,150,150,116,"#14202c");
+  Tplain("GAME NIGHT",291,166,16,"#ffd98a","center");
+  Tplain("AT DAVE'S",291,188,16,"#ffd98a","center");
+  if(Math.floor(performance.now()/530)%2===0)
+    Tplain("▶ PRESS START",291,222,12,"#57e85e","center");
+  Tplain("Dave's reviewing tonight.",291,240,9,"#9fd8e8","center");
+  scanlines(216,150,150,116);
+  // Dave standing by the screens, grade book in hand
+  drawBackPerson(318,296,3.4,CREW.dave,{pose:"stand",book:true});
+  drawCouch(452,true,["happy","idle","happy","idle","happy"]);
+  drawSteelBattalion(30,618);
+  // ball-top arcade stick box on Brad's lap (photo 3)
+  R(292,600,44,26,"#14161a"); R(292,600,44,4,"#23262b");
+  R(310,578,5,24,"#14161a"); R(305,570,15,12,"#2e7fc2"); R(307,572,11,3,"#6ec3ff");
+  R(322,606,9,9,"#2e7fc2"); R(296,606,7,7,"#b03a3a");
+  Tplain("Based on Brad's email · For Dave's readers",195,690,12,"#e8dcc0","center");
+  if(Shell.bestGrade)Tplain("BEST: "+Shell.bestGrade+" · "+Shell.bestScore+" PTS",195,716,13,"#ffd98a","center");
+  Tplain("SUDZ · SCOTT · BRENT · BRAD",195,756,13,"#f7f2e2","center");
+  Tplain("8 ROUNDS · 4 BEERS · ONE VERDICT",195,778,12,"#c8a878","center");
+  Tplain("TAP TO START",195,812,12,"#8a6f4d","center");
+}
+
+/* ============================== MICROGAMES ============================== */
+var CC={g:g,x:CRT.x,y:CRT.y};
+var MODULES={};
+
+/* ---------- SUDZ — Finger Burn Decathlon (RUB) ---------- */
+MODULES.sudz={
+  id:"sudz", friend:"sudz", verb:"RUB THE D-PAD!",
+  quoteIntro:"What team am I, blue or phlegm?",
+  create:function(){
+    var st={ state:"playing", result:null, dist:0, rival:0, burn:0, vel:0, phase:0, t:0,
+      lastKey:"", kbImp:0, hint:1.8,
+      update:function(dt,input){
+        if(this.state!=="playing")return;
+        this.t+=dt; if(this.hint>0)this.hint-=dt;
+        var rate=0;
+        if(input.down&&input.moved>0)rate=clamp((input.moved/Math.max(dt,0.001))/900,0,1.25);
+        if(input.keyEdge.ArrowLeft||input.keyEdge.ArrowRight){
+          var k=input.keyEdge.ArrowLeft?"L":"R";
+          if(this.lastKey&&this.lastKey!==k)this.kbImp=1;
+          else if(this.lastKey===k)this.burn=clamp(this.burn+0.18,0,1);
+          this.lastKey=k;
+        }
+        this.kbImp=Math.max(0,this.kbImp-dt*2.0);
+        rate=Math.max(rate,this.kbImp*1.1);
+        this.vel=lerp(this.vel,rate,0.45);
+        this.dist+=dt*this.vel*0.30*Shell.speed;
+        this.phase+=dt*(2+this.vel*16);
+        this.rival+=dt*0.105*Shell.speed;
+        if(input.down&&input.path.length>4){
+          var now=performance.now(),pts=[],i,L=0,mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
+          for(i=0;i<input.path.length;i++)if(now-input.path[i].t<600)pts.push(input.path[i]);
+          if(pts.length>4){
+            for(i=0;i<pts.length;i++){ if(i>0)L+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
+              mnx=Math.min(mnx,pts[i].x); mxx=Math.max(mxx,pts[i].x); mny=Math.min(mny,pts[i].y); mxy=Math.max(mxy,pts[i].y); }
+            var diag=Math.hypot(mxx-mnx,mxy-mny);
+            if(L>110&&diag<36)this.burn=clamp(this.burn+dt*0.62,0,1);
+            else this.burn=clamp(this.burn-dt*0.30,0,1);
+          }
+        } else if(!input.down)this.burn=clamp(this.burn-dt*0.22,0,1);
+        if(this.burn>=1){ this.state="lost";
+          this.result={card:{headline:"Medical finger burn.",sub:"The D-pad claims another digit."}}; return; }
+        if(this.dist>=1){ this.state="won";
+          this.result={shout:true,card:{headline:"PHLEGM!",sub:"A distant shout echoes across the track."}}; return; }
+      },
+      onTimeout:function(){ this.state="lost";
+        this.result={card:{headline:"TOO SLOW.",sub:"The phlegm team takes the heat."}}; },
+      render:function(){
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#101038");
+        Tplain("INTELLIVISION DECATHLON",CRT.x+12,CRT.y+10,13,"#9fd8e8");
+        Tplain("100M RUB",CRT.x+CRT.w-12,CRT.y+10,13,"#ffd98a","right");
+        // progress bar
+        R(CRT.x+12,CRT.y+34,CRT.w-24,10,"#2a2a6a"); R(CRT.x+12,CRT.y+34,(CRT.w-24)*clamp(this.dist,0,1),10,"#2e7fc2");
+        // track
+        PX(CC,0,86,120,44,"#1d1d5e");
+        PX(CC,0,86,120,1,"#e8e4da"); PX(CC,0,107,120,1,"#e8e4da"); PX(CC,0,129,120,1,"#e8e4da");
+        for(var d=0;d<12;d++)PX(CC,4+d*10,96,5,1,"rgba(232,228,218,0.5)");
+        // finish post
+        PX(CC,107,84,2,46,"#e8e4da");
+        for(var f=0;f<4;f++)for(var f2=0;f2<4;f2++)PX(CC,109+f,84+f2,1,1,(f+f2)%2?"#111":"#f4f1e8");
+        this.runner(6+this.rival*100,92,"#7a9a4a");
+        this.runner(6+this.dist*100,112,"#2e7fc2");
+        Tplain("YOU",CRT.x+18+this.dist*(CRT.w-60),CRT.y+318,11,"#6ec3ff");
+        Tplain("PHLEGM",CRT.x+18+this.rival*(CRT.w-60),CRT.y+258,11,"#a8c47a");
+        // finger burn meter
+        R(CRT.x+CRT.w-40,CRT.y+64,24,120,"#2a2a6a");
+        var bh=116*this.burn;
+        R(CRT.x+CRT.w-38,CRT.y+66+116-bh,20,bh,this.burn>0.7?"#e84d26":"#e8a020");
+        Tplain("FINGER",CRT.x+CRT.w-28,CRT.y+192,10,"#ff9a8a","center");
+        Tplain("BURN",CRT.x+CRT.w-28,CRT.y+206,10,"#ff9a8a","center");
+        if(this.hint>0){ // rotating rub hint
+          var cx=CRT.x+52,cy=CRT.y+392,a0=this.t*4;
+          g.strokeStyle="#ffd98a"; g.lineWidth=5; g.beginPath();
+          g.arc(cx,cy,24,a0,a0+4.4); g.stroke();
+          g.fillStyle="#ffd98a"; g.beginPath();
+          var ax=cx+Math.cos(a0+4.4)*24,ay=cy+Math.sin(a0+4.4)*24;
+          g.moveTo(ax,ay); g.lineTo(ax-12,ay-2); g.lineTo(ax-2,ay+11); g.closePath(); g.fill();
+          Tplain("RUB IN BIG CIRCLES!",CRT.x+92,CRT.y+384,14,"#ffd98a");
+        }
+      },
+      runner:function(gx,gy,c){
+        var leg=Math.floor(this.phase)%2;
+        PX(CC,gx+1,gy,3,3,"#eec39c"); PX(CC,gx+1,gy-1,3,1,"#2b2b2b");
+        PX(CC,gx,gy+3,5,5,c);
+        if(leg){ PX(CC,gx-1,gy+8,3,2,c); PX(CC,gx+4,gy+8,3,2,c); PX(CC,gx-1,gy+10,3,2,"#eec39c"); PX(CC,gx+5,gy+10,2,2,"#eec39c"); }
+        else { PX(CC,gx,gy+8,2,4,c); PX(CC,gx+3,gy+8,2,4,c); PX(CC,gx,gy+12,2,2,"#eec39c"); PX(CC,gx+3,gy+12,2,2,"#eec39c"); }
+        PX(CC,gx-1,gy+4,1,3,"#eec39c"); PX(CC,gx+5,gy+4,1,3,"#eec39c");
+      }
+    };
+    return st;
+  }
+};
+
+/* ---------- SCOTT — Sip Your Beer Tennis (DON'T TOUCH) ---------- */
+var SIPZONE={x:308,y:664,w:72,h:92};
+MODULES.scott={
+  id:"scott", friend:"scott", verb:"DON'T TOUCH!",
+  quoteIntro:"Set down the controller and sip your beer.",
+  create:function(){
+    var st={ state:"playing", result:null, t:0, phase:"idle", phaseT:0.9, serves:0, points:0,
+      style:0, ballX:100, ballY:52, faultKind:"net", faultTxt:"", sipWin:false, sipGrace:0, sipScored:false, sipFx:0,
+      prompt:"", promptT:1.2, promptX:30, promptY:40, floaters:[],
+      doSip:function(){
+        if((this.sipWin||this.sipGrace>0)&&!this.sipScored){ this.style+=150; this.sipFx=0.9; this.sipGrace=0; this.sipScored=true;
+          this.floaters.push({txt:"SMOOTH +150",t:0.9,x:SIPZONE.x-30,y:SIPZONE.y-18});
+          Audio8.tone(660,0.08,"square",0.12); Audio8.tone(880,0.1,"square",0.12,0.06);
+        } else { this.sipFx=0.45; Audio8.tone(300,0.07,"sine",0.12); }
+      },
+      lunge:function(){
+        if(this.state!=="playing")return;
+        this.state="lost";
+        this.result={card:{headline:"YOU PLAYED.",sub:"The one thing you had to not do."}};
+      },
+      update:function(dt,input){
+        if(this.state!=="playing")return;
+        this.t+=dt;
+        if(input.sipEdge)this.doSip();
+        if(this.sipFx>0)this.sipFx-=dt;
+        for(var i=this.floaters.length-1;i>=0;i--){ this.floaters[i].t-=dt; this.floaters[i].y-=22*dt; if(this.floaters[i].t<=0)this.floaters.splice(i,1); }
+        var sp=Shell.speed;
+        this.phaseT-=dt*sp;
+        if(this.sipGrace>0)this.sipGrace-=dt;
+        if(this.phase==="idle"&&this.phaseT<=0){ this.phase="toss"; this.phaseT=0.45; this.sipWin=true; this.sipScored=false;
+          if(sp>=1.15)Audio8.tone(1180,0.07,"square",0.10); }
+        else if(this.phase==="toss"&&this.phaseT<=0){ this.phase="fly"; this.phaseT=0.5; this.sipWin=false; this.sipGrace=0.28;
+          this.faultKind=Shell.rng()<0.5?"net":"out"; if(sp>=1.15)Audio8.tone(1180,0.07,"square",0.10); }
+        else if(this.phase==="fly"&&this.phaseT<=0){ this.phase="fault"; this.phaseT=0.55; this.serves++;
+          this.faultTxt=(this.serves%2===1)?"FAULT!":"DOUBLE FAULT!";
+          if(this.serves%2===0)this.points=Math.min(3,this.points+1);
+          Audio8.tone(170,0.13,"sawtooth",0.10); }
+        else if(this.phase==="fault"&&this.phaseT<=0){ this.phase="idle"; this.phaseT=0.6; }
+        if(this.phase==="fly"){ var k=1-this.phaseT/0.5;
+          this.ballX=100-k*80;
+          this.ballY=this.faultKind==="net"?52+k*k*30:52-Math.sin(k*3.14)*12+k*46; }
+        this.promptT-=dt;
+        if(this.promptT<=0){ var pr=["PRESS A!","MOVE!","HIT IT!","SWING!","YOUR TURN!"];
+          this.prompt=pr[Math.floor(Shell.rng()*pr.length)];
+          this.promptX=16+Shell.rng()*64; this.promptY=24+Shell.rng()*76; this.promptT=1.5; }
+      },
+      onTap:function(x,y){
+        if(x>=SIPZONE.x&&x<=SIPZONE.x+SIPZONE.w&&y>=SIPZONE.y&&y<=SIPZONE.y+SIPZONE.h)this.doSip();
+        else this.lunge();
+      },
+      onKey:function(code){ if(code!=="KeyB")this.lunge(); },
+      onTimeout:function(){ this.state="won";
+        this.result={bonus:this.style,card:{headline:"I don't care if I live or die.",attrib:"— Scott",sub:"He never touched the controller. Flawless."}}; },
+      render:function(){
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#0d2812");
+        // scoreboard
+        R(CRT.x+10,CRT.y+8,CRT.w-20,30,"#06170a");
+        if(Shell.speed>=1.15)Tplain("Beep beep beep beep F!!!",CRT.x+CRT.w/2,CRT.y+15,15,"#57e85e","center");
+        else Tplain("YOU "+["0","15","30","40"][this.points]+"  ·  OPP 0  ·  OPP SERVING",CRT.x+CRT.w/2,CRT.y+15,14,"#57e85e","center");
+        // court
+        PX(CC,8,44,104,96,"#14532a"); PX(CC,8,44,104,2,"#e8e4da"); PX(CC,8,138,104,2,"#e8e4da");
+        PX(CC,8,44,2,96,"#e8e4da"); PX(CC,110,44,2,96,"#e8e4da");
+        PX(CC,59,44,2,96,"#9fb6cc"); PX(CC,59,60,2,60,"rgba(159,182,204,0.5)"); // net
+        // players: you (left, idle, controller DOWN), opponent (right)
+        PX(CC,14,84,4,4,"#e8b48c"); PX(CC,13,88,6,8,"#d9903a"); PX(CC,13,96,6,5,"#5a4632");
+        PX(CC,10,92,3,2,"#191919"); // controller resting in lap
+        var oy=this.phase==="toss"?80:84;
+        PX(CC,102,oy,4,4,"#d99e6a"); PX(CC,101,oy+4,6,8,"#8a8f96"); PX(CC,101,oy+12,6,5,"#333a44");
+        if(this.phase==="toss")PX(CC,104,oy-6,2,2,"#f7f2e2"); // tossed ball
+        if(this.phase==="fly"||this.phase==="fault")PX(CC,this.ballX,this.ballY,2,2,"#f7f2e2");
+        if(this.phase==="fault")Tplain(this.faultTxt,CRT.x+CRT.w/2,CRT.y+196,22,"#ffd98a","center");
+        if(this.promptT>0.95)Tplain(this.prompt,CRT.x+this.promptX*3,CRT.y+this.promptY*3,17,Math.floor(this.t*10)%2?"#e84d26":"#ffd98a");
+        Tplain("HANDS OFF. THE AI BEATS ITSELF.",CRT.x+CRT.w/2,CRT.y+CRT.h-26,12,"#9fd8e8","center");
+      },
+      renderOverlay:function(){
+        // the beer mug on the couch armrest — NOT the controller
+        var z=SIPZONE, pulse=this.sipWin?(Math.sin(this.t*14)>0?3:0):0;
+        R(z.x-4-pulse,z.y-4-pulse,z.w+8+pulse*2,z.h+8+pulse*2,this.sipWin?"#ffd98a":"#54432c");
+        R(z.x,z.y,z.w,z.h,"#3a2817");
+        R(z.x+14,z.y+16,40,54,"rgba(216,226,232,0.35)");
+        var lvl=this.sipFx>0?44:50;
+        R(z.x+17,z.y+70-lvl,34,lvl,"#e8a020"); R(z.x+17,z.y+70-lvl,34,5,"#f7f2e2");
+        R(z.x+52,z.y+28,12,28,"rgba(216,226,232,0.35)");
+        Tplain("SIP 🍺",z.x+z.w/2,z.y+z.h-18,13,"#ffd98a","center");
+        for(var i=0;i<this.floaters.length;i++)
+          Tplain(this.floaters[i].txt,this.floaters[i].x,this.floaters[i].y,14,"#7ddb8a");
+      }
+    };
+    return st;
+  }
+};
+
+/* ---------- BRENT — The 80-Yard Kick (AIM + RELEASE) ---------- */
+MODULES.brent={
+  id:"brent", friend:"brent", verb:"KICK IT!",
+  quoteIntro:"He's lining up from 80 yards…",
+  create:function(){
+    var st={ state:"playing", result:null, t:0, needle:0, brianX:60, kicked:false,
+      kickT:0, outcome:"", ballX:60, ballY:116, wind:0,
+      startInit:function(){ this.wind=Shell.speed>=1.15?(Shell.rng()<0.5?-0.28:0.28):0; },
+      kick:function(){
+        if(this.kicked||this.state!=="playing")return;
+        this.kicked=true; this.kickT=0;
+        var inLane=Math.abs(this.brianX-60)<9;
+        if(inLane)this.outcome="crotch";
+        else if(Math.abs(this.needle-this.wind)<0.20)this.outcome="good";
+        else this.outcome="miss";
+        Audio8.noise(0.15,0.25); Audio8.tone(140,0.12,"square",0.14,0,70);
+      },
+      update:function(dt,input){
+        if(this.state!=="playing")return;
+        this.t+=dt;
+        if(this.wind===0&&Shell.speed>=1.15&&!this._wset){ this._wset=true; this.wind=Shell.rng()<0.5?-0.28:0.28; }
+        this.needle=Math.sin(this.t*2.3*Shell.speed);
+        this.brianX=60+Math.sin(this.t*0.85*Shell.speed)*38;
+        if(this.kicked){
+          this.kickT+=dt;
+          var k=clamp(this.kickT/0.75,0,1);
+          if(this.outcome==="crotch"){ this.ballX=lerp(60,this.brianX,k); this.ballY=lerp(116,104,k); }
+          else if(this.outcome==="good"){ this.ballX=60; this.ballY=lerp(116,20,k); }
+          else { this.ballX=lerp(60,60+this.needle*46,k); this.ballY=lerp(116,26,k); }
+          if(this.kickT>=0.9){
+            if(this.outcome==="good"){ this.state="won";
+              this.result={card:{headline:"IT'S GOOD!",sub:"From 80 yards. Dave's TV survives."}}; }
+            else if(this.outcome==="crotch"){ this.state="won";
+              this.result={comedy:true,cardT:2.0,card:{headline:"Choir Boy Promotion",sub:"Brian takes one for the team. Won on comedy — no points."}}; }
+            else { this.state="lost";
+              this.result={card:{headline:"WIDE.",sub:"Somewhere, a neighbor's window trembles."}}; }
+          }
+        }
+      },
+      holdTimer:function(){ return this.kicked; },
+      onTap:function(){ this.kick(); },
+      onKey:function(code){ if(code==="Space"||code==="Enter")this.kick(); },
+      onTimeout:function(){ this.state="lost";
+        this.result={card:{headline:"NEVER KICKED.",sub:"Brent is still lining it up."}}; },
+      render:function(){
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#14532a");
+        Tplain("80-YARD ATTEMPT",CRT.x+12,CRT.y+10,14,"#f7f2e2");
+        if(this.wind!==0)Tplain(this.wind>0?"WIND →":"← WIND",CRT.x+CRT.w-12,CRT.y+10,13,"#ffd98a","right");
+        // goalpost
+        PX(CC,47,8,2,20,"#f7c948"); PX(CC,71,8,2,20,"#f7c948"); PX(CC,47,26,26,2,"#f7c948"); PX(CC,58,26,3,8,"#f7c948");
+        // yard lines
+        for(var l=0;l<6;l++)PX(CC,0,44+l*15,120,1,"rgba(232,228,218,0.35)");
+        // Brian wandering the kick lane
+        var bx=this.brianX, hit=this.kicked&&this.outcome==="crotch"&&this.kickT>0.7;
+        PX(CC,bx-2,94,5,5,"#eec39c"); PX(CC,bx-2,93,5,1,"#f4f1e8"); // head + bandage
+        if(hit){ PX(CC,bx-3,99,7,5,"#e8e4da"); PX(CC,bx-3,104,2,4,"#3c4654"); PX(CC,bx+2,104,2,4,"#3c4654");
+          for(var s=0;s<3;s++){ var a=this.t*5+s*2.1; PX(CC,bx+Math.cos(a)*6,90+Math.sin(a)*2,1,1,"#ffd98a"); } }
+        else { PX(CC,bx-3,99,7,6,"#e8e4da"); var lp=Math.floor(this.t*6)%2;
+          PX(CC,bx-3,105,2,5,"#3c4654"); PX(CC,bx+2,105,2,5,"#3c4654");
+          PX(CC,bx-3+(lp?1:0),110,2,1,"#222"); PX(CC,bx+2-(lp?1:0),110,2,1,"#222"); }
+        Tplain("BRIAN",CRT.x+bx*3,CRT.y+84*3,10,"#ffffff","center");
+        // kicker + ball
+        PX(CC,57,122,5,5,"#c98a5a"); PX(CC,56,127,7,7,"#3f9e4d");
+        PX(CC,56,134,2,5,"#e8e4da"); PX(CC,61,134,2,5,"#e8e4da");
+        if(!this.kicked||this.kickT<0.75)PX(CC,this.ballX-1,this.ballY,3,2,"#8a5a2a");
+        if(this.kicked&&this.outcome==="good"&&this.kickT>=0.75)Tplain("IT'S GOOD!",CRT.x+CRT.w/2,CRT.y+150,24,"#ffd98a","center");
+        if(this.kicked&&this.outcome==="crotch"&&this.kickT>=0.75)Tplain("🎶 OHHH!",CRT.x+CRT.w/2,CRT.y+150,22,"#ffd98a","center");
+        // meter
+        R(CRT.x+24,CRT.y+414,CRT.w-48,26,"#0d2812");
+        var zx=CRT.x+CRT.w/2+this.wind*(CRT.w/2-24);
+        R(zx-29,CRT.y+414,58,26,"rgba(87,184,94,0.55)");
+        R(CRT.x+CRT.w/2-1,CRT.y+414,2,26,"#e8e4da");
+        var nx=CRT.x+CRT.w/2+this.needle*(CRT.w/2-24);
+        R(nx-2,CRT.y+410,4,34,"#e84d26");
+        Tplain(this.kicked?"":"TAP TO KICK",CRT.x+CRT.w/2,CRT.y+CRT.h-24,13,"#ffd98a","center");
+      }
+    };
+    return st;
+  }
+};
+
+/* ---------- BRAD — Paddle Master (PADDLE) ---------- */
+MODULES.brad={
+  id:"brad", friend:"brad", verb:"BLAST THE DEMONS!",
+  quoteIntro:"OP Brad, reporting for duty.",
+  create:function(){
+    var st={ state:"playing", result:null, t:0, paddleX:60, shots:[], demons:[], diamonds:[],
+      fireT:0, dir:1, extensions:0, baseCleared:false, interT:0, killPts:0,
+      spawnWave:function(ext){
+        this.demons=[]; this.diamonds=[];
+        var rows=ext===0?[3,3]:[4,3], i, r, x;
+        for(r=0;r<rows.length;r++)for(i=0;i<rows[r];i++)
+          this.demons.push({x:22+i*16+(r%2)*7,y:26+r*13,alive:true,ph:i+r});
+        var nd=ext===0?3:2;
+        for(i=0;i<nd;i++)this.diamonds.push({x:30+i*26,y:56,alive:true});
+        this.dir=1;
+      },
+      demonsAlive:function(){ var n=0; for(var i=0;i<this.demons.length;i++)if(this.demons[i].alive)n++; return n; },
+      startExt:function(){
+        this.extensions++;
+        Shell.inter=true; this.interT=1.4;
+        Audio8.tone(784,0.1,"square",0.14); Audio8.tone(1047,0.14,"square",0.14,0.09);
+      },
+      winResult:function(){
+        return {bonus:this.killPts,card:{headline:"WAVE CLEARED!",sub:"Brad finally sets the paddle down."}};
+      },
+      update:function(dt,input){
+        if(this.state!=="playing")return;
+        this.t+=dt;
+        if(Shell.inter){ this.interT-=dt;
+          if(this.interT<=0){ Shell.inter=false; Shell.timeLeft=3.2; this.spawnWave(this.extensions); }
+          return; }
+        // paddle control
+        if(input.down||input.x>0)this.paddleX=clamp((input.x-CRT.x)/3,8,112);
+        if(input.keys.ArrowLeft)this.paddleX=clamp(this.paddleX-dt*65,8,112);
+        if(input.keys.ArrowRight)this.paddleX=clamp(this.paddleX+dt*65,8,112);
+        // fire
+        this.fireT-=dt;
+        if(this.fireT<=0){ this.fireT=0.34/Shell.speed; this.shots.push({x:this.paddleX,y:136}); Audio8.tone(920,0.05,"square",0.05); }
+        // demon drift + descent
+        var sp=Shell.speed*(1+this.extensions*0.35), i, d;
+        var minx=999,maxx=-999;
+        for(i=0;i<this.demons.length;i++){ d=this.demons[i]; if(!d.alive)continue;
+          minx=Math.min(minx,d.x); maxx=Math.max(maxx,d.x); }
+        if(maxx>=114)this.dir=-1; if(minx<=6)this.dir=1;
+        for(i=0;i<this.demons.length;i++){ d=this.demons[i]; if(!d.alive)continue;
+          d.x+=this.dir*dt*5.5*sp; d.y+=dt*1.7*sp;
+          if(d.y>132){
+            if(!this.baseCleared){ this.state="lost";
+              this.result={bonus:this.killPts,card:{headline:"OVERRUN!",sub:"The demons reach the paddle line."}}; return; }
+            d.alive=false; // escaped during a bonus wave — no harm
+          }
+        }
+        // shots
+        for(i=this.shots.length-1;i>=0;i--){ var s=this.shots[i]; s.y-=dt*135;
+          if(s.y<14){ this.shots.splice(i,1); continue; }
+          var hit=false;
+          for(var j=0;j<this.demons.length;j++){ d=this.demons[j]; if(!d.alive)continue;
+            if(Math.abs(s.x-d.x)<6&&Math.abs(s.y-d.y)<6){ d.alive=false; this.killPts+=100; hit=true;
+              Audio8.tone(240,0.08,"sawtooth",0.10,0,120); break; } }
+          if(!hit)for(var k=0;k<this.diamonds.length;k++){ var dm=this.diamonds[k]; if(!dm.alive)continue;
+            if(Math.abs(s.x-dm.x)<5&&Math.abs(s.y-dm.y)<5){ dm.alive=false; hit=true;
+              this.demons.push({x:dm.x,y:dm.y,alive:true,ph:9}); // a diamond becomes a demon!
+              Audio8.tone(520,0.09,"square",0.11,0,180); break; } }
+          if(hit)this.shots.splice(i,1);
+        }
+        if(this.demonsAlive()===0){
+          if(!this.baseCleared){ this.baseCleared=true;
+            if(this.extensions<2)this.startExt();
+            else { this.state="won"; this.result=this.winResult(); } }
+          else if(this.extensions<2)this.startExt();
+          else { this.state="won"; this.result=this.winResult(); }
+        }
+      },
+      holdTimer:function(){ return !!Shell.inter; },
+      onTimeout:function(){
+        if(this.baseCleared){ this.state="won"; this.result=this.winResult(); }
+        else { this.state="lost";
+          this.result={bonus:this.killPts,card:{headline:"THE DEMONS REMAIN.",sub:"Brad reaches for the paddle again anyway."}}; }
+      },
+      render:function(){
+        R(CRT.x,CRT.y,CRT.w,CRT.h,"#0a0a12");
+        Tplain("DEMONS TO DIAMONDS",CRT.x+12,CRT.y+10,13,"#e8e4da");
+        Tplain("DEMONS "+this.demonsAlive(),CRT.x+CRT.w-12,CRT.y+10,13,"#ff7a6b","right");
+        if(this.extensions>0)Tplain("MORE ×"+this.extensions,CRT.x+12,CRT.y+30,11,"#6ec3ff");
+        var i,d;
+        for(i=0;i<this.diamonds.length;i++){ d=this.diamonds[i]; if(!d.alive)continue;
+          PX(CC,d.x-2,d.y-3,5,3,"#bfe8f7"); PX(CC,d.x-1,d.y,3,3,"#e8f7ff"); PX(CC,d.x,d.y+3,1,2,"#bfe8f7"); }
+        for(i=0;i<this.demons.length;i++){ d=this.demons[i]; if(!d.alive)continue;
+          var bob=Math.sin(this.t*6+d.ph)>0?0:1;
+          PX(CC,d.x-4,d.y-4+bob,2,2,"#e84d26"); PX(CC,d.x+3,d.y-4+bob,2,2,"#e84d26"); // horns
+          PX(CC,d.x-4,d.y-3+bob,9,7,"#c0392b");
+          PX(CC,d.x-2,d.y-1+bob,2,2,"#f7f2e2"); PX(CC,d.x+2,d.y-1+bob,2,2,"#f7f2e2");
+          PX(CC,d.x-1,d.y-1+bob,1,1,"#111"); PX(CC,d.x+3,d.y-1+bob,1,1,"#111");
+          PX(CC,d.x-2,d.y+3+bob,5,1,"#7a1f14");
+          PX(CC,d.x-3,d.y+4+bob,2,2,"#c0392b"); PX(CC,d.x+3,d.y+4+bob,2,2,"#c0392b"); }
+        for(i=0;i<this.shots.length;i++)PX(CC,this.shots[i].x,this.shots[i].y,1,3,"#f7f2e2");
+        // paddle
+        PX(CC,this.paddleX-7,140,14,3,"#d9a05a"); PX(CC,this.paddleX-7,140,14,1,"#f7d9a0");
+        PX(CC,this.paddleX-1,137,2,3,"#8a5a2a");
+        PX(CC,0,144,120,1,"#3a3a4a");
+        Tplain("DON'T SHOOT THE DIAMONDS",CRT.x+CRT.w/2,CRT.y+CRT.h-24,11,"#9fd8e8","center");
+      }
+    };
+    st.spawnWave(0);
+    return st;
+  }
+};
+
+/* ============================== BOOT / LOOP ============================== */
+Shell.init();
+var lastT=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  var dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
+  Shell.update(dt);
+  Shell.render();
+  Input.resetFrame();
+}
+requestAnimationFrame(frame);
+window.__ready=true;
+window.__dbg={
+  get state(){return Shell.state;},
+  get round(){return Shell.round;},
+  get timer(){return Shell.timeLeft;},
+  get timeTotal(){return Shell.timeTotal;},
+  get score(){return Shell.score;},
+  get beers(){return Shell.beers;},
+  get streak(){return Shell.streak;},
+  get speed(){return Shell.speed;},
+  get game(){return Shell.mod?Shell.mod.id:null;},
+  get results(){return Shell.results;},
+  get review(){return Shell.review;},
+  get inter(){return !!Shell.inter;},
+  get gameState(){ var s=Shell.modState; if(!s)return null; var o={};
+    ["dist","burn","points","style","serves","needle","brianX","kicked","outcome","extensions","baseCleared","paddleX","phase","sipWin","killPts"].forEach(function(k){
+      if(s[k]!==undefined)o[k]=s[k]; });
+    if(s.demonsAlive)o.demonsAlive=s.demonsAlive();
+    if(s.demons)o.demons=s.demons.filter(function(d){return d.alive;}).map(function(d){return {x:Math.round(d.x),y:Math.round(d.y)};});
+    return o; },
+  startRun:function(){ Shell.startRun(); },
+  startGame:function(id){ Shell.startRun(id); },
+  tap:function(x,y){ Audio8.init(); Audio8.resume(); Input.x=x; Input.y=y; Input.down=true; Input.tapEdge=true; Shell.onTap(x,y); },
+  pointer:function(x,y,down){ Input.x=x; Input.y=y; Input.down=down;
+    if(down)Input.path=[{x:x,y:y,t:performance.now()}]; else Input.path.length=0; },
+  moveTo:function(x,y){ if(Input.down){ Input.moved+=Math.hypot(x-Input.x,y-Input.y);
+      Input.path.push({x:x,y:y,t:performance.now()}); if(Input.path.length>90)Input.path.shift(); }
+    Input.x=x; Input.y=y; },
+  key:function(code,down){ if(down){ if(!Input.keys[code])Input.keyEdge[code]=true;
+      Input.keys[code]=true; if(code==="KeyB")Input.sipEdge=true; Shell.onKey(code); }
+    else Input.keys[code]=false; }
+};
+</script>
+</body>
+</html>
