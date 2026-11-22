@@ -115,7 +115,7 @@
 
 <div class="section-head">
   <h2>🎧 MORE STYLES — ONE LINE EACH</h2>
-  <p>Five more famous game voices, each tried on a single line — mostly Dave's
+  <p>Six more famous game voices, each tried on a single line — mostly Dave's
      Berzerk line: &ldquo;Chicken, fight like a robot!&rdquo;</p>
 </div>
 
@@ -375,9 +375,9 @@ global.MimicPhonemes = PH;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
 <script>/* ============================================================================
-   BAKE-OFF EXTRAS — five more famous game-voice styles, each an original
+   BAKE-OFF EXTRAS — six more famous game-voice styles, each an original
    mini-synth written from scratch for this page. No external assets, no
-   SAM code (the two styles that transform a spoken line take their source
+   SAM code (the styles that transform a spoken line take their source
    buffer from the page's own MIMIC / SAM renders at call time).
    All renderers return Float32Array at 22050 Hz, peak-normalized ~0.72.
      ExtrasAnimalese(text, {pitch})      Animal Crossing letter chatter
@@ -385,6 +385,9 @@ global.MimicPhonemes = PH;
      ExtrasQbert()                       Q*bert random gibberish burst
      ExtrasCrush(buf)                    Gauntlet/Blades of Steel 4-bit crush
      ExtrasMidna(buf, text)              Twilight Princess scrambled voice
+     ExtrasGauntlet(buf)                 Gauntlet (1985) dungeon narrator:
+                                         deep MIMIC render, gentle lo-fi
+                                         digitize, low boom, cavern reverb
    ============================================================================ */
 (function (global) {
 'use strict';
@@ -663,11 +666,92 @@ function ExtrasMidna(buf, text) {
   return normalize(out);
 }
 
+/* ----------------------------------------------------------------------------
+   6. GAUNTLET NARRATOR — Gauntlet (1985). The dungeon-master announcer:
+   a deep, booming, slow voice heard as a lo-fi digitized speech sample
+   (TMS5220) with a cavernous hall echo. The page renders the source with
+   MIMIC at its deepest narrator setting (pitch 55, formant scale 0.82,
+   rate 1.5 — measured F0 ~57–59 Hz, low-band energy 0.46–0.65; SAM at
+   narrator depths measures far less low-band energy and loses periodic
+   structure, so MIMIC is the base). This processor then:
+     a) gently digitizes — sample-hold at 11025 Hz + 24-level quantize.
+        Audible chip stepping, but far gentler than the 8-BIT SHOUT's
+        hot 4-bit clip, so every word stays intelligible.
+     b) adds boom — the dry signal plus a 240 Hz lowpass copy of itself.
+     c) adds the cavern — a Schroeder reverb (4 lowpass-damped feedback
+        combs with lengthened delays for a big hall, 2 series allpasses),
+        wet ~0.38, over a buffer extended 1.4 s so the tail rings out.
+     d) soft-clips, fades the very end, normalizes to 0.8 peak.
+   ------------------------------------------------------------------------- */
+function ExtrasGauntlet(buf) {
+  var i, n;
+
+  /* a) gentle lo-fi digitize */
+  var HOLD = 2, LEVELS = 24;
+  var dig = new Float32Array(buf.length);
+  var held = 0;
+  for (i = 0; i < buf.length; i++) {
+    if (i % HOLD === 0) held = buf[i];
+    dig[i] = Math.round(held * LEVELS) / LEVELS;
+  }
+
+  /* b) low-shelf boom */
+  var lpA = lowpassCoef(240), lp = 0;
+  var boom = new Float32Array(dig.length);
+  for (i = 0; i < dig.length; i++) {
+    lp += lpA * (dig[i] - lp);
+    boom[i] = dig[i] + 0.9 * lp;
+  }
+
+  /* c) cavern reverb over the tail-extended buffer */
+  var TAIL = Math.floor(1.4 * SR);
+  var len = boom.length + TAIL;
+  var combDelays = [1117, 1187, 1277, 1355];   /* ~51–61 ms: big hall */
+  var combs = combDelays.map(function (d) {
+    return { buf: new Float32Array(d), idx: 0, store: 0 };
+  });
+  var FB = 0.80, DAMP = 0.28;
+  var apDelays = [389, 308];
+  var aps = apDelays.map(function (d) {
+    return { buf: new Float32Array(d), idx: 0 };
+  });
+  var out = new Float32Array(len);
+  for (n = 0; n < len; n++) {
+    var dry = n < boom.length ? boom[n] : 0;
+    var wet = 0;
+    for (i = 0; i < combs.length; i++) {
+      var c = combs[i];
+      var co = c.buf[c.idx];
+      c.store = co * (1 - DAMP) + c.store * DAMP;
+      c.buf[c.idx] = dry + c.store * FB;
+      if (++c.idx >= c.buf.length) c.idx = 0;
+      wet += co;
+    }
+    wet *= 0.25;
+    for (i = 0; i < aps.length; i++) {
+      var a = aps[i];
+      var ao = a.buf[a.idx];
+      var ai = wet;
+      wet = -ai + ao;
+      a.buf[a.idx] = ai + ao * 0.5;
+      if (++a.idx >= a.buf.length) a.idx = 0;
+    }
+    out[n] = dry + wet * 0.38;
+  }
+
+  /* d) soft-clip, fade the last 80 ms, normalize */
+  for (n = 0; n < len; n++) out[n] = Math.tanh(out[n] * 1.1);
+  var FADE = Math.floor(0.08 * SR);
+  for (n = 0; n < FADE; n++) out[len - 1 - n] *= n / FADE;
+  return normalize(out, 0.8);
+}
+
 global.ExtrasAnimalese = ExtrasAnimalese;
 global.ExtrasBanjo = ExtrasBanjo;
 global.ExtrasQbert = ExtrasQbert;
 global.ExtrasCrush = ExtrasCrush;
 global.ExtrasMidna = ExtrasMidna;
+global.ExtrasGauntlet = ExtrasGauntlet;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
 <script>/* Bake-off line set — text taken verbatim from the game's LINES table and
@@ -832,7 +916,7 @@ var MIMIC_VOICES = {
     playAll('mimic', document.getElementById('allMimic'));
   });
 
-  /* ---- MORE STYLES section: five famous voices, one line each. ---- */
+  /* ---- MORE STYLES section: six famous voices, one line each. ---- */
   var DAVE_LINE = BAKE_LINES[0], SUDZ_LINE = BAKE_LINES[2];
   var xcache = {};
   function xCached(key, fn) { if (!xcache[key]) xcache[key] = fn(); return xcache[key]; }
@@ -864,6 +948,12 @@ var MIMIC_VOICES = {
       lines: [DAVE_LINE.text],
       buttons: [
         { label: '\u25B6 DAVE \u2014 SCRAMBLED', fn: function () { return xCached('midna', function () { return ExtrasMidna(renderSam(0), DAVE_LINE.text); }); } }
+      ] },
+    { style: 'GAUNTLET NARRATOR', game: 'Gauntlet (1985)', who: 'THE NARRATOR',
+      lines: ['Warrior needs food, badly!', DAVE_LINE.text],
+      buttons: [
+        { label: '\u25B6 WARRIOR NEEDS FOOD', fn: function () { return xCached('gauntletWarrior', function () { return ExtrasGauntlet(MimicRender('W AO R IY ER | N IY D Z || F UW D || B AE D L IY', { pitch: 55, fscale: 0.82, rate: 1.5, question: false })); }); } },
+        { label: '\u25B6 DAVE \u2014 AS THE NARRATOR', fn: function () { return xCached('gauntletDave', function () { return ExtrasGauntlet(MimicRender(DAVE_LINE.ph, { pitch: 55, fscale: 0.82, rate: 1.5, question: false })); }); } }
       ] }
   ];
 
@@ -915,7 +1005,9 @@ var MIMIC_VOICES = {
       banjoSudz: function () { return EXTRA_DEFS[1].buttons[1].fn(); },
       qbert: function () { return EXTRA_DEFS[2].buttons[0].fn(); },
       shout: function () { return EXTRA_DEFS[3].buttons[0].fn(); },
-      midna: function () { return EXTRA_DEFS[4].buttons[0].fn(); }
+      midna: function () { return EXTRA_DEFS[4].buttons[0].fn(); },
+      gauntletWarrior: function () { return EXTRA_DEFS[5].buttons[0].fn(); },
+      gauntletDave: function () { return EXTRA_DEFS[5].buttons[1].fn(); }
     }
   };
 })();
