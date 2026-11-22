@@ -1,6 +1,6 @@
 // Dead Hall headless combat playtest harness: node tools/combat-harness.mjs
 // Plays encounters with scripted inputs at 60 Hz and prints PASS/FAIL per required path + timing tables.
-import { ROOMS, TUNING, planRun } from '../src/combat/rooms.js';
+import { ROOMS, TUNING, planRun, CORRIDOR_BEATS } from '../src/combat/rooms.js';
 import { createEncounter, createRun } from '../src/combat/encounter.js';
 const DT = 1 / 60; let fails = 0;
 const check = (name, ok, detail) => { if(!ok) fails++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`); };
@@ -30,39 +30,44 @@ for(let i = 0; i < 12; i++){ if(ROOMS[i].kind !== 'live') continue; const enc = 
   console.log(`     room ${String(i+1).padStart(2)}  window ${TUNING[i].window.toFixed(2)} s  bite/s ${TUNING[i].biteRate.toFixed(3)}  -> ${enc.result} (final bite ${enc.bite.toFixed(2)})`);
   check(`   room ${i+1} miss still winnable`, enc.result === 'win'); }
 
-const di = ROOMS.map((r, i) => r.kind === 'decoy' ? i : -1).filter(i => i >= 0);
-console.log(`== 3. decoy right path (rooms ${di.map(i=>i+1).join(', ')}: withhold) ==`);
-for(const i of di){ const enc = createEncounter(i); const ev = play(enc, () => null);
-  const d = ev.find(e => e.type === 'dispatch');
-  console.log(`   room ${i+1}: burst ${T(ev,'burst')} s, tells ${T(ev,'tells')} s, decision point ${T(ev,'decisionPoint')} s, flee ${T(ev,'flee')} s, card "${d && d.text}"`);
-  check(`room ${i+1} withhold -> flees, dispatch card fires`, enc.result === 'spared' && T(ev,'tells') < T(ev,'decisionPoint') && /civ, hold fire/.test(d && d.text)); }
+// The two decoys in run order: corridor beat C1 (after room 3) first, then the room-8 doorway decoy.
+const decoys = [
+  ...CORRIDOR_BEATS.map(b => ({ label: `corridor ${b.id} (after room ${b.after})`, make: ctx => createEncounter(b.after - 1, b.tune, ctx, 'decoy', b.id) })),
+  ...ROOMS.map((r, i) => r.kind === 'decoy' ? { label: `room ${i+1}`, make: ctx => createEncounter(i, TUNING[i], ctx) } : null).filter(Boolean),
+];
+console.log(`== 3. decoy right path (${decoys.map(d=>d.label).join(', ')}: withhold) ==`);
+for(const d of decoys){ const enc = d.make({ lightLoose: false, shrink: 0 }); const ev = play(enc, () => null);
+  const card = ev.find(e => e.type === 'dispatch');
+  console.log(`   ${d.label}: burst ${T(ev,'burst')} s, tells ${T(ev,'tells')} s, decision point ${T(ev,'decisionPoint')} s, flee ${T(ev,'flee')} s, card "${card && card.text}"`);
+  check(`${d.label} withhold -> flees, dispatch card fires`, enc.result === 'spared' && T(ev,'tells') < T(ev,'decisionPoint') && /civ, hold fire/.test(card && card.text)); }
 
 console.log('== 4. decoy wrong path (stab at the decision point) ==');
 { const ctx = { lightLoose: false, shrink: 0 };
-  for(const [k, i] of di.entries()){ const enc = createEncounter(i, TUNING[i], ctx); const ev = play(enc, (t, e) => e.state === 'decoy' && e.stateT >= 0.45 ? 'stab' : null);
+  for(const [k, d] of decoys.entries()){ const enc = d.make(ctx); const ev = play(enc, (t, e) => e.state === 'decoy' && e.stateT >= 0.45 ? 'stab' : null);
     const c = ev.find(e => e.type === 'consequence');
-    console.log(`   wrong stab #${k+1} (room ${i+1}): consequence ${c && c.what}, result ${enc.result}, ctx ${JSON.stringify(ctx)}`);
-    check(`room ${i+1} wrong stab -> consequence, no SIGNAL LOST`, enc.result === 'wrongStab' && !!c && !T(ev, 'signalLost')); }
+    console.log(`   wrong stab #${k+1} (${d.label}): consequence ${c && c.what}, result ${enc.result}, ctx ${JSON.stringify(ctx)}`);
+    check(`${d.label} wrong stab -> consequence, no SIGNAL LOST`, enc.result === 'wrongStab' && !!c && !T(ev, 'signalLost')); }
   const nxt = createEncounter(8, TUNING[8], ctx);
   console.log(`   next live encounter (room 9) counter window: ${nxt.window.toFixed(2)} s (tuned ${TUNING[8].window.toFixed(2)} s)`);
   check('window-shrink consequence lands on the next live encounter', nxt.window < TUNING[8].window); }
 
-console.log('== 5. full scripted 12-room clear (seed 0, then seeds 1-5) ==');
+console.log('== 5. full scripted clear: 12 rooms + corridor beat C1 (seed 0, then seeds 1-5) ==');
 for(const seed of [0, 1, 2, 3, 4, 5]){
   const run = createRun(seed), ev = []; run.on(e => ev.push(e)); const p = human(); let t = 0;
   while(!run.cleared && t < 400){ const e = run.enc; const a = e.kind === 'decoy' ? null : p(t, e); if(a) run.input(a); run.step(DT); t += DT; }
-  const plan = run.plan.map(r => r.kind[0].toUpperCase() + (r.swapped ? '*' : '')).join(' ');
-  console.log(`   seed ${seed}: plan [${plan}]  results ${run.results.join(',')}  restarts ${run.restarts}  time ${t.toFixed(1)} s  dispatch cards ${ev.filter(e=>e.type==='dispatch').length}`);
-  check(`seed ${seed} clears all 12 rooms with no restart`, run.cleared && run.results.length === 12 && run.restarts === 0 && run.results[11] === 'empty'); }
+  const planArr = run.plan.map(r => r.kind[0].toUpperCase() + (r.swapped ? '*' : '')); planArr.splice(3, 0, 'C1');
+  console.log(`   seed ${seed}: plan [${planArr.join(' ')}]  results ${run.results.join(',')}  restarts ${run.restarts}  time ${t.toFixed(1)} s  dispatch cards ${ev.filter(e=>e.type==='dispatch').length}`);
+  check(`seed ${seed} clears all 12 rooms + corridor beat with no restart`, run.cleared && run.results.length === 13 && run.restarts === 0 && run.results[3] === 'spared' && run.results[12] === 'empty'); }
 
 console.log('== 6. SIGNAL LOST path (never stab) ==');
 { const run = createRun(0), ev = []; run.on(e => ev.push(e)); let t = 0;
   while(!ev.some(e => e.type === 'feedCut') && t < 200){ run.step(DT); t += DT; }
   const sl = ev.find(e => e.type === 'signalLost');
   console.log(`   SIGNAL LOST in room ${sl && sl.room} at ${sl && sl.t} s into the room; after restart: room ${run.room + 1}, ctx ${JSON.stringify(run.ctx)}, results ${JSON.stringify(run.results)}, restarts ${run.restarts}, enc state ${run.enc.state}`);
-  check('bite fills -> feed cuts -> restart state clean', !!sl && run.room === 0 && run.restarts === 1 && !run.ctx.lightLoose && run.ctx.shrink === 0 && run.results.length === 0 && run.enc.state === 'idle'); }
+  check('bite fills -> feed cuts -> restart state clean', !!sl && run.room === 0 && run.restarts === 1 && !run.ctx.lightLoose && run.ctx.shrink === 0 && run.results.length === 0 && run.enc.state === 'idle' && !run.inBeat); }
 
 console.log('== timing table (per room, from the module) ==');
 for(let i = 0; i < 12; i++){ const r = ROOMS[i], tu = TUNING[i];
-  console.log(`   room ${String(i+1).padStart(2)} ${r.kind.padEnd(5)} ${r.id.padEnd(13)} ` + (r.kind === 'live' ? `spike ${(tu.dreadAt-1).toFixed(1)} s, dread ${tu.dreadAt.toFixed(1)} s, counter window ${tu.window.toFixed(2)} s, bite ${tu.biteRate.toFixed(3)}/s (x1.35 after a miss), strikes ${tu.strikes} (cap 25)` : r.kind === 'empty' ? `walk ${tu.walk} s, no monster` : r.kind === 'decoy' ? 'tells +0.15 s, decision +0.45 s, withhold 2.0 s' : `spike ${(tu.dreadAt-1).toFixed(1)} s, vanish ${(tu.dreadAt+tu.dread).toFixed(1)} s`)); }
+  console.log(`   room ${String(i+1).padStart(2)} ${r.kind.padEnd(5)} ${r.id.padEnd(13)} ` + (r.kind === 'live' ? `spike ${(tu.dreadAt-1).toFixed(1)} s, dread ${tu.dreadAt.toFixed(1)} s, counter window ${tu.window.toFixed(2)} s, bite ${tu.biteRate.toFixed(3)}/s (x1.35 after a miss), strikes ${tu.strikes} (cap 25)` : r.kind === 'empty' ? `walk ${tu.walk} s, no monster` : r.kind === 'decoy' ? 'tells +0.15 s, decision +0.45 s, withhold 2.0 s' : `spike ${(tu.dreadAt-1).toFixed(1)} s, vanish ${(tu.dreadAt+tu.dread).toFixed(1)} s`));
+  if(i === 2) for(const b of CORRIDOR_BEATS) console.log(`   beat ${b.id.padEnd(5)} ${'decoy'.padEnd(5)} ${'corridor'.padEnd(13)} fires in the walk after room ${b.after}: burst ${b.tune.dreadAt.toFixed(1)} s in, tells +0.15 s, decision +0.45 s, withhold 2.0 s`); }
 console.log(fails ? `\n${fails} FAILED` : '\nALL PATHS PASS'); process.exit(fails ? 1 : 0);

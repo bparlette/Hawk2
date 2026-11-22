@@ -4,14 +4,16 @@
 //   decoy: idle -> decoy -> resolve                        (result 'spared' | 'wrongStab'; never death)
 //   fake : idle -> dread -> resolve                        (result 'fake': the figure vanishes)
 //   empty: idle -> resolve                                 (result 'empty': the long walk)
-import { ROOMS, TUNING, COMBAT as C, planRun } from './rooms.js';
+import { ROOMS, TUNING, COMBAT as C, planRun, CORRIDOR_BEATS } from './rooms.js';
 
-export function createEncounter(index, tune = TUNING[index], ctx = { lightLoose: false, shrink: 0 }, kind = ROOMS[index].kind){
+// `label` is optional: corridor beats pass their own id (e.g. 'C1') so their events carry room: 'C1'
+// instead of a room number. Rooms leave it null and get room: index + 1 as before.
+export function createEncounter(index, tune = TUNING[index], ctx = { lightLoose: false, shrink: 0 }, kind = ROOMS[index].kind, label = null){
   const subs = []; let t = 0;
   const e = { index, kind, state: 'idle', stateT: 0, done: false, result: null, bite: 0, hard: false,
     points: 0, taps: 0, tapCap: C.tapCap, pulseUsed: -1, window: Math.max(C.minWindow, tune.window - (kind === 'live' ? ctx.shrink : 0)),
     on: f => subs.push(f) };
-  const emit = (type, x = {}) => { const ev = { type, t: +t.toFixed(3), room: index + 1, ...x }; subs.forEach(f => f(ev)); };
+  const emit = (type, x = {}) => { const ev = { type, t: +t.toFixed(3), room: label ?? index + 1, ...x }; subs.forEach(f => f(ev)); };
   const go = to => { emit('state', { from: e.state, to }); e.state = to; e.stateT = 0; };
   const resolve = result => { e.result = result; go('resolve'); e.done = true; if(result !== 'lost') emit('walkResume'); };
   let spiked = false, tellsShown = false, decided = false;
@@ -55,20 +57,28 @@ export function createEncounter(index, tune = TUNING[index], ctx = { lightLoose:
   return e;
 }
 
-// A whole run: rooms in order with dispatch cards between them; SIGNAL LOST restarts from room 1 with clean state.
+// A whole run: rooms in order with dispatch cards between them; corridor beats (rooms.js CORRIDOR_BEATS)
+// fire in the walk after their `after` room completes. SIGNAL LOST restarts from room 1 with clean state.
 export function createRun(seed = 0){
-  const run = { seed, plan: planRun(seed), ctx: { lightLoose: false, shrink: 0 }, room: 0, enc: null, results: [], restarts: 0, cleared: false, subs: [] };
+  const run = { seed, plan: planRun(seed), ctx: { lightLoose: false, shrink: 0 }, room: 0, enc: null, results: [], restarts: 0, cleared: false, subs: [], inBeat: null };
+  const beats = CORRIDOR_BEATS.map(b => ({ ...b, fired: false }));
   const emit = ev => run.subs.forEach(f => f(ev));
   run.on = f => run.subs.push(f);
   const start = () => { const r = run.plan[run.room]; run.enc = createEncounter(run.room, TUNING[run.room], run.ctx, r.kind); run.enc.on(emit);
     emit({ type: 'dispatch', room: run.room + 1, text: `2210, room ${run.room + 1}.` + (run.ctx.lightLoose ? ' Your light is loose.' : '') }); };
-  run.restart = () => { run.restarts++; run.room = 0; run.ctx = { lightLoose: false, shrink: 0 }; run.results = []; start(); };
+  const startBeat = b => { b.fired = true; run.inBeat = b.id; run.enc = createEncounter(run.room, b.tune, run.ctx, b.kind, b.id); run.enc.on(emit);
+    emit({ type: 'dispatch', room: b.id, text: `2210, corridor.` + (run.ctx.lightLoose ? ' Your light is loose.' : '') }); };
+  run.restart = () => { run.restarts++; run.room = 0; run.ctx = { lightLoose: false, shrink: 0 }; run.results = []; run.inBeat = null; beats.forEach(b => b.fired = false); start(); };
   run.input = a => run.enc && run.enc.input(a);
   run.step = dt => {
     if(run.cleared) return; run.enc.step(dt);
     if(run.enc.done){ run.results.push(run.enc.result);
       if(run.enc.result === 'lost'){ emit({ type: 'feedCut' }); run.restart(); return; }
+      if(run.inBeat){ run.inBeat = null; start(); return; }
+      const doneN = run.room + 1;
       if(++run.room >= run.plan.length){ run.cleared = true; emit({ type: 'cleared' }); return; }
+      const b = beats.find(b => !b.fired && b.after === doneN);
+      if(b){ startBeat(b); return; }
       start(); } };
   start(); return run;
 }

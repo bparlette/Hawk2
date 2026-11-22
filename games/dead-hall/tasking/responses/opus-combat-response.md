@@ -149,3 +149,118 @@ PASS  bite fills -> feed cuts -> restart state clean
 
 ALL PATHS PASS
 ```
+
+---
+
+## Addendum — Nov 21, 2026: Room 4 crawler restored, second decoy moved to a corridor beat
+
+Supersedes the "Decoy rooms are 4 and 8" decision above.
+
+**The ruling (Cherie, Nov 21, ~19:45):** room 4 as a decoy removed the [REC]-style all-fours crawler from the game. The crawler comes back as a live attack; the second decoy moves out of the room table into a corridor beat.
+
+**What changed in the table (`rooms.js`):**
+- Room 4 `nightvision`: kind `decoy` -> `live`. Its note is now the crawler staging: night-vision green, a figure crawls at the camera on all fours.
+- There are now **eight** live rooms, so the escalation arrays were extended on the same established step (−0.05 s window, +0.010 bite per live room): counter windows now run 1.15 -> 0.80 s (was 1.15 -> 0.85 across seven live rooms), bite 0.060 -> 0.130/s (was 0.060 -> 0.120/s). Room 4 slots in as live #2 at 1.10 s / 0.070 per s; rooms 5–11 each sit one step later than before (room 11: 0.80 s / 0.130 per s). Required strikes stay constant at 14 — still no tap-count escalation.
+
+**The corridor beat (`rooms.js` `CORRIDOR_BEATS` + `encounter.js` `createRun`):**
+- New export `CORRIDOR_BEATS` with one entry: id `C1`, kind `decoy`, `after: 3`. The figure is a panicked building worker bursting out of a side door mid-walk.
+- **Placement — after room 3, and why:** room 3 is the first real attack. The beat fires while the player is still stab-happy from their first fight (the design's false-security rule: a fake-out right after a tense encounter), it teaches the hold-fire rule early, before room 8 tests it again, and it puts room 4's restored crawler immediately after a false alarm, so the player can't relax. It also spaces the two decoys across the run instead of clustering them.
+- **How it's modelled (smallest honest version, no redesign):** beats are not rooms and are never in `planRun`'s plan, so the seeded live/fake swaps can't touch them — the same protection the room-8 decoy, room 7 and room 12 already have. `createRun` fires a beat in its step-advance right after the `after` room completes, and a beat result (`spared`/`wrongStab`) is pushed into `run.results` like a room result, so a full clear now has **13 results**. `createEncounter` gained an optional 5th parameter, `label`; the beat passes `'C1'`, so its events carry `room: 'C1'` and its dispatch card reads "2210, corridor." A SIGNAL LOST restart resets the beat's fired flag along with the rest of the run state.
+- **Same decoy rules as room 8:** tells at +0.15 s (raised trembling hands, his own flashlight, panicked voice), decision point at +0.45 s, withhold 2.0 s -> he flees and the "2210 — that's a civ, hold fire." card fires. A wrong stab is a consequence, never death. The two consequences are assigned across the decoys in run order through the shared ctx: the corridor beat is met first, so a wrong stab there takes consequence #1 (light knocked loose); room 8's wrong stab takes #2 (next live counter window −0.15 s — the harness verifies it landing on room 9: 0.90 s tuned -> 0.75 s).
+
+**For the build:** render the C1 beat in the corridor walk between rooms 3 and 4, from the same decoy events (`burst`, `tells`, `decisionPoint`, `flee`, `consequence`, `dispatch` with `room: 'C1'`). Room 4's encounter is a normal live encounter now — the crawler needs its grab/stab staging in night vision.
+
+**New totals:** spec tests **15/15 pass** (was 10/10); harness **22/22 checks pass** (was 21/21 — the added checks are room 4 in the every-live-room miss sweep and the corridor beat's right/wrong paths; room 8's decoy paths moved, not duplicated). Full clears now assert 13 results on seeds 0–5.
+
+## Spec tests after the change (node --test)
+```
+ok - 12 rooms, locked order and kinds; room 4 is the live crawler; decoys = room 8 + corridor beat C1
+ok - tuning table: every room has a counter window in 0.8–1.2 s, escalation tightens windows and speeds bite, never tap count
+ok - state machine order: idle -> dread -> counter -> finish -> resolve, meters spike ~1 s before dread
+ok - counter hit: stagger + bite drains; finish ends with a head thrust and walk resumes
+ok - miss: bite surge + harder finish, still winnable
+ok - room 4 crawler: counter hit -> stagger -> win, no bite surge
+ok - room 4 crawler: miss -> bite surge + harder finish, still winnable
+ok - mash scoring: on-pulse thrusts count double, off-pulse single, tap cap ~25 enforced
+ok - SIGNAL LOST: never stab -> bite fills -> lost, no exception
+ok - decoy: tells land before the stab decision point; withhold 2 s -> flee + dispatch card
+ok - decoy wrong stab: consequence applied, never death
+ok - corridor beat C1: tells land before the decision point; withhold -> flee + dispatch card; events carry the beat id
+ok - corridor beat C1: wrong stab -> consequence, never death
+ok - run: corridor beat fires after room 3; a full clear has 13 results with the beat spared in slot 4
+ok - live/fake seeding: 2–3 mid rooms swap, room 12 always empty, room 7 always live, deterministic per seed
+# tests 15
+# pass 15
+# fail 0
+```
+
+## Harness output after the change (full, unedited)
+```
+== 1. counter-success path (room 3) ==
+   spike 1 s, dread 2.017 s, lunge 3.217 s (window 1.15 s), stagger 3.517 s, head thrust 5.2 s, taps 10, bite 0.10
+PASS  stab in window -> stagger -> finish -> walk resumes
+== 2. miss path (room 3, no counter stab) ==
+   bite surge 4.367 s -> bite 0.35, hard finish true, head thrust 6.05 s, final bite 0.49, taps 10
+PASS  no stab -> bite surge -> harder finish, still winnable
+   miss path in EVERY live room (same player):
+     room  3  window 1.15 s  bite/s 0.060  -> win (final bite 0.49)
+PASS     room 3 miss still winnable
+     room  4  window 1.10 s  bite/s 0.070  -> win (final bite 0.51)
+PASS     room 4 miss still winnable
+     room  5  window 1.05 s  bite/s 0.080  -> win (final bite 0.53)
+PASS     room 5 miss still winnable
+     room  6  window 1.00 s  bite/s 0.090  -> win (final bite 0.55)
+PASS     room 6 miss still winnable
+     room  7  window 0.95 s  bite/s 0.100  -> win (final bite 0.58)
+PASS     room 7 miss still winnable
+     room  9  window 0.90 s  bite/s 0.110  -> win (final bite 0.60)
+PASS     room 9 miss still winnable
+     room 10  window 0.85 s  bite/s 0.120  -> win (final bite 0.62)
+PASS     room 10 miss still winnable
+     room 11  window 0.80 s  bite/s 0.130  -> win (final bite 0.65)
+PASS     room 11 miss still winnable
+== 3. decoy right path (corridor C1 (after room 3), room 8: withhold) ==
+   corridor C1 (after room 3): burst 1.517 s, tells 1.667 s, decision point 1.983 s, flee 3.533 s, card "2210 — that's a civ, hold fire."
+PASS  corridor C1 (after room 3) withhold -> flees, dispatch card fires
+   room 8: burst 2.017 s, tells 2.167 s, decision point 2.483 s, flee 4.033 s, card "2210 — that's a civ, hold fire."
+PASS  room 8 withhold -> flees, dispatch card fires
+== 4. decoy wrong path (stab at the decision point) ==
+   wrong stab #1 (corridor C1 (after room 3)): consequence lightLoose, result wrongStab, ctx {"lightLoose":true,"shrink":0}
+PASS  corridor C1 (after room 3) wrong stab -> consequence, no SIGNAL LOST
+   wrong stab #2 (room 8): consequence windowShrink, result wrongStab, ctx {"lightLoose":true,"shrink":0.15}
+PASS  room 8 wrong stab -> consequence, no SIGNAL LOST
+   next live encounter (room 9) counter window: 0.75 s (tuned 0.90 s)
+PASS  window-shrink consequence lands on the next live encounter
+== 5. full scripted clear: 12 rooms + corridor beat C1 (seed 0, then seeds 1-5) ==
+   seed 0: plan [F F L C1 L L L L D L L L E]  results fake,fake,win,spared,win,win,win,win,spared,win,win,win,empty  restarts 0  time 64.7 s  dispatch cards 14
+PASS  seed 0 clears all 12 rooms + corridor beat with no restart
+   seed 1: plan [F F F* C1 L L L L D F* L F* E]  results fake,fake,fake,spared,win,win,win,win,spared,fake,win,fake,empty  restarts 0  time 58.7 s  dispatch cards 14
+PASS  seed 1 clears all 12 rooms + corridor beat with no restart
+   seed 2: plan [F F L C1 F* F* L L D F* L L E]  results fake,fake,win,spared,fake,fake,win,win,spared,fake,win,win,empty  restarts 0  time 58.7 s  dispatch cards 14
+PASS  seed 2 clears all 12 rooms + corridor beat with no restart
+   seed 3: plan [F F F* C1 F* L F* L D L L L E]  results fake,fake,fake,spared,fake,win,fake,win,spared,win,win,win,empty  restarts 0  time 58.7 s  dispatch cards 14
+PASS  seed 3 clears all 12 rooms + corridor beat with no restart
+   seed 4: plan [F F F* C1 F* F* L L D L L L E]  results fake,fake,fake,spared,fake,fake,win,win,spared,win,win,win,empty  restarts 0  time 58.7 s  dispatch cards 14
+PASS  seed 4 clears all 12 rooms + corridor beat with no restart
+   seed 5: plan [F F L C1 F* L L L D F* F* L E]  results fake,fake,win,spared,fake,win,win,win,spared,fake,fake,win,empty  restarts 0  time 58.7 s  dispatch cards 14
+PASS  seed 5 clears all 12 rooms + corridor beat with no restart
+== 6. SIGNAL LOST path (never stab) ==
+   SIGNAL LOST in room 3 at 12.4 s into the room; after restart: room 1, ctx {"lightLoose":false,"shrink":0}, results [], restarts 1, enc state idle
+PASS  bite fills -> feed cuts -> restart state clean
+== timing table (per room, from the module) ==
+   room  1 fake  twins         spike 1.0 s, vanish 3.2 s
+   room  2 fake  doorway-woman spike 1.0 s, vanish 3.2 s
+   room  3 live  exit-charge   spike 1.0 s, dread 2.0 s, counter window 1.15 s, bite 0.060/s (x1.35 after a miss), strikes 14 (cap 25)
+   beat C1    decoy corridor      fires in the walk after room 3: burst 1.5 s in, tells +0.15 s, decision +0.45 s, withhold 2.0 s
+   room  4 live  nightvision   spike 1.0 s, dread 2.0 s, counter window 1.10 s, bite 0.070/s (x1.35 after a miss), strikes 14 (cap 25)
+   room  5 live  corner        spike 1.0 s, dread 2.0 s, counter window 1.05 s, bite 0.080/s (x1.35 after a miss), strikes 14 (cap 25)
+   room  6 live  hatch         spike 1.0 s, dread 2.0 s, counter window 1.00 s, bite 0.090/s (x1.35 after a miss), strikes 14 (cap 25)
+   room  7 live  mascot        spike 1.0 s, dread 2.0 s, counter window 0.95 s, bite 0.100/s (x1.35 after a miss), strikes 14 (cap 25)
+   room  8 decoy doorway-eyes  tells +0.15 s, decision +0.45 s, withhold 2.0 s
+   room  9 live  tall          spike 1.0 s, dread 2.0 s, counter window 0.90 s, bite 0.110/s (x1.35 after a miss), strikes 14 (cap 25)
+   room 10 live  eye-chase     spike 1.0 s, dread 2.0 s, counter window 0.85 s, bite 0.120/s (x1.35 after a miss), strikes 14 (cap 25)
+   room 11 live  mannequin     spike 1.0 s, dread 2.0 s, counter window 0.80 s, bite 0.130/s (x1.35 after a miss), strikes 14 (cap 25)
+   room 12 empty yellow        walk 9 s, no monster
+
+ALL PATHS PASS
+```
