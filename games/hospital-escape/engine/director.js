@@ -36,6 +36,26 @@ HE.Waves = function(game){
   return W;
 };
 
+// ext (data-gated by data.bystanders): unarmed staff/patients who cross the fights. Never threats; hitting one is a
+// SCORE penalty (tuning.score.bystander) with a 'bystanderHit' event the renderer must make unmissable.
+HE.Bystanders = function(game){
+  var B = { list: [], spared: 0, hits: 0 };
+  B.init = function(seg){ B.list.forEach(function(b){ game.greybox.removeActor(b.role); }); B.list = (game.data.bystanders || []).filter(function(b){ return b.segment === seg.id; }).map(function(d){ return { def: d, role: 'bystander:' + d.id, state: 'pending' }; }); };
+  B.reset = function(){ B.init({ id: null }); B.spared = 0; B.hits = 0; };
+  B.step = function(dt){ B.list.forEach(function(b){ var d = b.def;
+    if(b.state === 'pending' && game.segT >= (d.delay || 0)){ b.state = 'moving'; b.pos = new THREE.Vector3(d.from[0], d.from[1], d.from[2]); b.to = new THREE.Vector3(d.to[0], d.to[1], d.to[2]);
+      var m = game.greybox.addActor(b.role, 'bystander'); m.userData.hit = { role: b.role, bystander: true, live: function(){ return b.state === 'moving' || b.state === 'pause'; } }; b.t = 0; game.log('bystander', { id: d.id, kind: d.kind, state: 'enter' }); }
+    if(b.state === 'moving'){ b.t += dt; var v = b.to.clone().sub(b.pos), L = v.length(), step = (d.speed || 1.6) * dt; if(d.pause && b.t >= d.pause[0] && !b.paused){ b.paused = true; b.state = 'pause'; b.pt = d.pause[1]; }
+      else if(L <= step){ b.pos.copy(b.to); b.state = 'gone'; B.spared++; game.log('bystander', { id: d.id, state: 'spared' }); game.greybox.removeActor(b.role); return; } else b.pos.addScaledVector(v.normalize(), step); }
+    else if(b.state === 'pause'){ b.pt -= dt; if(b.pt <= 0) b.state = 'moving'; }
+    var o = game.actorObject(b.role); if(o && (b.state === 'moving' || b.state === 'pause')){ o.position.copy(b.pos); var dir = b.to.clone().sub(b.pos); if(dir.lengthSq() > 1e-4) o.lookAt(b.pos.x + dir.x, o.position.y, b.pos.z + dir.z); } }); };
+  B.hit = function(role){ var b = B.list.filter(function(x){ return x.role === role; })[0]; if(!b || !(b.state === 'moving' || b.state === 'pause')) return;
+    b.state = 'hit'; B.hits++; var pen = (game.data.tuning.score || {}).bystander || 0; game.combat.score -= pen; game.combat.streak = 0;
+    game.log('bystanderHit', { id: b.def.id, kind: b.def.kind, penalty: pen }); };
+  B.hittables = function(){ var out = []; B.list.forEach(function(b){ if(b.state === 'moving' || b.state === 'pause'){ var o = game.actorObject(b.role); if(o) out.push(o); } }); return out; };
+  return B;
+};
+
 HE.createGame = function(opts){
   opts = opts || {}; var data = opts.data || HE.DATA;
   var game = { data: data, seed: opts.seed || 1, time: 0, segT: 0, won: false, lost: false, ended: false, mode: null, beat: null, segment: null, vehicle: null,
@@ -50,12 +70,18 @@ HE.createGame = function(opts){
   game.waveDef = function(id){ return WD[id] || null; }; game.pursuerDef = function(id){ return PU[id] || null; };
   game.log = function(type, d){ game._log.push({ t: +game.time.toFixed(4), type: type, data: d || {} }); };
   game.events = function(){ return game._log.slice(); };
-  game.rail = HE.Rail(game); game.greybox = HE.Greybox(game); game.combat = HE.Combat(game); game.chase = HE.Chase(game); game.waves = HE.Waves(game);
+  game.rail = HE.Rail(game); game.greybox = HE.Greybox(game); game.combat = HE.Combat(game); game.chase = HE.Chase(game); game.waves = HE.Waves(game); game.bystanders = HE.Bystanders(game);
   game.greybox.build(data); game.greybox.addActor('hero', 'hero'); game.greybox.addActor('friend', 'friend');
   game.actorObject = function(role){ return game.greybox.object(role); };
   game.actorPos = function(role){ var o = game.actorObject(role); return o ? o.position.clone() : null; };
   game.hittables = function(){ var out = []; game.combat.enemies.forEach(function(e){ if(e.alive){ var o = game.actorObject(e.role); if(o) out.push(o); } });
-    game.chase.list.forEach(function(p){ var o = game.actorObject(p.role); if(o) out.push(o); }); return out; };
+    game.chase.list.forEach(function(p){ var o = game.actorObject(p.role); if(o) out.push(o); }); return out.concat(game.bystanders.hittables()).concat(game.extraOccluders || []); };
+  // where incoming fire is aimed (Cole's chest; Maya on foot) and the floor under the heroes — used by travelling shots
+  game.heroTarget = function(){ var r = game.rail;
+    if(game.mode === 'FREE_FOOT' && game.foot) return game.foot.pos.clone().setY(game.foot.pos.y + 1.3);
+    if(game.mode === 'AMBULANCE') return game.camera.position.clone().setY(game.camera.position.y - 0.35);
+    var p = r.path ? r.riderPos() : game.camera.position.clone(); p.y += game.vehicle === 'bed' ? 0.85 : 1.0; return p; };
+  game.floorY = function(){ if(game.mode === 'FREE_FOOT' && game.foot) return game.foot.pos.y; return game.rail.path ? game.rail.riderPos().y : 0; };
   game.liveEnemies = function(){ return game.combat.live().map(function(e){ return { role: e.role, kind: e.kind, wave: e.wave, pos: e.pos.clone(), exposed: e.exposed }; }); };
   game.pursuerList = function(){ return game.chase.list; };
   game.nearestEnemy = function(from){ var b = null, bd = 1e9; game.combat.live().forEach(function(e){ var d = e.pos.distanceTo(from); if(d < bd){ bd = d; b = e.pos; } }); return b; };
@@ -67,7 +93,9 @@ HE.createGame = function(opts){
   // ---- dialogue ----
   game.playLine = function(id){ var l = LD[id]; if(!l) return; game.subtitle = { id: id, speaker: l.speaker, text: l.text, t: l.dur }; game.log('line', { id: id, speaker: l.speaker }); };
   // ---- segment machine ----
-  function enterBeat(bi){ game.bi = bi; game.beat = data.beats[bi].id; game.log('beat', { beat: game.beat }); }
+  function enterBeat(bi){ game.bi = bi; game.beat = data.beats[bi].id; game.log('beat', { beat: game.beat });
+    // ext (data-gated by tuning.healOnBeat): between beats Maya patches Cole up — the arcade life refill, logged
+    var hb = data.tuning.healOnBeat; if(hb && game.combat.health < 100 && !game.lost){ var h0 = game.combat.health; game.combat.health = Math.min(100, h0 + hb); game.log('heal', { from: h0, to: game.combat.health }); } }
   function enterSegment(si){ var seg = data.beats[game.bi].segments[si], prevMode = game.mode; game.si = si; game.segment = seg.id; game.segDef = seg; game.segT = 0;
     game.endReached = false; game.quietT = -1; game.lineQ = seg.mode === 'CUTSCENE' ? (seg.lines || []).slice() : []; game.subtitle = seg.mode === 'CUTSCENE' ? null : game.subtitle;
     game.combat.clearEnemies(); game.chase.reset(); game.mode = seg.mode;
@@ -77,14 +105,14 @@ HE.createGame = function(opts){
     var fov = seg.mode === 'AMBULANCE' ? data.tuning.ambulanceFov || 80 : 60; if(game.camera.fov !== fov){ game.camera.fov = fov; game.camera.updateProjectionMatrix(); }   // generous aim arc out the rear doors
     if(path && (RAIL_MODES[seg.mode] || seg.mode === 'CUTSCENE')) game.rail.setPath(path, seg.mode === 'CUTSCENE' ? 'RAIL_CHAIR' : seg.mode);
     if(seg.mode === 'FREE_FOOT'){ var t = path.tangentAtS(path.lead); t.y = 0; t.normalize(); game.foot = { pos: path.pointAt(0), fwd: t, path: path }; game.rail.path = path; game.rail.s = path.lead; }
-    game.waves.init(seg); game.placeActors(); }
+    game.waves.init(seg); game.bystanders.init(seg); game.placeActors(); }
   function advance(){ var beat = data.beats[game.bi];
     if(game.si + 1 < beat.segments.length) return enterSegment(game.si + 1);
     if(game.bi + 1 < data.beats.length){ enterBeat(game.bi + 1); return enterSegment(0); }
     game.ended = true; game.log('end', {}); }
   game.gotoBeat = function(id){ var bi = data.beats.findIndex(function(b){ return b.id === id; }); if(bi < 0) return false;
     game.won = false; game.lost = false; game.ended = false; game.mode = null; game.subtitle = null;
-    var gi = data.beats.findIndex(function(b){ return b.id === 'gauntlet'; }); game.combat.reset(gi >= 0 && bi > gi ? 'machine_pistol' : 'pistol');
+    var gi = data.beats.findIndex(function(b){ return b.id === 'gauntlet'; }); game.bystanders.reset(); game.combat.reset(gi >= 0 && bi > gi ? 'machine_pistol' : 'pistol');
     game.input.fire = false; game.input.reload = false; game.input.move.x = game.input.move.y = 0;
     enterBeat(bi); enterSegment(0); game.combat.updateFeedback(0); return true; };
   game.gotoSegment = function(id, i){ if(!game.gotoBeat(id)) return false; var segs = data.beats[game.bi].segments; if(!(i >= 0 && i < segs.length)) return false; if(i > 0) enterSegment(i); return true; };
@@ -96,6 +124,7 @@ HE.createGame = function(opts){
     var ls = game.segDef.lines || []; if(ls.length) game.playLine(ls[ls.length - 1]); game.quietT = (ls.length && LD[ls[ls.length - 1]] ? LD[ls[ls.length - 1]].dur : 0) + 1.5; };
   game.lose = function(){ if(game.lost) return; game.lost = true; game.input.fire = false; game.log('lose', { beat: game.beat, segment: game.segment }); };
   game.placeActors = function(){ var hero = game.actorObject('hero'), fr = game.actorObject('friend'), r = game.rail; if(!r.path) return;
+    if(game.greybox.bound.hero) return;   // ext: a shipped build that binds real art (HE.bindActor) poses its own heroes and vehicles
     if(game.mode === 'FREE_FOOT'){ var p0 = game.foot.path.pointAt(0); hero.position.copy(p0); fr.position.copy(game.foot.pos); game.greybox.showVehicle('chair', p0, game.foot.fwd); return; }
     var pos = r.riderPos(), t = r.path.tangentAtS(r.s); t.y = 0; t.normalize();
     if(game.mode === 'AMBULANCE'){ game.greybox.showVehicle('ambulance', pos, t.clone().negate()); hero.position.copy(pos).addScaledVector(t, -1.2).setY(pos.y + 0.9); fr.position.copy(pos).addScaledVector(t, 1.8).setY(pos.y + 0.9); hero.visible = false; hero.scale.set(1, 1, 1); return; }
@@ -113,6 +142,7 @@ HE.createGame = function(opts){
     else if(m === 'CUTSCENE' && game.rail.path) game.rail.place(dt, false);
     if(m !== 'CUTSCENE') game.combat.handleInput(inp, dt);
     game.waves.step(); game.combat.stepEnemies(dt); if(m === 'AMBULANCE') game.chase.step(dt);
+    game.combat.stepPartner(dt); game.combat.stepShots(); game.bystanders.step(dt);
     game.placeActors(); game.combat.updateFeedback(dt);
     if(game.lost) return;
     // hold safety: a hold with nothing left that could ever release it releases itself (never soft-locks)
@@ -123,7 +153,10 @@ HE.createGame = function(opts){
     if(m === 'RAIL_CHAIR' || m === 'AMBULANCE'){ if((game.endReached || game.rail.pathT() >= 1) && alive === 0 && !chasing && !game.waves.busy()) advance(); }
     else if(m === 'HOLDOUT'){ if(game.waves.allCleared() && game.segT > 0.5) advance(); }
     else if(m === 'FREE_FOOT'){ var end = game.foot.path.pointAt(1); if(game.waves.allCleared() && game.foot.pos.distanceTo(end) < 2.0) advance(); } };
-  function stepFoot(dt){ var f = game.foot, mv = game.input.move, right = new THREE.Vector3(-f.fwd.z, 0, f.fwd.x), sp = data.tuning.footSpeed;
+  function stepFoot(dt){ var f = game.foot, mv = game.input.move, sp = data.tuning.footSpeed;
+    // ext (data-gated by tuning.footTurn): edge-turn — holding the reticle near a screen edge turns Maya (the free mode can look around)
+    var ft = data.tuning.footTurn; if(ft){ var ax = game.input.aim.x, turn = ax < 0.22 ? -(0.22 - ax) / 0.22 : ax > 0.78 ? (ax - 0.78) / 0.22 : 0; if(turn){ f.fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -turn * ft * dt).normalize(); } }
+    var right = new THREE.Vector3(-f.fwd.z, 0, f.fwd.x);
     var d = f.fwd.clone().multiplyScalar(-mv.y).addScaledVector(right, mv.x); if(d.lengthSq() > 1) d.normalize(); f.pos.addScaledVector(d, sp * dt);
     var n = f.path.nearestS(f.pos), w = (data.tuning.footHalfWidth || 3); if(n.d > w){ var c = f.path.pointAtS(n.s); f.pos.sub(c).setLength(w).add(c); }
     var cam = game.camera; cam.position.copy(f.pos).addScaledVector(f.fwd, -f.path.back).addScaledVector(right, 0.5); cam.position.y = f.pos.y + f.path.height;
@@ -133,7 +166,8 @@ HE.createGame = function(opts){
     return { beat: game.beat, segment: game.segment, mode: game.mode, vehicle: game.vehicle, health: c.health, nearDeath: c.health < 30, ammo: c.ammo(),
       enemiesAlive: c.live().length, pursuers: game.chase.stateList(), pathT: game.mode === 'FREE_FOOT' ? 0 : game.rail.pathT(),
       feedback: { vignette: fb.vignette, wash: fb.wash, shake: fb.shake }, won: game.won, lost: game.lost, ended: game.ended,
-      subtitle: game.subtitle ? { speaker: game.subtitle.speaker, text: game.subtitle.text } : null }; };
+      subtitle: game.subtitle ? { speaker: game.subtitle.speaker, text: game.subtitle.text } : null,
+      score: c.score, accuracy: c.shotsFired ? +(c.shotsHit / c.shotsFired).toFixed(3) : 0, bystanders: { spared: game.bystanders.spared, hit: game.bystanders.hits } }; };
   var _v = new THREE.Vector3();
   game.project = function(role, zone){ var o = zone ? game.greybox.zoneObject(role, zone) : game.actorObject(role); if(!o) return null; game.scene.updateMatrixWorld();
     o.getWorldPosition(_v); if(!zone) _v.y += 1.25; if(zone === 'tire') _v.y -= 0.12;
@@ -151,10 +185,13 @@ HE.install = function(game){ HE.current = game; HE.input = game.input; window.__
 HE.autopilot = function(game){ var inp = game.input, s = game.mode; game._ap = (game._ap || 0) + 1;
   if(s === 'CUTSCENE' || game.lost || game.ended){ inp.fire = false; return; }
   var tgt = null, best = 1e9, P = game.playerPos();
-  game.chase.list.forEach(function(p){ if(p.state !== 'pursuing') return; var zone = ['driver', 'engine', 'tire'][p.id.length % 3]; var pr = game.project(p.role, zone); var o = game.actorObject(p.role);
+  var react = (game.data.tuning.autopilot || {}).react || 0;   // ext: a human reaction time for the verification autopilot
+  game.chase.list.forEach(function(p){ if(p.state !== 'pursuing' || p.t < react) return; var zone = ['driver', 'engine', 'tire'][p.id.length % 3]; var pr = game.project(p.role, zone); var o = game.actorObject(p.role);
     if(pr && pr.onScreen && o){ var d = o.position.distanceTo(P); if(d < best){ best = d; tgt = pr; } } });
-  if(!tgt) game.combat.live().forEach(function(e){ if(!e.exposed) return; var pr = game.project(e.role); if(pr && pr.onScreen){ var d = e.pos.distanceTo(P); if(d < best){ best = d; tgt = pr; } } });
-  if(s === 'FREE_FOOT'){ var f = game.foot; if(!tgt && game.combat.live().length === 0){ var to = f.path.pointAt(1).sub(f.pos); to.y = 0; var right = new THREE.Vector3(-f.fwd.z, 0, f.fwd.x);
+  if(!tgt) game.combat.live().forEach(function(e){ if(!e.exposed || (react && (e.firstSeen == null || e.t - e.firstSeen < react))) return; var pr = game.project(e.role); if(pr && pr.onScreen){ var d = e.pos.distanceTo(P); if(d < best){ best = d; tgt = pr; } } });
+  if(s === 'FREE_FOOT' && !tgt && game.data.tuning.footTurn){ var ne = null, nd = 1e9; game.combat.live().forEach(function(e){ var d = e.pos.distanceTo(P); if(d < nd){ nd = d; ne = e; } });
+    if(ne){ var dir = ne.pos.clone().sub(game.foot.pos), fw = game.foot.fwd; inp.aim.x = (fw.x * dir.z - fw.z * dir.x) > 0 ? 0.97 : 0.03; inp.aim.y = 0.5; inp.fire = false; inp.move.x = inp.move.y = 0; return; } }
+  if(s === 'FREE_FOOT'){ var f = game.foot; if(!tgt && game.combat.live().length === 0){ var to = f.path.pointAtS(Math.min(f.path.length, f.path.nearestS(f.pos).s + 4)).sub(f.pos); /* follow the path, 4 m ahead */ to.y = 0; var right = new THREE.Vector3(-f.fwd.z, 0, f.fwd.x);
       inp.move.y = -HE.clamp(to.dot(f.fwd), -1, 1); inp.move.x = HE.clamp(to.dot(right), -1, 1); } else { inp.move.x = 0; inp.move.y = 0; } }
   if(!tgt){ inp.fire = false; return; }
   inp.aim.x = tgt.x; inp.aim.y = tgt.y; var auto = game.data.tuning.weapons[game.combat.weapon].auto; inp.fire = auto ? true : (game._ap % 2 === 0); };

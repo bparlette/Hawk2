@@ -63,8 +63,13 @@ HE.Rail = function(game){
   r.pusherPos = function(out){ return r.path.pointAtS(r.s - HE.PUSHER_GAP, out); };
   var _tgt = new THREE.Vector3(), _des = new THREE.Vector3();
   r.cameraPos = function(out){ out = out || new THREE.Vector3();
-    if(r.mode === 'AMBULANCE'){ var p = r.path.pointAtS(r.s), t = r.path.tangentAtS(r.s); t.y = 0; t.normalize(); return out.copy(p).addScaledVector(t, -1.9).setY(p.y + r.path.height); }
-    out = r.path.pointAtS(r.s - r.path.back, out); out.y += r.path.height; return out; };
+    if(r.mode === 'AMBULANCE'){ var p = r.path.pointAtS(r.s), t = r.path.tangentAtS(r.s); t.y = 0; t.normalize(); var bo = r.path.def.bayOffset == null ? 1.9 : r.path.def.bayOffset; return out.copy(p).addScaledVector(t, -bo).setY(p.y + r.path.height); }   // ext: bayOffset (m behind the vehicle centre) places the rig inside the art's bay
+    out = r.path.pointAtS(r.s - r.path.back, out); out.y += r.path.height;
+    var sd = r.path.def.side; if(sd){ var tt = r.path.tangentAtS(r.s - r.path.back); tt.y = 0; tt.normalize(); out.x += -tt.z * sd; out.z += tt.x * sd; }   // ext: lateral offset to the rider's right
+    return out; };
+  // ext (data-gated): default look = a point on the path lookAhead m ahead at lookHeight (over-the-shoulder spec); else the tangent
+  var _base = new THREE.Vector3();
+  r.baseDir = function(pos){ var d = r.path.def; if(d.lookAhead && r.mode !== 'AMBULANCE'){ var p = r.path.pointAtS(r.s + d.lookAhead); p.y += (d.lookHeight == null ? 1.0 : d.lookHeight); return _base.subVectors(p, pos).normalize(); } return _base.copy(r.forward()); };
   // look keys: point targets or 'group:<waveId>' (live centroid); falls back to the tangent; never more than 110°
   // off the travel direction (targets never stay behind the camera). Exponential blend, tau 0.35 s: no snaps.
   r.lookTarget = function(){ var ks = r.path.def.look, at = r.pathT(), k = null; r.lookIsLiveGroup = false; if(!ks) return null;
@@ -76,8 +81,10 @@ HE.Rail = function(game){
     // stopped (hold / path end) with live enemies and no live look target: turn to the nearest threat (no behind-clamp
     // while stopped) so a wave can never pin the rider from outside the view
     if(stopped && !r.lookIsLiveGroup){ var ne = game.nearestEnemy && game.nearestEnemy(pos); if(ne) tg = _tgt.copy(ne).setY(ne.y + 1.2); }
-    if(tg) _des.subVectors(tg, pos).normalize(); else _des.copy(fwd);
-    if(!stopped && _des.dot(fwd) < Math.cos(110 * Math.PI / 180)) _des.copy(fwd);
+    var base = r.baseDir(pos), clampDeg = r.path.def.lookClamp;
+    if(tg) _des.subVectors(tg, pos).normalize(); else _des.copy(base);
+    if(!stopped && _des.dot(fwd) < Math.cos(110 * Math.PI / 180)) _des.copy(base);
+    if(clampDeg){ var a = Math.acos(HE.clamp(_des.dot(base), -1, 1)), c = clampDeg * Math.PI / 180; if(a > c) _des.copy(base).lerp(_des, c / a).normalize(); }   // ext: keeps the heroes in frame
     if(snap) r.lookDir.copy(_des); else if(dt > 0) r.lookDir.lerp(_des, 1 - Math.exp(-dt / 0.35)).normalize();
     cam.lookAt(_tgt.copy(pos).add(r.lookDir)); cam.updateMatrixWorld(); };
   return r;

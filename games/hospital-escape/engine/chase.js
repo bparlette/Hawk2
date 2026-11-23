@@ -18,8 +18,9 @@ HE.Chase = function(game){
     ch.list.push(p); game.log('spawn', { role: role, kind: sp.kind, slot: sp.slot, wave: waveId }); ch.place(p); return p; };
   ch.byRole = function(role){ for(var i = 0; i < ch.list.length; i++) if(ch.list[i].role === role) return ch.list[i]; return null; };
   ch.setState = function(p, st, extra){ if(p.state === st) return; var from = p.state; p.state = st; p.t = 0;
-    var d = { id: p.id, kind: p.kind, from: from, to: st }; if(extra) for(var k in extra) d[k] = extra[k]; game.log('pursuer', d);
-    if(st === 'wrecked') game.waves.onPursuerOut(p); };
+    var d = { id: p.id, kind: p.kind, from: from, to: st }; if(extra) for(var k in extra) d[k] = extra[k];
+    if(st === 'wrecked' && T.score){ game.combat.score += T.score.wreck; d.points = T.score.wreck; }
+    game.log('pursuer', d); if(st === 'wrecked') game.waves.onPursuerOut(p); };
   ch.hitComponent = function(role, comp, dmg){ var p = ch.byRole(role); if(!p || p.state !== 'pursuing') return;
     p.hp[comp] = Math.max(0, p.hp[comp] - dmg); game.log('hit', { role: role, component: comp, hp: p.hp[comp] });
     if(p.hp[comp] <= 0) ch.setState(p, 'crippled:' + comp, { outcome: OUT[comp] }); };
@@ -31,7 +32,7 @@ HE.Chase = function(game){
     ch.list.forEach(function(p){ var K = T.pursuers[p.kind]; p.t += dt;
       if(p.state === 'pursuing'){ var att = K.attack + (p.slot === 'behind' ? 0 : 3), gap = amb - p.s, want = gap > att ? va + K.close : va + (gap - att) * 0.8; p.v += HE.clamp(want - p.v, -6 * dt, 6 * dt);
         if(game.won){ p.v = 0; }
-        p.t > 1.2 && !game.won && (p.fireT -= dt) <= 0 && gap < att + 6 && (p.fireT = K.fireEvery * (0.8 + 0.4 * game.rng()), (function(){ var hit = game.rng() < K.accuracy; game.log('enemyFire', { role: p.role, hit: hit }); if(hit) game.combat.damage(K.damage, p.role); })()); }
+        p.t > 1.2 && !game.won && (p.fireT -= dt) <= 0 && gap < att + 6 && (p.fireT = K.fireEvery * (0.8 + 0.4 * game.rng()), (function(){ var hit = game.rng() < K.accuracy; game.log('enemyFire', { role: p.role, hit: hit }); var mo = game.actorObject(p.role); game.combat.fireAtHero(p.role, mo ? mo.position.clone().add(new THREE.Vector3(0, -0.15, 0)) : new THREE.Vector3(), hit, K.damage); })()); }
       else if(p.state === 'crippled:tire'){ p.v = Math.max(0, p.v - (va * 0.5 + 2) * dt); p.lat += (p.lat >= 0 ? 1 : -1) * 1.6 * dt; if(p.t >= 2.4) ch.setState(p, 'wrecked'); }
       else if(p.state === 'crippled:driver'){ p.v = Math.max(0, p.v - (va * 0.7 + 3) * dt); p.lat += Math.sin(p.t * 5) * 3 * dt; if(p.t >= 1.8) ch.setState(p, 'wrecked'); }
       else if(p.state === 'crippled:engine'){ if(p.t >= 0.8 && !p.smoke){ p.smoke = 1; game.log('burn', { id: p.id, stage: 'smoke' }); } if(p.t >= 1.6 && p.smoke === 1){ p.smoke = 2; game.log('burn', { id: p.id, stage: 'fire' }); game.combat.shake = Math.min(1, game.combat.shake + 0.25); }

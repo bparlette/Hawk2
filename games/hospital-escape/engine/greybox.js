@@ -34,6 +34,7 @@ HE.Greybox = function(game){
       g.crossing = { pos: cp, along: new THREE.Vector3(-t.z, 0, t.x) }; } }
   g.addCover = function(p){ return box(1.4, 1.0, 0.6, mats.crate, p.x, p.y + 0.5, p.z, g.dyn); };
   g.removeObject = function(o){ if(o && o.parent) o.parent.remove(o); };
+  g.moveCover = function(o, p){ if(o) o.position.set(p.x, o.position.y, p.z); };
   // ---- actors ----
   function capsule(mat){ var grp = new THREE.Group(), body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.2, 10), mat); body.position.y = 0.95; grp.add(body);
     var head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat); head.position.y = 1.75; grp.add(head);

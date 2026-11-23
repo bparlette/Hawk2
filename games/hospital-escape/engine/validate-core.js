@@ -35,6 +35,7 @@ function validate(D){
     (p.events || []).forEach(function(e){ n++; if(!(num(e.at) && e.at >= 0 && e.at <= 1)) err(q + 'event at 0..1'); if(EVT.indexOf(e.type) < 0) err(q + 'event type ' + e.type);
       if(e.type === 'line' && !L[e.line]) err(q + 'event line unknown ' + e.line); if(e.type === 'wave' && !(W[e.wave] || PU[e.wave])) err(q + 'event wave unknown ' + e.wave);
       if(e.type === 'pickup' && ['pistol', 'machine_pistol'].indexOf(e.weapon) < 0) err(q + 'pickup weapon ' + e.weapon); });
+    ['side', 'lookAhead', 'lookHeight', 'lookClamp', 'bayOffset'].forEach(function(k){ if(p[k] != null && !num(p[k])) err(q + k + ' must be a number'); });   // ext: over-shoulder rig fields
     var tr = [p.crossingAt, p.trainAt, p.trainOccupies].filter(function(x){ return x != null; }).length;
     if(tr && tr < 3) err(q + 'crossingAt / trainAt / trainOccupies go together');
     if(tr === 3){ if(!(p.crossingAt > 0 && p.crossingAt < 1 && p.trainAt >= p.crossingAt && p.trainAt < 1)) err(q + 'need 0 < crossingAt <= trainAt < 1'); if(!(p.trainOccupies > 0)) err(q + 'trainOccupies must be > 0'); if(p.vehicle !== 'ambulance') err(q + 'train crossing only on ambulance paths'); } });
@@ -53,6 +54,11 @@ function validate(D){
       (s.lines || []).forEach(function(id){ if(!L[id]) err(q + 'unknown line ' + id); });
       if(s.mode === 'CUTSCENE' && !(s.lines || []).length) err(q + 'a CUTSCENE carries lines'); }); });
   D.waves.concat(D.pursuers).forEach(function(w){ if(!used[w.id]) err('wave ' + w.id + ' is not used by any segment'); });
+  // ext: bystanders (optional) — unarmed, segment-bound, straight-line crossers
+  (D.bystanders || []).forEach(function(b){ n++; var q = 'bystander ' + b.id + ': '; if(!str(b.id)) err('bystander without id'); if(!segIds[b.segment]) err(q + 'unknown segment ' + b.segment);
+    if(['nurse', 'patient', 'orderly', 'visitor'].indexOf(b.kind) < 0) err(q + 'kind ' + b.kind); if(!v3(b.from) || !v3(b.to)) err(q + 'from/to must be [x,y,z]');
+    if(b.speed != null && !(num(b.speed) && b.speed > 0)) err(q + 'speed > 0'); if(b.delay != null && !(num(b.delay) && b.delay >= 0)) err(q + 'delay >= 0');
+    if(b.pause != null && !(Array.isArray(b.pause) && b.pause.length === 2 && b.pause.every(num))) err(q + 'pause = [atSeconds, holdSeconds]'); });
   // chase escalation: marked kinds first, then suv (beat 8)
   var ch = D.beats.filter(function(b){ return b.id === 'chase'; })[0]; if(ch){ var kinds = []; ch.segments.forEach(function(s){ (s.waves || []).forEach(function(id){ if(PU[id]) PU[id].spawns.forEach(function(x){ kinds.push(x.kind); }); }); });
     var fs = kinds.indexOf('suv'); if(fs <= 0 || kinds.slice(0, fs).some(function(k){ return k === 'suv'; }) || kinds.slice(fs).some(function(k){ return k !== 'suv'; })) err('chase must escalate marked (patrol/charger) -> suv: ' + kinds.join(',')); }
@@ -60,6 +66,7 @@ function validate(D){
   // tuning (frozen field names; numbers tunable)
   var T = D.tuning || {}; ['pistol', 'machine_pistol'].forEach(function(w){ var x = (T.weapons || {})[w]; if(!x || !num(x.mag) || !num(x.reloadTime) || !num(x.damage)) err('tuning.weapons.' + w + ' needs mag/reloadTime/damage'); });
   ['tire', 'driver', 'engine'].forEach(function(c){ if(!num((T.components || {})[c])) err('tuning.components.' + c + ' missing'); });
+  ['shotSpeed', 'aimTell', 'closeRange', 'healOnBeat', 'screenFire', 'footTurn', 'firstShot'].forEach(function(k){ if(T[k] != null && !(num(T[k]) && T[k] > 0)) err('tuning.' + k + ' must be > 0'); });   // ext fields
   return { checked: n, errors: E };
 }
 root.HE = root.HE || {}; root.HE.validateData = validate;
