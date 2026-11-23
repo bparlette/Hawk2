@@ -32,6 +32,7 @@ var bed = A.bed(), chair = A.wheelchair(), amb = A.ambulance(); scene.add(bed); 
 // the painted cast (OPUS-INTEGRATE-PAINTED): billboards from assets/painted; the procedural people stay as the fallback
 var PT = window.HEPAINT || null, PS = window.HEPAINTED_DATA ? HEPAINTED_DATA.scale : 341.6, paintLight = new THREE.PointLight(0xffa042, 0, 3.5, 2), paintLightT = 0; scene.add(paintLight);
 if(PT){ PT.lightAt = function(pos, col){ [flashLight, paintLight].forEach(function(L){ if(L.intensity <= 0) return; var k = L.intensity * Math.pow(Math.max(0, 1 - L.position.distanceTo(pos) / (L.distance * 1.6)), 2) * 0.22; col.r += 1.0 * k; col.g += 0.6 * k; col.b += 0.28 * k; }); }; }   // warm muzzle spill on the painted cast
+if(PT){ PT.collectLights(scene, A.tex.lightPanel); }
 if(PT && Q.get('painted') !== '0'){ [cole, maya, hale].forEach(function(g){ PT.attach(g); }); PT.load('assets/painted/', function(ok){ window.__painted = ok; }); } else window.__painted = false;
 var gb = game.greybox; gb.showVehicle = function(){}; Object.keys(gb.vehicles).forEach(function(k){ gb.vehicles[k].visible = false; });
 var nEnemy = 0;
@@ -148,11 +149,11 @@ if(Q.get('autostart') === '1'){ $('start').style.display = 'none'; started = tru
 var BEAT_TITLES = { visit: '1 · ROOM 412', bed_push: '2 · THE BED', transfer: '3 · THE TRANSFER', elevator: '4 · GOING DOWN', gauntlet: '5 · THE GAUNTLET', entrance: '6 · THE FRONT DOORS', steal: '7 · THE AMBULANCE', chase: '8 · HARBOR AVENUE', train_finale: '9 · THE LINE 9 CROSSING' };
 var outdoor = false, tAnim = 0, lastBeat = null, coleAim = new V(0, 0, -1), mayaFireT = 0, mayaTarget = new V(), bedParked = null, chairParked = null, ambParked = null;
 // night hospital (dim, cold ambient; the ceiling panels and pools carry the light) / storm dusk outside
-function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(PT) PT.env.setRGB(on ? 0.76 : 0.9, on ? 0.81 : 0.95, on ? 0.92 : 1.0);   /* painted cast graded to the room */ if(on){ scene.fog = new THREE.Fog(0x2b3440, 35, 300); hemi.color.set(0x7f93b0); hemi.groundColor.set(0x1d1a19); hemi.intensity = 0.45; sun.color.set(0xa8b8d8); sun.intensity = 0.55; sun.position.set(-60, 50, 40); sky.visible = true; }
+function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(PT){ PT.env.setRGB(on ? 0.76 : 1.0, on ? 0.81 : 1.0, on ? 0.92 : 1.0); PT.indoor = !on; }   /* painted cast graded to the room */ if(on){ scene.fog = new THREE.Fog(0x2b3440, 35, 300); hemi.color.set(0x7f93b0); hemi.groundColor.set(0x1d1a19); hemi.intensity = 0.45; sun.color.set(0xa8b8d8); sun.intensity = 0.55; sun.position.set(-60, 50, 40); sky.visible = true; }
   else { scene.fog = new THREE.Fog(0x1c2328, 14, 60); hemi.color.set(0xb9c9d6); hemi.groundColor.set(0x3a342e); hemi.intensity = 0.48; sun.color.set(0xdfe8ff); sun.intensity = 0.18; sun.position.set(20, 40, 10); sky.visible = false; } }
 setOutdoor(true); setOutdoor(false);
 function placeOnPath(o, path, s, off){ var p = path.pointAtS(s), t = fwdOf(path, s); o.position.copy(p); if(off) o.position.add(off); yawTo(o, t); return t; }
-function present(dt){ tAnim += dt; patientStep(dt); var st = game.state(), r = game.rail, m = st.mode, seg = st.segment || '';
+function present(dt){ tAnim += dt; if(PT) PT.time = tAnim; patientStep(dt); var st = game.state(), r = game.rail, m = st.mode, seg = st.segment || '';
   if((estK > 0 || estWas) && r.path && (m === 'RAIL_CHAIR' || m === 'AMBULANCE')) r.place(0, false); estWas = estK > 0;   // the offset lands on this very frame (a clean cut)
   if(st.beat !== lastBeat){ lastBeat = st.beat; if(started) showBanner(BEAT_TITLES[st.beat] || st.beat, 'title', 2200); }
   setOutdoor(st.beat === 'steal' && seg !== 'steal_cut' || st.beat === 'chase' || st.beat === 'train_finale' || seg === 'steal_cut');
@@ -218,7 +219,7 @@ function paintCast(dt, st, m, seg){ if(!PT || !PT.ready){ return; } var r = game
   else if(m === 'AMBULANCE' && estK > 0){ PT.use(cole, true); cole.userData.reflect = false;   /* the bay floor is ribbed steel, not wet linoleum */ amb.updateMatrixWorld(true); cole.position.copy(amb.localToWorld(new V(0.05, 0.81, -2.25))); PT.show(cole, 'cole-ambulance-braced', 1, camera, 1, 'box'); }
   else PT.use(cole, false); }
 // an enemy as its painted frames: peek / aim / fire / flinch / down, mirrored to face the screen centre (the camera side)
-function paintEnemy(e, p, dt){ var u = p.userData, pk = u.pk, fr; u.fireT = Math.max(0, (u.fireT || 0) - dt); u.flinchT = Math.max(0, (u.flinchT || 0) - dt);
+function paintEnemy(e, p, dt){ var u = p.userData, pk = u.pk, fr; u.kick = Math.max(0, (u.fireT || 0) / 0.14); u.fireT = Math.max(0, (u.fireT || 0) - dt); u.flinchT = Math.max(0, (u.flinchT || 0) - dt);
   if(u.dead){ u.deadT += dt; p.position.y = e.pos.y; fr = u.deadT < 0.3 ? 'flinch' : 'down'; }
   else { var moving = (e.behavior === 'cover' && e.cover && e.pos.distanceTo(e.cover) > 0.05) || (e.behavior === 'rush' && e.pos.distanceTo(game.playerPos().setY(e.pos.y)) > 3.6), hidden = e.behavior === 'cover' && !e.exposed;
     fr = u.fireT > 0 ? 'fire' : u.flinchT > 0 ? 'flinch' : (hidden || moving) ? (pk === 'enemy-plain' ? 'peek' : 'aim') : 'aim'; }

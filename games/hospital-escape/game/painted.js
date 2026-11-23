@@ -7,7 +7,7 @@
    file:// page without file access), the procedural cast stays in play and nothing else changes. */
 (function(){
 'use strict';
-var D = window.HEPAINTED_DATA, S = D.scale, M = D.mask, P = { ready: false, failed: false, tex: {}, frames: D.frames, env: new THREE.Color(1, 1, 1), reflect: 0.55, live: [] };
+var D = window.HEPAINTED_DATA, S = D.scale, M = D.mask, P = { ready: false, failed: false, tex: {}, frames: D.frames, env: new THREE.Color(1, 1, 1), reflect: 0.55, live: [], lights: [], indoor: true, time: 0 };
 var OFF = 31;                                                                      // layer nothing renders or raycasts
 Object.keys(D.frames).forEach(function(n){ var f = D.frames[n], b = atob(f.mask), u = new Uint8Array(b.length); for(var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); f.bits = u; f.name = n; });
 function maskAt(f, u, v){ var x = Math.floor(u * f.w / M), y = Math.floor((1 - v) * f.h / M); if(x < 0 || y < 0 || x >= f.mw || y >= f.mh) return false; var i = y * f.mw + x; return !!(f.bits[i >> 3] & (1 << (i & 7))); }
@@ -30,13 +30,46 @@ function reflMat(){ return new THREE.ShaderMaterial({ transparent: true, depthWr
     ' void main(){ vec3 a = (invM * vec4(camM, 1.0)).xyz, b = (invM * vec4(wp.x, floorY, wp.z, 1.0)).xyz; float den = a.z - b.z; if(abs(den) < 1e-5) discard;' +
     ' float t = a.z / den; if(t < 1.0) discard; vec3 h = a + (b - a) * t; vec2 uv = h.xy + 0.5; if(uv.x < 0.0 || uv.x > 1.0 || uv.y < base || uv.y > 1.0) discard;' +
     ' float up = (uv.y - base) * 2.248; vec4 c = texture2D(map, uv, 2.2); float al = c.a * opacity * exp(-up / fadeH); if(al < 0.004) discard;' +
-    ' gl_FragColor = vec4(c.rgb * tint, al); }' }); }
+    ' gl_FragColor = vec4(pow(c.rgb, vec3(2.2)) * tint, al); }' }); }
 var GEO = new THREE.PlaneGeometry(1, 1), SHG = new THREE.PlaneGeometry(1, 1), SHM = (function(){ var c = document.createElement('canvas'); c.width = c.height = 64; var x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
   gr.addColorStop(0, 'rgba(0,0,0,0.62)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
   return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, fog: true }); })();   // soft contact shadow (grounds a billboard on the floor)
+// THE FIGURE MATERIAL (believable, not a sticker). The painting keeps its own form and detail; the shader re-seats it in THIS room:
+//  - relit by the ceiling panels actually near it (level + overhead falloff head->feet + a side gradient toward the nearest lamp)
+//  - light wrap: the room's own colour bleeds into the outer pixels, and a cool rim catches top / back-lit edges (no cut-out line)
+//  - contact darkening at the feet, saturation pulled to the scene's, fog like the walls
+//  - alive: slow breathing + weight-shift sway rising from the feet (feet stay planted), a recoil kick on the fire frame
+function figMat(){ return new THREE.ShaderMaterial({ transparent: true, depthWrite: true, side: THREE.DoubleSide, fog: true,
+  uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null }, tint: { value: new THREE.Color(1, 1, 1) }, wrapCol: { value: new THREE.Color(0.16, 0.22, 0.25) }, rimCol: { value: new THREE.Color(0.34, 0.38, 0.42) },
+    lvl: { value: 1 }, dirX: { value: 0 }, back: { value: 0 }, base: { value: 0.06 }, time: { value: 0 }, phase: { value: 0 }, sway: { value: 0.012 }, kick: { value: 0 }, face: { value: 1 }, cellW: { value: 1.5 }, cellH: { value: 2.248 }, texel: { value: 1 / 512 } }]),
+  vertexShader: 'uniform float base, time, phase, sway, kick, face, cellW, cellH; varying vec2 vUv;\n#include <fog_pars_vertex>\nvoid main(){ vec3 p = position; float hf = clamp((p.y + 0.5 - base) / (1.0 - base), 0.0, 1.0);' +
+    ' float s = sin(time * 1.13 + phase) * sway * hf * hf + sin(time * 0.47 + phase * 1.7) * sway * 0.6 * hf;' +
+    ' p.x += (s - kick * 0.035 * face * hf) / cellW; p.y += (sin(time * 1.7 + phase) * 0.0035 * hf + kick * 0.01 * hf) / cellH;' +
+    ' vUv = uv; vec4 mvPosition = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mvPosition;\n#include <fog_vertex>\n}',
+  fragmentShader: 'uniform sampler2D map; uniform vec3 tint, wrapCol, rimCol; uniform float lvl, dirX, back, base, cellH, texel; varying vec2 vUv;\n#include <fog_pars_fragment>\nvoid main(){' +
+    ' vec4 c = texture2D(map, vUv); if(c.a < 0.06) discard; vec3 col = pow(c.rgb, vec3(2.2)); float o = texel * 3.0;' +
+    ' float aL = texture2D(map, vUv + vec2(-o, 0.0), 1.0).a, aR = texture2D(map, vUv + vec2(o, 0.0), 1.0).a, aU = texture2D(map, vUv + vec2(0.0, o * 0.667), 1.0).a, aD = texture2D(map, vUv + vec2(0.0, -o * 0.667), 1.0).a;' +
+    ' float edge = clamp(1.0 - (aL + aR + aU + aD) * 0.25, 0.0, 1.0) * 1.6; edge = clamp(edge, 0.0, 1.0); float hm = max(0.0, (vUv.y - base) * cellH);' +
+    ' float over = mix(0.74, 1.12, smoothstep(0.1, 1.75, hm)); float side = 1.0 + dirX * (vUv.x - 0.5) * 0.9; float contact = 1.0 - 0.42 * exp(-hm / 0.13);' +
+    ' col *= tint * lvl * mix(1.0, over, 0.85) * side * contact; float lu = dot(col, vec3(0.2126, 0.7152, 0.0722)); col = mix(vec3(lu), col, 0.85);' +
+    ' col = mix(col, wrapCol * lvl, edge * 0.42); col += rimCol * edge * (clamp((aD - aU) * 2.0, 0.0, 1.0) * 0.55 + back * 0.7) * lvl;' +
+    ' gl_FragColor = vec4(col, c.a);\n#include <fog_fragment>\n}' }); }
+// the room's lamps: every ceiling-panel quad (merged meshes: 6 verts per quad) -> a world point light position
+P.collectLights = function(root, tex){ P.lights = []; root.updateMatrixWorld(true); var v = new THREE.Vector3();
+  root.traverse(function(o){ if(!o.isMesh || !o.material || o.material.map !== tex) return; var pa = o.geometry.attributes.position, per = o.geometry.index ? 4 : 6;
+    for(var i = 0; i + per <= pa.count; i += per){ var c = new THREE.Vector3(); for(var k = 0; k < per; k++){ v.fromBufferAttribute(pa, i + k); c.add(v); } c.multiplyScalar(1 / per).applyMatrix4(o.matrixWorld); P.lights.push(c); } });
+  return P.lights.length; };
+var _ld = new THREE.Vector3(), _rx = new THREE.Vector3(), _tc = new THREE.Vector3();
+function lightTerms(p, cam, m, u){ if(!P.indoor || !P.lights.length){ u.lvl.value = 0.92; u.dirX.value = 0; u.back.value = 0.25; return; }
+  var sum = 0, dx = 0, dz = 0; for(var i = 0; i < P.lights.length; i++){ var L = P.lights[i], ex = L.x - p.x, ez = L.z - p.z, ey = L.y - p.y; if(ey < 0 || ey > 4.5) continue; var d2 = ex * ex + ez * ez; if(d2 > 81) continue;
+    var k = 1 / (1 + d2 / 4.0); sum += k; dx += ex * k; dz += ez * k; }
+  u.lvl.value = 0.6 + 0.5 * Math.min(1.3, sum);                                                           // between lamps ~0.6, under one ~1.1
+  var len = Math.hypot(dx, dz); if(len < 1e-4){ u.dirX.value = 0; u.back.value = 0; return; } _ld.set(dx / len, 0, dz / len);
+  _rx.setFromMatrixColumn(m.matrixWorld, 0).setY(0).normalize(); var str = Math.min(1, len / Math.max(1e-4, sum) / 2.5) * Math.min(1, sum);
+  u.dirX.value = _ld.dot(_rx) * str; _tc.copy(cam.position).sub(p).setY(0).normalize(); u.back.value = Math.max(0, -_ld.dot(_tc)) * str; }
 // attach a billboard to a character group. Until P.ready the billboard is hidden; then the procedural body is hidden instead.
 P.attach = function(g){ if(g.userData.bb) return g.userData.bb;
-  var mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 1, 1), transparent: true, alphaTest: 0.06, depthWrite: true, side: THREE.DoubleSide, fog: true });   // soft (blended) edges, no hard cut-out fringe
+  var mat = figMat(); mat.uniforms.phase.value = Math.random() * 6.28;   // soft (blended) edges, relit + alive (see figMat)
   var m = new THREE.Mesh(GEO, mat); m.raycast = maskRaycast; m.name = 'painted'; m.frustumCulled = false; m.userData.solid = true;   /* blended but SOLID for line of sight (the alpha mask decides) */
   var bb = new THREE.Group(); bb.add(m); bb.userData.m = m; g.add(bb); g.userData.bb = bb;
   var rf = new THREE.Mesh(RFG, reflMat()); rf.position.y = 0.004; rf.raycast = function(){}; rf.frustumCulled = false; rf.renderOrder = 2; bb.add(rf); bb.userData.rf = rf;   // wet-floor reflection
@@ -49,16 +82,17 @@ var _c = new THREE.Vector3(), _p = new THREE.Vector3(), _q = new THREE.Quaternio
 // show frame `name` on g's billboard, mirrored (mir = -1) as needed, facing camera `cam` (yaw only). Feet centre (or, ax = 'box', the
 // bbox centre — vehicles) on g's origin; the frame's measured bottom row on g's floor.
 P.show = function(g, name, mir, cam, tint, ax){ var bb = g.userData.bb, f = D.frames[name]; if(!bb || !f || !g.userData.painted) return null; var m = bb.userData.m, t = P.tex[name];
-  if(m.material.map !== t){ var first = !m.material.map; m.material.map = t; if(first) m.material.needsUpdate = true; }
+  var U = m.material.uniforms; U.map.value = t; U.texel.value = 1 / f.w; U.base.value = 1 - (f.bottom + 1) / f.h; U.cellW.value = f.w / S; U.cellH.value = f.h / S; U.face.value = f.face; U.time.value = P.time;
+  U.sway.value = /down|bed-foot|braced/.test(name) ? 0.003 : /wheelchair|crouch/.test(name) ? 0.006 : 0.012; U.kick.value = g.userData.kick || 0;
   m.userData.frame = f; mir = mir < 0 ? -1 : 1; var w = f.w / S, h = f.h / S; m.scale.set(w * mir, h, 1);
   var anc = ax === 'box' ? (f.bbox[0] + f.bbox[2]) / 2 : f.feet; m.position.set(-((anc + 0.5) / f.w - 0.5) * w * mir, (f.bottom + 1) / S - h / 2, 0);
-  var col = m.material.color; if(tint && tint.isColor) col.copy(tint); else { var k = tint == null ? 1 : tint; col.setRGB(k, k, k); } col.multiply(P.env); if(P.lightAt) P.lightAt(_p.set(g.matrixWorld.elements[12], g.matrixWorld.elements[13], g.matrixWorld.elements[14]), col);   // realism bar #3: the scene's night grade + local light (muzzle flashes)
+  var col = U.tint.value; if(tint && tint.isColor) col.copy(tint); else { var k = tint == null ? 1 : tint; col.setRGB(k, k, k); } col.multiply(P.env); if(P.lightAt) P.lightAt(_p.set(g.matrixWorld.elements[12], g.matrixWorld.elements[13], g.matrixWorld.elements[14]), col);   // realism bar #3: the scene's night grade + local light (muzzle flashes)
   var sw = (f.bbox[2] - f.bbox[0]) / S, sh = bb.userData.sh; sh.scale.set(Math.max(0.5, sw * 0.8), Math.max(0.35, Math.min(1.1, sw * 0.45)), 1); sh.position.x = ((f.bbox[0] + f.bbox[2]) / 2 - anc) / S * mir;
   g.updateMatrixWorld(true); g.getWorldPosition(_p); cam.getWorldPosition(_c); var yaw = Math.atan2(_c.x - _p.x, _c.z - _p.z);
-  g.getWorldQuaternion(_q); var py = new THREE.Euler().setFromQuaternion(_q, 'YXZ').y; bb.rotation.set(0, yaw - py, 0); bb.userData.frame = f; bb.userData.mir = mir; bb.updateMatrixWorld(true);
+  g.getWorldQuaternion(_q); var py = new THREE.Euler().setFromQuaternion(_q, 'YXZ').y; bb.rotation.set(0, yaw - py, 0); bb.userData.frame = f; bb.userData.mir = mir; bb.updateMatrixWorld(true); lightTerms(_p, cam, m, U);
   var rf = bb.userData.rf, d = Math.hypot(_c.x - _p.x, _c.z - _p.z), on = P.reflect && g.userData.reflect !== false && d < 16;   // near characters only
   rf.visible = on; if(on){ var u = rf.material.uniforms; u.map.value = t; m.updateMatrixWorld(true); u.invM.value.copy(m.matrixWorld).invert(); u.floorY.value = _p.y;
-    u.camM.value.set(_c.x, 2 * _p.y - _c.y, _c.z); u.base.value = 1 - (f.bottom + 1) / f.h; u.tint.value.copy(col).multiplyScalar(0.62);
+    u.camM.value.set(_c.x, 2 * _p.y - _c.y, _c.z); u.base.value = 1 - (f.bottom + 1) / f.h; u.tint.value.copy(col).multiplyScalar(0.62 * U.lvl.value);
     u.opacity.value = P.reflect * (1 - Math.max(0, (d - 9) / 7)); rf.scale.set(w * 1.05, 1, Math.min(4, d * 0.5)); rf.position.x = m.position.x; }
   return f; };
 // a pixel of the current frame (cell coords, as painted) -> world position on the billboard plane
