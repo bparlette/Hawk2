@@ -17,7 +17,7 @@ const SPEC = {
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }), ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   const open = async (q) => { const page = await ctx.newPage(), errs = []; page.on('pageerror', e => errs.push(String(e))); page.on('console', m => { if(m.type() === 'error') errs.push('console: ' + m.text()); });
     await page.route(CDN, r => r.fulfill({ body: fs.readFileSync(cache), contentType: 'text/javascript' }));
-    await page.goto('file://' + path.resolve(__dirname, '../index.html') + q, { waitUntil: 'load' }); await page.waitForFunction(() => window.__game && window.__dbg); return { page, errs }; };
+    await page.goto('file://' + path.resolve(__dirname, '../index.html') + q + (process.env.QX || ''), { waitUntil: 'domcontentloaded', timeout: 120000 }); await page.waitForFunction(() => window.__game && window.__dbg); return { page, errs }; };
   for(const name of SHOTS){ if(!SPEC[name]) continue; const [beat, cond, ap] = SPEC[name]; const { page, errs } = await open('?seed=3');
     const info = await page.evaluate(([beat, c, ap]) => { const G = window.__game, g = G.game; G.start(beat); const f = eval(c); let n = 0; while(!f(g) && n < 60 * 120){ if(ap) HE.autopilot(g); g.step(1 / 60); n++; }
       // aim the reticle at a live threat so the frame shows aim + incoming fire as a player would

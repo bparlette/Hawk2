@@ -11,12 +11,19 @@ scene.children.filter(function(o){ return o.isLight; }).forEach(function(l){ sce
 var hemi = new THREE.HemisphereLight(0xf2f7ff, 0x6b665c, 0.95), sun = new THREE.DirectionalLight(0xffffff, 0.45); sun.position.set(20, 40, 10); scene.add(hemi); scene.add(sun); scene.add(sun.target);
 var flashLight = new THREE.PointLight(0xffd59a, 0, 7, 2); scene.add(flashLight);
 var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.92; $('game').appendChild(renderer.domElement);
+renderer.outputEncoding = THREE.LinearEncoding; renderer.toneMapping = THREE.NoToneMapping;   /* HDR scene target; ACES + sRGB happen in the post composite */ $('game').appendChild(renderer.domElement);
 function resize(){ renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); } addEventListener('resize', resize); resize();
 W.build(scene, HE.DATA);
+var post = window.HEPOST ? HEPOST.create(renderer, scene, camera) : null; window.__post = post; window.__renderer = renderer;
+scene.traverse(function(o){ if(o.material && o.material.map === A.tex.lightPanel){ o.material.color.setRGB(3.2, 3.3, 3.5); } });   // HDR ceiling panels -> bloom
 var sky = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 12), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, uniforms: {},
   vertexShader: 'varying vec3 vp; void main(){ vp = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: 'varying vec3 vp; void main(){ float h = clamp(vp.y,0.0,1.0); vec3 c = mix(vec3(0.98,0.62,0.38), vec3(0.16,0.22,0.42), pow(h,0.55)); c = mix(c, vec3(0.32,0.26,0.30), clamp(-vp.y*4.0,0.0,1.0)); gl_FragColor = vec4(c,1.0); }' }));
+  uniforms: { time: { value: 0 }, flash: { value: 0 } },
+  fragmentShader: 'uniform float time, flash; varying vec3 vp; float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); } float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h2(i), h2(i+vec2(1,0)), f.x), mix(h2(i+vec2(0,1)), h2(i+vec2(1,1)), f.x), f.y); }'
+    + ' float fbm(vec2 p){ float a = 0.5, s = 0.0; for(int i = 0; i < 5; i++){ s += a * n2(p); p *= 2.1; a *= 0.5; } return s; }'
+    + ' void main(){ vec3 d = normalize(vp); float h = clamp(d.y, 0.0, 1.0); vec3 c = mix(vec3(0.42,0.46,0.52), vec3(0.06,0.10,0.17), pow(h, 0.5));'
+    + ' vec2 uv = d.xz / max(0.08, d.y) * 0.6 + vec2(time * 0.01, 0.0); float cl = fbm(uv * 1.4); c = mix(c, vec3(0.12,0.15,0.2) + flash * vec3(0.9,0.95,1.1), smoothstep(0.35, 0.8, cl) * smoothstep(0.0, 0.25, d.y));'
+    + ' c += vec3(0.55,0.32,0.18) * pow(1.0 - h, 6.0) * 0.6; c = mix(c, vec3(0.08,0.08,0.1), clamp(-d.y * 4.0, 0.0, 1.0)); gl_FragColor = vec4(c * 0.55, 1.0); }' }));
 scene.add(sky);
 // ------------------------------------------------------------------ cast + vehicles (bound to engine roles)
 var cole = A.cast.cole(), maya = A.cast.maya(), hale = A.cast.hale(); [cole, maya, hale].forEach(function(p){ scene.add(p); });
@@ -136,8 +143,9 @@ if(Q.get('autostart') === '1'){ $('start').style.display = 'none'; started = tru
 // ------------------------------------------------------------------ per-mode presentation
 var BEAT_TITLES = { visit: '1 · ROOM 412', bed_push: '2 · THE BED', transfer: '3 · THE TRANSFER', elevator: '4 · GOING DOWN', gauntlet: '5 · THE GAUNTLET', entrance: '6 · THE FRONT DOORS', steal: '7 · THE AMBULANCE', chase: '8 · HARBOR AVENUE', train_finale: '9 · THE LINE 9 CROSSING' };
 var outdoor = false, tAnim = 0, lastBeat = null, coleAim = new V(0, 0, -1), mayaFireT = 0, mayaTarget = new V(), bedParked = null, chairParked = null, ambParked = null;
-function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(on){ scene.fog = new THREE.Fog(0x9a7f78, 60, 420); hemi.color.set(0xb8c4e0); hemi.groundColor.set(0x40362e); hemi.intensity = 0.75; sun.color.set(0xffc690); sun.intensity = 1.2; sun.position.set(-60, 30, 40); sky.visible = true; }
-  else { scene.fog = new THREE.Fog(0xcfd6d8, 22, 75); hemi.color.set(0xf2f7ff); hemi.groundColor.set(0x6b665c); hemi.intensity = 0.95; sun.color.set(0xffffff); sun.intensity = 0.4; sun.position.set(20, 40, 10); sky.visible = false; } }
+// night hospital (dim, cold ambient; the ceiling panels and pools carry the light) / storm dusk outside
+function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(on){ scene.fog = new THREE.Fog(0x2b3440, 35, 300); hemi.color.set(0x7f93b0); hemi.groundColor.set(0x1d1a19); hemi.intensity = 0.45; sun.color.set(0xa8b8d8); sun.intensity = 0.55; sun.position.set(-60, 50, 40); sky.visible = true; }
+  else { scene.fog = new THREE.Fog(0x1c2328, 14, 60); hemi.color.set(0xb9c9d6); hemi.groundColor.set(0x3a342e); hemi.intensity = 0.48; sun.color.set(0xdfe8ff); sun.intensity = 0.18; sun.position.set(20, 40, 10); sky.visible = false; } }
 setOutdoor(true); setOutdoor(false);
 function placeOnPath(o, path, s, off){ var p = path.pointAtS(s), t = fwdOf(path, s); o.position.copy(p); if(off) o.position.add(off); yawTo(o, t); return t; }
 function present(dt){ tAnim += dt; var st = game.state(), r = game.rail, m = st.mode, seg = st.segment || '';
@@ -223,6 +231,17 @@ function frame(now){ acc += Math.min(0.1, (now - last) / 1000); last = now;
     while(acc >= DT){ if(auto) HE.autopilot(game); game.step(DT); acc -= DT; processEvents(); present(DT); } }
   else { acc = 0; present(0); }
   sky.position.copy(camera.position); hud(); var sh = game.state().feedback.shake * 0.05, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh; camera.position.x += ox; camera.position.y += oy;
-  renderer.render(scene, camera); camera.position.x -= ox; camera.position.y -= oy; requestAnimationFrame(frame); }
+  if(post && post.enabled && Q.get('post') !== '0'){ tunePost(); post.render(tAnim); } else renderer.render(scene, camera);
+  camera.position.x -= ox; camera.position.y -= oy; requestAnimationFrame(frame); }
+// what the wounded eye focuses on: the nearest threat in view (enemy / pursuer), else the corridor ahead
+var focusS = 8, kick = 0, lastHp = 100;
+function tunePost(){ var u = post.u, s = game.state(), f = s.feedback, m = s.mode, cam = camera.position, best = 1e9;
+  game.combat.live().forEach(function(e){ var d = e.pos.distanceTo(cam); if(d < best) best = d; }); game.chase.list.forEach(function(p){ if(p.state === 'pursuing'){ var o = gb.actors[p.role]; if(o){ var d = o.position.distanceTo(cam); if(d < best) best = d; } } });
+  var want = best < 1e8 ? best : (m === 'AMBULANCE' ? 16 : m === 'CUTSCENE' ? 3.2 : 8); focusS += (want - focusS) * 0.06;
+  if(s.health < lastHp) kick = 1; lastHp = s.health; kick = Math.max(0, kick - 0.04);
+  u.focus.value = focusS; u.nearBlur.value = m === 'CUTSCENE' ? 3 : m === 'AMBULANCE' ? 7 : 8; u.farBlur.value = outdoor ? 3.5 : 4.5;
+  u.hurt.value = HE.clamp((f.vignette - 0.2) * 1.3 + kick * 0.6, 0, 1.2); u.dying.value = f.wash; u.kick.value = kick;
+  u.exposure.value = outdoor ? 0.62 : 0.72; u.soft.value = 1.25; u.edge.value = 6.5; sky.material.uniforms.time.value = tAnim;
+  var fl = outdoor && (Math.sin(tAnim * 0.37) > 0.995 || Math.sin(tAnim * 0.53 + 1) > 0.997) ? 1 : 0; sky.material.uniforms.flash.value += (fl - sky.material.uniforms.flash.value) * 0.3; }
 game.gotoBeat(Q.get('beat') || 'visit'); requestAnimationFrame(frame);
 })();

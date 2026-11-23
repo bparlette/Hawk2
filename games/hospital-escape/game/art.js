@@ -48,47 +48,108 @@ A.sign = function(text, opt){ opt = opt || {}; var w = opt.w || 512, h = opt.h |
   var m = new THREE.Mesh(new THREE.PlaneGeometry(opt.mw || 1.6, (opt.mw || 1.6) * h / w), new THREE.MeshBasicMaterial({ map: t, toneMapped: false })); return m; };
 // ---------------------------------------------------------------- materials
 var MC = {}; A.mat = function(col, o){ var k = col + JSON.stringify(o || {}); if(MC[k]) return MC[k]; var m = new THREE.MeshStandardMaterial(Object.assign({ color: col, roughness: 0.75, metalness: 0 }, o || {})); MC[k] = m; return m; };
-A.box = function(w, h, d, mat, x, y, z, parent){ var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x || 0, y || 0, z || 0); if(parent) parent.add(m); return m; };
-A.cyl = function(r1, r2, h, mat, x, y, z, parent, seg){ var m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, seg || 12), mat); m.position.set(x || 0, y || 0, z || 0); if(parent) parent.add(m); return m; };
-A.sph = function(r, mat, x, y, z, parent, sx, sy, sz){ var m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat); m.position.set(x || 0, y || 0, z || 0); m.scale.set(sx || 1, sy || 1, sz || 1); if(parent) parent.add(m); return m; };
+var GC = {}; function geo(k, f){ return GC[k] || (GC[k] = f()); }
+A.box = function(w, h, d, mat, x, y, z, parent){ var m = new THREE.Mesh(geo('b' + w + ',' + h + ',' + d, function(){ return new THREE.BoxGeometry(w, h, d); }), mat); m.position.set(x || 0, y || 0, z || 0); if(parent) parent.add(m); return m; };
+A.cyl = function(r1, r2, h, mat, x, y, z, parent, seg){ var m = new THREE.Mesh(geo('c' + r1 + ',' + r2 + ',' + h + ',' + (seg || 12), function(){ return new THREE.CylinderGeometry(r1, r2, h, seg || 12); }), mat); m.position.set(x || 0, y || 0, z || 0); if(parent) parent.add(m); return m; };
+A.sph = function(r, mat, x, y, z, parent, sx, sy, sz, ws, hs){ var m = new THREE.Mesh(geo('s' + r + ',' + (ws || 16) + ',' + (hs || 12), function(){ return new THREE.SphereGeometry(r, ws || 16, hs || 12); }), mat); m.position.set(x || 0, y || 0, z || 0); m.scale.set(sx || 1, sy || 1, sz || 1); if(parent) parent.add(m); return m; };
 
 // ---------------------------------------------------------------- people
 // A person is a joint hierarchy with real proportions (≈1.62–1.86 m). Joints: hips, spine, neck, head, shoulders/elbows,
 // hips/knees. Every limb segment is a tapered cylinder so silhouettes read; clothing is per-part colour + optional
 // coat skirt / gown / scrub top / mask / cap / hair style. Pose() drives joint angles.
 function limb(len, r0, r1, mat, parent){ var g = new THREE.Group(); parent.add(g); var m = A.cyl(r0, r1, len, mat, 0, -len / 2, 0, g, 10); m.castShadow = false; g.userData.len = len; return g; }
+function tint(c, k){ return new THREE.Color(c).multiplyScalar(k).getHex(); }
+function mixc(a, b, t){ return new THREE.Color(a).lerp(new THREE.Color(b), t).getHex(); }
+function ball(r, mat, x, y, z, parent, sx, sy, sz){ return A.sph(r, mat, x, y, z, parent, sx, sy, sz, 8, 6); }
+// Hand: palm + grouped fingers + thumb. grip=true curls the fingers into a fist around the gun grip. Returns the hand group (J.handL/R).
+function makeHand(parent, mats, sx, grip){ var h = new THREE.Group(); h.position.y = -0.3; parent.add(h); var skin = mats.skin;
+  if(grip){
+    A.box(0.034, 0.05, 0.075, skin, -0.025 * sx, -0.03, 0.06, h);                                          // palm against the grip
+    A.box(0.056, 0.014, 0.074, skin, 0.0, -0.0, 0.06, h);                                                  // fingers across the front of the grip
+    for(var i = 0; i < 4; i++) A.box(0.014, 0.05, 0.017, skin, 0.03 * sx, -0.03, 0.03 + i * 0.0185, h);        // curled finger tips (one per finger)
+    var th = A.box(0.014, 0.014, 0.05, skin, -0.012 * sx, -0.058, 0.07, h); th.rotation.x = 0.2;           // thumb
+  } else {
+    A.box(0.058, 0.07, 0.028, skin, 0, 0.0, 0, h);                                                          // palm
+    var f1 = new THREE.Group(); f1.position.set(0, -0.035, 0); f1.rotation.x = 0.28; h.add(f1); A.box(0.056, 0.04, 0.022, skin, 0, -0.02, 0, f1);   // four fingers, first segment
+    var f2 = new THREE.Group(); f2.position.set(0, -0.04, 0); f2.rotation.x = 0.55; f1.add(f2); A.box(0.054, 0.034, 0.019, skin, 0, -0.017, 0, f2);   // second segment, curled
+    var th2 = A.box(0.016, 0.046, 0.017, skin, -0.032 * sx, -0.012, 0.012, h); th2.rotation.set(0.25, 0, 0.18 * sx);                                // thumb
+  }
+  return h; }
 A.person = function(o){ o = Object.assign({ height: 1.75, build: 1.0, skin: 0xc8957a, top: 0x3a4552, bottom: 0x2b2f36, shoes: 0x1b1b1d, hair: 0x2a1d15, hairStyle: 'short', sleeves: 'long', gun: null }, o);
   var s = o.height / 1.75, b = o.build, root = new THREE.Group(), J = {}, M = { skin: A.mat(o.skin, { roughness: 0.6 }), top: o.topMat || A.mat(o.top), bottom: A.mat(o.bottom), shoes: A.mat(o.shoes, { roughness: 0.5 }), hair: A.mat(o.hair, { roughness: 0.9 }) };
+  var scrubs = !!o.mask || (o.top === o.bottom && o.sleeves === 'short' && !o.gown), gownish = !!(o.gown || o.topMat), cm = o.coat ? A.mat(o.coat, { side: THREE.DoubleSide, roughness: 0.8 }) : null;
+  var SL = cm || M.top, cuffM = cm ? A.mat(o.coat) : A.mat(tint(o.top, 0.78));
   var body = new THREE.Group(); body.scale.setScalar(s); root.add(body);
   J.hips = new THREE.Group(); J.hips.position.y = 0.95; body.add(J.hips);
   A.cyl(0.155 * b, 0.165 * b, 0.2, M.bottom, 0, 0.0, 0, J.hips, 14).scale.z = 0.72;                       // pelvis
   J.spine = new THREE.Group(); J.spine.position.y = 0.08; J.hips.add(J.spine);
   var torso = A.cyl(0.19 * b, 0.15 * b, 0.48, M.top, 0, 0.26, 0, J.spine, 16); torso.scale.z = 0.62;       // chest tapers to the waist
   A.sph(0.19 * b, M.top, 0, 0.47, 0, J.spine, 1.12, 0.42, 0.66);                                          // shoulder line
-  J.neck = new THREE.Group(); J.neck.position.y = 0.53; J.spine.add(J.neck); A.cyl(0.05, 0.055, 0.1, M.skin, 0, 0.04, 0, J.neck);
+  [-1, 1].forEach(function(k){ var tz = A.box(0.1, 0.035, 0.085, M.top, k * 0.085 * b, 0.505, -0.01, J.spine); tz.rotation.z = -k * 0.38; });   // trapezius slope into the neck
+  ball(0.15 * b, M.top, 0, 0.37, 0.05, J.spine, 1.05, 0.72, 0.42);                                         // chest
+  ball(0.15 * b, M.top, 0, 0.4, -0.05, J.spine, 1.05, 0.7, 0.42);                                          // upper back
+  J.neck = new THREE.Group(); J.neck.position.y = 0.53; J.spine.add(J.neck); A.cyl(0.042, 0.057, 0.1, M.skin, 0, 0.04, 0, J.neck);   // tapered neck
+  if(!scrubs && !gownish && !o.coat){ A.cyl(0.066, 0.076, 0.035, o.jacket ? A.mat(tint(o.top, 0.8)) : M.top, 0, 0.515, 0, J.spine, 14); }   // collar band
+  if(scrubs){ var vs = new THREE.Shape(); vs.moveTo(-0.034, 0.512); vs.lineTo(0.034, 0.512); vs.lineTo(0, 0.44); var vn = new THREE.Mesh(geo('vneck', function(){ return new THREE.ShapeGeometry(vs); }), M.skin); vn.position.z = 0.127 * b; J.spine.add(vn); }   // V-neck opening
+  if(o.belt !== false && !gownish && !o.coat && !scrubs && o.top !== o.bottom){ var bm = A.mat(0x17130f, { roughness: 0.55 }); A.cyl(0.157 * b, 0.157 * b, 0.032, bm, 0, 0.035, 0, J.spine, 16).scale.z = 0.66; A.box(0.032, 0.026, 0.012, A.mat(0xb5b09a, { metalness: 0.7, roughness: 0.35 }), 0, 0.035, 0.108 * b, J.spine); }   // belt + buckle
   J.head = new THREE.Group(); J.head.position.y = 0.1; J.neck.add(J.head);
-  A.sph(0.1, M.skin, 0, 0.1, 0.005, J.head, 0.92, 1.12, 1.0);                                              // skull
-  A.sph(0.03, M.skin, 0, 0.085, 0.095, J.head, 0.7, 0.9, 0.8);                                             // nose
-  A.box(0.13, 0.02, 0.012, A.mat(0x3a2a22), 0, 0.125, 0.088, J.head);                                      // brow line (face reads at distance)
+  face(o, J.head, M, scrubs);
   hair(o, J.head, M);
   ['L', 'R'].forEach(function(side){ var sx = side === 'L' ? 1 : -1;
     var sh = J['sh' + side] = new THREE.Group(); sh.position.set(sx * 0.2 * b, 0.46, 0); J.spine.add(sh);
-    var up = limb(0.29, 0.052 * b, 0.045 * b, o.sleeves === 'short' ? M.skin : M.top, sh); if(o.sleeves === 'short') A.cyl(0.056 * b, 0.05 * b, 0.12, M.top, 0, -0.06, 0, up);
-    var el = J['el' + side] = new THREE.Group(); el.position.y = -0.29; up.add(el); var fo = limb(0.26, 0.042, 0.035, o.sleeves === 'long' ? M.top : M.skin, el);
-    var hand = A.box(0.06, 0.09, 0.03, M.skin, 0, -0.3, 0, fo); J['hand' + side] = hand;
+    var up = limb(0.29, 0.052 * b, 0.045 * b, o.sleeves === 'short' ? M.skin : SL, sh); if(o.sleeves === 'short') A.cyl(0.056 * b, 0.05 * b, 0.12, M.top, 0, -0.06, 0, up);
+    var el = J['el' + side] = new THREE.Group(); el.position.y = -0.29; up.add(el); var fo = limb(0.26, 0.042, 0.035, o.sleeves === 'long' ? SL : M.skin, el);
+    if(o.sleeves === 'long') A.cyl(0.039, 0.039, 0.034, cuffM, 0, -0.243, 0, fo, 10);                      // sleeve cuff
+    J['hand' + side] = makeHand(fo, M, sx, !!(o.gun && side === 'R'));
     var hp = J['hip' + side] = new THREE.Group(); hp.position.set(sx * 0.09 * b, -0.02, 0); J.hips.add(hp);
     var th = limb(0.44, 0.078 * b, 0.06 * b, M.bottom, hp); var kn = J['kn' + side] = new THREE.Group(); kn.position.y = -0.44; th.add(kn);
-    var shin = limb(0.43, 0.055, 0.042, M.bottom, kn); A.box(0.09, 0.07, 0.24, M.shoes, 0, -0.46, 0.05, shin); });
-  if(o.coat){ var cm = A.mat(o.coat); var sk = A.cyl(0.2 * b, 0.27 * b, 0.62, cm, 0, -0.22, 0, J.hips, 16); sk.scale.z = 0.7; sk.material = cm; A.cyl(0.2 * b, 0.165 * b, 0.5, cm, 0, 0.26, 0, J.spine, 16).scale.z = 0.66; }
-  if(o.gown){ var gm = new THREE.MeshStandardMaterial({ map: A.tex.gown, roughness: 0.9 }); var gs = A.cyl(0.19, 0.25, 0.6, gm, 0, -0.22, 0, J.hips, 16); gs.scale.z = 0.7; }
-  if(o.mask){ A.box(0.12, 0.07, 0.03, A.mat(o.mask), 0, 0.06, 0.09, J.head); }
+    var shin = limb(0.43, 0.055, 0.042, M.bottom, kn); A.box(0.09, 0.07, 0.24, M.shoes, 0, -0.46, 0.05, shin); A.box(0.094, 0.024, 0.25, A.mat(0x0b0b0c, { roughness: 0.9 }), 0, -0.489, 0.05, shin);   // shoe + sole
+  });
+  if(o.coat){ // open lab coat: back + side panels (front left open), lapels, collar, pockets
+    var open = 0.5, skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * b, 0.275 * b, 0.62, 18, 1, true, open, Math.PI * 2 - open * 2), cm); skirt.position.set(0, -0.22, 0); skirt.scale.z = 0.72; J.hips.add(skirt);
+    var chest = new THREE.Mesh(new THREE.CylinderGeometry(0.205 * b, 0.172 * b, 0.5, 18, 1, true, open * 0.8, Math.PI * 2 - open * 1.6), cm); chest.position.set(0, 0.26, 0); chest.scale.z = 0.66; J.spine.add(chest);
+    [-1, 1].forEach(function(k){ var lp = A.box(0.055, 0.34, 0.012, cm, k * 0.075 * b, 0.34, 0.122 * b, J.spine); lp.rotation.z = k * 0.22; lp.rotation.y = -k * 0.18;   // lapels
+      var cl = A.box(0.07, 0.05, 0.05, cm, k * 0.05, 0.525, -0.005, J.spine); cl.rotation.z = -k * 0.3;                                                      // collar wing
+      var pk = A.box(0.075, 0.07, 0.012, A.mat(tint(o.coat, 0.93)), k * 0.125 * b, -0.2, 0.15 * b, J.hips); pk.rotation.y = k * 0.5; });                         // hip pockets
+    A.box(0.05, 0.045, 0.01, A.mat(tint(o.coat, 0.93)), 0.09 * b, 0.4, 0.13 * b, J.spine); A.box(0.008, 0.07, 0.008, A.mat(0x2a4a8a), 0.092 * b, 0.445, 0.132 * b, J.spine);   // breast pocket + pen
+    var lg = A.box(0.014, 0.035, 0.008, A.mat(0xd8d8d0, { roughness: 0.5 }), -0.07 * b, 0.4, 0.13 * b, J.spine); }   // id badge
+  if(o.jacket){ var jm = A.mat(tint(o.top, 0.86)), zp = A.mat(0x2a2218, { metalness: 0.5 });
+    A.box(0.008, 0.46, 0.006, zp, 0, 0.26, 0.119 * b, J.spine);                                            // zip
+    [-1, 1].forEach(function(k){ A.box(0.058, 0.052, 0.014, jm, k * 0.075 * b, 0.33, 0.118 * b, J.spine);   // chest pockets
+      A.box(0.065, 0.065, 0.014, jm, k * 0.095 * b, 0.1, 0.1 * b, J.spine);                                                                                                                        // lower pockets
+      var cl = A.box(0.06, 0.04, 0.05, jm, k * 0.05, 0.525, 0.02, J.spine); cl.rotation.z = -k * 0.35; });   // collar flaps
+    A.cyl(0.158 * b, 0.158 * b, 0.05, jm, 0, 0.02, 0, J.spine, 16).scale.z = 0.66; }                        // hem band
+  if(o.gown || gownish){ var gm = new THREE.MeshStandardMaterial({ map: A.tex.gown, roughness: 0.9 }); if(o.gown){ var gs = A.cyl(0.19, 0.25, 0.6, gm, 0, -0.22, 0, J.hips, 16); gs.scale.z = 0.7; }
+    var tm2 = A.mat(tint(o.top, 0.85)); A.box(0.012, 0.09, 0.006, tm2, -0.03, 0.4, -0.103 * b, J.spine).rotation.z = 0.25; A.box(0.012, 0.09, 0.006, tm2, 0.03, 0.4, -0.103 * b, J.spine).rotation.z = -0.25;   // back ties
+    A.box(0.012, 0.08, 0.006, tm2, -0.03, 0.2, -0.1 * b, J.spine).rotation.z = 0.2; A.box(0.012, 0.08, 0.006, tm2, 0.03, 0.2, -0.1 * b, J.spine).rotation.z = -0.2; }
   if(o.vest){ A.cyl(0.2 * b, 0.17 * b, 0.4, A.mat(o.vest, { roughness: 0.6 }), 0, 0.28, 0, J.spine, 14).scale.z = 0.7; }
   if(o.bag){ var bag = A.cyl(0.08, 0.08, 0.3, A.mat(0x2b2b2b), 0.17, 0.02, -0.06, J.spine, 10); bag.rotation.z = Math.PI / 2; A.box(0.02, 0.5, 0.02, A.mat(0x1a1a1a), 0.02, 0.28, -0.12, J.spine).rotation.z = -0.6; }
-  if(o.gun){ J.gun = gunMesh(o.gun); J.gun.position.set(0, -0.33, 0.06); J.gun.rotation.x = -Math.PI / 2; J.handR.parent.add(J.gun); }
+  if(o.gun){ J.gun = gunMesh(o.gun); J.gun.position.set(0, -0.33, 0.06); J.gun.rotation.x = Math.PI / 2;   /* barrel out past the hand (was -PI/2: pointed back up the forearm) */ J.handR.parent.add(J.gun); }
   root.userData.J = J; root.userData.person = o; root.userData.scale = s;
   // contact shadow
   var sh = new THREE.Mesh(new THREE.CircleGeometry(0.38, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.012; root.add(sh); J.shadow = sh;
   A.pose(root, 'stand', 0); return root; };
+// Face on the head group (head centre ~ y 0.1): skull, jaw, chin, cheekbones, nose, eyes in sockets, brows, ears, lips, mask / beard / glasses.
+function face(o, head, M, scrubs){
+  var dk = A.mat(tint(o.skin, 0.62), { roughness: 0.8 }), lipM = A.mat(mixc(o.skin, 0x8a2f2f, 0.55), { roughness: 0.45 }), brM = A.mat(o.hairStyle === 'grey' ? 0x7a7a78 : tint(o.hair, 0.8), { roughness: 0.9 });
+  A.sph(0.1, M.skin, 0, 0.1, 0.005, head, 0.92, 1.12, 1.0);                                                // skull
+  A.sph(0.08, M.skin, 0, 0.042, 0.018, head, 0.9, 0.85, 0.95);                                             // jaw
+  ball(0.03, M.skin, 0, 0.018, 0.074, head, 1.0, 0.75, 0.8);                                               // chin
+  ball(0.03, M.skin, 0, 0.088, 0.093, head, 0.55, 1.1, 0.8);                                               // nose bridge + tip
+  if(!o.mask) ball(0.02, M.skin, 0, 0.074, 0.103, head, 0.9, 0.7, 0.75);
+  [-1, 1].forEach(function(k){
+    ball(0.019, dk, k * 0.037, 0.106, 0.084, head, 1.2, 0.85, 0.5);                                         // eye socket
+    ball(0.0095, A.mat(0x20170f, { roughness: 0.25 }), k * 0.037, 0.105, 0.0925, head, 1.15, 0.9, 0.7);    // eye (dark, set into the socket)
+    A.box(0.046, 0.009, 0.014, brM, k * 0.037, 0.128, 0.087, head).rotation.z = -k * 0.12;                   // eyebrow
+    ball(0.02, M.skin, k * 0.056, 0.078, 0.062, head, 1, 0.6, 0.5);                                            // cheekbone
+    ball(0.021, M.skin, k * 0.093, 0.095, 0.0, head, 0.4, 1.0, 0.7); });                                          // ear
+  if(!o.mask) A.box(0.036, 0.007, 0.012, lipM, 0, 0.037, 0.096, head);                                       // lips
+  if(o.mask){ ball(0.084, A.mat(o.mask, { roughness: 0.85 }), 0, 0.03, 0.022, head, 1.03, 0.9, 1.0);        // surgical mask wraps the jaw
+  }
+  if(o.beard){ ball(0.088, M.hair, 0, 0.026, 0.028, head, 1.0, 0.62, 0.9);                                   // beard hugs the jaw
+    A.box(0.05, 0.012, 0.014, M.hair, 0, 0.05, 0.094, head); }                                              // moustache
+  if(o.glasses){ var gm = A.mat(0x222222), gl = A.mat(0x99aabb, { transparent: true, opacity: 0.5 }); A.box(0.15, 0.012, 0.01, gm, 0, 0.106, 0.104, head);
+    [-1, 1].forEach(function(k){ A.box(0.05, 0.036, 0.008, gl, k * 0.038, 0.1, 0.104, head); A.box(0.004, 0.004, 0.1, gm, k * 0.082, 0.106, 0.05, head); }); } }
 function hair(o, head, M){ var h = o.hairStyle;
   if(h === 'bald') return;
   if(h === 'cap'){ A.sph(0.108, A.mat(o.capCol || 0x2a3340), 0, 0.15, 0, head, 1, 0.6, 1.05); A.box(0.16, 0.015, 0.09, A.mat(o.capCol || 0x2a3340), 0, 0.14, 0.1, head); return; }
@@ -99,9 +160,7 @@ function hair(o, head, M){ var h = o.hairStyle;
   if(h === 'bun'){ A.sph(0.052, M.hair, 0, 0.17, -0.09, head); }
   if(h === 'long'){ A.box(0.2, 0.26, 0.06, M.hair, 0, -0.02, -0.08, head); }
   if(h === 'curly'){ for(var i = 0; i < 7; i++){ var a = i / 7 * Math.PI * 2; A.sph(0.04, M.hair, Math.cos(a) * 0.08, 0.17 + Math.sin(i) * 0.01, Math.sin(a) * 0.07 - 0.01, head); } }
-  if(h === 'grey'){ M.hair.color.set(0x9a9a98); }
-  if(o.glasses){ var gm = A.mat(0x222222); A.box(0.15, 0.012, 0.01, gm, 0, 0.1, 0.1, head); A.box(0.05, 0.035, 0.008, A.mat(0x9ab, { transparent: true, opacity: 0.5 }), 0.038, 0.095, 0.1, head); A.box(0.05, 0.035, 0.008, A.mat(0x9ab, { transparent: true, opacity: 0.5 }), -0.038, 0.095, 0.1, head); }
-  if(o.beard){ A.sph(0.085, M.hair, 0, 0.045, 0.035, head, 1, 0.75, 0.9); } }
+  if(h === 'grey'){ M.hair.color.set(0x9a9a98); } }
 function gunMesh(kind){ var g = new THREE.Group(), m = A.mat(0x1b1c1e, { metalness: 0.5, roughness: 0.4 });
   if(kind === 'smg'){ A.box(0.05, 0.08, 0.32, m, 0, 0.02, 0.1, g); A.box(0.035, 0.12, 0.05, m, 0, -0.07, 0.02, g); A.box(0.03, 0.14, 0.04, m, 0, -0.08, 0.14, g); }
   else { A.box(0.035, 0.05, 0.2, m, 0, 0.02, 0.06, g); A.box(0.03, 0.1, 0.045, m, 0, -0.045, 0.0, g); }
@@ -141,7 +200,7 @@ A.muzzleWorld = function(p, out){ var J = p.userData.J; if(!J || !J.gun) return 
 // ---- the cast (originals) ----
 A.cast = {
   cole: function(){ return A.person({ height: 1.8, skin: 0xb98668, top: 0xa9c8d8, topMat: new THREE.MeshStandardMaterial({ map: A.tex.gown, roughness: 0.9 }), bottom: 0x8fb0c2, hair: 0x2b1d14, hairStyle: 'curly', beard: true, sleeves: 'short', gun: 'pistol', shoes: 0x9aa4a8 }); },
-  maya: function(){ return A.person({ height: 1.68, build: 0.9, skin: 0x9b6b4c, top: 0xc77f2a, bottom: 0x263244, hair: 0x15100d, hairStyle: 'ponytail', gun: 'pistol', bag: true, shoes: 0x3b2a20 }); },
+  maya: function(){ return A.person({ height: 1.68, build: 0.9, skin: 0x9b6b4c, top: 0xc77f2a, bottom: 0x263244, hair: 0x15100d, hairStyle: 'ponytail', gun: 'pistol', bag: true, jacket: true, shoes: 0x3b2a20 }); },
   hale: function(){ return A.person({ height: 1.78, skin: 0xd9a98c, top: 0x6c8fb0, bottom: 0x30343c, hair: 0x9a9a98, hairStyle: 'grey', glasses: true, coat: 0xf2f2ee }); },
   gunman: function(i){ var tops = [0x2b2f36, 0x5a2c24, 0x34402f, 0x3b3a52], hs = ['beanie', 'short', 'cap', 'bald'];
     return A.person({ height: 1.76 + (i % 3) * 0.05, build: 1.05 + (i % 2) * 0.08, skin: [0xc8957a, 0x8a5a3c, 0xe0b090, 0x6b4630][i % 4], top: tops[i % 4], bottom: 0x22252a, hairStyle: hs[i % 4], capCol: 0x1c1c1c, vest: i % 2 ? 0x1f2522 : null, gun: i % 3 === 2 ? 'smg' : 'pistol' }); },
@@ -154,9 +213,9 @@ A.cast = {
 // ---------------------------------------------------------------- vehicles + props
 A.bed = function(){ var g = new THREE.Group(), steel = A.mat(0xb8bcc0, { metalness: 0.6, roughness: 0.35 }), dark = A.mat(0x2c3034);
   // head end at local z = 0 (the rider point — Cole's head), foot toward +z (travel direction)
-  A.box(0.95, 0.12, 2.1, steel, 0, 0.5, 1.0, g); A.box(0.92, 0.16, 2.02, A.mat(0xf2f3f0), 0, 0.64, 1.0, g);                                  // frame + mattress
+  A.box(0.95, 0.12, 2.1, steel, 0, 0.5, 1.0, g); A.box(0.92, 0.16, 2.02, A.mat(0xaeb3b4), 0, 0.64, 1.0, g);                                  // frame + mattress
   [-0.47, 0.47].forEach(function(x){ A.box(0.04, 0.5, 0.04, steel, x, 0.8, -0.06, g); }); A.box(0.98, 0.04, 0.04, steel, 0, 1.02, -0.06, g); A.box(0.98, 0.36, 0.05, A.mat(0xcfd6da), 0, 0.68, 2.06, g);   // open head rail + foot board
-  var back = A.box(0.9, 0.08, 0.6, A.mat(0xf2f3f0), 0, 0.9, 0.42, g); back.rotation.x = 0.72;                                                    // raised back section (Cole reclines on it)
+  var back = A.box(0.9, 0.08, 0.6, A.mat(0xaeb3b4), 0, 0.9, 0.42, g); back.rotation.x = 0.72;                                                    // raised back section (Cole reclines on it)
   [-0.5, 0.5].forEach(function(x){ A.box(0.03, 0.03, 1.4, steel, x, 0.88, 0.95, g); A.box(0.03, 0.22, 0.03, steel, x, 0.77, 0.3, g); A.box(0.03, 0.22, 0.03, steel, x, 0.77, 1.6, g); });   // side rails
   A.box(0.9, 0.03, 0.03, steel, 0, 1.12, -0.12, g);                                                                                     // push bar at the head
   [[-0.4, 0.1], [0.4, 0.1], [-0.4, 1.9], [0.4, 1.9]].forEach(function(c){ A.cyl(0.07, 0.07, 0.05, dark, c[0], 0.08, c[1], g).rotation.z = Math.PI / 2; A.box(0.03, 0.38, 0.03, steel, c[0], 0.29, c[1], g); });
@@ -194,13 +253,13 @@ A.car = function(kind){ var g = new THREE.Group(), suv = kind === 'suv', L = suv
   var sh = new THREE.Mesh(new THREE.PlaneGeometry(W + 0.4, L + 0.5), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.35, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.02; g.add(sh);
   g.userData.kind = kind; return g; };
 // the ambulance: box body with an OPEN rear bay (interior + door frame are in the AMBULANCE rig's view); front = +z
-A.ambulance = function(){ var g = new THREE.Group(), white = A.mat(0xf3f3ef, { roughness: 0.5 }), sideM = new THREE.MeshStandardMaterial({ map: A.tex.ambSide, roughness: 0.5 }), dark = A.mat(0x24282c);
+A.ambulance = function(){ var g = new THREE.Group(), white = A.mat(0xb9bbb8, { roughness: 0.5 }), sideM = new THREE.MeshStandardMaterial({ map: A.tex.ambSide, roughness: 0.5 }), dark = A.mat(0x24282c);
   var Lb = 3.8, W = 2.3, floor = 0.75, Hb = 2.05, zb = -0.9;                                                                           // the bay box: z from zb-Lb/2 .. zb+Lb/2
   A.box(W, 0.12, Lb, A.mat(0x7f8a8f), 0, floor, zb, g);                                                                                 // bay floor
   A.box(0.08, Hb, Lb, sideM, -W / 2, floor + Hb / 2, zb, g).material = sideM; A.box(0.08, Hb, Lb, sideM, W / 2, floor + Hb / 2, zb, g).material = sideM;
   A.box(W, 0.08, Lb, white, 0, floor + Hb, zb, g); A.box(W, Hb, 0.08, white, 0, floor + Hb / 2, zb + Lb / 2, g);
-  var inner = A.mat(0xe6ecef, { roughness: 0.6 }); A.box(0.3, 1.1, 2.4, inner, -W / 2 + 0.2, floor + 1.25, zb + 0.3, g); A.box(0.25, 0.6, 2.4, A.mat(0xd0d8dc), W / 2 - 0.16, floor + 0.35, zb + 0.3, g);   // cabinets + bench
-  A.box(0.6, 0.12, 1.9, A.mat(0xd8dde0), 0.2, floor + 0.5, zb + 0.4, g); A.box(0.06, 0.4, 0.06, A.mat(0x9aa0a6), 0.2, floor + 0.25, zb + 0.9, g);                                      // stretcher
+  var inner = A.mat(0x8f999e, { roughness: 0.6 }); A.box(0.3, 1.1, 2.4, inner, -W / 2 + 0.2, floor + 1.25, zb + 0.3, g); A.box(0.25, 0.6, 2.4, A.mat(0x7c868b), W / 2 - 0.16, floor + 0.35, zb + 0.3, g);   // cabinets + bench
+  A.box(0.6, 0.12, 1.9, A.mat(0x7f898e), 0.2, floor + 0.5, zb + 0.4, g); A.box(0.06, 0.4, 0.06, A.mat(0x9aa0a6), 0.2, floor + 0.25, zb + 0.9, g);                                      // stretcher
   for(var i = 0; i < 3; i++) A.box(1.4, 0.05, 0.1, A.mat(0xfff8e8, { emissive: 0xfff3d8, emissiveIntensity: 1.5 }), 0, floor + Hb - 0.06, zb - 1.2 + i * 1.1, g);                        // bay lights
   A.box(0.08, Hb, 0.12, A.mat(0xcc3a30), -W / 2 + 0.04, floor + Hb / 2, zb - Lb / 2, g); A.box(0.08, Hb, 0.12, A.mat(0xcc3a30), W / 2 - 0.04, floor + Hb / 2, zb - Lb / 2, g);                // door frame
   A.box(W, 0.12, 0.12, A.mat(0xcc3a30), 0, floor + Hb - 0.04, zb - Lb / 2, g); A.box(W, 0.1, 0.25, A.mat(0x3a3a3a), 0, floor - 0.05, zb - Lb / 2 - 0.1, g);                           // header + step

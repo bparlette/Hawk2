@@ -25,7 +25,7 @@ W.merge = function(group){ group.updateMatrixWorld(true); var byMat = {}, keep =
   return out; };
 W.build = function(scene, data){ A.makeTextures(); var env = data.env, root = new THREE.Group(); scene.add(root); W.doors = []; W.anims = []; W.indicators = []; W.crossings = []; W.coverZones = [];
   var mats = { floor: texMat(A.tex.vinyl, 1, 1, { roughness: 0.55 }), wall: texMat(A.tex.wall, 1, 1), ceil: texMat(A.tex.ceiling, 1, 1, { roughness: 0.95 }),
-    panel: new THREE.MeshBasicMaterial({ map: A.tex.lightPanel, toneMapped: false, color: 0xf6fbff }), pool: new THREE.MeshBasicMaterial({ color: 0xfff9ee, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false }),
+    panel: new THREE.MeshBasicMaterial({ map: A.tex.lightPanel, toneMapped: false, color: 0xf6fbff }), pool: new THREE.MeshBasicMaterial({ color: 0xfff1d8, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }),
     door: new THREE.MeshStandardMaterial({ map: A.tex.door, roughness: 0.6 }), frame: M(0xb8bfc4, { metalness: 0.3, roughness: 0.4 }), glass: new THREE.MeshStandardMaterial({ color: 0xa8c8d8, transparent: true, opacity: 0.22, metalness: 0.6, roughness: 0.05, depthWrite: false }) };
   env.zones.forEach(function(z){ var g = new THREE.Group(); g.name = z.kind; var f = BUILD[z.kind]; if(f) f(z, g, mats, data); root.add(W.merge(g)); });
   return root; };

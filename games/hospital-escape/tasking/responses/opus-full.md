@@ -209,3 +209,57 @@ The engine files changed only additively; the extensions are listed below. L2–
   | `https://bparlette.github.io/Hawk2/games/hospital-escape/index.html` | `93d43cc3469e1b189010f57d49bb9bafa13659ba` | 6,311 bytes (HTTP 200) | yes, byte-identical to `git show HEAD:games/hospital-escape/index.html` |
   | `…/game/main.js` | `b9288b3d08b4e1984064c98bf9354c12ee237a7f` | — | yes |
 - **Step-one archive:** `https://bparlette.github.io/Hawk2/games/hospital-escape/step-one/` serves Neon's slice (sha1 `c555e64f…`, the same bytes that were at `index.html` before this build).
+
+---
+
+# Pass 2 (Nov 23): "through a wounded man's eyes", toward the MP4 look
+**Direction (Cherie):** "Goal is gta 6 quality as seen in mp4s … Can't be crisp. Has to be like seeing out of a sick person's eyes. A person who's been shot. Blurry kind of."
+
+**What the MP4s show** (frames pulled from `refs/source.mp4` and `source2.mp4`):
+- low-key, near-black shadows;
+- a cold teal grade with warm practical lights blooming;
+- heavy vignette;
+- soft focus everywhere, with the foreground shoulder and gun smeared by depth of field;
+- a stormy blue dusk for the chase.
+
+The 41 arcade frames are on main now (`refs/arcade/frames/`) and were available for this pass.
+
+## What changed
+- **`game/post.js` (new): a post-processing pipeline.** It's hand-written passes on three r128 core: no examples, add-ons or private copies.
+  1. The scene renders into an HDR (half-float) target with depth, at 60% internal resolution; the look is soft by design.
+  2. Bloom: a bright pass at quarter resolution, then two separable blurs.
+  3. The composite:
+     - depth of field: near heroes and the far field blur, and focus follows the nearest live threat;
+     - an always-on softness that breathes with an uneven heartbeat;
+     - radial edge smear;
+     - **double vision and more blur as you take damage, driven by the engine's `feedback.vignette` and `feedback.wash`**;
+     - chromatic fringing toward the edges;
+     - split-tone grade (teal shadows, sodium highlights, lifted blacks, desaturated), ACES, an extra S-curve, film grain and heavy vignette.
+  - There's an 8-bit fallback when the GPU can't render to half-float.
+  - `?post=0` turns it off. `?postdbg=raw|depth|bloom` gives debug views.
+- **Lighting:**
+  - Night hospital: dim, cold fill, HDR ceiling panels that bloom, and stronger light pools.
+  - Outside: a storm sky with procedural clouds and occasional lightning, dark blue fog, and a lower sun.
+  - The bright white foreground materials (mattress, ambulance bay) are darkened so the lower frame reads dark, as in the reference.
+- **People (`game/art.js`, delegated to a Sonnet agent and reviewed and integrated by me):**
+  - Faces: jaw, chin, cheekbones, eye sockets and eyes, brows, ears and lips.
+  - Hands: palm and fingers, with a fist around the gun grip.
+  - Clothing: collars, belts, cuffs and soles; Maya's utility jacket; Dr. Hale's open lab coat with lapels and ID badge; gown ties; V-neck scrubs.
+  - 50–68 meshes per person, with cached geometries.
+- **Fixes found this pass:**
+  - The gun barrel pointed back up the forearm (`rotation.x` sign), so muzzle flashes and tracers started near the shooter's chest. It now points past the hand. The agent flagged it and I made the change.
+  - My own edit had commented out the line that attaches the canvas to the page (a black screen in local testing). Fixed before pushing.
+
+## Proofs (pass 2)
+- **Engine tests:** `**24 passed, 0 failed of 24** (22.8 s, page errors: 0)`, unchanged. The Level 1 validator passes.
+- **Full autopilot run on the shipped `index.html`,** seed 7 (re-run with the post pipeline live):
+  `FULL RUN {"ended":true,"won":true,"lost":false,"health":100,"score":8990,"accuracy":0.982,"bystanders":{"spared":7,"hit":0},"simSeconds":311,"wallMs":703,"beats":"visit,visit,bed_push,transfer,elevator,gauntlet,entrance,steal,chase,train_finale","modes":"CUTSCENE,RAIL_CHAIR,FREE_FOOT,HOLDOUT,AMBULANCE","redShots":2,"shotsAtHeroes":22,"heroHits":2,"partnerShots":36,"damageWithoutRedShot":0} end card: OUT. NOTHING IN THE MIRRORS. page errors 0 `
+- **Lose path:** "COLE IS DOWN", with 0 page errors.
+- **Captures:** `tasking/responses/opus-full-shots-pass2/`, all 10 with 0 page errors, plus `contact-sheet.png`.
+
+## Still below the bar, named
+- **Characters:** still primitive-built. The blur hides a lot at phone size, but nobody would mistake them for the MP4's scanned characters.
+- **Frame size:** the heroes don't fill the frame the way the MP4's over-shoulder close-ups do. The binding camera numbers (§4) keep them in the lower 35–45%.
+- **The chase:** no rain, no wet-road reflections, no motion blur yet.
+- **The train:** still not caught on the locomotive in the finale capture.
+- **Performance:** this pass is unprofiled on real phones. The post pipeline costs 5 full-screen passes per frame at 60% resolution.
