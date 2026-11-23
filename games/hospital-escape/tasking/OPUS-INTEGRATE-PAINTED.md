@@ -38,6 +38,33 @@ at 390×844.
 3. Known nit, NOT blocking: 2–3 tiny transparent pinholes inside
    Cole's pistol (zoom-only, invisible in play). Leave them.
 
+## REALISM BAR — assets, not stickers (Cherie, Nov 23)
+"We need the art turned into realistic game assets not looking like
+flat stickers." The sprites must read as people IN the corridor, not
+cutouts pasted ON it. All of this is engine-side integration work:
+1. **Contact shadow** under every character, anchored at the measured
+   baseline, soft and scene-consistent. No floating figures.
+2. **Floor reflection** for near characters — the corridor floor is
+   wet linoleum; a character with no reflection reads as a sticker.
+   Mirrored, faded, blurred, clipped at the baseline.
+3. **Lighting match**: sprites graded to the scene's night grade and
+   dimmed with distance like everything else in the corridor. A
+   sprite brighter or warmer than the room around it is a sticker.
+4. **Feet locked, no skating**: stride phase synced to movement speed
+   so feet plant on the floor plane; scale from the 341.6 px/m
+   measure at the character's depth.
+5. **Depth, not screen-space**: sprites depth-test against the 3D
+   scene — behind pillars, beds and door frames when the world says
+   so, never drawn over them.
+6. **Edges**: no halo, no fringe, slight softening; distant figures
+   take the scene's haze/DOF treatment too.
+Acceptance is visual, at 390×844: the bed-push capture, both enemy
+fire captures, and the motion clip from the proof list below get
+judged on one question — does the character belong in the room? If
+any reads as a sticker, integration is not done. If a sprite's baked
+lighting or edges genuinely cannot blend, name it precisely in the
+response — that becomes a one-item Neon fix, not a silent workaround.
+
 ## Hard constraints (the audited build must not regress)
 - The fairness contract from OPUS-FIX-FAIRNESS-PACE stays binding —
   sprite placement/scale must keep every damaging shooter inside the
