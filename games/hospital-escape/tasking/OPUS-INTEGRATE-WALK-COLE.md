@@ -40,6 +40,15 @@ conditions below; read them before placing anything.
 
 ## Measured replacement anchors (quoted verbatim from Moth's audit)
 
+> **Amendment (Nov 23, 2026):** Amended after Neon's 183fe1af
+> re-render — clusters re-measured; bottoms unchanged
+> (718/712/718/714); MANIFEST quarantine still in force. The
+> re-render also fixed the walk-02/04 knee holes (delta-audit
+> verified: enclosed hole px plain-02 3,513→6, scrubs-02 4,354→0)
+> — the sprites are cleared for integration as-is. The five
+> refreshed cluster values below are quoted verbatim from the
+> delta-audit (§3); the other three frames' clusters are unchanged.
+
 Walk frames — canvas, bottoms and bboxes, all measured exact:
 
 | Frame | Canvas (meas.) | Bottom α≥64 claimed | Bottom α≥64 measured | BBox claimed | BBox measured | SHA-256 (first 16) |
@@ -55,14 +64,14 @@ Walk frames — canvas, bottoms and bboxes, all measured exact:
 
 Walk frames — measured ground-contact clusters (bottom band; these
 REPLACE the MANIFEST contact points):
-- plain-01: actual cluster x 404–419, bottoming 717–718.
+- plain-01: **x309–342** @718 (refreshed — feet together now).
 - plain-02: actual cluster x 350–365 at y 712.
-- plain-03: the frame's only ground cluster is x 301–315 at y 718.
-- plain-04: actual cluster x 127–146 at y 714.
-- scrubs-01: the left foot actually ends at y=715; the y=718 contact
-  is the *right* foot at x≈455–458.
+- plain-03: **x84–111 + x385–412** @718 (refreshed — two clusters,
+  full stride; replaces the old single cluster).
+- plain-04: **x287–308** @714 (refreshed — opposite foot grounded).
+- scrubs-01: **x346–376** @718 (refreshed).
 - scrubs-02: actual contact x≈172 at y 712.
-- scrubs-03: actual cluster x 344–356 at y 718.
+- scrubs-03: **x429–451** @718 (refreshed).
 - scrubs-04: actual cluster x 392–411 at y 714.
 
 Braced Cole — the MANIFEST's claimed floor contacts (hand (612, 717),
@@ -75,10 +84,14 @@ Cole's muzzle (187, 104) is approximately correct (gun dark-pixel
 bbox x[188–311], y[43–219]) — usable as-is.
 
 ## Known art notes (not fixable in integration — don't chase them)
-- Contact-B frames (walk-03, both enemies) are the tallest of each
-  set and collapse to a near-standing pose: expect a ~9–14 px
-  head-pop and a visible stride hitch at frame 3 of each cycle.
-  Art-side; Neon has it on her send-back list.
+- **Known trait (post-re-render):** walk-01 in both cycles is now
+  the low-amplitude near-standing frame — the re-render fixed
+  walk-03's standing pose (it's a real stride now) but the hitch
+  moved from position 3 to position 1; the loop reads
+  stand–stride–stride–step. You may offset the cycle's starting
+  frame so the stride reads continuously — your call — but do not
+  "fix" it by reordering frames silently; state what you chose in
+  your response file.
 - The walk frames carry the pistol high, two-handed, aim-ready —
   same arm pose as the aim frames. Good for cutting between walk and
   aim/fire; keep transitions on that basis.
