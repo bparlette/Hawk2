@@ -191,3 +191,7 @@
 - **Tools:**
   - `tools/fairness-audit.cjs` (the acceptance test and first-damage captures);
   - `tools/pace-audit.cjs` (pace and agency, plus the pauses inventory, on any build root).
+
+## Served verification
+- Pushed to main; merge commit `1fc2441`.
+- The Pages copy of `games/hospital-escape/engine/combat.js` matched the built bytes on the 4th check after the push, about 2 minutes.
