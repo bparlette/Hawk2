@@ -35,7 +35,7 @@ function validate(D){
     (p.events || []).forEach(function(e){ n++; if(!(num(e.at) && e.at >= 0 && e.at <= 1)) err(q + 'event at 0..1'); if(EVT.indexOf(e.type) < 0) err(q + 'event type ' + e.type);
       if(e.type === 'line' && !L[e.line]) err(q + 'event line unknown ' + e.line); if(e.type === 'wave' && !(W[e.wave] || PU[e.wave])) err(q + 'event wave unknown ' + e.wave);
       if(e.type === 'pickup' && ['pistol', 'machine_pistol'].indexOf(e.weapon) < 0) err(q + 'pickup weapon ' + e.weapon); });
-    ['side', 'lookAhead', 'lookHeight', 'lookClamp', 'holdClamp', 'bayOffset'].forEach(function(k){ if(p[k] != null && !num(p[k])) err(q + k + ' must be a number'); });   // ext: over-shoulder rig fields
+    ['side', 'lookAhead', 'lookHeight', 'lookClamp', 'bayOffset'].forEach(function(k){ if(p[k] != null && !num(p[k])) err(q + k + ' must be a number'); });   // ext: over-shoulder rig fields
     var tr = [p.crossingAt, p.trainAt, p.trainOccupies].filter(function(x){ return x != null; }).length;
     if(tr && tr < 3) err(q + 'crossingAt / trainAt / trainOccupies go together');
     if(tr === 3){ if(!(p.crossingAt > 0 && p.crossingAt < 1 && p.trainAt >= p.crossingAt && p.trainAt < 1)) err(q + 'need 0 < crossingAt <= trainAt < 1'); if(!(p.trainOccupies > 0)) err(q + 'trainOccupies must be > 0'); if(p.vehicle !== 'ambulance') err(q + 'train crossing only on ambulance paths'); } });
@@ -66,12 +66,10 @@ function validate(D){
   // tuning (frozen field names; numbers tunable)
   var T = D.tuning || {}; ['pistol', 'machine_pistol'].forEach(function(w){ var x = (T.weapons || {})[w]; if(!x || !num(x.mag) || !num(x.reloadTime) || !num(x.damage)) err('tuning.weapons.' + w + ' needs mag/reloadTime/damage'); });
   ['tire', 'driver', 'engine'].forEach(function(c){ if(!num((T.components || {})[c])) err('tuning.components.' + c + ' missing'); });
-  ['shotSpeed', 'aimTell', 'closeRange', 'healOnBeat', 'screenFire', 'footTurn', 'firstShot', 'holdRelease', 'rushStop'].forEach(function(k){ if(T[k] != null && !(num(T[k]) && T[k] > 0)) err('tuning.' + k + ' must be > 0'); });   // ext fields
+  ['shotSpeed', 'aimTell', 'closeRange', 'healOnBeat', 'screenFire', 'footTurn', 'firstShot', 'holdRelease'].forEach(function(k){ if(T[k] != null && !(num(T[k]) && T[k] > 0)) err('tuning.' + k + ' must be > 0'); });   // ext fields
   if(T.fairness != null){ var F = T.fairness; if(typeof F !== 'object') err('tuning.fairness must be an object');
     else { ['telegraph', 'minPx'].forEach(function(k){ if(!(num(F[k]) && F[k] >= 0)) err('tuning.fairness.' + k + ' must be >= 0'); });
       if(F.margin != null && !(num(F.margin) && F.margin >= 0 && F.margin < 0.5)) err('tuning.fairness.margin must be in [0, 0.5)');
-      if(T.cover && T.cover.commit != null && typeof T.cover.commit !== 'boolean') err('tuning.cover.commit must be boolean');
-      if(F.seenOnly != null && typeof F.seenOnly !== 'boolean') err('tuning.fairness.seenOnly must be boolean');
       if(F.outGate != null && !(num(F.outGate) && F.outGate > 0 && F.outGate <= 1)) err('tuning.fairness.outGate must be in (0, 1]'); } }   // ext: consciousness gate
   return { checked: n, errors: E };
 }

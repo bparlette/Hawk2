@@ -5,8 +5,8 @@
 'use strict';
 var G = -12;                                   // ground floor; Ward 4B is at y = 0
 // the over-the-shoulder rig (NEON-FIX-CAMERA §6). back = camera behind the RIDER = pusher gap 0.55 + spec distance behind Maya.
-var BED = { height: 1.55, back: 0.55 + 1.15, side: 0.28, lookAhead: 6, lookHeight: 1.0, lookClamp: 20, holdClamp: 75 };
-var CHAIR = { height: 1.45, back: 0.55 + 1.0, side: 0.25, lookAhead: 6, lookHeight: 1.0, lookClamp: 20, holdClamp: 75 };
+var BED = { height: 1.55, back: 0.55 + 1.15, side: 0.28, lookAhead: 6, lookHeight: 1.0, lookClamp: 20 };
+var CHAIR = { height: 1.45, back: 0.55 + 1.0, side: 0.25, lookAhead: 6, lookHeight: 1.0, lookClamp: 20 };
 var rig = function(r, o){ var p = {}; for(var k in r) p[k] = r[k]; for(var k2 in o) p[k2] = o[k2]; return p; };
 var L = [
   // ---- Neon's lines (step-one), unchanged ----
@@ -97,25 +97,25 @@ var S = function(kind, at, count, stagger, behavior){ return { kind: kind, at: a
 // spawn points are doorways / corners / counters (see env): cover = corner-pops that advance; rush = through a door and at you
 var waves = [
   W('bed_w0', { type: 'timer', delay: 1.2 }, [S('gunman', [1.3, 0, -12.6], 1, 0, 'cover')]),
-  W('bed_w1', { type: 'pathEvent' }, [S('gunman', [9.9, 0, -15.9], 1, 0, 'cover'), S('gunman', [11.9, 0, -17.7], 1, 0.5, 'cover')], { type: 'resume' }),
-  W('bed_w2', { type: 'pathEvent' }, [S('gunman', [12.1, 0, -38.3], 2, 0.9, 'rush'), S('gunman', [13.2, 0, -31.5], 1, 0, 'cover')], { type: 'resume' }),
-  W('tr_w1', { type: 'segmentStart' }, [S('gunman', [5.1, 0, -43.6], 1, 0, 'cover'), S('gunman', [6.9, 0, -43.8], 1, 0.6, 'rush')], { type: 'resume' }),
-  W('tr_w3', { type: 'afterWave', wave: 'tr_w2', delay: 0.4 }, [S('gunman', [0, 0, -65.6], 2, 0.5, 'rush')]),
-  W('tr_w2', { type: 'pathEvent' }, [S('staff', [-0.4, 0, -58.4], 1, 0, 'cover'), S('staff', [1.3, 0, -60.2], 1, 0, 'cover'), S('staff', [0, 0, -64.4], 1, 0.6, 'rush')], { type: 'resume' }),
-  W('el_up', { type: 'pathEvent' }, [S('gunman', [-1.2, 0, -72.7], 1, 0, 'cover'), S('staff', [1.1, 0, -72.3], 1, 0.4, 'cover')], { type: 'resume' }),
+  W('bed_w1', { type: 'pathEvent' }, [S('gunman', [7.2, 0, -14.8], 1, 0, 'cover'), S('gunman', [10.9, 0, -24.5], 1, 0.5, 'cover')], { type: 'resume' }),
+  W('bed_w2', { type: 'pathEvent' }, [S('gunman', [12, 0, -39.5], 2, 0.9, 'rush'), S('gunman', [13.2, 0, -31.5], 1, 0, 'cover')], { type: 'resume' }),
+  W('tr_w1', { type: 'segmentStart' }, [S('gunman', [3.4, 0, -40.9], 1, 0, 'cover'), S('gunman', [0.2, 0, -52], 1, 0.6, 'rush')], { type: 'resume' }),
+  W('tr_w3', { type: 'afterWave', wave: 'tr_w2', delay: 0.4 }, [S('gunman', [0, 0, -68], 2, 0.5, 'rush')]),
+  W('tr_w2', { type: 'pathEvent' }, [S('staff', [-1.3, 0, -58.4], 1, 0, 'cover'), S('staff', [1.3, 0, -60.2], 1, 0, 'cover'), S('staff', [0, 0, -65], 1, 0.6, 'rush')], { type: 'resume' }),
+  W('el_up', { type: 'pathEvent' }, [S('gunman', [-3.2, 0, -72.6], 1, 0, 'cover'), S('staff', [3.2, 0, -72.2], 1, 0.4, 'cover')], { type: 'resume' }),
   W('el_w1', { type: 'segmentStart' }, [S('gunman', [-1.4, G, -84.5], 1, 0, 'cover'), S('gunman', [1.4, G, -86.5], 1, 0.4, 'cover'), S('gunman', [0, G, -90], 1, 0.8, 'rush')]),
   W('g_w0', { type: 'timer', delay: 0.8 }, [S('staff', [1.3, G, -97], 1, 0, 'cover')]),
-  W('g_w1', { type: 'pathEvent' }, [S('gunman', [-1.3, G, -108.5], 1, 0, 'cover'), S('staff', [1.2, G, -110.5], 1, 0.5, 'cover'), S('gunman', [1.5, G, -116], 1, 1.0, 'rush')], { type: 'resume' }),
+  W('g_w1', { type: 'pathEvent' }, [S('gunman', [-1.3, G, -108.5], 1, 0, 'cover'), S('staff', [1.3, G, -110.5], 1, 0.5, 'cover'), S('gunman', [1.5, G, -116], 1, 1.0, 'rush')], { type: 'resume' }),
   W('g_w2', { type: 'pathEvent' }, [S('staff', [14.5, G, -114.6], 1, 0, 'cover'), S('staff', [17, G, -116], 1, 0.7, 'rush')]),
-  W('caf_w1', { type: 'pathEvent' }, [S('gunman', [30.4, G, -111.9], 1, 0, 'cover'), S('gunman', [29.1, G, -110.1], 1, 0.4, 'cover'), S('gunman', [34.9, G, -109.7], 1, 0.9, 'rush')], { type: 'resume' }),
-  W('caf_w2', { type: 'pathEvent' }, [S('staff', [40.1, G, -118], 1, 0, 'cover'), S('staff', [41.3, G, -119.5], 1, 0.3, 'cover'), S('gunman', [39.7, G, -119.6], 1, 0.8, 'rush')], { type: 'resume' }),
-  W('foot_w1', { type: 'segmentStart' }, [S('gunman', [54.5, G, -115.4], 1, 0, 'cover'), S('staff', [55.6, G, -116.8], 1, 0.6, 'cover')], { type: 'wave', wave: 'foot_w2' }),
-  W('foot_w2', { type: 'afterWave', wave: 'foot_w1', delay: 1.0 }, [S('staff', [58, G, -119.6], 2, 0.7, 'rush')]),
-  W('wait_w1', { type: 'pathEvent' }, [S('gunman', [57.9, G, -141.2], 1, 0, 'cover'), S('gunman', [57.5, G, -143.8], 1, 0.4, 'cover'), S('staff', [58, G, -149.4], 1, 0.9, 'rush')], { type: 'resume' }),
-  W('ent_w1', { type: 'segmentStart' }, [S('staff', [58.6, G, -163.5], 3, 0.8, 'rush')], { type: 'wave', wave: 'ent_w2' }),
-  W('ent_w2', { type: 'afterWave', wave: 'ent_w1', delay: 1.2 }, [S('gunman', [55.3, G, -159.8], 1, 0, 'cover'), S('gunman', [58.4, G, -160], 1, 0.4, 'cover'), S('gunman', [58.6, G, -163.5], 1, 1.0, 'rush')], { type: 'line', line: 'cole_09' }),
-  W('exit_w1', { type: 'segmentStart' }, [S('gunman', [55.6, G, -161], 2, 0.6, 'rush')]),
-  W('lot_w1', { type: 'segmentStart' }, [S('gunman', [58, G, -168.5], 3, 0.7, 'rush')])
+  W('caf_w1', { type: 'pathEvent' }, [S('gunman', [31, G, -121.5], 1, 0, 'cover'), S('gunman', [26, G, -106.5], 1, 0.4, 'cover'), S('gunman', [42, G, -108], 1, 0.9, 'rush')], { type: 'resume' }),
+  W('caf_w2', { type: 'pathEvent' }, [S('staff', [43.4, G, -112], 1, 0, 'cover'), S('staff', [43.4, G, -120], 1, 0.3, 'cover'), S('gunman', [46, G, -116], 1, 0.8, 'rush')], { type: 'resume' }),
+  W('foot_w1', { type: 'segmentStart' }, [S('gunman', [55, G, -114], 1, 0, 'cover'), S('staff', [58.6, G, -119], 1, 0.6, 'cover')], { type: 'wave', wave: 'foot_w2' }),
+  W('foot_w2', { type: 'afterWave', wave: 'foot_w1', delay: 1.0 }, [S('staff', [57, G, -130], 2, 0.7, 'rush')]),
+  W('wait_w1', { type: 'pathEvent' }, [S('gunman', [63, G, -140.5], 1, 0, 'cover'), S('gunman', [52.4, G, -144.5], 1, 0.4, 'cover'), S('staff', [58, G, -149.5], 1, 0.9, 'rush')], { type: 'resume' }),
+  W('ent_w1', { type: 'segmentStart' }, [S('staff', [58, G, -170.5], 3, 0.8, 'rush')], { type: 'wave', wave: 'ent_w2' }),
+  W('ent_w2', { type: 'afterWave', wave: 'ent_w1', delay: 1.2 }, [S('gunman', [54.2, G, -163], 1, 0, 'cover'), S('gunman', [61.8, G, -163], 1, 0.4, 'cover'), S('gunman', [58, G, -171], 1, 1.0, 'rush')], { type: 'line', line: 'cole_09' }),
+  W('exit_w1', { type: 'segmentStart' }, [S('gunman', [60, G, -176], 2, 0.6, 'rush')]),
+  W('lot_w1', { type: 'segmentStart' }, [S('gunman', [58, G, -170.5], 3, 0.7, 'rush')])
 ];
 var P = function(id, trigger, spawns, onCleared){ var w = { id: id, trigger: trigger, spawns: spawns }; if(onCleared) w.onCleared = onCleared; return w; };
 var pursuers = [
@@ -152,12 +152,12 @@ var bystanders = [
 ];
 var tuning = {
   weapons: { pistol: { mag: 12, reloadTime: 1.2, damage: 10, rate: 6, auto: false }, machine_pistol: { mag: 30, reloadTime: 1.2, damage: 8, rate: 10, auto: true } },
-  enemies: { gunman: { hp: 50, speed: 2.3, fireEvery: 2.2, accuracy: 0.26, damage: 4 }, staff: { hp: 40, speed: 2.7, fireEvery: 2.5, accuracy: 0.24, damage: 4 } },
+  enemies: { gunman: { hp: 30, speed: 2.3, fireEvery: 2.2, accuracy: 0.26, damage: 4 }, staff: { hp: 20, speed: 2.7, fireEvery: 2.5, accuracy: 0.24, damage: 4 } },
   pursuers: { patrol: { attack: 10, close: 5, fireEvery: 1.8, accuracy: 0.24, damage: 4 }, charger: { attack: 7, close: 6, fireEvery: 1.6, accuracy: 0.26, damage: 4 }, suv: { attack: 9, close: 6, fireEvery: 1.4, accuracy: 0.28, damage: 5 } },
   components: { tire: 30, driver: 40, engine: 60 },
-  cover: { exposed: 1.5, hidden: 1.1, lateral: 0.7, advance: 3.0, advanceEvery: 2, minDist: 6.5, side: 0.5, recoverAfter: 5, commit: true },
+  cover: { exposed: 1.5, hidden: 1.1, lateral: 0.7, advance: 3.0, advanceEvery: 2, minDist: 6.5, side: 0.5, recoverAfter: 5 },
   enemyFireDelay: 0.6, firstShot: 0.35, autopilot: { react: 1.6 }, trainApproach: 1.0, footSpeed: 5.2, footHalfWidth: 4.5, ambulanceFov: 80,
-  shotSpeed: 24, aimTell: 0.45, closeRange: 14, healOnBeat: 35, holdRelease: 0.25, fairness: { telegraph: 0.6, minPx: 40, margin: 0.03, outGate: 0.85, seenOnly: true }, rushStop: 5.5, screenFire: 1.1, footTurn: 1.9,
+  shotSpeed: 24, aimTell: 0.45, closeRange: 14, healOnBeat: 35, holdRelease: 0.25, fairness: { telegraph: 0.6, minPx: 40, margin: 0.03, outGate: 0.85 }, screenFire: 1.1, footTurn: 1.9,
   partner: { fireEvery: 1.25, accuracy: 0.5, damage: 10 },
   score: { kill: 100, quick: 50, quickDraw: 1.2, streak: 10, wreck: 250, bystander: 500 }
 };
