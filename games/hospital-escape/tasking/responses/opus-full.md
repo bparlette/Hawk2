@@ -198,3 +198,14 @@ The engine files changed only additively; the extensions are listed below. L2–
   - bystanders, hold-fire and the rescued tally became the score penalty and the spared-and-hit tally;
   - advancing waves came from the House of the Dead notes.
 - The missing frames blocked one decision: I could not check silhouettes side by side against the frames. The silhouettes were judged only in my own 390×844 captures.
+- **Late note:** the frames landed on main *while* I was building (`f8d9bff` "Arcade harvest frames: house-of-the-dead (11)", merged into my push). This build was not checked against them; a side-by-side pass is the natural next step.
+
+## Served verification
+- **Commits:** the build is `5893bd5`, merged into main as `8012be3` (the harvest frames had landed upstream in between).
+- **Pages byte check:** after the push, Pages served the new build on the third check (~1 min).
+
+  | Served file | sha1 | Size | Matches the built bytes |
+  |---|---|---|---|
+  | `https://bparlette.github.io/Hawk2/games/hospital-escape/index.html` | `93d43cc3469e1b189010f57d49bb9bafa13659ba` | 6,311 bytes (HTTP 200) | yes, byte-identical to `git show HEAD:games/hospital-escape/index.html` |
+  | `…/game/main.js` | `b9288b3d08b4e1984064c98bf9354c12ee237a7f` | — | yes |
+- **Step-one archive:** `https://bparlette.github.io/Hawk2/games/hospital-escape/step-one/` serves Neon's slice (sha1 `c555e64f…`, the same bytes that were at `index.html` before this build).
