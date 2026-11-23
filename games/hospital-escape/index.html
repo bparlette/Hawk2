@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>HOSPITAL ESCAPE — St. Mercer Memorial (Step One)</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: #070a09;
+      color: #eef3ef;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      touch-action: none;
+    }
+
+    #viewport {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #050807;
+      touch-action: none;
+    }
+
+    #stage {
+      position: relative;
+      width: min(100vw, calc(100dvh * 390 / 844));
+      height: min(100dvh, calc(100vw * 844 / 390));
+      overflow: hidden;
+      background: #0c1210;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
+      touch-action: none;
+    }
+
+    #glCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    /* Injured hero edge vignette + Red hit flash + Sickly yellow-green near-death wash */
+    .fx-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 400;
+    }
+
+    #injuryVignette {
+      background: radial-gradient(circle at 50% 48%, rgba(0,0,0,0) 54%, rgba(6,10,9,0.52) 100%);
+    }
+
+    #damageFlash {
+      background: radial-gradient(circle at 50% 50%, rgba(190,15,15,0) 42%, rgba(215,24,24,0.78) 100%);
+      opacity: 0;
+      transition: opacity 0.08s ease-out;
+    }
+
+    #nearDeathWash {
+      background: radial-gradient(circle at 50% 50%, rgba(164,194,48,0.18) 25%, rgba(128,158,28,0.52) 100%);
+      mix-blend-mode: multiply;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    #cutFade {
+      background: #050706;
+      opacity: 0;
+      transition: opacity 0.28s ease;
+    }
+
+    /* Reticle — thin circle + red X hitmarker */
+    #reticle {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      width: 30px;
+      height: 30px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 600;
+      opacity: 0;
+      transition: opacity 0.16s ease;
+    }
+
+    #reticle.visible { opacity: 1; }
+
+    #reticle .ring {
+      position: absolute;
+      inset: 3px;
+      border: 1.75px solid rgba(242, 250, 245, 0.92);
+      border-radius: 50%;
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.85);
+      transition: transform 0.06s ease-out;
+    }
+
+    #reticle.recoil .ring {
+      transform: scale(1.26);
+    }
+
+    #reticle .dot {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 3px;
+      height: 3px;
+      background: #ffffff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 3px #000;
+    }
+
+    #reticle .hitx {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.07s ease-out;
+    }
+
+    #reticle.hit .hitx { opacity: 1; }
+
+    #reticle .hitx::before,
+    #reticle .hitx::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 22px;
+      height: 2.5px;
+      background: #ff2b2b;
+      box-shadow: 0 0 6px rgba(255, 43, 43, 0.9);
+      border-radius: 2px;
+    }
+
+    #reticle .hitx::before { transform: translate(-50%, -50%) rotate(45deg); }
+    #reticle .hitx::after  { transform: translate(-50%, -50%) rotate(-45deg); }
+
+    /* Subtitles — clean bottom-center original styling */
+    #subtitleBox {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 126px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 1120;
+      opacity: 0;
+      transition: opacity 0.18s ease;
+    }
+
+    #subtitleBox.visible { opacity: 1; }
+
+    #subtitleInner {
+      display: inline-block;
+      max-width: 100%;
+      padding: 7px 12px;
+      border-radius: 8px;
+      background: rgba(8, 13, 11, 0.78);
+      border-left: 3px solid #7fe0b6;
+      color: #f3f7f4;
+      font-size: 13.5px;
+      line-height: 1.35;
+      letter-spacing: 0.2px;
+      text-shadow: 0 1px 2px #000;
+    }
+
+    #subtitleSpeaker {
+      font-weight: 800;
+      color: #8de6c0;
+      margin-right: 6px;
+      text-transform: uppercase;
+      font-size: 11.5px;
+      letter-spacing: 0.7px;
+    }
+
+    /* HTML Touch Controls — ALL at z-index >= 1100 */
+    #fireBtn {
+      position: absolute;
+      right: 20px;
+      bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(255, 255, 255, 0.85);
+      background: radial-gradient(circle at 38% 32%, rgba(232, 68, 56, 0.92) 0%, rgba(154, 22, 22, 0.92) 100%);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      box-shadow: 0 6px 22px rgba(0, 0, 0, 0.65), inset 0 1px 4px rgba(255, 255, 255, 0.35);
+      cursor: pointer;
+      z-index: 1200;
+      touch-action: none;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #fireBtn.visible { display: flex; }
+    #fireBtn:active, #fireBtn.pressed {
+      transform: scale(0.93);
+      filter: brightness(1.15);
+    }
+
+    /* Contextual Reload button — ONLY shown when mag is empty or low (<= 3) */
+    #reloadBtn {
+      position: absolute;
+      right: 112px;
+      bottom: calc(36px + env(safe-area-inset-bottom, 0px));
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 2px solid #ffcf56;
+      background: rgba(16, 22, 19, 0.9);
+      color: #ffdf80;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+      cursor: pointer;
+      z-index: 1200;
+      touch-action: manipulation;
+      display: none;
+    }
+
+    #reloadBtn.visible { display: block; }
+
+    #muteBtn {
+      position: absolute;
+      top: calc(10px + env(safe-area-inset-top, 0px));
+      right: 10px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1.5px solid rgba(168, 214, 194, 0.45);
+      background: rgba(10, 16, 14, 0.72);
+      color: #c8e2d5;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      cursor: pointer;
+      z-index: 1200;
+      touch-action: manipulation;
+    }
+
+    /* Minimal Start / Step-One Complete Overlay */
+    #startOverlay, #endOverlay {
+      position: absolute;
+      inset: 0;
+      z-index: 1250;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 28px 24px;
+      background: linear-gradient(180deg, rgba(8, 13, 11, 0.56) 0%, rgba(7, 11, 10, 0.86) 100%);
+    }
+
+    #endOverlay { display: none; }
+    #endOverlay.visible { display: flex; }
+    #startOverlay.hidden { display: none; }
+
+    .badge {
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: 1.6px;
+      color: #8de6c0;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      line-height: 1.05;
+      color: #f4f8f5;
+      text-shadow: 0 3px 16px rgba(0, 0, 0, 0.8);
+    }
+
+    .sub {
+      margin: 10px 0 22px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #c6d6ce;
+      max-width: 290px;
+    }
+
+    .cta-btn {
+      padding: 13px 30px;
+      border-radius: 999px;
+      border: 2px solid #8de6c0;
+      background: rgba(20, 44, 35, 0.94);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 1.2px;
+      cursor: pointer;
+      box-shadow: 0 8px 26px rgba(0, 0, 0, 0.65);
+      touch-action: manipulation;
+    }
+
+    .cta-btn:active { transform: scale(0.96); }
+
+    .hint {
+      margin-top: 16px;
+      font-size: 11px;
+      color: rgba(204, 224, 214, 0.72);
+      letter-spacing: 0.4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="viewport">
+    <div id="stage">
+      <canvas id="glCanvas"></canvas>
+
+      <div id="injuryVignette" class="fx-layer"></div>
+      <div id="damageFlash" class="fx-layer"></div>
+      <div id="nearDeathWash" class="fx-layer"></div>
+      <div id="cutFade" class="fx-layer"></div>
+
+      <div id="reticle">
+        <div class="ring"></div>
+        <div class="dot"></div>
+        <div class="hitx"></div>
+      </div>
+
+      <div id="subtitleBox">
+        <div id="subtitleInner"><span id="subtitleSpeaker"></span><span id="subtitleText"></span></div>
+      </div>
+
+      <button id="muteBtn" aria-label="Toggle sound">SFX ON</button>
+      <button id="reloadBtn" aria-label="Reload">RELOAD</button>
+      <button id="fireBtn" aria-label="Fire">FIRE</button>
+
+      <div id="startOverlay">
+        <div class="badge">ST. MERCER MEMORIAL · WARD 4B</div>
+        <h1 class="title">HOSPITAL<br/>ESCAPE</h1>
+        <p class="sub">Cole can't walk. Maya wheels him out. Drag anywhere to aim and shoot your way down the hall.</p>
+        <button class="cta-btn" id="btnStart">TAP TO BEGIN</button>
+        <div class="hint">DRAG TO AIM · TAP FIRE · STEP ONE OPENING</div>
+      </div>
+
+      <div id="endOverlay">
+        <div class="badge">STEP ONE COMPLETE · ELEVATOR LOBBY</div>
+        <h1 class="title">DOORS HELD</h1>
+        <p class="sub" id="endStats">You cleared the West &amp; East Wing corridors. Elevator ride &amp; full escape come next.</p>
+        <button class="cta-btn" id="btnReplay">REPLAY OPENING</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+
+    /* =========================================================================
+       HOSPITAL ESCAPE — FULL 9-BEAT ROADMAP (STUBBED SKELETON)
+       Characters (Originals):
+         - COLE MERCER (Hero / wounded patient — cannot walk; rides & shoots)
+         - MAYA VANCE (Friend / breakout — pushes bed & wheelchair, fights on foot, drives)
+         - DR. HALE (Floor supervisor in Beat 1)
+       Hospital (Original): ST. MERCER MEMORIAL (Ward 4B — Night Shift)
+
+       BEAT 1 [PLAYABLE IN STEP ONE] — The Visit (cutscene / room):
+         Room 412. Cole in bed, Maya enters, Dr. Hale objects to discharge, gunshots in hall.
+       BEAT 2 [PLAYABLE IN STEP ONE] — Wheel the Bed (rail — bed height):
+         Maya wheels the rolling hospital bed down West Wing Hall; Cole fires from flat on his back.
+       BEAT 3 [PLAYABLE IN STEP ONE] — Transfer to Wheelchair (cutscene / swap):
+         Crash cart blocks wide bed; Maya hauls Cole into a wheelchair under fire.
+       BEAT 4A [PLAYABLE IN STEP ONE] — First Wheelchair Corridor Fight (rail — seated height ~1m):
+         Maya pushes wheelchair through East Wing Corridor to the Elevator Lobby doors.
+       --- STEP TWO+ (STUBBED, NOT BUILT YET) ---
+       BEAT 4B [STUB] — The Elevator (contained rail / close-quarters fight during floor drop)
+       BEAT 5  [STUB] — The Gauntlet: Hallways + Cafeteria Glass Fight (rail) + Maya On-Foot Section (free third-person) + Waiting Room Holdout (holdout)
+       BEAT 6  [STUB] — Out the Main Entrance (rail push through lobby & glass doors)
+       BEAT 7  [STUB] — Steal the Ambulance (original beat — bay steal, Cole into rear bay, Maya into driver seat)
+       BEAT 8  [STUB] — The Chase (rear-facing ambulance rail — crash marked cruisers & black SUVs by gunfire: tires / driver / engine)
+       BEAT 9  [STUB] — The Train Ending (original beat — barely clear tracks, freight train traps pursuers, quiet mirrors)
+       ========================================================================= */
+
+    // =========================================================================
+    // 1. iOS-SAFE PROCEDURAL WEBAUDIO ENGINE
+    // =========================================================================
+    const SFX = {
+      ctx: null,
+      muted: false,
+      unlocked: false,
+      init() {
+        try {
+          if (typeof navigator !== "undefined" && navigator.audioSession) {
+            navigator.audioSession.type = "playback";
+          }
+        } catch (_) {}
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!this.ctx) this.ctx = new AC();
+        if (this.ctx.state !== "running") this.ctx.resume().catch(() => {});
+        if (!this.unlocked) {
+          try {
+            const buf = this.ctx.createBuffer(1, 1, 22050);
+            const src = this.ctx.createBufferSource();
+            src.buffer = buf;
+            src.connect(this.ctx.destination);
+            src.start(0);
+          } catch (_) {}
+          this.unlocked = true;
+        }
+      },
+      resume() {
+        if (this.ctx && this.ctx.state !== "running") {
+          this.ctx.resume().catch(() => {});
+        }
+      },
+      toggleMute() {
+        this.init();
+        this.muted = !this.muted;
+        return this.muted;
+      },
+      _ok() { return !this.muted && this.ctx && this.ctx.state === "running"; },
+      _tone(f0, f1, dur, type = "triangle", vol = 0.14, delay = 0) {
+        if (!this._ok()) return;
+        const t = this.ctx.currentTime + delay;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(Math.max(25, f0), t);
+        if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(25, f1), t + dur);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(vol, t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g);
+        g.connect(this.ctx.destination);
+        o.start(t);
+        o.stop(t + dur + 0.02);
+      },
+      _noise(dur, vol, freq = 1000, type = "bandpass", delay = 0) {
+        if (!this._ok()) return;
+        const sr = this.ctx.sampleRate;
+        const len = Math.max(1, Math.floor(sr * dur));
+        const buf = this.ctx.createBuffer(1, len, sr);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        const flt = this.ctx.createBiquadFilter();
+        flt.type = type;
+        flt.frequency.value = freq;
+        const g = this.ctx.createGain();
+        const t = this.ctx.currentTime + delay;
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        src.connect(flt);
+        flt.connect(g);
+        g.connect(this.ctx.destination);
+        src.start(t);
+      },
+      pistolShot() {
+        this._noise(0.11, 0.32, 1350, "bandpass");
+        this._tone(210, 48, 0.09, "sawtooth", 0.2);
+        this._tone(1600, 900, 0.04, "triangle", 0.05, 0.04); // shell ping
+      },
+      dryClick() {
+        this._tone(980, 620, 0.03, "square", 0.08);
+      },
+      reload() {
+        this._tone(420, 260, 0.05, "square", 0.09, 0);
+        this._tone(540, 760, 0.06, "square", 0.1, 0.22);
+        this._noise(0.05, 0.1, 2200, "highpass", 0.36);
+      },
+      hitConfirm(head = false) {
+        this._tone(head ? 1320 : 880, head ? 1760 : 660, 0.06, "triangle", 0.12);
+      },
+      enemyShot() {
+        this._noise(0.1, 0.16, 900, "bandpass");
+        this._tone(160, 52, 0.08, "sawtooth", 0.1);
+      },
+      playerHit() {
+        this._tone(110, 42, 0.18, "sine", 0.28);
+        this._noise(0.12, 0.2, 420, "lowpass");
+      },
+      ecgBeep() {
+        this._tone(920, 920, 0.075, "sine", 0.055);
+      },
+      doorSlam() {
+        this._tone(95, 28, 0.26, "sine", 0.32);
+        this._noise(0.22, 0.24, 340, "lowpass");
+      },
+      wheelRoll() {
+        this._noise(0.09, 0.03, 220, "lowpass");
+      },
+    };
+
+    window.addEventListener("pointerdown", () => { SFX.init(); SFX.resume(); }, { passive: true });
+    window.addEventListener("touchend", () => SFX.resume(), { passive: true });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) SFX.resume();
+    });
+
+    // =========================================================================
+    // 2. DOM REFS
+    // =========================================================================
+    const stageEl = document.getElementById("stage");
+    const glCanvas = document.getElementById("glCanvas");
+    const reticleEl = document.getElementById("reticle");
+    const damageFlashEl = document.getElementById("damageFlash");
+    const nearDeathWashEl = document.getElementById("nearDeathWash");
+    const cutFadeEl = document.getElementById("cutFade");
+    const subtitleBox = document.getElementById("subtitleBox");
+    const subtitleSpeaker = document.getElementById("subtitleSpeaker");
+    const subtitleText = document.getElementById("subtitleText");
+    const fireBtn = document.getElementById("fireBtn");
+    const reloadBtn = document.getElementById("reloadBtn");
+    const muteBtn = document.getElementById("muteBtn");
+    const startOverlay = document.getElementById("startOverlay");
+    const endOverlay = document.getElementById("endOverlay");
+    const endStats = document.getElementById("endStats");
+    const btnStart = document.getElementById("btnStart");
+    const btnReplay = document.getElementById("btnReplay");
+
+    // =========================================================================
+    // 3. PROCEDURAL CANVAS TEXTURES (SIGNAGE, FLOOR, POSTERS, NIGHT WINDOW)
+    // =========================================================================
+    function makeCanvasTex(w, h, drawFn) {
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      drawFn(c.getContext("2d"), w, h);
+      const tex = new THREE.CanvasTexture(c);
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    const floorTex = makeCanvasTex(256, 256, (c, w, h) => {
+      c.fillStyle = "#8a9992";
+      c.fillRect(0, 0, w, h);
+      c.strokeStyle = "rgba(44, 58, 52, 0.28)";
+      c.lineWidth = 2;
+      for (let i = 0; i <= 4; i++) {
+        const p = (i * w) / 4;
+        c.beginPath(); c.moveTo(p, 0); c.lineTo(p, h); c.stroke();
+        c.beginPath(); c.moveTo(0, p); c.lineTo(w, p); c.stroke();
+      }
+      for (let i = 0; i < 120; i++) {
+        c.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.06)" : "rgba(24,36,32,0.08)";
+        c.fillRect((i * 53) % w, (i * 97) % h, 5, 3);
+      }
+    });
+    floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+    floorTex.repeat.set(2, 26);
+
+    function makeSignTex(title, sub, bg = "#18332a", fg = "#e9f5ef", accent = "#5fd4a4") {
+      return makeCanvasTex(256, 96, (c, w, h) => {
+        c.fillStyle = bg;
+        c.fillRect(0, 0, w, h);
+        c.fillStyle = accent;
+        c.fillRect(0, 0, w, 10);
+        c.fillStyle = fg;
+        c.font = "bold 26px system-ui, sans-serif";
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        c.fillText(title, w / 2, 46);
+        if (sub) {
+          c.font = "bold 14px system-ui, sans-serif";
+          c.fillStyle = accent;
+          c.fillText(sub, w / 2, 74);
+        }
+      });
+    }
+
+    const posterTex1 = makeSignTex("WASH HANDS", "ST. MERCER WARD 4B", "#dce7e1", "#1a3028", "#2d8a68");
+    const posterTex2 = makeSignTex("QUIET HOURS", "NIGHT SHIFT 22:00", "#dfe4ec", "#1b2838", "#3a6ea5");
+    const exitSignTex = makeSignTex("EXIT", "ELEVATOR LOBBY", "#123822", "#88ffb8", "#3ce67a");
+    const dirBoardTex = makeSignTex("ST. MERCER MEMORIAL", "4B WEST · ELEVATORS ->", "#152622", "#eef6f1", "#68d8aa");
+
+    const nightWinTex = makeCanvasTex(256, 192, (c, w, h) => {
+      const g = c.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#080f1e");
+      g.addColorStop(1, "#182840");
+      c.fillStyle = g;
+      c.fillRect(0, 0, w, h);
+      // Distant city silhouette
+      const bld = [[8, 90, 40, 102], [54, 62, 48, 130], [112, 100, 36, 92], [156, 54, 52, 138], [214, 84, 38, 108]];
+      for (const [bx, by, bw, bh] of bld) {
+        c.fillStyle = "#0b1220";
+        c.fillRect(bx, by, bw, bh);
+        c.fillStyle = "#ffd98c";
+        for (let wy = by + 10; wy < h - 10; wy += 14) {
+          for (let wx = bx + 6; wx < bx + bw - 8; wx += 11) {
+            if ((wx + wy) % 3 === 0) c.fillRect(wx, wy, 5, 7);
+          }
+        }
+      }
+      // Window mullions
+      c.strokeStyle = "#2b3834";
+      c.lineWidth = 6;
+      c.strokeRect(3, 3, w - 6, h - 6);
+      c.beginPath(); c.moveTo(w / 2, 0); c.lineTo(w / 2, h); c.stroke();
+    });
+
+    // =========================================================================
+    // 4. THREE.JS SCENE, RENDERER & HOSPITAL WORLD
+    // =========================================================================
+    const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = false;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0c1311);
+    scene.fog = new THREE.FogExp2(0x0d1614, 0.036);
+
+    const camera = new THREE.PerspectiveCamera(62, 390 / 844, 0.1, 80);
+
+    function resize() {
+      const r = stageEl.getBoundingClientRect();
+      renderer.setSize(r.width, r.height, false);
+      camera.aspect = r.width / Math.max(1, r.height);
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    // Lighting — dim institutional fluorescent interior
+    const hemiLight = new THREE.HemisphereLight(0xd9f0e4, 0x26332e, 0.72);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xeefcf4, 0.45);
+    dirLight.position.set(2, 6, 4);
+    scene.add(dirLight);
+
+    // Reusable materials
+    const matWallUpper = new THREE.MeshLambertMaterial({ color: 0xc5d4cb });
+    const matWallLower = new THREE.MeshLambertMaterial({ color: 0x6c857b });
+    const matCeil = new THREE.MeshLambertMaterial({ color: 0x9aa8a1 });
+    const matFloor = new THREE.MeshLambertMaterial({ map: floorTex });
+    const matRail = new THREE.MeshLambertMaterial({ color: 0xb9c7c0 });
+    const matDarkMetal = new THREE.MeshLambertMaterial({ color: 0x2a3330 });
+    const matCart = new THREE.MeshLambertMaterial({ color: 0xd4ded9 });
+    const matRedAccent = new THREE.MeshLambertMaterial({ color: 0xb5342d });
+    const matDoor = new THREE.MeshLambertMaterial({ color: 0x4b635b });
+    const matSheet = new THREE.MeshLambertMaterial({ color: 0xdfe9e3 });
+
+    function addBox(w, h, d, mat, x, y, z, parent = scene) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      m.position.set(x, y, z);
+      parent.add(m);
+      return m;
+    }
+
+    // --- WORLD LAYOUT (along -Z axis: Room 412 at z=0 -> West Wing z=-4..-32 -> Transfer Alcove z=-32..-38 -> East Wing Corridor z=-38..-76 -> Elevator Lobby Doors z=-78) ---
+    const flickeringLights = [];
+
+    function buildHospitalWorld() {
+      // Continuous floor & ceiling from z=+4 to z=-80
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 88), matFloor);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(0, 0, -38);
+      scene.add(floor);
+
+      const ceil = new THREE.Mesh(new THREE.PlaneGeometry(14, 88), matCeil);
+      ceil.rotation.x = Math.PI / 2;
+      ceil.position.set(0, 3.1, -38);
+      scene.add(ceil);
+
+      // 1. ROOM 412 (z = +3 to -4, wider room x = -3.4 to +3.4)
+      addBox(7.2, 3.1, 0.2, matWallUpper, 0, 1.55, 3.2); // back wall behind bed
+      addBox(0.2, 3.1, 7.2, matWallUpper, -3.5, 1.55, -0.4); // left wall
+      addBox(0.2, 3.1, 7.2, matWallUpper, 3.5, 1.55, -0.4);  // right wall
+      // Night window on left wall of Room 412
+      const winMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.6, 1.6),
+        new THREE.MeshBasicMaterial({ map: nightWinTex })
+      );
+      winMesh.rotation.y = Math.PI / 2;
+      winMesh.position.set(-3.38, 1.75, -0.2);
+      scene.add(winMesh);
+
+      // Room 412 IV stand + ECG vitals monitor
+      addBox(0.06, 2.0, 0.06, matRail, -1.25, 1.0, 0.5);
+      addBox(0.26, 0.34, 0.14, new THREE.MeshBasicMaterial({ color: 0x9ce2ff }), -1.25, 1.75, 0.5);
+      addBox(0.5, 1.1, 0.45, matCart, 1.35, 0.55, 0.8);
+      addBox(0.42, 0.3, 0.06, new THREE.MeshBasicMaterial({ color: 0x26e878 }), 1.35, 1.28, 0.62);
+
+      // Room doorway frame leading out into West Wing Hall (z = -4)
+      addBox(2.2, 3.1, 0.25, matWallUpper, -2.5, 1.55, -4.0);
+      addBox(2.2, 3.1, 0.25, matWallUpper, 2.5, 1.55, -4.0);
+      addBox(2.8, 0.65, 0.25, matWallUpper, 0, 2.78, -4.0);
+
+      // 2. CORRIDORS (West Wing z=-4..-32, Alcove z=-32..-38, East Wing z=-38..-78)
+      const hallW = 4.6;
+      const halfW = hallW / 2;
+      // Left & right corridor walls (upper + lower wainscot + stainless handrail)
+      addBox(0.22, 1.9, 75, matWallUpper, -halfW, 2.15, -41.5);
+      addBox(0.22, 1.2, 75, matWallLower, -halfW, 0.6, -41.5);
+      addBox(0.08, 0.09, 75, matRail, -halfW + 0.15, 0.98, -41.5);
+
+      addBox(0.22, 1.9, 75, matWallUpper, halfW, 2.15, -41.5);
+      addBox(0.22, 1.2, 75, matWallLower, halfW, 0.6, -41.5);
+      addBox(0.08, 0.09, 75, matRail, halfW - 0.15, 0.98, -41.5);
+
+      // Ceiling fluorescent fixtures + periodic point lights
+      for (let z = -1; z >= -76; z -= 6.5) {
+        const isFlicker = (Math.abs(z) === 14 || Math.abs(z) === 46.5 || Math.abs(z) === 66);
+        const tubeMat = new THREE.MeshBasicMaterial({ color: isFlicker ? 0xd9ffe8 : 0xe9f8f0 });
+        const tube = addBox(1.3, 0.08, 0.42, tubeMat, 0, 3.04, z);
+        if (Math.abs(z) % 13 < 6.6 || isFlicker) {
+          const pl = new THREE.PointLight(0xdff7ea, 0.62, 14, 1.6);
+          pl.position.set(0, 2.8, z);
+          scene.add(pl);
+          if (isFlicker) flickeringLights.push({ light: pl, mat: tubeMat, phase: z });
+        }
+      }
+
+      // Corridor doors, posters, directory boards, medical carts, gurneys, nurses' station
+      const posterMat1 = new THREE.MeshBasicMaterial({ map: posterTex1 });
+      const posterMat2 = new THREE.MeshBasicMaterial({ map: posterTex2 });
+      for (let z = -8; z >= -72; z -= 10) {
+        // Side room doors
+        addBox(0.08, 2.2, 1.2, matDoor, -halfW + 0.12, 1.1, z);
+        addBox(0.08, 2.2, 1.2, matDoor, halfW - 0.12, 1.1, z - 4);
+        // Wall posters
+        const pL = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.55), (z % 20 === 0) ? posterMat1 : posterMat2);
+        pL.rotation.y = Math.PI / 2;
+        pL.position.set(-halfW + 0.14, 1.75, z - 4.5);
+        scene.add(pL);
+        const pR = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.55), (z % 20 === 0) ? posterMat2 : posterMat1);
+        pR.rotation.y = -Math.PI / 2;
+        pR.position.set(halfW - 0.14, 1.75, z - 0.5);
+        scene.add(pR);
+      }
+
+      // Nurses' station counter on right side of West Wing (z = -20)
+      addBox(1.2, 1.05, 4.2, matWallLower, 1.6, 0.52, -20);
+      addBox(1.32, 0.08, 4.3, matCart, 1.56, 1.08, -20);
+      addBox(0.45, 0.34, 0.08, new THREE.MeshBasicMaterial({ color: 0x4db8ff }), 1.45, 1.32, -19.2);
+
+      // Directory board at Transfer Alcove (z = -34)
+      const dirBoard = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.72), new THREE.MeshBasicMaterial({ map: dirBoardTex }));
+      dirBoard.rotation.y = Math.PI / 2;
+      dirBoard.position.set(-halfW + 0.14, 1.85, -34);
+      scene.add(dirBoard);
+
+      // Crash cart blocking the wide hospital bed at z = -34.5 (triggers Beat 3 Transfer!)
+      const crashCart = new THREE.Group();
+      addBox(1.1, 0.92, 0.65, matRedAccent, 0, 0.48, 0, crashCart);
+      addBox(1.16, 0.08, 0.7, matCart, 0, 0.96, 0, crashCart);
+      crashCart.position.set(-0.55, 0, -35.2);
+      crashCart.rotation.y = 0.28;
+      scene.add(crashCart);
+
+      // Medical carts & waiting chairs in corridors (cover props for enemies!)
+      const coverSpots = [
+        { x: -1.35, z: -13.5, kind: "cart" },
+        { x: 1.25, z: -26.5, kind: "gurney" },
+        { x: -1.3, z: -46, kind: "cart" },
+        { x: 1.35, z: -53, kind: "chairs" },
+        { x: -1.25, z: -61, kind: "gurney" },
+        { x: 1.2, z: -68, kind: "cart" },
+      ];
+      for (const cs of coverSpots) {
+        if (cs.kind === "cart") {
+          addBox(0.95, 0.88, 0.6, matCart, cs.x, 0.44, cs.z);
+          addBox(0.96, 0.12, 0.62, matRedAccent, cs.x, 0.76, cs.z);
+        } else if (cs.kind === "gurney") {
+          addBox(0.85, 0.76, 1.9, matCart, cs.x, 0.38, cs.z);
+          addBox(0.8, 0.14, 1.84, matSheet, cs.x, 0.82, cs.z);
+        } else {
+          for (let k = -1; k <= 1; k++) {
+            addBox(0.55, 0.46, 0.55, matDoor, cs.x, 0.23, cs.z + k * 0.7);
+            addBox(0.55, 0.52, 0.1, matDoor, cs.x + 0.24, 0.7, cs.z + k * 0.7);
+          }
+        }
+      }
+
+      // Glowing EXIT sign & heavy Elevator Lobby double doors at z = -78.5
+      const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.42), new THREE.MeshBasicMaterial({ map: exitSignTex }));
+      exitSign.position.set(0, 2.7, -78.1);
+      scene.add(exitSign);
+
+      const doorL = addBox(1.4, 2.5, 0.18, matDoor, -0.72, 1.25, -78.4);
+      const doorR = addBox(1.4, 2.5, 0.18, matDoor, 0.72, 1.25, -78.4);
+      addBox(0.45, 0.75, 0.22, new THREE.MeshBasicMaterial({ color: 0x7cb8a4 }), -0.72, 1.65, -78.4);
+      addBox(0.45, 0.75, 0.22, new THREE.MeshBasicMaterial({ color: 0x7cb8a4 }), 0.72, 1.65, -78.4);
+      return { doorL, doorR };
+    }
+
+    const worldDoors = buildHospitalWorld();
+
+    // =========================================================================
+    // 5. STYLIZED 3D CHARACTERS (MAYA, DR. HALE, ENEMIES, BED, WHEELCHAIR, GUN)
+    // =========================================================================
+    function buildHumanoid({ shirtCol, pantsCol, skinCol = 0xd9a882, hairCol = 0x221b18, hasCoat = false, hasPonytail = false, hasGun = false }) {
+      const grp = new THREE.Group();
+      const mShirt = new THREE.MeshLambertMaterial({ color: shirtCol });
+      const mPants = new THREE.MeshLambertMaterial({ color: pantsCol });
+      const mSkin = new THREE.MeshLambertMaterial({ color: skinCol });
+      const mHair = new THREE.MeshLambertMaterial({ color: hairCol });
+
+      // Legs + Belt
+      addBox(0.18, 0.78, 0.2, mPants, -0.12, 0.39, 0, grp);
+      addBox(0.18, 0.78, 0.2, mPants, 0.12, 0.39, 0, grp);
+      addBox(0.47, 0.08, 0.27, matDarkMetal, 0, 0.79, 0, grp);
+      // Torso
+      const torso = addBox(0.46, 0.62, 0.26, mShirt, 0, 1.12, 0, grp);
+      if (hasCoat) {
+        addBox(0.51, 0.84, 0.29, new THREE.MeshLambertMaterial({ color: 0xecf2ee }), 0, 1.0, 0, grp);
+      }
+      // Head + Eyes + Non-overlapping Hair Cap (zero z-fighting!)
+      const head = addBox(0.28, 0.28, 0.28, mSkin, 0, 1.59, 0, grp);
+      addBox(0.045, 0.035, 0.02, matDarkMetal, -0.06, 1.61, 0.145, grp);
+      addBox(0.045, 0.035, 0.02, matDarkMetal, 0.06, 1.61, 0.145, grp);
+      addBox(0.31, 0.11, 0.31, mHair, 0, 1.77, -0.01, grp);
+      addBox(0.30, 0.16, 0.08, mHair, 0, 1.66, -0.13, grp);
+      if (hasPonytail) addBox(0.11, 0.30, 0.11, mHair, 0, 1.56, -0.20, grp);
+
+      // Arms
+      addBox(0.14, 0.52, 0.14, mShirt, -0.31, 1.06, 0.04, grp);
+      const rightArm = new THREE.Group();
+      rightArm.position.set(0.31, 1.28, 0.04);
+      addBox(0.14, 0.48, 0.14, mShirt, 0, -0.2, 0.16, rightArm);
+      let muzzle = null;
+      if (hasGun) {
+        addBox(0.08, 0.1, 0.32, matDarkMetal, 0, -0.22, 0.44, rightArm);
+        muzzle = new THREE.Mesh(
+          new THREE.SphereGeometry(0.12, 8, 8),
+          new THREE.MeshBasicMaterial({ color: 0xffb838 })
+        );
+        muzzle.position.set(0, -0.22, 0.64);
+        muzzle.visible = false;
+        rightArm.add(muzzle);
+      }
+      grp.add(rightArm);
+
+      return { grp, torso, head, rightArm, muzzle, matShirt: mShirt };
+    }
+
+    // Maya Vance (Friend — amber-ochre utility jacket, dark ponytail)
+    const maya = buildHumanoid({ shirtCol: 0xd68a2c, pantsCol: 0x2b3b52, hairCol: 0x1d1614, hasPonytail: true, hasGun: true });
+    scene.add(maya.grp);
+
+    // Dr. Hale (Floor supervisor in Beat 1 — white coat)
+    const drHale = buildHumanoid({ shirtCol: 0x3b5878, pantsCol: 0x262c34, hairCol: 0x5c6068, hasCoat: true });
+    scene.add(drHale.grp);
+
+    // Camera-attached Vehicle & Weapon Rig (Bed footboard in Beat 2, Wheelchair arms in Beat 4, Cole's aiming pistol!)
+    const rigGroup = new THREE.Group();
+    camera.add(rigGroup);
+    scene.add(camera);
+
+    // Bed foreground rig (visible during Beat 1 & Beat 2 — sits cleanly in lower 22% of portrait frame)
+    const bedRig = new THREE.Group();
+    addBox(1.16, 0.22, 0.9, matSheet, 0, -0.66, -0.95, bedRig); // Cole's sheeted knees
+    addBox(1.22, 0.34, 0.08, matCart, 0, -0.60, -1.45, bedRig); // Hospital bed footboard
+    addBox(0.06, 0.26, 0.9, matRail, -0.52, -0.48, -0.95, bedRig); // Left bed rail
+    addBox(0.06, 0.26, 0.9, matRail, 0.52, -0.48, -0.95, bedRig);  // Right bed rail
+    rigGroup.add(bedRig);
+
+    // Wheelchair foreground rig (visible during Beat 4 — crisp seated armrests framing bottom corners)
+    const chairRig = new THREE.Group();
+    addBox(0.08, 0.09, 0.62, matDarkMetal, -0.34, -0.32, -0.56, chairRig); // Left padded armrest
+    addBox(0.08, 0.09, 0.62, matDarkMetal, 0.34, -0.32, -0.56, chairRig);  // Right padded armrest
+    addBox(0.04, 0.24, 0.04, matRail, -0.34, -0.44, -0.82, chairRig);      // Left metal strut
+    addBox(0.04, 0.24, 0.04, matRail, 0.34, -0.44, -0.82, chairRig);       // Right metal strut
+    addBox(0.46, 0.16, 0.45, new THREE.MeshLambertMaterial({ color: 0x30453e }), 0, -0.46, -0.62, chairRig); // Cole's knees
+    chairRig.visible = false;
+    rigGroup.add(chairRig);
+
+    // Cole's tactical pistol (clearly visible in lower-right foreground, tracks screen reticle!)
+    const gunGroup = new THREE.Group();
+    gunGroup.position.set(0.15, -0.17, -0.44);
+    addBox(0.06, 0.08, 0.32, matDarkMetal, 0, 0, 0, gunGroup); // slide
+    addBox(0.04, 0.025, 0.04, new THREE.MeshBasicMaterial({ color: 0x68e8a8 }), 0, 0.048, -0.14, gunGroup); // night sight
+    addBox(0.052, 0.15, 0.085, new THREE.MeshLambertMaterial({ color: 0x1b201e }), 0, -0.1, 0.09, gunGroup); // grip
+    addBox(0.08, 0.09, 0.13, new THREE.MeshLambertMaterial({ color: 0xd9a882 }), 0, -0.09, 0.08, gunGroup); // hand
+    const playerMuzzle = new THREE.Mesh(
+      new THREE.SphereGeometry(0.085, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffd15c })
+    );
+    playerMuzzle.position.set(0, 0.01, -0.2);
+    playerMuzzle.visible = false;
+    gunGroup.add(playerMuzzle);
+    gunGroup.visible = false;
+    rigGroup.add(gunGroup);
+
+    // Waiting wheelchair sitting in the Transfer Alcove (Beat 3)
+    const alcoveChair = new THREE.Group();
+    addBox(0.62, 0.08, 0.56, matDarkMetal, 0, 0.48, 0, alcoveChair);
+    addBox(0.62, 0.58, 0.08, matDarkMetal, 0, 0.8, 0.25, alcoveChair);
+    const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.06, 16);
+    const wL = new THREE.Mesh(wheelGeo, matRail); wL.rotation.z = Math.PI / 2; wL.position.set(-0.34, 0.32, 0.05); alcoveChair.add(wL);
+    const wR = new THREE.Mesh(wheelGeo, matRail); wR.rotation.z = Math.PI / 2; wR.position.set(0.34, 0.32, 0.05); alcoveChair.add(wR);
+    alcoveChair.position.set(1.25, 0, -34.2);
+    alcoveChair.rotation.y = -0.5;
+    scene.add(alcoveChair);
+
+    // Bullet tracer beams & hit sparks
+    const tracers = [];
+    function spawnTracer(fromVec, toVec, col = 0xffe484) {
+      const geo = new THREE.BufferGeometry().setFromPoints([fromVec, toVec]);
+      const mat = new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.9 });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      tracers.push({ line, life: 0.08 });
+    }
+
+    // =========================================================================
+    // 6. ENEMY POOL & ENCOUNTERS (HIGH-CONTRAST SILHOUETTES FOR 390px PHONE)
+    // =========================================================================
+    const ENEMY_PALETTES = [
+      { shirtCol: 0xd95826, pantsCol: 0x262b34 }, // Burnt orange jacket (plain clothes)
+      { shirtCol: 0xb82936, pantsCol: 0x222630 }, // Crimson hoodie (plain clothes)
+      { shirtCol: 0x242c38, pantsCol: 0x1c2028 }, // Charcoal tactical vest
+      { shirtCol: 0x257e8f, pantsCol: 0x1f5b69 }, // Staff-like teal scrubs (East Wing)
+    ];
+
+    const enemies = [];
+    function clearEnemies() {
+      for (const e of enemies) scene.remove(e.rig.grp);
+      enemies.length = 0;
+    }
+
+    function spawnWaveEnemies(specs) {
+      clearEnemies();
+      for (const sp of specs) {
+        const pal = ENEMY_PALETTES[sp.pal % ENEMY_PALETTES.length];
+        const rig = buildHumanoid({ ...pal, hasGun: true });
+        rig.grp.position.set(sp.x, 0, sp.z);
+        rig.grp.rotation.y = 0; // faces +Z toward Cole!
+        scene.add(rig.grp);
+        enemies.push({
+          rig,
+          baseX: sp.x,
+          z: sp.z,
+          peekDir: sp.peekDir || 0,
+          hp: sp.hp || 2,
+          alive: true,
+          hitFlash: 0,
+          fallProgress: 0,
+          shootTimer: sp.delay || (1.2 + Math.random() * 1.1),
+          muzzleTimer: 0,
+          activeZ: sp.activeZ, // starts shooting once camera passes activeZ
+        });
+      }
+    }
+
+    // =========================================================================
+    // 7. GAME STATE MACHINE (BEATS 1 -> 2 -> 3 -> 4 -> COMPLETE)
+    // =========================================================================
+    const MAG_SIZE = 12;
+    const state = {
+      started: false,
+      beat: 0,           // 1=Visit, 2=BedPush, 3=Transfer, 4=WheelchairCorridor, 5=Complete
+      segment: "title",  // title | cutscene | rail | complete
+      beatTime: 0,
+      hp: 100,
+      maxHp: 100,
+      ammo: MAG_SIZE,
+      reloading: false,
+      reloadTimer: 0,
+      fireCooldown: 0,
+      gunRecoil: 0,
+      muzzleTimer: 0,
+      hitmarkerTimer: 0,
+      damageFlash: 0,
+      kills: 0,
+      shotsFired: 0,
+      shotsHit: 0,
+      // Normalized screen reticle (0..1)
+      reticleX: 0.5,
+      reticleY: 0.44,
+      firingHeld: false,
+      railZ: 0,
+      rollSfxTimer: 0,
+      ecgTimer: 0,
+    };
+
+    function setSubtitle(speaker, text) {
+      if (!text) {
+        subtitleBox.classList.remove("visible");
+        return;
+      }
+      subtitleSpeaker.textContent = speaker ? speaker + ":" : "";
+      subtitleText.textContent = text;
+      subtitleBox.classList.add("visible");
+    }
+
+    function updateContextualUI() {
+      const inRail = state.segment === "rail";
+      reticleEl.classList.toggle("visible", inRail);
+      fireBtn.classList.toggle("visible", inRail);
+      // Reload button ONLY appears when mag is empty or low (<= 3) during rail combat
+      const showReload = inRail && (state.reloading || state.ammo <= 3);
+      reloadBtn.classList.toggle("visible", showReload);
+      reloadBtn.textContent = state.reloading ? "RELOADING..." : `RELOAD (${state.ammo}/${MAG_SIZE})`;
+      endOverlay.classList.toggle("visible", state.segment === "complete");
+    }
+
+    function enterBeat(n) {
+      state.beat = n;
+      state.beatTime = 0;
+      state.firingHeld = false;
+      state.reloading = false;
+      state.reloadTimer = 0;
+      state.reticleX = 0.5;
+      state.reticleY = 0.44;
+      updateReticleDOM();
+
+      if (n === 1) {
+        // BEAT 1: THE VISIT (Room 412)
+        state.segment = "cutscene";
+        state.hp = state.maxHp;
+        state.ammo = MAG_SIZE;
+        state.kills = 0;
+        state.shotsFired = 0;
+        state.shotsHit = 0;
+        clearEnemies();
+
+        bedRig.visible = true;
+        chairRig.visible = false;
+        gunGroup.visible = false;
+        alcoveChair.visible = true;
+
+        camera.position.set(0, 1.05, 1.75);
+        camera.lookAt(0, 1.15, -2.5);
+
+        maya.grp.visible = true;
+        maya.grp.position.set(-0.95, 0, -2.6);
+        maya.grp.rotation.y = 0.35;
+
+        drHale.grp.visible = true;
+        drHale.grp.position.set(0.85, 0, -2.4);
+        drHale.grp.rotation.y = -0.35;
+        setSubtitle("DR. HALE", "Miss Vance, stop — Mr. Mercer hasn't been cleared for discharge.");
+      } else if (n === 2) {
+        // BEAT 2: WHEEL THE BED (West Wing Hall — Rail Shoot #1)
+        state.segment = "rail";
+        state.railZ = -3.6;
+        bedRig.visible = true;
+        chairRig.visible = false;
+        gunGroup.visible = true;
+        drHale.grp.visible = false;
+        maya.grp.visible = false; // Maya is pushing from the head of the bed behind the camera
+
+        spawnWaveEnemies([
+          { x: -0.95, z: -14.4, pal: 0, hp: 2, activeZ: -4.0, delay: 1.5 },
+          { x: 0.9, z: -20.8, pal: 1, hp: 2, activeZ: -8.0, delay: 1.4 },
+          { x: -0.5, z: -26.8, pal: 2, hp: 2, activeZ: -14.0, delay: 1.3 },
+          { x: 1.05, z: -28.6, pal: 0, hp: 2, activeZ: -16.0, delay: 1.7 },
+        ]);
+        setSubtitle("MAYA", "Hold on! Rolling the whole bed — shoot whoever steps out!");
+      } else if (n === 3) {
+        // BEAT 3: TRANSFER TO THE WHEELCHAIR (Alcove z = -34)
+        state.segment = "cutscene";
+        clearEnemies();
+        bedRig.visible = false;
+        chairRig.visible = false;
+        gunGroup.visible = false;
+        alcoveChair.visible = true;
+
+        camera.position.set(-0.2, 1.15, -32.2);
+        camera.lookAt(0.75, 0.85, -34.6);
+
+        maya.grp.visible = true;
+        maya.grp.position.set(0.55, 0, -34.0);
+        maya.grp.rotation.y = 2.6;
+        setSubtitle("MAYA", "Crash cart's blocking the bed! Grab my shoulder — into the wheelchair!");
+      } else if (n === 4) {
+        // BEAT 4: FIRST WHEELCHAIR CORRIDOR FIGHT (East Wing — Rail Shoot #2)
+        state.segment = "rail";
+        state.railZ = -38.5;
+        state.ammo = MAG_SIZE;
+        bedRig.visible = false;
+        chairRig.visible = true;
+        gunGroup.visible = true;
+        maya.grp.visible = false; // Maya is pushing the chair directly behind Cole
+        alcoveChair.visible = false;
+
+        spawnWaveEnemies([
+          { x: -0.9, z: -47.0, pal: 1, hp: 2, activeZ: -38.0, delay: 1.2 },
+          { x: 0.85, z: -53.8, pal: 3, hp: 2, activeZ: -42.0, delay: 1.3 },
+          { x: -0.85, z: -61.8, pal: 2, hp: 3, activeZ: -48.0, delay: 1.2 },
+          { x: 0.8, z: -68.8, pal: 3, hp: 2, activeZ: -55.0, delay: 1.1 },
+          { x: -0.35, z: -72.8, pal: 0, hp: 3, activeZ: -58.0, delay: 1.4 },
+        ]);
+        setSubtitle("MAYA", "Seated height — keep your barrel up! Elevator lobby's straight ahead!");
+      } else if (n === 5) {
+        // CLEAN STEP ONE ENDING — Elevator Lobby doors slam shut
+        state.segment = "complete";
+        clearEnemies();
+        gunGroup.visible = false;
+        SFX.doorSlam();
+        setSubtitle("MAYA", "Doors held. Elevator's next — catch your breath, Cole.");
+        const acc = state.shotsFired > 0 ? Math.round((state.shotsHit / state.shotsFired) * 100) : 0;
+        endStats.textContent = `Hostiles stopped: ${state.kills} · Accuracy: ${acc}% · Health: ${Math.max(1, Math.round(state.hp))}%`;
+      }
+
+      updateContextualUI();
+    }
+
+    // =========================================================================
+    // 8. AIMING, SHOOTING & DAMAGE
+    // =========================================================================
+    function updateReticleDOM() {
+      reticleEl.style.left = (state.reticleX * 100).toFixed(2) + "%";
+      reticleEl.style.top = (state.reticleY * 100).toFixed(2) + "%";
+    }
+
+    function startReload() {
+      if (state.reloading || state.ammo >= MAG_SIZE || state.segment !== "rail") return;
+      state.reloading = true;
+      state.reloadTimer = 0.85;
+      SFX.reload();
+      updateContextualUI();
+    }
+
+    const tmpProj = new THREE.Vector3();
+    function fireWeapon() {
+      if (state.segment !== "rail" || state.fireCooldown > 0 || state.reloading) return;
+      if (state.ammo <= 0) {
+        SFX.dryClick();
+        startReload();
+        return;
+      }
+
+      state.ammo -= 1;
+      state.shotsFired += 1;
+      state.fireCooldown = 0.17;
+      state.gunRecoil = 1.0;
+      state.muzzleTimer = 0.055;
+      SFX.pistolShot();
+
+      reticleEl.classList.add("recoil");
+      setTimeout(() => reticleEl.classList.remove("recoil"), 70);
+
+      // Compute world-space aim ray from screen reticle
+      const ndcX = state.reticleX * 2 - 1;
+      const ndcY = -(state.reticleY * 2 - 1);
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+
+      const muzzleWorld = new THREE.Vector3();
+      playerMuzzle.getWorldPosition(muzzleWorld);
+      const targetPt = ray.ray.origin.clone().addScaledVector(ray.ray.direction, 26);
+
+      // Fair, snappy screen-space hit test against alive enemies
+      let bestHit = null;
+      let bestDist = Infinity;
+      let isHeadshot = false;
+
+      for (const e of enemies) {
+        if (!e.alive) continue;
+        // Check head & torso screen projections
+        const headPos = new THREE.Vector3(e.rig.grp.position.x, 1.56, e.rig.grp.position.z);
+        const bodyPos = new THREE.Vector3(e.rig.grp.position.x, 1.05, e.rig.grp.position.z);
+        const depth = camera.position.z - e.rig.grp.position.z;
+        if (depth < 0.8 || depth > 34) continue;
+
+        tmpProj.copy(headPos).project(camera);
+        const hsx = (tmpProj.x + 1) * 0.5;
+        const hsy = (1 - tmpProj.y) * 0.5;
+        const hDist = Math.hypot(hsx - state.reticleX, (hsy - state.reticleY) * (844 / 390));
+
+        tmpProj.copy(bodyPos).project(camera);
+        const bsx = (tmpProj.x + 1) * 0.5;
+        const bsy = (1 - tmpProj.y) * 0.5;
+        const bDist = Math.hypot(bsx - state.reticleX, (bsy - state.reticleY) * (844 / 390));
+
+        const hitTol = Math.max(0.055, Math.min(0.125, 1.05 / Math.sqrt(depth)));
+        if (hDist < hitTol * 0.72 && depth < bestDist) {
+          bestHit = e;
+          bestDist = depth;
+          isHeadshot = true;
+          targetPt.copy(headPos);
+        } else if (bDist < hitTol && depth < bestDist) {
+          bestHit = e;
+          bestDist = depth;
+          isHeadshot = false;
+          targetPt.copy(bodyPos);
+        }
+      }
+
+      spawnTracer(muzzleWorld, targetPt, 0xffe484);
+
+      if (bestHit) {
+        state.shotsHit += 1;
+        state.hitmarkerTimer = 0.14;
+        reticleEl.classList.add("hit");
+        SFX.hitConfirm(isHeadshot);
+        bestHit.hp -= isHeadshot ? 2 : 1;
+        bestHit.hitFlash = 0.14;
+        if (bestHit.hp <= 0) {
+          bestHit.alive = false;
+          state.kills += 1;
+        }
+      }
+
+      if (state.ammo === 0) startReload();
+      updateContextualUI();
+    }
+
+    function damageHero(amount) {
+      state.hp = Math.max(8, state.hp - amount); // Keep opening playable; near-death wash kicks in below 38 HP
+      state.damageFlash = 1.0;
+      SFX.playerHit();
+    }
+
+    // =========================================================================
+    // 9. TOUCH & MOUSE CONTROLS (DRAG ANYWHERE TO AIM + BIG FIRE BUTTON)
+    // =========================================================================
+    let aimPointerId = null;
+    let lastAimX = 0;
+    let lastAimY = 0;
+
+    stageEl.addEventListener("pointerdown", (e) => {
+      if (e.target === fireBtn || e.target === reloadBtn || e.target === muteBtn ||
+          e.target === btnStart || e.target === btnReplay) return;
+      e.preventDefault();
+      SFX.init();
+      SFX.resume();
+      if (state.segment !== "rail") return;
+      if (aimPointerId === null) {
+        aimPointerId = e.pointerId;
+        lastAimX = e.clientX;
+        lastAimY = e.clientY;
+      }
+    });
+
+    stageEl.addEventListener("pointermove", (e) => {
+      if (e.pointerId !== aimPointerId || state.segment !== "rail") return;
+      e.preventDefault();
+      const r = stageEl.getBoundingClientRect();
+      const dx = (e.clientX - lastAimX) / Math.max(1, r.width);
+      const dy = (e.clientY - lastAimY) / Math.max(1, r.height);
+      lastAimX = e.clientX;
+      lastAimY = e.clientY;
+      // Smooth 1.25x thumb drag sensitivity so full screen is reachable without lifting
+      state.reticleX = Math.max(0.08, Math.min(0.92, state.reticleX + dx * 1.25));
+      state.reticleY = Math.max(0.12, Math.min(0.84, state.reticleY + dy * 1.25));
+      updateReticleDOM();
+    });
+
+    function clearAimPointer(e) {
+      if (e.pointerId === aimPointerId) aimPointerId = null;
+    }
+    stageEl.addEventListener("pointerup", clearAimPointer);
+    stageEl.addEventListener("pointercancel", clearAimPointer);
+
+    fireBtn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      SFX.init();
+      SFX.resume();
+      fireBtn.classList.add("pressed");
+      state.firingHeld = true;
+      fireWeapon();
+    });
+    const endFire = (e) => {
+      e.stopPropagation();
+      fireBtn.classList.remove("pressed");
+      state.firingHeld = false;
+    };
+    fireBtn.addEventListener("pointerup", endFire);
+    fireBtn.addEventListener("pointercancel", endFire);
+    fireBtn.addEventListener("pointerleave", endFire);
+
+    reloadBtn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      SFX.init();
+      startReload();
+    });
+
+    muteBtn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const m = SFX.toggleMute();
+      muteBtn.textContent = m ? "SFX OFF" : "SFX ON";
+    });
+
+    btnStart.addEventListener("click", () => {
+      SFX.init();
+      startOverlay.classList.add("hidden");
+      state.started = true;
+      enterBeat(1);
+    });
+
+    btnReplay.addEventListener("click", () => {
+      SFX.init();
+      enterBeat(1);
+    });
+
+    // Desktop keyboard mirror (Space = Fire, R = Reload, Arrow keys nudge reticle)
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (!state.started) {
+          startOverlay.classList.add("hidden");
+          state.started = true;
+          enterBeat(1);
+          return;
+        }
+        fireWeapon();
+      } else if (e.code === "KeyR") {
+        startReload();
+      }
+    });
+
+    // =========================================================================
+    // 10. MAIN UPDATE & RAIL CAMERA LOOP
+    // =========================================================================
+    let lastTs = performance.now();
+    let globalTime = 0;
+
+    function update(dt) {
+      globalTime += dt;
+
+      // Flickering fluorescent hospital lights
+      for (const fl of flickeringLights) {
+        const v = Math.sin(globalTime * 19 + fl.phase) * Math.sin(globalTime * 7.3 + fl.phase);
+        const on = v > -0.58;
+        fl.light.intensity = on ? 0.62 : 0.14;
+        fl.mat.color.setHex(on ? 0xe9f8f0 : 0x4b5c54);
+      }
+
+      // Fade tracers
+      for (let i = tracers.length - 1; i >= 0; i--) {
+        tracers[i].life -= dt;
+        tracers[i].line.material.opacity = Math.max(0, tracers[i].life / 0.08);
+        if (tracers[i].life <= 0) {
+          scene.remove(tracers[i].line);
+          tracers[i].line.geometry.dispose();
+          tracers.splice(i, 1);
+        }
+      }
+
+      // Damage vignette + Near-death sickly yellow-green wash
+      if (state.damageFlash > 0) state.damageFlash = Math.max(0, state.damageFlash - dt * 2.6);
+      damageFlashEl.style.opacity = state.damageFlash.toFixed(2);
+      const nearDeath = state.hp < 42 ? Math.min(1, (42 - state.hp) / 30) : 0;
+      nearDeathWashEl.style.opacity = nearDeath.toFixed(2);
+
+      // Passive gentle HP stabilization between beats so player feels danger without soft-locking
+      if (state.segment === "rail" && state.hp < 65) {
+        state.hp = Math.min(65, state.hp + dt * 1.4);
+      }
+
+      if (!state.started) {
+        // Idle preview camera inside Room 412 before Tap to Begin
+        camera.position.set(Math.sin(globalTime * 0.4) * 0.15, 1.06, 1.75);
+        camera.lookAt(0, 1.15, -2.5);
+        return;
+      }
+
+      state.beatTime += dt;
+
+      // Weapon cooldown / reload / hitmarker
+      if (state.fireCooldown > 0) state.fireCooldown = Math.max(0, state.fireCooldown - dt);
+      if (state.firingHeld && state.fireCooldown <= 0 && !state.reloading) fireWeapon();
+      if (state.reloading) {
+        state.reloadTimer -= dt;
+        if (state.reloadTimer <= 0) {
+          state.reloading = false;
+          state.ammo = MAG_SIZE;
+          updateContextualUI();
+        }
+      }
+      if (state.hitmarkerTimer > 0) {
+        state.hitmarkerTimer -= dt;
+        if (state.hitmarkerTimer <= 0) reticleEl.classList.remove("hit");
+      }
+      if (state.muzzleTimer > 0) state.muzzleTimer -= dt;
+      playerMuzzle.visible = state.muzzleTimer > 0;
+      if (state.gunRecoil > 0) state.gunRecoil = Math.max(0, state.gunRecoil - dt * 7);
+
+      // Aim Cole's 3D pistol smoothly toward reticle
+      if (gunGroup.visible) {
+        const aimYaw = (0.5 - state.reticleX) * 0.68;
+        const aimPitch = (0.45 - state.reticleY) * 0.55;
+        gunGroup.rotation.set(aimPitch + state.gunRecoil * 0.18, aimYaw, 0);
+        gunGroup.position.set(0.15 + (state.reticleX - 0.5) * 0.11, -0.17 - state.gunRecoil * 0.03, -0.44 + state.gunRecoil * 0.06);
+      }
+
+      // === BEAT 1: ROOM 412 VISIT (6.6s tight opening cutscene) ===
+      if (state.beat === 1) {
+        state.ecgTimer += dt;
+        if (state.ecgTimer > 1.15) { state.ecgTimer = 0; SFX.ecgBeep(); }
+
+        const t = state.beatTime;
+        camera.position.set(Math.sin(t * 0.6) * 0.06, 1.04, 1.85 - Math.min(0.25, t * 0.04));
+        camera.lookAt(0, 1.24, -2.5);
+
+        if (t > 2.3 && t <= 4.6) {
+          setSubtitle("MAYA", "Gunshots on four — they found him. Take this, Cole. We're leaving now.");
+          maya.grp.position.z = Math.min(-1.4, -2.6 + (t - 2.3) * 0.65);
+          drHale.grp.position.x = 0.72 + (t - 2.3) * 0.12;
+        } else if (t > 4.6 && t <= 6.2) {
+          setSubtitle("COLE", "I can't stand—");
+          if (t > 5.2 && t < 5.35) SFX.enemyShot();
+        } else if (t > 6.2) {
+          enterBeat(2);
+        }
+        return;
+      }
+
+      // === BEAT 2: BED PUSH DOWN WEST WING HALL (RAIL SHOOT #1) ===
+      if (state.beat === 2) {
+        const aliveAhead = enemies.filter((e) => e.alive && e.z > state.railZ - 11 && e.z < state.railZ - 1.5).length;
+        // Maya pushes smoothly, slowing gently when hostiles are right ahead so aiming feels great!
+        const speed = aliveAhead > 0 ? 1.55 : 3.2;
+        state.railZ -= speed * dt;
+
+        // Bed-height rail camera (~0.95m), gentle caster sway
+        const swayX = Math.sin(globalTime * 4.5) * 0.06;
+        const bobY = Math.sin(globalTime * 9.0) * 0.018;
+        camera.position.set(swayX, 0.96 + bobY, state.railZ);
+        camera.lookAt(swayX * 0.5 + (state.reticleX - 0.5) * 0.55, 1.05 + (0.45 - state.reticleY) * 0.35, state.railZ - 12);
+
+        state.rollSfxTimer += dt;
+        if (state.rollSfxTimer > 0.35) { state.rollSfxTimer = 0; SFX.wheelRoll(); }
+
+        if (state.beatTime > 4.0 && state.beatTime < 4.2) {
+          setSubtitle("COLE", "Left side! Behind the cart!");
+        } else if (state.beatTime > 8.5) {
+          setSubtitle("", "");
+        }
+
+        updateEnemies(dt);
+
+        if (state.railZ <= -31.8) {
+          enterBeat(3);
+        }
+        return;
+      }
+
+      // === BEAT 3: TRANSFER TO WHEELCHAIR (3.8s tight staged swap) ===
+      if (state.beat === 3) {
+        const t = state.beatTime;
+        // Camera arcs smoothly from bed height down into the waiting wheelchair seat!
+        const u = Math.min(1, t / 3.2);
+        const eased = u * u * (3 - 2 * u);
+        camera.position.set(
+          -0.2 + eased * 1.15,
+          1.15 - Math.sin(eased * Math.PI) * 0.22 - eased * 0.1,
+          -32.2 - eased * 2.4
+        );
+        camera.lookAt(0.4 - eased * 0.4, 1.05, -36 - eased * 10);
+
+        if (t > 1.8 && t <= 3.5) {
+          setSubtitle("COLE", "Ugh— easy! Alright, I'm in. Push!");
+        } else if (t > 3.7) {
+          enterBeat(4);
+        }
+        return;
+      }
+
+      // === BEAT 4: FIRST WHEELCHAIR CORRIDOR FIGHT (RAIL SHOOT #2) ===
+      if (state.beat === 4) {
+        const aliveAhead = enemies.filter((e) => e.alive && e.z > state.railZ - 12 && e.z < state.railZ - 1.5).length;
+        const speed = aliveAhead > 0 ? 1.75 : 3.55;
+        state.railZ -= speed * dt;
+
+        // Wheelchair seated-height camera (~1.05m) with crisp rolling motion
+        const swayX = Math.sin(globalTime * 5.2) * 0.05;
+        const bobY = Math.sin(globalTime * 10.4) * 0.015;
+        camera.position.set(swayX, 1.05 + bobY, state.railZ);
+        camera.lookAt(swayX * 0.4 + (state.reticleX - 0.5) * 0.65, 1.1 + (0.45 - state.reticleY) * 0.4, state.railZ - 14);
+
+        state.rollSfxTimer += dt;
+        if (state.rollSfxTimer > 0.32) { state.rollSfxTimer = 0; SFX.wheelRoll(); }
+
+        if (state.beatTime > 4.2 && state.beatTime < 4.4) {
+          setSubtitle("MAYA", "Scrubs with guns — they're not hospital staff!");
+        } else if (state.beatTime > 9.0) {
+          setSubtitle("", "");
+        }
+
+        updateEnemies(dt);
+
+        // Reaching Elevator Lobby double doors ends Step One cleanly!
+        if (state.railZ <= -75.2) {
+          enterBeat(5);
+        }
+        return;
+      }
+    }
+
+    function updateEnemies(dt) {
+      for (const e of enemies) {
+        if (e.hitFlash > 0) {
+          e.hitFlash -= dt;
+          e.rig.matShirt.emissive.setHex(e.hitFlash > 0 ? 0xaa2222 : 0x000000);
+        }
+        if (e.muzzleTimer > 0) {
+          e.muzzleTimer -= dt;
+          e.rig.muzzle.visible = e.muzzleTimer > 0;
+        }
+        if (!e.alive) {
+          if (e.fallProgress < 1) {
+            e.fallProgress = Math.min(1, e.fallProgress + dt * 3.8);
+            e.rig.grp.rotation.x = -e.fallProgress * (Math.PI / 2);
+            e.rig.grp.position.y = e.fallProgress * 0.16;
+          }
+          continue;
+        }
+
+        // Subtle side-to-side cover lean
+        e.rig.grp.position.x = e.baseX + Math.sin(globalTime * 2.2 + e.z) * 0.16;
+
+        // Shoot back once within corridor engagement range
+        if (state.railZ <= e.activeZ && e.z < state.railZ - 2.0) {
+          e.shootTimer -= dt;
+          if (e.shootTimer <= 0) {
+            e.shootTimer = 1.65 + Math.random() * 1.1;
+            e.muzzleTimer = 0.08;
+            e.rig.muzzle.visible = true;
+            SFX.enemyShot();
+            const from = new THREE.Vector3(e.rig.grp.position.x + 0.3, 1.18, e.z + 0.5);
+            const to = camera.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.8, -0.1, 0));
+            spawnTracer(from, to, 0xff5a38);
+            if (Math.random() < 0.48) damageHero(10);
+          }
+        }
+      }
+    }
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - lastTs) / 1000);
+      lastTs = now;
+      update(dt);
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(animate);
+
+    // =========================================================================
+    // 11. REQUIRED window.__dbg VERIFICATION HOOK
+    // =========================================================================
+    window.__dbg = {
+      get beat() { return state.beat; },
+      get segment() { return state.segment; },
+      get hp() { return state.hp; },
+      get ammo() { return state.ammo; },
+      get magSize() { return MAG_SIZE; },
+      get enemiesAlive() { return enemies.filter((e) => e.alive).length; },
+      get enemiesTotal() { return enemies.length; },
+      get kills() { return state.kills; },
+      get railZ() { return Math.round(state.railZ * 10) / 10; },
+      get reticle() { return { x: state.reticleX, y: state.reticleY }; },
+      start() {
+        startOverlay.classList.add("hidden");
+        state.started = true;
+        enterBeat(1);
+        renderer.render(scene, camera);
+      },
+      jumpToBeat(n) {
+        startOverlay.classList.add("hidden");
+        state.started = true;
+        enterBeat(n);
+        if (n === 1) { state.beatTime = 2.6; update(0.016); }
+        if (n === 2) { state.railZ = -9.5; update(0.016); }
+        if (n === 4) { state.railZ = -42.5; update(0.016); }
+        renderer.render(scene, camera);
+      },
+      aimAt(nx, ny) {
+        state.reticleX = nx;
+        state.reticleY = ny;
+        updateReticleDOM();
+      },
+      aimAtNearestEnemy() {
+        const alive = enemies.filter((e) => e.alive && e.z < state.railZ - 1.5)
+          .sort((a, b) => (state.railZ - a.z) - (state.railZ - b.z))[0];
+        if (!alive) return false;
+        const p = new THREE.Vector3(alive.rig.grp.position.x, 1.32, alive.rig.grp.position.z).project(camera);
+        state.reticleX = Math.max(0.08, Math.min(0.92, (p.x + 1) * 0.5));
+        state.reticleY = Math.max(0.12, Math.min(0.84, (1 - p.y) * 0.5));
+        updateReticleDOM();
+        return true;
+      },
+      fire() { fireWeapon(); renderer.render(scene, camera); },
+      reload() { startReload(); },
+      setHp(v) { state.hp = v; update(0.016); renderer.render(scene, camera); },
+      step(frames = 1) {
+        for (let i = 0; i < frames; i++) update(1 / 60);
+        renderer.render(scene, camera);
+      },
+    };
+  </script>
+</body>
+</html>
