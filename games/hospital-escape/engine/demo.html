@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Hospital Escape — engine greybox demo</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;font-family:system-ui,-apple-system,sans-serif}
+#game{position:fixed;inset:0}#game canvas{display:block;width:100%;height:100%}
+.ov{position:fixed;inset:0;pointer-events:none}
+#vig{background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(120,0,0,.95) 100%);opacity:0}
+#wash{background:rgba(150,170,40,.55);mix-blend-mode:multiply;opacity:0}
+#blur{backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);-webkit-mask-image:radial-gradient(ellipse at center,transparent 58%,#000 100%);mask-image:radial-gradient(ellipse at center,transparent 58%,#000 100%);opacity:0}
+#ret{position:fixed;width:30px;height:30px;margin:-15px 0 0 -15px;border:1.5px solid rgba(255,255,255,.85);border-radius:50%;pointer-events:none;z-index:1050}
+#hm{position:fixed;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;z-index:1051;opacity:0;color:#ff2a2a;font:700 24px/22px system-ui;text-align:center}
+#top{position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top));display:flex;justify-content:space-between;color:#fff;font:600 12px/1.3 ui-monospace,monospace;text-shadow:0 1px 2px #000;z-index:1060;pointer-events:none}
+#hp{width:120px;height:8px;background:rgba(255,255,255,.2);border-radius:4px;overflow:hidden;margin-top:4px}#hp i{display:block;height:100%;background:#e8e8e8}
+#sub{position:fixed;left:16px;right:16px;bottom:calc(150px + env(safe-area-inset-bottom));text-align:center;color:#fff;font:600 16px/1.35 system-ui;text-shadow:0 1px 3px #000,0 0 8px #000;z-index:1060;pointer-events:none}
+#sub b{color:#ffd27a;font-weight:700;letter-spacing:.04em}
+.btn{position:fixed;z-index:1100;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(20,20,24,.45);color:#fff;font:800 13px system-ui;display:flex;align-items:center;justify-content:center;touch-action:none}
+#fire{width:92px;height:92px;right:18px;bottom:calc(36px + env(safe-area-inset-bottom));background:rgba(190,30,30,.55);font-size:16px}
+#reload{width:58px;height:58px;right:124px;bottom:calc(30px + env(safe-area-inset-bottom))}
+#stick{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:2px solid rgba(255,255,255,.5);display:none;z-index:1100;pointer-events:none}
+#stick i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(255,255,255,.55)}
+#dev{position:fixed;left:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:1100;display:flex;gap:4px}
+#dev select,#dev button{font:600 11px system-ui;background:rgba(0,0,0,.55);color:#ddd;border:1px solid #555;border-radius:6px;padding:4px 6px}
+#card{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(0,0,0,.6);color:#fff;font:700 22px system-ui;z-index:1200}
+#card button{font:700 15px system-ui;padding:10px 18px;border-radius:10px;border:0;background:#fff;color:#000}
+#tag{position:fixed;right:8px;top:calc(46px + env(safe-area-inset-top));color:#9a9;font:600 10px ui-monospace,monospace;z-index:1060;pointer-events:none}
+</style></head>
+<body>
+<div id="game"></div>
+<div class="ov" id="blur"></div><div class="ov" id="vig"></div><div class="ov" id="wash"></div>
+<div id="ret"></div><div id="hm">✕</div>
+<div id="top"><div><span id="beat">—</span><div id="hp"><i></i></div></div><div style="text-align:right"><span id="ammo">—</span><br><span id="mode"></span></div></div>
+<div id="tag">GREYBOX — engine demo</div>
+<div id="sub"></div>
+<div class="btn" id="reload">RELOAD</div><div class="btn" id="fire">FIRE</div><div id="stick"><i></i></div>
+<div id="dev"><select id="jump"></select><button id="auto">AUTO: off</button></div>
+<div id="card"><div id="cardTxt"></div><button id="cardBtn">Retry beat</button></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="core.js"></script><script src="rail.js"></script><script src="combat.js"></script><script src="chase.js"></script>
+<script src="greybox.js"></script><script src="director.js"></script><script src="data.js"></script>
+<script>
+(function(){
+'use strict';
+var q = new URLSearchParams(location.search), game = HE.install(HE.createGame({ seed: +q.get('seed') || 1 })), inp = game.input;
+var renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.getElementById('game').appendChild(renderer.domElement);
+function resize(){ renderer.setSize(innerWidth, innerHeight); game.camera.aspect = innerWidth / innerHeight; game.camera.updateProjectionMatrix(); } addEventListener('resize', resize); resize();
+var $ = function(id){ return document.getElementById(id); }, auto = q.get('auto') === '1';
+// ---- input: drag anywhere (right of the joystick zone in FREE_FOOT) to aim; FIRE / RELOAD buttons; left-half floating joystick in FREE_FOOT ----
+var aimId = null, stickId = null, sx = 0, sy = 0, keys = {};
+function onDown(e){ if(e.target.closest('.btn,#dev,#card')) return; e.preventDefault();
+  if(game.mode === 'FREE_FOOT' && e.clientX < innerWidth / 2 && stickId === null){ stickId = e.pointerId; sx = e.clientX; sy = e.clientY; var st = $('stick'); st.style.display = 'block'; st.style.left = sx + 'px'; st.style.top = sy + 'px'; return; }
+  if(aimId === null){ aimId = e.pointerId; setAim(e); } }
+function onMove(e){ if(e.pointerId === stickId){ var dx = HE.clamp((e.clientX - sx) / 45, -1, 1), dy = HE.clamp((e.clientY - sy) / 45, -1, 1); inp.move.x = dx; inp.move.y = dy; $('stick').firstChild.style.transform = 'translate(' + dx * 30 + 'px,' + dy * 30 + 'px)'; }
+  else if(e.pointerId === aimId || e.pointerType === 'mouse') setAim(e); }
+function onUp(e){ if(e.pointerId === stickId){ stickId = null; inp.move.x = inp.move.y = 0; $('stick').style.display = 'none'; } if(e.pointerId === aimId) aimId = null; }
+function setAim(e){ if(auto) return; inp.aim.x = HE.clamp(e.clientX / innerWidth, 0, 1); inp.aim.y = HE.clamp(e.clientY / innerHeight, 0, 1); }
+addEventListener('pointerdown', onDown, { passive: false }); addEventListener('pointermove', onMove); addEventListener('pointerup', onUp); addEventListener('pointercancel', onUp);
+document.addEventListener('dblclick', function(e){ e.preventDefault(); }); document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+var fb = $('fire'); fb.addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); inp.fire = true; }); fb.addEventListener('pointerup', function(){ inp.fire = false; }); fb.addEventListener('pointerleave', function(){ inp.fire = false; });
+$('reload').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); inp.reload = true; });
+addEventListener('mousedown', function(e){ if(e.button === 0 && !e.target.closest('.btn,#dev,#card')) inp.fire = true; }); addEventListener('mouseup', function(){ inp.fire = false; });
+addEventListener('keydown', function(e){ keys[e.code] = true; if(e.code === 'KeyR') inp.reload = true; if(e.code === 'Space'){ inp.fire = true; e.preventDefault(); } });
+addEventListener('keyup', function(e){ keys[e.code] = false; if(e.code === 'Space') inp.fire = false; });
+// ---- dev strip: beat jump (gotoBeat) + autopilot toggle — verification aids, not a mode switch ----
+HE.BEAT_IDS.forEach(function(b, i){ var o = document.createElement('option'); o.value = b; o.textContent = (i + 1) + '. ' + b; $('jump').appendChild(o); });
+$('jump').addEventListener('change', function(){ game.gotoBeat(this.value); $('card').style.display = 'none'; });
+$('auto').addEventListener('click', function(){ auto = !auto; this.textContent = 'AUTO: ' + (auto ? 'on' : 'off'); if(!auto) inp.fire = false; }); $('auto').textContent = 'AUTO: ' + (auto ? 'on' : 'off');
+$('cardBtn').addEventListener('click', function(){ if(game.ended) game.gotoBeat('visit'); else game.gotoBeat(game.beat); $('card').style.display = 'none'; });
+game.gotoBeat(q.get('beat') || 'visit'); if(q.get('seg')) game.gotoSegment(q.get('beat'), +q.get('seg'));
+var lastHm = 0, acc = 0, last = performance.now(), DT = 1 / 60;
+window.__demo = { game: game, setAuto: function(v){ auto = !!v; } };
+function frame(now){ acc += Math.min(0.1, (now - last) / 1000); last = now;
+  if(game.mode === 'FREE_FOOT' && stickId === null){ inp.move.x = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0); inp.move.y = (keys.KeyS ? 1 : 0) - (keys.KeyW ? 1 : 0); }
+  while(acc >= DT){ if(auto) HE.autopilot(game); game.step(DT); acc -= DT; }
+  var s = game.state(), f = s.feedback, ev = game._log;
+  for(var i = ev.length - 1; i >= 0 && i >= ev.length - 30; i--) if(ev[i].type === 'hitmarker' && ev[i].t > lastHm){ lastHm = ev[i].t; $('hm').style.opacity = 1; $('hm').style.left = ev[i].data.x * innerWidth + 'px'; $('hm').style.top = ev[i].data.y * innerHeight + 'px'; break; }
+  $('hm').style.opacity = Math.max(0, (+$('hm').style.opacity || 0) - 0.06);
+  $('vig').style.opacity = f.vignette; $('wash').style.opacity = f.wash; $('blur').style.opacity = s.mode === 'RAIL_CHAIR' ? 0.4 + f.vignette * 0.6 : f.vignette * 0.4;
+  $('ret').style.left = inp.aim.x * innerWidth + 'px'; $('ret').style.top = inp.aim.y * innerHeight + 'px'; $('ret').style.display = s.mode === 'CUTSCENE' ? 'none' : 'block';
+  $('beat').textContent = (HE.BEAT_IDS.indexOf(s.beat) + 1) + '/9 ' + s.beat + ' · ' + s.segment; $('hp').firstChild.style.width = s.health + '%'; $('hp').firstChild.style.background = s.nearDeath ? '#d4e04a' : '#e8e8e8';
+  $('ammo').textContent = s.ammo.weapon.replace('_', ' ') + '  ' + s.ammo.mag + (game.combat.reloadT > 0 ? '  reloading' : ''); $('mode').textContent = s.mode + (s.pursuers.length ? ' · pursuers ' + s.pursuers.filter(function(p){ return p.state === 'pursuing'; }).length : '') + (s.won ? ' · WON' : '');
+  $('sub').innerHTML = s.subtitle ? '<b>' + s.subtitle.speaker.replace(/^NPC:/, '') + ':</b> ' + s.subtitle.text.replace(/</g, '&lt;') : '';
+  ['fire', 'reload'].forEach(function(id){ $(id).style.display = s.mode === 'CUTSCENE' ? 'none' : 'flex'; });
+  if(s.lost){ $('cardTxt').textContent = 'You went down.'; $('cardBtn').textContent = 'Retry beat'; $('card').style.display = 'flex'; }
+  else if(s.ended){ $('cardTxt').textContent = 'Out. Nothing in the mirrors.'; $('cardBtn').textContent = 'Run it again'; $('card').style.display = 'flex'; }
+  var cam = game.camera, sh = f.shake * 0.06, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh; cam.position.x += ox; cam.position.y += oy;
+  renderer.render(game.scene, cam); cam.position.x -= ox; cam.position.y -= oy;
+  requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+})();
+</script>
+</body></html>
