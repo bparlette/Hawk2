@@ -1,0 +1,42 @@
+seed 7 full autopilot run (won true)       damage events   3  violations 0  damaging shots 3  visual-only shots 36  min visible-for 0.95 s  min height 82 px
+seed 7 soak bed_push#0                     damage events   5  violations 0  damaging shots 5  visual-only shots 25  min visible-for 0.83 s  min height 96 px
+seed 7 soak transfer#1                     damage events   3  violations 0  damaging shots 3  visual-only shots 22  min visible-for 0.72 s  min height 166 px
+seed 7 soak elevator#0                     damage events   5  violations 0  damaging shots 5  visual-only shots 19  min visible-for 0.63 s  min height 193 px
+seed 7 soak gauntlet#0                     damage events   8  violations 0  damaging shots 8  visual-only shots 21  min visible-for 0.83 s  min height 179 px
+seed 7 soak gauntlet#1                     damage events   2  violations 0  damaging shots 2  visual-only shots 29  min visible-for 0.77 s  min height 133 px
+seed 7 soak gauntlet#3                     damage events   4  violations 0  damaging shots 4  visual-only shots 15  min visible-for 0.62 s  min height 194 px
+seed 7 soak entrance#0                     damage events   7  violations 0  damaging shots 7  visual-only shots 24  min visible-for 0.6 s  min height 70 px
+seed 7 soak steal#1                        damage events  10  violations 0  damaging shots 10  visual-only shots 61  min visible-for 3.48 s  min height 62 px
+seed 7 soak chase#0                        damage events   4  violations 0  damaging shots 4  visual-only shots 19  min visible-for 4.38 s  min height 76 px
+seed 7 soak train_finale#0                 damage events  18  violations 0  damaging shots 18  visual-only shots 57  min visible-for 1.9 s  min height 64 px
+CONTROL (contract OFF) soak gauntlet#1     damage events   6  violations 6  damaging shots 6  visual-only shots 24  min visible-for -  min height -
+{"label":"seed 7 page errors","pageErrors":0}
+seed 3 full autopilot run (won true)       damage events   3  violations 0  damaging shots 3  visual-only shots 33  min visible-for 1.63 s  min height 70 px
+seed 3 soak bed_push#0                     damage events   6  violations 0  damaging shots 6  visual-only shots 32  min visible-for 1.08 s  min height 177 px
+seed 3 soak transfer#1                     damage events   8  violations 0  damaging shots 8  visual-only shots 21  min visible-for 0.67 s  min height 130 px
+seed 3 soak elevator#0                     damage events   1  violations 0  damaging shots 1  visual-only shots 22  min visible-for 0.7 s  min height 197 px
+seed 3 soak gauntlet#0                     damage events   3  violations 0  damaging shots 3  visual-only shots 23  min visible-for 0.6 s  min height 196 px
+seed 3 soak gauntlet#1                     damage events   9  violations 0  damaging shots 9  visual-only shots 25  min visible-for 0.82 s  min height 80 px
+seed 3 soak gauntlet#3                     damage events   4  violations 0  damaging shots 4  visual-only shots 20  min visible-for 0.67 s  min height 117 px
+seed 3 soak entrance#0                     damage events   5  violations 0  damaging shots 5  visual-only shots 34  min visible-for 0.67 s  min height 98 px
+seed 3 soak steal#1                        damage events  16  violations 0  damaging shots 16  visual-only shots 56  min visible-for 1.15 s  min height 45 px
+seed 3 soak chase#0                        damage events   1  violations 0  damaging shots 1  visual-only shots 23  min visible-for -  min height 77 px
+seed 3 soak train_finale#0                 damage events  19  violations 0  damaging shots 19  visual-only shots 54  min visible-for 0.83 s  min height 52 px
+{"label":"seed 3 page errors","pageErrors":0}
+seed 11 full autopilot run (won true)      damage events   2  violations 0  damaging shots 2  visual-only shots 37  min visible-for 0.8 s  min height 50 px
+seed 11 soak bed_push#0                    damage events   3  violations 0  damaging shots 3  visual-only shots 23  min visible-for 1.13 s  min height 88 px
+seed 11 soak transfer#1                    damage events   5  violations 0  damaging shots 5  visual-only shots 24  min visible-for 0.62 s  min height 112 px
+seed 11 soak elevator#0                    damage events   5  violations 0  damaging shots 5  visual-only shots 19  min visible-for 0.68 s  min height 139 px
+seed 11 soak gauntlet#0                    damage events   8  violations 0  damaging shots 8  visual-only shots 28  min visible-for 0.62 s  min height 194 px
+seed 11 soak gauntlet#1                    damage events   7  violations 0  damaging shots 7  visual-only shots 22  min visible-for 0.63 s  min height 194 px
+seed 11 soak gauntlet#3                    damage events   5  violations 0  damaging shots 6  visual-only shots 19  min visible-for 0.68 s  min height 194 px
+seed 11 soak entrance#0                    damage events   9  violations 0  damaging shots 9  visual-only shots 26  min visible-for 0.9 s  min height 72 px
+seed 11 soak steal#1                       damage events  14  violations 0  damaging shots 14  visual-only shots 59  min visible-for 2.3 s  min height 52 px
+seed 11 soak chase#0                       damage events   5  violations 0  damaging shots 5  visual-only shots 19  min visible-for 0.78 s  min height 49 px
+seed 11 soak train_finale#0                damage events  17  violations 0  damaging shots 18  visual-only shots 55  min visible-for 0.82 s  min height 52 px
+{"label":"seed 11 page errors","pageErrors":0}
+TOTAL {"runs":33,"damage":224,"violations":0,"visualOnly":1002,"damagingShots":226,"minVisT":0.6,"minPx":45,"examples":[]}
+FAIRNESS AUDIT: PASS
+first-damage-bed-push {"t":2.8167,"src":"enemy:bed_w0_0","visAtFire":{"inZone":true,"sx":0.686,"sy":0.48,"px":302,"occl":false,"visT":1.63},"nowOnScreen":true,"nowScreen":[0.687,0.482],"blockedAtFireStep":false,"nowBlocked":false,"blockedBy":null,"mayaToCam":2.35}
+first-damage-cafeteria {"t":56.1333,"src":"enemy:caf_w2_0","visAtFire":{"inZone":true,"sx":0.215,"sy":0.47,"px":197,"occl":false,"visT":0.8},"nowOnScreen":true,"nowScreen":[0.215,0.471],"blockedAtFireStep":false,"nowBlocked":true,"blockedBy":null,"mayaToCam":1.87}
+first-damage-chase {"t":63.85,"src":"pursuer:chase_w1_0","visAtFire":{"inZone":true,"sx":0.576,"sy":0.521,"px":81,"occl":false,"visT":4.48},"nowOnScreen":true,"nowScreen":[0.579,0.516],"blockedAtFireStep":false,"nowBlocked":false,"blockedBy":null,"mayaToCam":2.07}

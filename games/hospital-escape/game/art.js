@@ -202,7 +202,7 @@ A.muzzleWorld = function(p, out){ var J = p.userData.J; if(!J || !J.gun) return 
 // ---- the cast (originals) ----
 A.cast = {
   cole: function(){ return A.person({ height: 1.8, skin: 0xb98668, top: 0xa9c8d8, topMat: new THREE.MeshStandardMaterial({ map: A.tex.gown, roughness: 0.9 }), bottom: 0x8fb0c2, hair: 0x2b1d14, hairStyle: 'curly', beard: true, sleeves: 'short', gun: 'pistol', shoes: 0x9aa4a8 }); },
-  maya: function(){ return A.person({ height: 1.68, build: 0.9, skin: 0x9b6b4c, top: 0xc77f2a, bottom: 0x263244, hair: 0x15100d, hairStyle: 'ponytail', gun: 'pistol', bag: true, jacket: true, shoes: 0x3b2a20 }); },
+  maya: function(){ return A.person({ height: 1.68, build: 0.9, skin: 0x9b6b4c, top: 0x3f4649, bottom: 0x1f2a44, hair: 0x15100d, hairStyle: 'ponytail', gun: 'pistol', bag: true, jacket: true, shoes: 0x3b2a20 }); },
   hale: function(){ return A.person({ height: 1.78, skin: 0xd9a98c, top: 0x6c8fb0, bottom: 0x30343c, hair: 0x9a9a98, hairStyle: 'grey', glasses: true, coat: 0xf2f2ee }); },
   gunman: function(i){ var tops = [0x2b2f36, 0x5a2c24, 0x34402f, 0x3b3a52], hs = ['beanie', 'short', 'cap', 'bald'];
     return A.person({ height: 1.76 + (i % 3) * 0.05, build: 1.05 + (i % 2) * 0.08, skin: [0xc8957a, 0x8a5a3c, 0xe0b090, 0x6b4630][i % 4], top: tops[i % 4], bottom: 0x22252a, hairStyle: hs[i % 4], capCol: 0x1c1c1c, vest: i % 2 ? 0x1f2522 : null, gun: i % 3 === 2 ? 'smg' : 'pistol' }); },

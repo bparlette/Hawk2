@@ -217,7 +217,16 @@ function paintCast(dt, st, m, seg){ if(!PT || !PT.ready){ return; } var r = game
   if(m === 'CUTSCENE' && seg === 'visit_room'){ PT.use(cole, true); bed.visible = false; cole.position.copy(bed.position).addScaledVector(fwdOf(game.path('bed_hall'), game.path('bed_hall').lead), 1.0); cole.position.y = bed.position.y; PT.show(cole, 'cole-bed-foot', 1, camera, 1, 'box'); }
   else if(m === 'CUTSCENE' && (seg === 'transfer_cut' || seg === 'steal_cut')){ PT.use(cole, true); chair.visible = false; cole.position.copy(chair.position); PT.show(cole, 'cole-wheelchair-front3q', 1, camera, 1, 'box'); }
   else if(m === 'AMBULANCE' && estK > 0){ PT.use(cole, true); cole.userData.reflect = false;   /* the bay floor is ribbed steel, not wet linoleum */ amb.updateMatrixWorld(true); cole.position.copy(amb.localToWorld(new V(0.05, 0.81, -2.25))); PT.show(cole, 'cole-ambulance-braced', 1, camera, 1, 'box'); }
-  else PT.use(cole, false); }
+  else if(m === 'FREE_FOOT'){ PT.use(cole, true); chair.visible = false; cole.position.copy(chair.position); var dc = cole.position.distanceTo(camera.position); cole.userData.opac = HE.clamp((dc - 3.0) / 1.5, 0, 1);   // parked: the painted patient in his chair, faded out while he is right beside Maya's camera
+    PT.show(cole, 'cole-wheelchair-front3q', 1, camera, 1, 'box'); cole.userData.bb.userData.sh.visible = cole.userData.opac > 0.5; }
+  else PT.use(cole, false);
+  if(m !== 'FREE_FOOT'){ cole.userData.opac = 1; if(cole.userData.bb) cole.userData.bb.userData.sh.visible = true; }
+  // OPUS-FOREGROUND-COLE: in his own play views the procedural Cole (back of head, shoulders, gun arm) clashed with the painted cast and
+  // no painted back view exists -> he is hidden there (method b). The bed / chair / ambulance bay still frame the view; his shots leave
+  // from an off-screen gun point at the lower right of HIS view (fgMuzzle).
+  coleHidden = (m === 'RAIL_CHAIR' || m === 'HOLDOUT' || m === 'AMBULANCE') && !cole.userData.painted; cole.visible = !coleHidden; }
+var coleHidden = false;
+function fgMuzzle(out){ var q = camera.quaternion; return out.copy(camera.position).add(new V(0.2, -0.3, -0.62).applyQuaternion(q)); }
 // an enemy as its painted frames: peek / aim / fire / flinch / down, mirrored to face the screen centre (the camera side)
 function paintEnemy(e, p, dt){ var u = p.userData, pk = u.pk, fr; u.kick = Math.max(0, (u.fireT || 0) / 0.14); u.fireT = Math.max(0, (u.fireT || 0) - dt); u.flinchT = Math.max(0, (u.flinchT || 0) - dt);
   if(u.dead){ u.deadT += dt; p.position.y = e.pos.y; fr = u.deadT < 0.3 ? 'flinch' : 'down'; }
@@ -337,7 +346,7 @@ function updateVisibleZone(st){ var Z = game.visibleZone || (game.visibleZone = 
 // ------------------------------------------------------------------ engine events -> FX / HUD
 var logIdx = 0;
 function processEvents(){ var L = game._log; for(; logIdx < L.length; logIdx++){ var e = L[logIdx], d = e.data;
-  if(e.type === 'shot'){ var gunner = game.mode === 'FREE_FOOT' ? maya : cole, mz = A.muzzleWorld(gunner, new V()) || camera.position.clone(); muzzle(mz, d.weapon === 'machine_pistol'); sfx.shot(d.weapon === 'machine_pistol');
+  if(e.type === 'shot'){ var gunner = game.mode === 'FREE_FOOT' ? maya : cole, mz = (gunner === cole && coleHidden) ? fgMuzzle(new V()) : (A.muzzleWorld(gunner, new V()) || camera.position.clone()); muzzle(mz, d.weapon === 'machine_pistol'); sfx.shot(d.weapon === 'machine_pistol');
     var end = d.point ? new V().fromArray(d.point) : mz.clone().addScaledVector(aimRay(), 40); tracer(mz, end, 0xffe2a0, 0.06, 0.03); if(d.point){ sparks(end, d.hit ? 3 : 6); } }
   else if(e.type === 'partnerShot'){ var en = game.combat.byRole(d.role); if(en){ mayaTarget.copy(en.pos).setY(en.pos.y + 1.3); } mayaFireT = 0.45; var mm = A.muzzleWorld(maya, new V()); if(mm){ muzzle(mm); tracer(mm, new V().fromArray(d.to), 0xffd080, 0.07, 0.03); } sfx.shot(false); }
   else if(e.type === 'enemyShot'){ var src = gb.actors[d.role];
