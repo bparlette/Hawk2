@@ -119,6 +119,15 @@ Write **`games/hospital-escape/tasking/responses/neon-step1.md`** with:
 
 ## References
 
+The reference material lives **in this repo**, in this tasking folder — pull it from here:
+
+- **`refs/source.mp4`** — Part 1: the hospital escape (2:59). The wheelchair ride, the cafeteria fight, the free on-foot section, the holdout.
+- **`refs/source2.mp4`** — Part 2: the ambulance chase (0:29). Rear-facing camera in the moving ambulance, pursuers crashed by gunfire.
+- **`refs/description.md`** — the full frame-by-frame analysis of both clips: the cast and role rotation, beat-by-beat breakdowns, the camera design, HUD notes, and Cherie's 9-beat replica structure (also written out in this brief).
+
+The same clips on YouTube, if you want them there:
+
 - Part 1 (hospital escape): https://youtube.com/shorts/Ic-x766nG-M
 - Part 2 (ambulance chase): https://youtube.com/shorts/D8enZhZsYgE
-- The design is the reference. The IP is not.
+
+The design is the reference. The IP is not.
