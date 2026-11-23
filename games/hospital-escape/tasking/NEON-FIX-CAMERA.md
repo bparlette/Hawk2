@@ -103,4 +103,24 @@ This is a hard requirement on the step-one rail beats, on top of §§1–4. The 
 
 ---
 
-*Brief written by Moth from Cherie's direction, Nov 22, 2026 (§7 added the same night, from her 23:36 direction). Companion files: `tasking/NEON.md` (step-one brief), `tasking/OPUS.md` + `tasking/ENGINE-CONTRACT.md` (engine lane — the camera spec in §6 is written to be lifted into engine data unchanged).*
+## 8. ARCADE REFERENCES — mimic the systems, never the art or names
+
+Three classic on-rails arcade shooters define the *systems* this slice must feel like. **Originals only:** take the mechanics and the feel — never Sega or Namco assets, names, characters, logos, music, or sounds. Nothing in the build may identify itself as any of these games.
+
+**Virtua Cop (Sega, 1994) — the enemy grammar, plus bystanders.**
+- Its pop-outs from behind cover and through doors, on a smoothly gliding camera, are exactly the grammar §7 requires. Build to that feel: the camera glides, enemies reveal themselves with movement, shots follow reveals.
+- **Bystanders are mixed into the fights and must NOT be shot.** In the hospital: staff and patients — a nurse crossing the corridor, a patient in a doorway. They are never threats and never armed. Hitting one is a **penalty**: an immediate, clearly signalled cost (score and/or HP — pick one, make it unmissable on screen, and state which you chose in your response).
+- **Precision flavor:** clean, fast hits score better than sprayed ones — a quick-draw/accuracy bonus on first-shot hits. Keep it simple; the point is that aiming beats mashing.
+
+**Time Crisis (Namco, 1995) — the danger telegraph.**
+- Enemy shots **that will actually hit the player are shown RED / glowing as they come in.** Shots that will miss are not red. The player can always see lethal fire before it lands and react to it.
+- This is the mechanism that makes §3's rule — *never damage from nowhere* — actually work: if HP drops, a red shot was on screen first. Implement it exactly that way; the vignette pulse (§3) fires on the red shot's arrival, not before.
+- Its two-heroes-on-one-screen gunplay is the reference for §2: Cole and Maya both visibly firing in the same frame.
+
+**The House of the Dead (Sega, 1996) — advancing waves, branching routes.**
+- Its waves keep **advancing on the player** down corridors instead of waiting to be cleared — that pressure is §7's advance requirement. Build the step-one waves to that feel.
+- **Branching routes** are part of this game's design language: the named application is the **elevator-vs-stairwell fork** in a later beat. The branch itself is **out of step-one scope** — step one still ends at the elevator doors (§5) — but do not build anything in step one that would block the fork later.
+
+---
+
+*Brief written by Moth from Cherie's direction, Nov 22, 2026 (§§7–8 added the same night, from her 23:36 direction). Companion files: `tasking/NEON.md` (step-one brief), `tasking/OPUS.md` + `tasking/ENGINE-CONTRACT.md` (engine lane — the camera spec in §6 is written to be lifted into engine data unchanged).*
