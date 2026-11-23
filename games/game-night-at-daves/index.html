@@ -139,7 +139,7 @@ var Audio8={
    The DEFAULT voice is the ROBOT BUTLER (Cherie's bake-off pick,
    Nov 22, 2026): every character's SAM render slowed to an
    enunciated pace and run through an 88 Hz ring-mod sheen — one
-   polite robot butler at nine pitches. ?voice=sam restores the
+   polite robot butler: the identical voice for every speaker. ?voice=sam restores the
    plain SAM render for A/B comparison.
    When a card's line appears, Voice.play(id) "speaks" it as rapid
    pitched SYLLABLE blips — Animalese / Banjo-Kazooie babble at natural
@@ -176,20 +176,18 @@ var SAM_PROFILES={
 };
 var VOICE_MODE="butler";
 try{ var qv=qs("voice"); if(qv==="blip")VOICE_MODE="blip"; else if(qv==="sam")VOICE_MODE="sam"; }catch(e){}
-/* ROBOT BUTLER profiles: [pitch, speed, throat, mouth] — pitch /
-   throat / mouth identical to SAM_PROFILES (each character keeps his
-   register and timbre); only the speed moves, toward the butler's
-   enunciated pace. One model of polite robot butler, nine registers. */
+/* ROBOT BUTLER profile: [pitch, speed, throat, mouth] — ONE profile
+   for EVERY speaker (Cherie, Nov 22, 2026: "All voices exactly robot
+   butler no changing for each person"). The single voice is the
+   bake-off demo's: Brad's SAM pitch / throat / mouth at the butler's
+   enunciated speed 92, run through the butlerize() sheen. Speaker
+   identity makes zero difference to the voice; BUTLER_PROFILES maps
+   every speaker to the same shared profile so it cannot drift. */
+var BUTLER_PROFILE=[64,92,128,150];
 var BUTLER_PROFILES={
-  dave:   [96,105,128,128],
-  brendan:[88,103,140,120],
-  brent:  [80,99,128,135],
-  chris:  [76,94,120,128],
-  scott:  [72,101,135,140],
-  steve:  [68,98,150,110],
-  brad:   [64,92,128,150],
-  brian:  [56,96,160,160],
-  sudz:   [44,89,170,175]
+  dave:BUTLER_PROFILE, brendan:BUTLER_PROFILE, brent:BUTLER_PROFILE,
+  chris:BUTLER_PROFILE, scott:BUTLER_PROFILE, steve:BUTLER_PROFILE,
+  brad:BUTLER_PROFILE, brian:BUTLER_PROFILE, sudz:BUTLER_PROFILE
 };
 /* the bake-off's OriginalsButler chain, lifted exactly:
    out[n] = buf[n] * (0.82 + 0.38 * sin(2*pi*88*n/22050)), peak -> 0.78 */
@@ -604,6 +602,100 @@ function drawCouch(y,withCrew,exprs){
       gr.addColorStop(0,"rgba(255,176,66,0.35)"); gr.addColorStop(1,"rgba(255,176,66,0)");
       g.fillStyle=gr; g.fillRect(xs[i]-22,y+2,72,72);
       drawBackPerson(xs[i],y+16,2.0,p,{pose:"sit"});
+    }
+  }
+}
+/* ---- title screen: MOVIE THEATER recliner row (Cherie, Nov 22, 2026) ---- */
+var ROW_HAIR={
+  sudz:{c:"#8a6a42",style:"crop"},
+  scott:{c:"#23232a",style:"cap"},
+  brent:{c:"#a8a8a8",style:"full"},
+  brian:{c:"#2a2f38",style:"cap"},
+  steve:{c:"#2e2018",style:"full"},
+  chris:{c:"#9a8a70",style:"buzz"},
+  brad:{c:"#a05a30",style:"crop"},
+  brendan:{c:"#241a12",style:"long"},
+  dave:{c:"#cfcfcf",style:"full"}
+};
+/* back of one head, 26 wide / 32 tall, top at `top` — hair silhouette
+   only, over skin nape + ears where the style leaves them bare */
+function drawRowBackHead(cx,top,p,h){
+  var hx=cx-13, skin=p.skin, c=h.c;
+  if(h.style==="crop"||h.style==="buzz"||h.style==="cap"){
+    R(hx-3,top+16,3,8,skin); R(hx+26,top+16,3,8,skin);
+  }
+  if(h.style==="buzz"){ // Chris: buzz cut, skin showing through
+    R(hx+1,top+4,24,28,skin);
+    R(hx+1,top+3,24,15,c); R(hx+1,top+9,3,9,c); R(hx+22,top+9,3,9,c);
+    R(hx+5,top+17,4,2,skin); R(hx+16,top+17,4,2,skin);
+  } else if(h.style==="cap"){ // Scott / Brian: cap dome + back strap
+    R(hx+1,top+10,24,22,skin);
+    R(hx,top+1,26,19,c);
+    R(hx+3,top+1,9,3,"rgba(255,255,255,0.20)");
+    R(cx,top+2,1,16,"rgba(0,0,0,0.28)");
+    R(hx+1,top+18,24,4,"#101014");
+    R(hx+2,top+23,22,3,"#1a1512");
+  } else if(h.style==="long"){ // Brendan: dark hair falling past the shoulders
+    R(hx,top+2,26,30,c);
+    R(hx+4,top+5,4,12,"rgba(255,255,255,0.13)");
+    R(hx-3,top+14,6,26,c); R(hx+23,top+14,6,26,c);
+    R(hx+3,top+26,20,6,c);
+  } else if(h.style==="crop"){ // Sudz / Brad: neat short crop
+    R(hx+1,top+8,24,24,skin);
+    R(hx+1,top+2,24,23,c);
+    R(hx+1,top+2,24,3,"rgba(255,255,255,0.15)");
+    R(hx+4,top+24,18,2,c);
+  } else { // full: Brent's silver, Steve's dark wave, Dave's silver sweep
+    R(hx,top+3,26,29,c);
+    R(hx+2,top,6,4,c); R(hx+10,top,7,4,c); R(hx+18,top,6,4,c);
+    R(hx,top+10,4,15,c); R(hx+22,top+10,4,15,c);
+    R(hx+5,top+6,4,11,"rgba(255,255,255,0.14)");
+  }
+  R(cx-4,top+29,8,6,skin); // neck, sinking into the chair back
+}
+/* the row itself: 8 friends + Dave at the right end, y = head-zone top */
+function drawReclinerRow(y){
+  var order=["sudz","scott","brent","brian","steve","chris","brad","brendan","dave"];
+  var backTop=y+56, backH=104, backBot=backTop+backH, i, cx;
+  for(i=0;i<order.length;i++){
+    cx=27+42*i;
+    var p=CREW[order[i]], h=ROW_HAIR[order[i]];
+    R(cx-21,backBot-4,42,6,"rgba(0,0,0,0.22)");                    // floor shadow
+    R(cx-20,backTop,40,backH,"#d3ba96");                           // plush segmented back
+    R(cx-20,backTop,40,15,"#e0c9a4"); R(cx-20,backTop,40,3,"#efdfc0"); // headrest roll
+    R(cx-20,backTop+15,40,3,"#b39d76");
+    R(cx-20,backTop+47,40,3,"#b39d76"); R(cx-20,backTop+50,40,2,"#e8d5b0"); // cushion seams
+    R(cx-20,backTop+79,40,3,"#b39d76"); R(cx-20,backTop+82,40,2,"#e8d5b0");
+    R(cx-20,backTop,5,backH,"#c6ab84"); R(cx+15,backTop,5,backH,"#c6ab84"); // side bolsters
+    R(cx-21,backBot-14,42,14,"#b39d76");                           // base rail
+    R(cx-21,backBot-2,42,2,"rgba(0,0,0,0.20)");
+    drawRowBackHead(cx,backTop-27,p,h);                            // head showing over the back
+    R(cx-12,backTop+1,24,6,p.shirt);                               // shoulders sunk: shirt sliver
+    R(cx-12,backTop+1,3,6,p.shirtD); R(cx+9,backTop+1,3,6,p.shirtD);
+  }
+  // dark seams in the gaps so each recliner reads as its own chair
+  for(i=0;i<order.length-1;i++) R(27+42*i+20,backTop+2,3,backH-4,"rgba(0,0,0,0.16)");
+  /* wide armrests in the gaps: arms resting on them, two cup-holder
+     drinks, three controllers held at the side, Dave's grade book */
+  var armSeat={0:0,1:1,3:3,4:4,5:5,7:6,8:7};   // gap -> seat whose arm rests there
+  var padGap={1:1,4:1,7:1};
+  for(var gI=0;gI<=9;gI++){
+    var ax=6+42*gI-5;
+    R(ax,backTop+14,11,68,"#c2aa82");
+    R(ax,backTop+14,11,8,"#dcc7a2"); R(ax+8,backTop+14,3,68,"#a8906a");
+    R(ax,backTop+74,11,10,"#b39d76");
+    R(ax+2,backTop+56,7,7,"#6a5638"); R(ax+3,backTop+57,5,5,"#4a3a24"); // cup-holder ring at the front end
+    if(gI===2){ R(ax+2,backTop+46,7,12,"#c8ccd4"); R(ax+2,backTop+50,7,4,"#e8b020"); } // beer can in the holder
+    if(gI===6){ R(ax+2,backTop+47,7,11,"#b03a3a"); R(ax+2,backTop+45,7,2,"#e8e4da"); }  // red cup in the holder
+    if(gI===9){ // Dave's grade book standing on his armrest
+      R(ax-7,backTop-6,13,20,"#7a2e2e"); R(ax-7,backTop-6,13,3,"#a8453a");
+      R(ax+2,backTop-3,3,14,"#f4f1e8"); R(ax-5,backTop+2,6,1,"#ffd98a");
+    }
+    if(armSeat[gI]!==undefined){
+      var ap=CREW[order[armSeat[gI]]];
+      if(padGap[gI]){ R(ax,backTop+40,12,8,"#191919"); R(ax+2,backTop+43,2,2,"#c0392b"); R(ax+7,backTop+43,2,2,"#2e7fc2"); }
+      R(ax+2,backTop+15,8,25,ap.shirtD); R(ax+2,backTop+15,8,3,ap.shirt); // sleeve along the armrest
+      R(ax+2,backTop+36,8,7,ap.skin);                                     // hand at the front end
     }
   }
 }
@@ -1173,14 +1265,15 @@ function drawTitle(){
   Tplain("Dave's reviewing tonight.",291,240,9,"#dddddd","center");
   Tplain("PRESENTED BY VIDEOGAMECRITIC.COM",291,254,7,"#90ee90","center");
   scanlines(216,150,150,116);
-  // Dave standing by the screens, grade book in hand
-  drawBackPerson(318,296,3.4,CREW.dave,{pose:"stand",book:true});
-  drawCouch(452,true,["happy","idle","happy","idle","happy"]);
+  // the crew in movie-theater recliners, heads showing over the chair
+  // backs, Dave at the right end of the row (Cherie, Nov 22, 2026)
+  drawReclinerRow(424);
   drawSteelBattalion(30,618);
-  // ball-top arcade stick box on Brad's lap (photo 3)
-  R(292,600,44,26,"#14161a"); R(292,600,44,4,"#23262b");
-  R(310,578,5,24,"#14161a"); R(305,570,15,12,"#2e7fc2"); R(307,572,11,3,"#6ec3ff");
-  R(322,606,9,9,"#2e7fc2"); R(296,606,7,7,"#b03a3a");
+  // ball-top arcade stick box, standing on the carpet at the row's
+  // right (it sat on Brad's lap before the recliners)
+  R(300,652,44,26,"#14161a"); R(300,652,44,4,"#23262b");
+  R(318,630,5,24,"#14161a"); R(313,622,15,12,"#2e7fc2"); R(315,624,11,3,"#6ec3ff");
+  R(330,658,9,9,"#2e7fc2"); R(304,658,7,7,"#b03a3a");
   // unlocks / favorites shelf button (navy panel in the site's manner)
   R(70,694,250,40,"#000080"); R(70,694,250,5,"#90ee90");
   Tplain("\u2605 UNLOCKS \u00b7 FAVORITES",195,706,14,"#ffffff","center");
