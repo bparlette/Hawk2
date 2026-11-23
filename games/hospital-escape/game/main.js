@@ -371,7 +371,8 @@ function processEvents(){ var L = game._log; for(; logIdx < L.length; logIdx++){
   else if(e.type === 'pickup'){ showBanner('MACHINE PISTOL', 'title', 1400); } } }
 // ------------------------------------------------------------------ HUD render
 function hud(){ var s = game.state(), f = s.feedback, m = s.mode;
-  var pe = post && post.enabled && Q.get('post') !== '0'; $('vig').style.opacity = pe ? 0 : f.vignette; $('wash').style.opacity = pe ? 0 : f.wash;   // patient eyes: the lids + post carry damage $('hm').style.opacity = Math.max(0, (+$('hm').style.opacity || 0) - 0.07);
+  var pe = post && post.enabled && Q.get('post') !== '0'; $('vig').style.opacity = pe ? 0 : f.vignette; $('wash').style.opacity = pe ? 0 : f.wash;   /* patient eyes: the lids + post carry damage */
+  $('hm').style.opacity = Math.max(0, (+$('hm').style.opacity || 0) - 0.07);   // the hit marker fades over ~0.25 s (was swallowed by a trailing comment since 014aaeb: it never cleared)
   var showGun = started && m && m !== 'CUTSCENE' && !s.lost && !s.ended; $('ret').style.display = showGun ? 'block' : 'none'; $('ret').style.left = inp.aim.x * innerWidth + 'px'; $('ret').style.top = inp.aim.y * innerHeight + 'px';
   fireBtn.style.display = showGun ? 'flex' : 'none'; var W0 = HE.DATA.tuning.weapons[s.ammo.weapon], low = s.ammo.mag <= W0.mag * 0.3 || game.combat.reloadT > 0; $('reload').style.display = showGun && (m === 'FREE_FOOT' || low) ? 'flex' : 'none'; $('reload').textContent = game.combat.reloadT > 0 ? '···' : 'RELOAD';
   $('full').style.display = m === 'FREE_FOOT' && showGun ? 'flex' : 'none';     // the full HUD exists only in the on-foot segment
