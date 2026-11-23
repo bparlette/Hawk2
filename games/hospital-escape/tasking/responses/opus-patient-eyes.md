@@ -163,3 +163,7 @@ All six items in the tasking are built. The pass-2 post pipeline is extended, no
 | `engine/rail.js` | 9017 |
 | `engine/director.js` | 22019 |
 | `tools/shoot-eyes.cjs` | 4436 |
+
+## Served verification
+- Commit `014aaeb` on main.
+- The Pages copy of `games/hospital-escape/game/main.js` matched the built bytes (sha1 `b0d703736ca032d19dc2a56efe64684450a69648`) on the 4th check after the push, about 2 minutes.
