@@ -654,289 +654,253 @@
       px(ax + 12, ay + 4, 3, 3, '#2e90ff'); // blue arcade button
     }
 
-    // Draw CONNECTED extended footrests & stretched-out legs/socks emerging directly from the front of the reclined seats!
-    function drawExtendedFootrests(seatGeom) {
-      for (let i = 0; i < CREW.length; i++) {
-        const c = CREW[i];
-        if (!c.reclinedFeet) continue;
-        const g = seatGeom[i];
-        const fx = g.cx;
-        // Anchor directly into the front edge of the seat so there is ZERO floating gap!
-        const seatFrontY = g.topY + 4;
+    // Draw CONNECTED extended footrests & stretched-out legs/socks for reclined seats (Layer 1 — farthest forward)
+    function drawExtendedFootrest(cx, topY, c) {
+      const seatFrontY = topY + 4;
+      px(cx - 9, seatFrontY - 20, 18, 22, 'rgba(0,0,0,0.28)');
+      roundedRect(cx - 8, seatFrontY - 18, 16, 22, '#8b7457', 3);
+      roundedRect(cx - 7, seatFrontY - 17, 14, 19, '#d8c7ab', 2);
+      px(cx - 6, seatFrontY - 17, 12, 3, '#f4ead6');
+      px(cx - 7, seatFrontY - 9, 14, 2, '#8b7558');
 
-        // Floor shadow beneath extended footrest
-        px(fx - 9, seatFrontY - 22, 18, 22, 'rgba(0,0,0,0.28)');
-
-        // Extended seat-pan & hinged footrest cushion connected straight out of the chair
-        roundedRect(fx - 8, seatFrontY - 19, 16, 22, '#968062', 3);
-        roundedRect(fx - 7, seatFrontY - 18, 14, 19, '#d6c5a8', 2);
-        // Padded front lip roll of footrest
-        px(fx - 6, seatFrontY - 18, 12, 3, '#f0e5d0');
-        // Horizontal crease between seat cushion and hinged ottoman flap
-        px(fx - 7, seatFrontY - 9, 14, 2, '#8b7558');
-
-        // Stretched-out pant legs extending continuously from the reclined torso onto the footrest!
-        px(fx - 6, seatFrontY - 16, 5, 17, c.pantsCol);
-        px(fx + 1, seatFrontY - 16, 5, 17, c.pantsCol);
-        // Subtle denim/khaki knee highlight
-        px(fx - 5, seatFrontY - 13, 3, 4, 'rgba(255,255,255,0.12)');
-        px(fx + 2, seatFrontY - 13, 3, 4, 'rgba(255,255,255,0.12)');
-
-        // Socked feet kicked up at the front edge of the footrest (crossed/relaxed per room-1 & room-3!)
-        pill(fx - 7, seatFrontY - 22, 5, 7, c.sockCol);
-        pill(fx + 2, seatFrontY - 21, 5, 7, c.sockCol);
-        // Sock toe/heel highlight
-        px(fx - 5, seatFrontY - 21, 2, 2, 'rgba(255,255,255,0.28)');
-        px(fx + 4, seatFrontY - 20, 2, 2, 'rgba(255,255,255,0.28)');
-      }
+      px(cx - 6, seatFrontY - 15, 5, 16, c.pantsCol);
+      px(cx + 1, seatFrontY - 15, 5, 16, c.pantsCol);
+      pill(cx - 7, seatFrontY - 21, 5, 7, c.sockCol);
+      pill(cx + 2, seatFrontY - 20, 5, 7, c.sockCol);
+      px(cx - 5, seatFrontY - 20, 2, 2, 'rgba(255,255,255,0.28)');
+      px(cx + 4, seatFrontY - 19, 2, 2, 'rgba(255,255,255,0.28)');
     }
 
-    // Draw one wide padded console armrest WITH recessed black cup holder & optional drink/prop!
-    function drawConsoleArmrest(ax, ay, ah, propType) {
+    // Draw forward console armrest WITH recessed black cup holder (drawn BEFORE chair backs so arms sit IN FRONT of seats!)
+    function drawForwardArmrest(ax, ay, propType) {
       const aw = 9;
-      // Floor shadow under armrest
-      px(ax - 1, ay + ah - 2, aw + 2, 5, 'rgba(0,0,0,0.44)');
+      roundedRect(ax, ay - 4, aw, 32, '#7d684c', 3);
+      roundedRect(ax + 1, ay - 3, aw - 2, 27, '#d7c6aa', 2);
+      px(ax + 2, ay - 3, aw - 4, 5, '#f4ead6');
 
-      // Outer leather side walls (warm tan)
-      roundedRect(ax, ay, aw, ah, '#8a7457', 3);
-      // Plush rounded top pillow pad of armrest
-      roundedRect(ax + 1, ay + 1, aw - 2, ah - 6, '#d9c8ac', 2);
-      // Curved sunlit leather highlight along top & front bulge
-      px(ax + 2, ay + 2, aw - 4, 6, '#f2e8d4');
-      px(ax + 2, ay + ah - 12, aw - 4, 3, '#c4b090');
-      // Deep front bevel crease
-      px(ax + 1, ay + ah - 8, aw - 2, 2, '#6b5740');
+      const chY = ay + 1;
+      pill(ax + 1, chY, 7, 6, '#141212');
+      px(ax + 2, chY + 1, 5, 4, '#2a2624');
+      px(ax + 3, chY + 2, 3, 2, '#080707');
 
-      // Recessed BLACK CUP HOLDER RING (unmistakable movie-theater recliner cue!)
-      const chY = ay + 9;
-      pill(ax + 1, chY, 7, 7, '#151313');
-      px(ax + 2, chY + 1, 5, 5, '#2b2725');
-      px(ax + 3, chY + 2, 3, 3, '#0a0909');
-
-      // Real drinks & props from Cherie's photos!
       if (propType === 'beerCan') {
-        // Yellow beer can (room-3!)
         px(ax + 2, chY - 5, 5, 8, '#e8c432');
-        px(ax + 2, chY - 5, 5, 2, '#dce2ea');
+        px(ax + 2, chY - 5, 5, 2, '#e2e8f0');
         px(ax + 3, chY - 2, 3, 3, '#c9322c');
       } else if (propType === 'redCup') {
-        // Red Solo cup
         px(ax + 2, chY - 5, 5, 8, '#d42c30');
-        px(ax + 2, chY - 5, 5, 1, '#f2efe8');
+        px(ax + 2, chY - 5, 5, 1, '#f4f0e8');
       } else if (propType === 'remote') {
-        // White TV remote resting right next to cup holder (room-1 & room-3!)
-        px(ax + 2, ay + 21, 5, 11, '#e6e4de');
-        px(ax + 3, ay + 23, 3, 2, '#4a5262');
-        px(ax + 3, ay + 27, 3, 3, '#98a0b0');
+        px(ax + 2, ay + 10, 5, 10, '#e6e4de');
+        px(ax + 3, ay + 12, 3, 2, '#4a5262');
       } else if (propType === 'glass') {
-        // Clear drink glass (room-1!)
-        px(ax + 2, chY - 4, 5, 7, '#b8d4dc');
+        px(ax + 2, chY - 4, 5, 7, '#b4d2dc');
         px(ax + 3, chY - 1, 3, 3, '#e0c682');
-      } else if (propType === 'gradebook') {
-        // Dave's red grade book resting on his right armrest!
-        roundedRect(ax - 1, ay + 17, 10, 14, '#9e1f26', 1);
-        px(ax + 1, ay + 19, 6, 10, '#f4efe2');
-        px(ax + 2, ay + 21, 4, 1, '#2a3448');
-        px(ax + 2, ay + 24, 4, 1, '#2a3448');
-        px(ax + 2, ay + 27, 3, 1, '#c9322c');
       }
     }
 
-    // Draw the BACK of a crew member's head & shoulders SUNK DEEP into the headrest pillow!
-    // STRICT RULE: Backs of heads ONLY. NO FACES anywhere!
-    function drawSitterBack(c, cx, headTopY, tiltPx) {
-      const hx = Math.round(cx + tiltPx);
+    // Draw the BACK of a crew member's head & shoulders (Option B crisp proportions, backs of heads ONLY, ZERO faces!)
+    function drawSitterBack(c, cx, headTopY, isFolding = false) {
+      const hx = Math.round(cx);
       const hy = Math.round(headTopY);
+      const hw = 14;
+      const hh = 13;
 
-      // Sliver of shoulders sunk BELOW the headrest rim (never perched on top!)
-      roundedRect(hx - 8, hy + 13, 16, 10, c.shirtShade, 2);
-      roundedRect(hx - 7, hy + 13, 14, 7, c.shirt, 2);
-
-      // Subtle neck/collar shadow where head meets shirt
+      // Shoulders (tucked inside headrest for recliners; visible above metal folding backrest for folding chairs!)
+      roundedRect(hx - 9, hy + 13, 18, isFolding ? 16 : 10, c.shirtShade, 2);
+      roundedRect(hx - 8, hy + 13, 16, isFolding ? 14 : 8, c.shirt, 2);
+      // Neck
       px(hx - 3, hy + 11, 6, 3, '#b88a68');
 
-      // Back of head silhouette (nestled INTO the headrest pillow)
-      if (c.hairType === 'cap') {
-        // Back of baseball cap (rounded crown + plastic snapback cutout + tiny skin/hair at nape)
-        roundedRect(hx - 6, hy + 1, 12, 11, c.hairShade, 3);
-        roundedRect(hx - 5, hy + 1, 10, 9, c.hair, 2);
-        px(hx - 4, hy + 2, 8, 2, c.hairHi);
-        // Back cap strap cutout (unmistakably back-of-head!)
-        px(hx - 3, hy + 8, 6, 2, '#c89b78');
-        px(hx - 3, hy + 9, 6, 1, '#12141a');
-      } else if (c.hairType === 'long') {
-        // Brendan: long dark hair falling PAST the shoulders over the headrest!
-        roundedRect(hx - 6, hy, 12, 14, c.hair, 3);
-        roundedRect(hx - 7, hy + 7, 14, 14, c.hairShade, 2);
-        px(hx - 5, hy + 2, 10, 4, c.hairHi);
-        px(hx - 6, hy + 9, 4, 11, c.hair);
-        px(hx + 2, hy + 9, 4, 11, c.hair);
-      } else if (c.hairType === 'wave') {
-        // Steve: dark brown full wave
-        roundedRect(hx - 6, hy, 12, 12, c.hairShade, 3);
-        roundedRect(hx - 6, hy + 1, 12, 9, c.hair, 2);
-        px(hx - 4, hy + 1, 8, 3, c.hairHi);
-        px(hx - 5, hy + 5, 4, 2, c.hairHi);
-        px(hx + 1, hy + 6, 4, 2, c.hairHi);
-      } else if (c.hairType === 'buzz') {
-        // Chris: close-cropped buzz cut (higher rounded skull, warm skin at nape/ears)
-        roundedRect(hx - 5, hy + 2, 10, 10, '#c89974', 3);
-        roundedRect(hx - 5, hy + 1, 10, 8, c.hair, 3);
-        px(hx - 3, hy + 2, 6, 2, c.hairHi);
-      } else if (c.hairType === 'sweep') {
-        // Dave: silver sweep (back view, swept nicely across crown)
-        roundedRect(hx - 6, hy, 12, 12, c.hairShade, 3);
-        roundedRect(hx - 6, hy + 1, 12, 9, c.hair, 3);
-        px(hx - 5, hy + 1, 9, 3, c.hairHi);
-        px(hx - 4, hy + 5, 8, 2, c.hairHi);
-      } else if (c.hairType === 'full') {
-        // Brent: silver full hair
-        roundedRect(hx - 6, hy, 12, 12, c.hairShade, 3);
-        roundedRect(hx - 6, hy + 1, 12, 10, c.hair, 2);
-        px(hx - 5, hy + 1, 10, 3, c.hairHi);
-      } else {
-        // Neat crop (Sudz light-brown, Brad light auburn)
-        roundedRect(hx - 6, hy + 1, 12, 11, c.hairShade, 3);
-        roundedRect(hx - 5, hy + 1, 10, 9, c.hair, 2);
-        px(hx - 4, hy + 2, 8, 2, c.hairHi);
-      }
+      // Ears
+      px(hx - 8, hy + 5, 2, 4, '#c89974');
+      px(hx + 6, hy + 5, 2, 4, '#c89974');
 
-      // Ears peeking subtly on sides (back-of-head cue)
-      px(hx - 7, hy + 6, 1, 3, '#c89974');
-      px(hx + 6, hy + 6, 1, 3, '#c89974');
+      // Back of head / hair
+      if (c.hairType === 'cap') {
+        roundedRect(hx - 7, hy, hw, hh, c.hairShade, 3);
+        roundedRect(hx - 6, hy + 1, hw - 2, hh - 3, c.hair, 2);
+        px(hx - 5, hy + 1, hw - 4, 2, c.hairHi);
+        // Back snapback strap opening
+        px(hx - 3, hy + 9, 6, 2, '#c89b78');
+        px(hx - 3, hy + 10, 6, 1, '#12141a');
+      } else if (c.hairType === 'long') {
+        // Brendan: long dark hair falling past shoulders over the folding chair back!
+        roundedRect(hx - 7, hy, hw, hh + 12, c.hairShade, 3);
+        roundedRect(hx - 6, hy + 1, hw - 2, hh + 9, c.hair, 2);
+        px(hx - 5, hy + 2, hw - 4, 3, c.hairHi);
+      } else if (c.hairType === 'wave') {
+        roundedRect(hx - 7, hy, hw, hh, c.hairShade, 3);
+        roundedRect(hx - 6, hy + 1, hw - 2, hh - 2, c.hair, 2);
+        px(hx - 5, hy + 1, hw - 4, 3, c.hairHi);
+        px(hx - 5, hy + 6, 4, 2, c.hairHi);
+        px(hx + 1, hy + 7, 4, 2, c.hairHi);
+      } else if (c.hairType === 'buzz') {
+        roundedRect(hx - 6, hy + 1, hw - 2, hh - 1, '#c89974', 3);
+        roundedRect(hx - 6, hy, hw - 2, hh - 4, c.hair, 3);
+        px(hx - 4, hy + 1, hw - 6, 2, c.hairHi);
+      } else if (c.hairType === 'sweep') {
+        roundedRect(hx - 7, hy, hw, hh, c.hairShade, 3);
+        roundedRect(hx - 6, hy + 1, hw - 2, hh - 2, c.hair, 3);
+        px(hx - 5, hy + 1, 9, 3, c.hairHi);
+        px(hx - 4, hy + 6, 8, 2, c.hairHi);
+      } else if (c.hairType === 'full') {
+        roundedRect(hx - 7, hy, hw, hh, c.hairShade, 3);
+        roundedRect(hx - 6, hy + 1, hw - 2, hh - 2, c.hair, 2);
+        px(hx - 5, hy + 1, hw - 4, 3, c.hairHi);
+      } else {
+        roundedRect(hx - 7, hy, hw, hh, c.hairShade, 3);
+        roundedRect(hx - 6, hy + 1, hw - 2, hh - 2, c.hair, 2);
+        px(hx - 5, hy + 1, hw - 4, 3, c.hairHi);
+      }
     }
 
-    // Draw ONE sculpted, plush, overstuffed cream-tan leather movie-theater recliner from behind!
-    function drawPlushRecliner(g, c, idx) {
-      const { cx, topY, seatW, backH, tilt } = g;
-      const leftX = Math.round(cx - seatW / 2);
+    // Draw ONE Option-B style plush, overstuffed cream-tan leather recliner (slimmed slightly so 6 fit cleanly in 1 row!)
+    function drawOptionBRecliner(cx, topY, c) {
+      const seatW = 27;
+      const lx = Math.round(cx - seatW / 2);
 
-      // 1. Deep floor shadow underneath reclined shell (grounding weight!)
-      px(leftX - 1, topY + backH - 3, seatW + 2, 10, 'rgba(0,0,0,0.52)');
+      // Floor shadow behind reclined shell
+      px(lx - 1, topY + 56, seatW + 2, 9, 'rgba(0,0,0,0.52)');
 
-      // 2. Side wing bolsters (wide puffy cheeks framing the sitter's shoulders!)
-      roundedRect(leftX, topY + 6, seatW, backH - 8, '#8a7458', 4);
-      roundedRect(leftX + 1, topY + 7, seatW - 2, backH - 11, '#c9b698', 3);
+      // Giant sculpted plush headrest pillow dome (Option B style)
+      roundedRect(lx, topY + 1, seatW, 24, '#887154', 5);
+      roundedRect(lx + 1, topY + 2, seatW - 2, 21, '#e6d7bd', 4);
+      roundedRect(lx + 4, topY + 3, seatW - 8, 4, '#f8f0e0', 2);
+      // Soft concave pillow dimple where the head sinks in
+      roundedRect(lx + 6, topY + 7, seatW - 12, 13, '#c5b190', 3);
 
-      // 3. TOP PILLOW HEADREST ROLL (soft curved dome leaning back, with dimple where head sinks in!)
-      // Outer pillow roll
-      roundedRect(leftX + 1, topY + 2, seatW - 2, 20, '#998365', 5);
-      roundedRect(leftX + 2, topY + 3, seatW - 4, 17, '#e2d3b8', 4);
-      // Sunlit TV-glow leather crest along top curve of headrest
-      px(leftX + 4, topY + 3, seatW - 8, 3, '#f4ead6');
-      // Soft concave indent shadow right behind where the head nestles!
-      roundedRect(leftX + 5, topY + 7, seatW - 10, 11, '#c4b090', 3);
+      // Sitter sunk deep into the headrest!
+      drawSitterBack(c, cx, topY + 4, false);
 
-      // 4. Draw the SITTER SUNK INTO THE HEADREST (head nestled down into the cushion, shoulders tucked!)
-      drawSitterBack(c, cx, topY + 4, tilt);
+      // Wide bulging tufted lumbar back leaning BACK toward camera (cleanly overlapping rear of forward armrests!)
+      const by = topY + 24;
+      px(lx + 2, by - 1, seatW - 4, 2, '#5c4732');
+      roundedRect(lx - 1, by + 1, seatW + 2, 26, '#756046', 5);
+      roundedRect(lx, by + 2, seatW, 23, '#d9c8ac', 4);
+      roundedRect(lx + 4, by + 3, seatW - 8, 5, '#f3e9d6', 2);
+      // Center vertical leather tuft crease
+      px(cx - 1, by + 9, 2, 11, '#a68f70');
+      px(lx + 3, by + 22, seatW - 6, 3, '#968062');
 
-      // 5. LOWER / MID RECLINED BACKREST SHELL (overstuffed, curved plush leather pillow!)
-      // Because the recliner is LEANED BACK toward us, the thick lower back pillow billows out behind the sitter's shoulders!
-      const midY = topY + 23;
-      const midH = 26;
-      // Deep stitched horizontal seam between headrest and lumbar pillow
-      px(leftX + 3, midY - 1, seatW - 6, 2, '#5e4934');
+      // Lower reclined skirt + dark mechanical base rail
+      roundedRect(lx, by + 26, seatW, 10, '#69553e', 2);
+      roundedRect(lx + 1, by + 27, seatW - 2, 7, '#bfa989', 1);
+      px(lx + 4, by + 34, seatW - 8, 3, '#1a1714');
+    }
 
-      // Plump bulging lumbar pillow with true rounded leather billow
-      roundedRect(leftX - 1, midY + 1, seatW + 2, midH, '#786248', 4);
-      roundedRect(leftX, midY + 2, seatW, midH - 3, '#d7c6aa', 4);
-      // Curved upper specular roll (narrower than full width so it reads as a rounded 3D pillow, not a flat bar!)
-      roundedRect(leftX + 3, midY + 3, seatW - 6, 6, '#f2e8d4', 2);
-      // Soft pillow side bolsters curving inward
-      px(leftX + 1, midY + 5, 2, midH - 10, '#c0aa8a');
-      px(leftX + seatW - 3, midY + 5, 2, midH - 10, '#c0aa8a');
-      // Center vertical leather tuft dimple
-      px(cx - 1, midY + 9, 2, midH - 14, '#a89272');
-      px(cx - 2, midY + 11, 1, 6, '#c2ad8e');
-      // Lower shadow under bulging lumbar roll
-      px(leftX + 3, midY + midH - 4, seatW - 6, 3, '#8f785c');
+    // Draw ONE classic black metal folding chair (1 on far left for Sudz, 2 on far right for Brendan & Dave!)
+    function drawFoldingChair(cx, topY, c) {
+      const cw = 20;
+      const lx = Math.round(cx - cw / 2);
 
-      // 6. RECLINED LOWER BACK SKIRT / BASE (angled wider at the bottom as the chair leans back!)
-      const baseY = midY + midH - 1;
-      const baseH = 20;
-      px(leftX + 2, baseY, seatW - 4, 2, '#564430');
-      roundedRect(leftX - 1, baseY + 2, seatW + 2, baseH, '#69553e', 3);
-      roundedRect(leftX, baseY + 3, seatW, baseH - 4, '#bfa989', 2);
-      roundedRect(leftX + 3, baseY + 4, seatW - 6, 4, '#dac9ac', 1);
-      // Dark mechanical recliner rail peek at very bottom
-      px(leftX + 4, baseY + baseH - 2, seatW - 8, 3, '#1e1b18');
+      // Floor shadow beneath slender metal legs
+      px(lx + 1, topY + 61, cw - 2, 6, 'rgba(0,0,0,0.45)');
 
-      // 7. Outer-end angled recliner side profile (on Sudz left & Dave right so the 28-deg recline angle is 100% unmistakable!)
-      if (idx === 0) {
-        // Leftmost outer leather flank sloping back toward the viewer
-        px(leftX - 4, topY + 16, 4, 48, '#8a7458');
-        px(leftX - 3, topY + 18, 3, 42, '#cbb89a');
-        px(leftX - 3, topY + 18, 2, 14, '#e6d8be');
-      } else if (idx === CREW.length - 1) {
-        // Rightmost outer leather flank sloping back
-        px(leftX + seatW, topY + 16, 4, 48, '#8a7458');
-        px(leftX + seatW, topY + 18, 3, 42, '#cbb89a');
-        px(leftX + seatW + 1, topY + 18, 2, 14, '#e6d8be');
+      // Sitter seated in folding chair (backs of heads ONLY, ZERO faces!)
+      drawSitterBack(c, cx, topY + 7, true);
+
+      // Tubular steel frame legs & arched back rail
+      const frameCol = '#586070';
+      const frameHi = '#848fa3';
+      const frameDark = '#2a2f3a';
+
+      // Left & right rear tubular legs angled down to carpet
+      px(lx + 1, topY + 24, 2, 39, frameCol);
+      px(lx + 1, topY + 24, 1, 37, frameHi);
+      px(lx + cw - 3, topY + 24, 2, 39, frameCol);
+      px(lx + cw - 2, topY + 24, 1, 37, frameDark);
+      // Rubber feet
+      px(lx, topY + 61, 3, 3, '#14161c');
+      px(lx + cw - 3, topY + 61, 3, 3, '#14161c');
+
+      // Horizontal rear steel cross-brace between legs
+      px(lx + 3, topY + 51, cw - 6, 2, frameCol);
+      px(lx + 3, topY + 52, cw - 6, 1, frameDark);
+
+      // Rear edge of folding seat pan (visible under lower back gap!)
+      px(lx + 2, topY + 42, cw - 4, 4, '#1b1e26');
+      px(lx + 3, topY + 43, cw - 6, 2, '#2d3240');
+
+      // Black padded vinyl backrest panel (iconic folding-chair silhouette with open gap underneath!)
+      roundedRect(lx, topY + 22, cw, 16, frameCol, 3);
+      roundedRect(lx + 1, topY + 23, cw - 2, 14, '#1c1f28', 2);
+      px(lx + 3, topY + 24, cw - 6, 2, '#343a4a'); // subtle vinyl highlight
+      px(lx + 3, topY + 34, cw - 6, 2, '#111318');
+
+      // Dave's red grade book resting right beside him on his right folding tray/lap edge!
+      if (c.isDave) {
+        // Small wooden TV-tray / side ledge holding Dave's grade book at the far right
+        px(lx + cw - 1, topY + 36, 9, 3, '#5e432c');
+        px(lx + cw + 2, topY + 39, 2, 23, '#3a291c');
+        roundedRect(lx + cw - 2, topY + 24, 10, 13, '#9e1f26', 1);
+        px(lx + cw, topY + 26, 6, 9, '#f4efe2');
+        px(lx + cw + 1, topY + 28, 4, 1, '#2a3448');
+        px(lx + cw + 1, topY + 31, 4, 1, '#2a3448');
+        px(lx + cw + 1, topY + 33, 3, 1, '#c9322c');
       }
     }
 
     function drawReclinerRow() {
-      // Gentle theater arc: outer seats sit slightly lower/closer & angled inward toward the TVs!
-      const marginX = 6;
-      const usableW = W - marginX * 2;
-      const step = usableW / CREW.length; // ~27.5px per seat
+      // Layout: 1 folding chair left (Sudz) · 6 Option-B recliners middle (Scott..Brad) · 2 folding chairs right (Brendan, Dave)
+      // All in ONE continuous curved theater row across W = 260!
+      const xs = [
+        13,   // 0: Sudz (folding chair, far left)
+        44,   // 1: Scott (recliner)
+        74,   // 2: Brent (recliner)
+        104,  // 3: Brian (recliner)
+        134,  // 4: Steve (recliner)
+        164,  // 5: Chris (recliner)
+        194,  // 6: Brad (recliner)
+        220,  // 7: Brendan (folding chair, right)
+        240,  // 8: Dave (folding chair, far right + grade book fully in-frame)
+      ];
+      const topYs = [
+        343,  // Sudz
+        336,  // Scott
+        332,  // Brent
+        330,  // Brian
+        330,  // Steve
+        332,  // Chris
+        336,  // Brad
+        341,  // Brendan
+        344,  // Dave
+      ];
 
-      const seatGeom = CREW.map((_, i) => {
-        const norm = (i - 4) / 4; // -1 (left) .. 0 (center) .. +1 (right)
-        const arcDrop = Math.round(norm * norm * 10); // gentle curved theater arc
-        return {
-          cx: Math.round(marginX + step * (i + 0.5)),
-          topY: 332 + arcDrop,
-          seatW: 24,
-          backH: 68,
-          tilt: Math.round(-norm * 1.5),
-        };
-      });
-
-      // 1. Extended reclined footrests & stretched-out socked feet FIRST (ahead of chairs toward TVs!)
-      drawExtendedFootrests(seatGeom);
-
-      // 2. Draw all 9 sculpted plush recliners + sunk crew sitters
-      for (let i = 0; i < CREW.length; i++) {
-        drawPlushRecliner(seatGeom[i], CREW[i], i);
+      // LAYER 1 (FARTHEST FORWARD): Connected extended footrests on 3 of the 6 middle recliners (Brent, Steve, Brad)
+      for (const idx of [2, 4, 6]) {
+        drawExtendedFootrest(xs[idx], topYs[idx], CREW[idx]);
       }
 
-      // 3. Wide padded console armrests with black cup-holder rings BETWEEN seats + outer ends!
+      // LAYER 2 (IN FRONT OF RECLINER BACKS): Wide forward cup-holder console armrests for the 6 middle recliners!
+      // Drawn BEFORE the recliner backs so the reclined backrests cleanly overlap the rear of the armrests!
       const armProps = {
-        0: 'glass',      // far left of Sudz
-        2: 'beerCan',    // between Scott & Brent
-        4: 'remote',     // between Brian & Steve
-        6: 'redCup',     // between Chris & Brad
-        9: 'gradebook',  // Dave's right armrest: his red grade book!
+        0: 'glass',   // outer left arm of Scott's recliner
+        1: 'beerCan', // between Scott & Brent
+        3: 'remote',  // between Brian & Steve
+        5: 'redCup',  // between Chris & Brad
       };
-      for (let a = 0; a <= CREW.length; a++) {
+      for (let a = 0; a <= 6; a++) {
         const ax = a === 0
-          ? seatGeom[0].cx - 16
-          : a === CREW.length
-            ? seatGeom[CREW.length - 1].cx + 8
-            : Math.round((seatGeom[a - 1].cx + seatGeom[a].cx) / 2 - 4);
-        const refY = a === 0
-          ? seatGeom[0].topY
-          : a === CREW.length
-            ? seatGeom[CREW.length - 1].topY
-            : Math.min(seatGeom[a - 1].topY, seatGeom[a].topY);
-        drawConsoleArmrest(ax, refY + 28, 42, armProps[a] || null);
+          ? xs[1] - 18
+          : a === 6
+            ? xs[6] + 10
+            : Math.round((xs[a] + xs[a + 1]) / 2 - 4);
+        const ay = a === 0
+          ? topYs[1]
+          : a === 6
+            ? topYs[6]
+            : Math.min(topYs[a], topYs[a + 1]);
+        drawForwardArmrest(ax, ay + 2, armProps[a] || null);
       }
 
-      // 4. Lazy arms/elbows draped forward onto the padded armrests + controllers at the side
-      const armDrape = [0, 2, 4, 6];
-      for (const idx of armDrape) {
-        const g = seatGeom[idx];
-        const c = CREW[idx];
-        // Sleeve & forearm resting lazily on the upper armrest pad
-        px(g.cx + 10, g.topY + 24, 4, 8, c.shirt);
-        px(g.cx + 10, g.topY + 22, 4, 3, '#d1a27e'); // hand resting forward near cup holder
-        // Tiny retro controller held at the side on Brent & Brad
-        if (idx === 2 || idx === 6) {
-          px(g.cx + 9, g.topY + 19, 6, 3, '#222630');
-          px(g.cx + 13, g.topY + 20, 1, 1, '#ff3b3b');
-        }
+      // LAYER 3 (CLOSEST TO VIEWER): 6 plush Option-B recliners in the center + 3 black metal folding chairs on the ends!
+      drawFoldingChair(xs[0], topYs[0], CREW[0]); // Sudz (left folding chair)
+      for (let i = 1; i <= 6; i++) {
+        drawOptionBRecliner(xs[i], topYs[i], CREW[i]); // Scott..Brad (6 wide plush recliners)
       }
+      drawFoldingChair(xs[7], topYs[7], CREW[7]); // Brendan (right folding chair)
+      drawFoldingChair(xs[8], topYs[8], CREW[8]); // Dave (far-right folding chair + grade book)
     }
 
     function drawFooterOverlay(time, tapFlash) {
