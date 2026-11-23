@@ -6,6 +6,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Game Night at Dave's</title>
+<meta property="og:title" content="Game Night at Dave's">
+<meta property="og:description" content="8 friends. 9 rounds. One verdict. Dave's reviewing tonight — tap to start.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://melodious-taiyaki-62bc71.netlify.app/">
+<meta property="og:image" content="https://melodious-taiyaki-62bc71.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Game Night at Dave's">
+<meta name="twitter:description" content="8 friends. 9 rounds. One verdict. Dave's reviewing tonight — tap to start.">
+<meta name="twitter:image" content="https://melodious-taiyaki-62bc71.netlify.app/og-image.jpg">
 <style>
   html,body{margin:0;padding:0;height:100%;background:#000000;overflow:hidden;overscroll-behavior:none;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
@@ -4133,7 +4144,9 @@ window.__dbg={
      the bottom of the block is the Mr. Baseball 2 reward: when the
      player beats all the games and reaches Dave's verdict with a
      full pass behind them, a reward card offers Mr. Baseball 2 as a
-     bonus game, playable right here in an overlay.
+     bonus game — and Mr. Baseball 2's own code is copied into this
+     block, so it plays right here in an overlay. No iframe, nothing
+     loaded from outside this file.
 
      TO REMOVE IT: delete this entire block — from this comment down
      to the END comment at the bottom — and save. Nothing else in
@@ -4163,11 +4176,54 @@ window.__dbg={
     font-family:inherit;font-size:13px;color:#aaaaaa;cursor:pointer;
     text-decoration:underline;padding:6px;}
   #mrbGameWrap{display:none;position:absolute;inset:0;background:#000;}
-  #mrbFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;}
   #mrbCloseGame{position:absolute;top:calc(10px + env(safe-area-inset-top));right:10px;
     z-index:2001;background:#b02a2a;color:#ffffff;border:2px solid #ffffff;
     border-radius:8px;font-family:inherit;font-size:15px;font-weight:bold;
     padding:10px 14px;cursor:pointer;}
+  /* ---- Mr. Baseball 2 cabinet styles (style.css, scoped) ---- */
+  #mrb2Stage{position:absolute;inset:0;overflow:hidden;touch-action:none;
+    background:
+      radial-gradient(120% 70% at 50% 0%, rgba(90,140,190,0.28), rgba(0,0,0,0) 60%),
+      radial-gradient(100% 100% at 50% 110%, rgba(30,60,50,0.35), rgba(0,0,0,0) 55%),
+      #0a0e1a;
+    font-family:'Courier New',Courier,monospace;}
+  #mrb2-container{position:absolute;left:50%;top:50%;width:800px;height:600px;
+    transform:translate(-50%, -50%) scale(1);transform-origin:center center;
+    box-shadow:0 0 44px rgba(0,0,0,0.75), 0 0 90px rgba(70,120,180,0.18);
+    border:4px solid #4a4438;border-radius:10px;background-color:#000;}
+  #mrb2-container canvas{display:block;width:100%;height:100%;
+    image-rendering:auto;touch-action:none;}
+  #mrb2-ui{position:absolute;top:0;left:0;width:100%;height:100%;
+    pointer-events:none;z-index:20;}
+  #mrb2-score{position:absolute;top:16px;left:16px;color:#fff;font-size:24px;
+    font-weight:bold;text-shadow:2px 2px 0 #000;background:rgba(6,16,28,0.55);
+    border:1px solid rgba(255,255,255,0.22);border-radius:999px;padding:5px 14px;}
+  #mrb2-lives{position:absolute;top:16px;right:16px;color:#fff;font-size:24px;
+    font-weight:bold;text-shadow:2px 2px 0 #000;background:rgba(6,16,28,0.55);
+    border:1px solid rgba(255,255,255,0.22);border-radius:999px;padding:5px 14px;}
+  #mrb2-start,#mrb2-over{position:absolute;top:50%;left:50%;
+    transform:translate(-50%, -50%);text-align:center;color:#fff;
+    background:rgba(4,10,20,0.86);padding:40px;border:2px solid #ffcc00;
+    border-radius:8px;pointer-events:auto;cursor:pointer;z-index:30;
+    box-shadow:0 12px 40px rgba(0,0,0,0.6);}
+  #mrb2-over{cursor:default;}
+  #mrb2Stage h1{font-size:48px;margin:0 0 20px 0;color:#ffcc00;
+    text-shadow:4px 4px 0 #ff0000;}
+  #mrb2Stage p{font-size:24px;margin:10px 0;animation:mrb2blink 1s infinite;}
+  #mrb2-over p{animation:none;}
+  #mrb2-final{font-size:30px;font-weight:bold;color:#ffe98a;}
+  #mrb2-restart{font:inherit;font-size:22px;font-weight:900;color:#17384a;
+    background:linear-gradient(180deg, #ffe98a, #ffbf2e);
+    border:2px solid rgba(90,50,0,0.6);border-radius:999px;padding:13px 32px;
+    margin-top:10px;box-shadow:0 8px 22px rgba(0,0,0,0.45);cursor:pointer;}
+  #mrb2-restart:active{transform:scale(0.95);}
+  #mrb2Stage .mrb2-controls{font-size:16px;color:#aaa;margin-top:20px;animation:none;}
+  #mrb2Stage .mrb2-scanlines{position:absolute;top:0;left:0;width:100%;height:100%;
+    background:linear-gradient(to bottom,
+      rgba(255,255,255,0), rgba(255,255,255,0) 50%,
+      rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+    background-size:100% 4px;pointer-events:none;z-index:10;}
+  @keyframes mrb2blink{0%,100%{opacity:1;}50%{opacity:0;}}
 </style>
 <div id="mrBaseballReward" role="dialog" aria-label="Mr. Baseball 2 reward">
   <div id="mrbCard">
@@ -4180,7 +4236,27 @@ window.__dbg={
     <button id="mrbCloseCard" type="button">No thanks &mdash; back to the verdict</button>
   </div>
   <div id="mrbGameWrap">
-    <iframe id="mrbFrame" title="Mr. Baseball 2" allowfullscreen></iframe>
+    <div id="mrb2Stage">
+      <div id="mrb2-container">
+        <canvas id="mrb2-canvas" width="800" height="600"></canvas>
+        <div id="mrb2-ui">
+          <div id="mrb2-score">SCORE: 0</div>
+          <div id="mrb2-lives">LIVES: 3</div>
+          <div id="mrb2-start">
+            <h1>MR. BASEBALL 2</h1>
+            <p>CLICK TO START</p>
+            <p class="mrb2-controls">CLICK to Toss &amp; Swing | Defend the Left!</p>
+          </div>
+          <div id="mrb2-over" style="display:none">
+            <h1>GAME OVER</h1>
+            <p id="mrb2-final">SCORE: 0</p>
+            <button id="mrb2-restart" type="button">&#8635; PLAY AGAIN</button>
+            <p class="mrb2-controls">CLICK to Toss &amp; Swing | Defend the Left!</p>
+          </div>
+        </div>
+        <div class="mrb2-scanlines"></div>
+      </div>
+    </div>
     <button id="mrbCloseGame" type="button">&#10005; CLOSE</button>
   </div>
 </div>
@@ -4192,8 +4268,9 @@ window.__dbg={
      is reached with a full pass played (9+ rounds on the board —
      the game's own "finish a full pass" milestone) and beers still
      in hand, i.e. the player actually beat all the games rather
-     than running dry early. */
-  var GAME_URL = "https://bparlette.github.io/Hawk/games/mr-baseball-2/";
+     than running dry early. Mr. Baseball 2 itself is embedded below
+     (its own code, copied into this block) — no iframe, nothing is
+     loaded from outside this file. */
   var fired = false;
   function el(id) { return document.getElementById(id); }
   function show() {
@@ -4208,17 +4285,16 @@ window.__dbg={
     ov.classList.add("open");
   }
   function hide() {
+    mrb2StopGame();
     var ov = el("mrBaseballReward");
     if (ov) ov.classList.remove("open");
-    var f = el("mrbFrame");
-    if (f) { try { f.src = "about:blank"; } catch (e) {} f.removeAttribute("src"); }
     el("mrbGameWrap").style.display = "none";
     el("mrbCard").style.display = "block";
   }
   function play() {
     el("mrbCard").style.display = "none";
     el("mrbGameWrap").style.display = "block";
-    el("mrbFrame").src = GAME_URL;
+    mrb2ShowGame();
   }
   el("mrbPlay").addEventListener("click", play);
   el("mrbCloseCard").addEventListener("click", hide);
@@ -4233,6 +4309,1060 @@ window.__dbg={
       }
     } catch (e) {}
   }, 400);
+
+  /* ================= Mr. Baseball 2 — embedded game code =====
+     Copied from bparlette/Hawk games/mr-baseball-2/src/ (Sound,
+     Ball, Player, Enemy, Game), modules inlined into this scope,
+     element ids prefixed mrb2-, input scoped to the stage. */
+// Sound.js — all-synth WebAudio SFX for Mr. Baseball 2 (the original was silent).
+// iOS rules (house standard): audioSession 'playback', 1-sample silent-buffer
+// unlock inside the first gesture, resume on pointerdown / touchend /
+// visibilitychange. Every call is wrapped — audio is always optional.
+class Sound {
+    constructor() {
+        this.ac = null;
+        this._noiseBuf = null;
+        const resume = () => this.resume();
+        document.addEventListener('pointerdown', resume, true);
+        document.addEventListener('touchend', resume, true);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) resume(); });
+    }
+
+    init() {
+        try {
+            if ('audioSession' in navigator) { try { navigator.audioSession.type = 'playback'; } catch (e) {} }
+            if (!this.ac) {
+                const Ctor = window.AudioContext || window.webkitAudioContext;
+                if (Ctor) this.ac = new Ctor();
+            }
+            if (this.ac) {
+                if (this.ac.state === 'suspended') this.ac.resume();
+                const buf = this.ac.createBuffer(1, 1, 22050);
+                const src = this.ac.createBufferSource();
+                src.buffer = buf; src.connect(this.ac.destination); src.start(0);
+            }
+        } catch (e) { /* audio is optional */ }
+    }
+
+    resume() { try { if (this.ac && this.ac.state === 'suspended') this.ac.resume(); } catch (e) {} }
+
+    tone(f0, f1, dur, type, vol, delay) {
+        if (!this.ac) return;
+        try {
+            const t0 = this.ac.currentTime + (delay || 0);
+            const o = this.ac.createOscillator(), g = this.ac.createGain();
+            o.type = type || 'sine';
+            o.frequency.setValueAtTime(Math.max(30, f0), t0);
+            o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t0 + dur);
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(vol || 0.15, t0 + 0.012);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            o.connect(g); g.connect(this.ac.destination);
+            o.start(t0); o.stop(t0 + dur + 0.05);
+        } catch (e) {}
+    }
+
+    noiseBurst(dur, vol, delay, lowHz) {
+        if (!this.ac) return;
+        try {
+            if (!this._noiseBuf) {
+                this._noiseBuf = this.ac.createBuffer(1, this.ac.sampleRate * 0.5, this.ac.sampleRate);
+                const d = this._noiseBuf.getChannelData(0);
+                for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+            }
+            const t0 = this.ac.currentTime + (delay || 0);
+            const src = this.ac.createBufferSource(); src.buffer = this._noiseBuf;
+            const lp = this.ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = lowHz || 3000;
+            const g = this.ac.createGain();
+            g.gain.setValueAtTime(vol, t0);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            src.connect(lp); lp.connect(g); g.connect(this.ac.destination);
+            src.start(t0); src.stop(t0 + dur + 0.05);
+        } catch (e) {}
+    }
+
+    // Filtered-noise sweep — the toss / swing whoosh.
+    whoosh(dur, vol, fFrom, fTo) {
+        if (!this.ac) return;
+        try {
+            if (!this._noiseBuf) {
+                this._noiseBuf = this.ac.createBuffer(1, this.ac.sampleRate * 0.5, this.ac.sampleRate);
+                const d = this._noiseBuf.getChannelData(0);
+                for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+            }
+            const t0 = this.ac.currentTime;
+            const src = this.ac.createBufferSource(); src.buffer = this._noiseBuf;
+            const bp = this.ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+            bp.frequency.setValueAtTime(fFrom, t0);
+            bp.frequency.exponentialRampToValueAtTime(fTo, t0 + dur);
+            const g = this.ac.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(vol, t0 + dur * 0.35);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            src.connect(bp); bp.connect(g); g.connect(this.ac.destination);
+            src.start(t0); src.stop(t0 + dur + 0.05);
+        } catch (e) {}
+    }
+
+    toss()  { this.whoosh(0.22, 0.10, 500, 1500); }
+    swing() { this.whoosh(0.13, 0.16, 900, 2600); }
+    crack() { this.noiseBurst(0.06, 0.32, 0, 4200); this.tone(190, 55, 0.10, 'square', 0.20); }
+    pop()   { this.tone(480, 940, 0.09, 'sine', 0.20); this.noiseBurst(0.05, 0.10, 0, 5200); }
+    score() { this.tone(660, 660, 0.07, 'triangle', 0.12); this.tone(990, 990, 0.11, 'triangle', 0.12, 0.06); }
+    sting() { [392, 330, 262, 196].forEach((f, i) => this.tone(f, f * 0.94, 0.16, 'sawtooth', 0.10, i * 0.11)); }
+    startJingle() { [523, 659, 784].forEach((f, i) => this.tone(f, f, 0.12, 'triangle', 0.11, i * 0.08)); }
+}
+
+class Ball {
+    constructor(game) {
+        this.game = game;
+        this.radius = 6;
+        this.x = 0;
+        this.y = 0;
+        this.vx = 0;
+        this.vy = 0;
+        this.state = 'HELD'; // HELD, AIR, HIT
+        this.gravity = 800;
+        this.trail = []; // recent positions for the motion trail (feel kit)
+    }
+
+    update(dt) {
+        if (this.state === 'HELD') {
+            // Follow player
+            this.x = this.game.player.x + (this.game.player.facing === 1 ? 25 : 5);
+            this.y = this.game.player.y + 25;
+            this.trail.length = 0;
+        } else {
+            // Physics
+            this.vy += this.gravity * dt;
+            this.x += this.vx * dt;
+            this.y += this.vy * dt;
+
+            // Trail history (newest first, capped)
+            this.trail.unshift({ x: this.x, y: this.y });
+            if (this.trail.length > 14) this.trail.pop();
+
+            // Bounce off walls
+            if (this.x < 0 || this.x > this.game.width) {
+                this.vx *= -0.8;
+                this.x = this.x < 0 ? 0 : this.game.width;
+            }
+
+            // Reset if falls off screen
+            if (this.y > this.game.height) {
+                this.reset();
+            }
+        }
+    }
+
+    toss(x, y) {
+        this.state = 'AIR';
+        this.x = x;
+        this.y = y;
+        this.vx = 0; // Straight up and down
+        this.vy = -550; // Higher toss
+        this.trail.length = 0;
+        this.game.sound.toss();
+    }
+
+    checkHit(player) {
+        // Check distance to player bat swing area
+        // Expanded hit range since it's "always hittable"
+        const dx = this.x - (player.x + player.width / 2);
+        const dy = this.y - (player.y + player.height / 2);
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Allow hitting as long as it's somewhat close horizontally and on screen
+        const horizontalDist = Math.abs(this.x - (player.x + 15));
+
+        if (horizontalDist < 50 && this.y < this.game.height) {
+            this.state = 'HIT';
+
+            // Calculate trajectory based on height relative to player
+            const relativeY = this.y - player.y;
+            let angleY = 0;
+
+            if (relativeY < 0) {
+                // High hit -> Up
+                angleY = -450;
+            } else if (relativeY > 50) {
+                // Low hit -> Down
+                angleY = 450;
+            } else {
+                // Mid -> Straightish
+                angleY = -50;
+            }
+
+            this.vx = -900; // Always hit left fast
+            this.vy = angleY;
+        }
+    }
+
+    reset() {
+        this.state = 'HELD';
+        this.vx = 0;
+        this.vy = 0;
+        this.trail.length = 0;
+    }
+
+    draw(ctx) {
+        // Motion trail — fading ghosts behind the ball; longer/streakier at HIT speed
+        if (this.state !== 'HELD' && this.trail.length > 1) {
+            for (let i = this.trail.length - 1; i >= 2; i -= 2) {
+                const p = this.trail[i];
+                const f = 1 - i / this.trail.length;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, this.radius * (0.35 + 0.55 * f), 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255,255,255,${0.20 * f})`;
+                ctx.fill();
+                ctx.closePath();
+            }
+            if (this.state === 'HIT') {
+                // speed lines trailing to the right (ball screams left)
+                ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+                ctx.lineWidth = 2;
+                for (let j = 0; j < 3; j++) {
+                    const yy = this.y - 4 + j * 4;
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + 10 + j * 7, yy);
+                    ctx.lineTo(this.x + 34 + j * 11, yy);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // Ball body with a soft shadow + red seams, like a real baseball
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        ctx.closePath();
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.strokeStyle = 'rgba(210,40,40,0.85)';
+        ctx.lineWidth = 1.2;
+        const rot = this.x * 0.04;
+        for (const s of [-1, 1]) {
+            ctx.beginPath();
+            ctx.arc(this.x + s * this.radius * 0.95, this.y + Math.sin(rot) * 1.5, this.radius * 0.75, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+}
+
+class Player {
+    constructor(game) {
+        this.game = game;
+        this.width = 30;
+        this.height = 50;
+        this.floorIdx = 2; // Middle floor (0-4, so 2 is middle)
+        this.x = this.game.width - 80; // Far right
+        this.y = this.game.floors[this.floorIdx] - this.height;
+
+        this.facing = -1; // Always face left
+
+        this.isSwinging = false;
+        this.swingTimer = 0;
+        this.swingDuration = 0.24; // tightened from 0.3 — snappier contact
+    }
+
+    update(dt) {
+        // Swing Timer
+        if (this.isSwinging) {
+            this.swingTimer -= dt;
+            if (this.swingTimer <= 0) {
+                this.isSwinging = false;
+            }
+        }
+    }
+
+    handleInput(type) {
+        if (type === 'click') {
+            if (this.game.ball.state === 'HELD') {
+                this.game.ball.toss(this.x + (this.facing * 20), this.y);
+            } else if (this.game.ball.state === 'AIR') {
+                this.swing();
+            }
+        }
+    }
+
+    swing() {
+        this.isSwinging = true;
+        this.swingTimer = this.swingDuration;
+        this.game.sound.swing();
+        // Check collision with ball — if the swing connects, the game juices it
+        const before = this.game.ball.state;
+        this.game.ball.checkHit(this);
+        if (this.game.ball.state === 'HIT' && before !== 'HIT') {
+            this.game.onBatHit();
+        }
+    }
+
+    draw(ctx) {
+        // Soft contact shadow on the floor
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath();
+        ctx.ellipse(this.x + this.width / 2, this.y + this.height + 6, 20, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // NeoGeo Style Player Sprite (same drawing as the original)
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // Facing flip (always left, so scale -1)
+        ctx.translate(this.width, 0);
+        ctx.scale(-1, 1);
+
+        const uniformColor = '#0000cc'; // Blue uniform
+        const skinColor = '#ffccaa';
+
+        // Body
+        ctx.fillStyle = uniformColor;
+        ctx.fillRect(5, 15, 20, 25);
+
+        // Head
+        ctx.fillStyle = skinColor;
+        ctx.fillRect(8, 0, 14, 15);
+
+        // Cap
+        ctx.fillStyle = '#0000aa';
+        ctx.fillRect(8, 0, 14, 5);
+        ctx.fillRect(18, 0, 8, 5); // Bill
+
+        // Legs
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(5, 40, 8, 10);
+        ctx.fillRect(17, 40, 8, 10);
+
+        // Arms & Bat
+        if (this.isSwinging) {
+            // Swing animation — accelerating sweep (slow cock-back, fast cut)
+            ctx.save();
+            ctx.translate(15, 20);
+            const swingProgress = 1 - (this.swingTimer / this.swingDuration);
+            const eased = Math.pow(swingProgress, 1.6);
+            const angle = -Math.PI / 2 + (eased * Math.PI); // Start back, swing forward
+            ctx.rotate(angle);
+
+            // Arms
+            ctx.fillStyle = uniformColor;
+            ctx.fillRect(0, -5, 15, 10);
+
+            // Bat
+            ctx.fillStyle = '#d2b48c'; // Wood color
+            ctx.fillRect(15, -8, 35, 6);
+            ctx.restore();
+        } else {
+            // Holding bat (Idle)
+            ctx.fillStyle = uniformColor;
+            ctx.fillRect(10, 18, 10, 10); // Hands
+
+            ctx.save();
+            ctx.translate(15, 20);
+            ctx.rotate(-Math.PI / 3); // Held back
+            ctx.fillStyle = '#d2b48c';
+            ctx.fillRect(0, -3, 35, 6);
+            ctx.restore();
+        }
+
+        ctx.restore();
+
+        // Swoosh arc trailing the bat (screen space, fades with the swing)
+        if (this.isSwinging) {
+            const p = 1 - (this.swingTimer / this.swingDuration);
+            ctx.save();
+            ctx.strokeStyle = `rgba(255,255,255,${0.38 * (1 - p)})`;
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.arc(this.x + 12, this.y + 16, 36, Math.PI * (0.95 - 0.75 * p), Math.PI * (1.75 - 0.75 * p));
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+}
+
+class Enemy {
+    constructor(game, x, y, floorIdx, speedScale = 1) {
+        this.game = game;
+        this.x = x;
+        this.y = y - 50; // On top of floor
+        this.width = 30;
+        this.height = 50;
+        this.floorIdx = floorIdx;
+
+        this.speed = 60 * speedScale; // base 60, scaled by the game's difficulty ramp
+        this.state = 'WALK'; // WALK, CLIMB, DIZZY, FALL
+        this.dizzyTimer = 0;
+        this.markedForDeletion = false;
+
+        this.color = '#ff0000';
+        this.frameTimer = 0;
+        this.frame = 0;
+        this.squashT = 0; // squash & stretch timer (feel kit: hit squash 1.31 × 0.69, spring back)
+        this.prevCenter = this.x + this.width / 2;
+    }
+
+    update(dt) {
+        if (this.squashT > 0) this.squashT = Math.max(0, this.squashT - dt);
+
+        if (this.state === 'WALK' || this.state === 'CLIMB') {
+            const playerFloor = this.game.player.floorIdx;
+
+            // Horizontal Movement
+            if (this.state === 'WALK') {
+                this.prevCenter = this.x + this.width / 2;
+                this.x += this.speed * dt; // Always move right towards player
+
+                // Animation frame
+                this.frameTimer += dt;
+                if (this.frameTimer > 0.2) {
+                    this.frame = (this.frame + 1) % 2;
+                    this.frameTimer = 0;
+                }
+
+                // Check for ladders if we need to change floors
+                if (this.floorIdx !== playerFloor) {
+                    const ladder = this.checkLadder();
+                    if (ladder) {
+                        this.state = 'CLIMB';
+                        this.x = ladder.x + 5; // Snap to ladder
+                    }
+                }
+            }
+
+            // Vertical Movement (Climbing)
+            if (this.state === 'CLIMB') {
+                const targetY = this.game.floors[playerFloor];
+                const currentY = this.game.floors[this.floorIdx];
+
+                if (currentY > targetY) {
+                    this.y -= this.speed * dt; // Go Up
+                } else {
+                    this.y += this.speed * dt; // Go Down
+                }
+
+                // Check if reached next floor
+                this.game.floors.forEach((floorY, idx) => {
+                    if (idx !== this.floorIdx && Math.abs((this.y + this.height) - floorY) < 5) {
+                        this.floorIdx = idx;
+                        this.state = 'WALK';
+                        this.y = floorY - this.height; // Snap to floor
+                    }
+                });
+            }
+
+            // Check collision with ball
+            this.checkBallCollision();
+
+            // Check collision with player (Game Over / Damage)
+            if (this.x > this.game.player.x) {
+                this.markedForDeletion = true;
+                this.game.onEnemyReachedPlayer();
+            }
+
+        } else if (this.state === 'DIZZY') {
+            this.dizzyTimer -= dt;
+            if (this.dizzyTimer <= 0) {
+                this.state = 'FALL';
+            }
+
+        } else if (this.state === 'FALL') {
+            this.y += 250 * dt; // Fall faster
+
+            // Check collision with other enemies (Domino effect)
+            this.game.enemies.forEach(other => {
+                if (other !== this && other.state === 'WALK') {
+                    if (this.checkCollision(other)) {
+                        other.hit();
+                    }
+                }
+            });
+
+            // Check if hit bottom — score is awarded centrally by the game
+            if (this.y > this.game.height) {
+                this.markedForDeletion = true;
+                this.game.addScore(100, this.x + this.width / 2, this.game.height - 24);
+            }
+        }
+    }
+
+    checkLadder() {
+        // FIX (original bug): the old test needed the enemy center within 5px of
+        // the ladder center on a single frame — at low frame rates or higher
+        // speeds the enemy stepped clean over the window and never climbed.
+        // Now: did the center CROSS the ladder center this frame?
+        const center = this.x + this.width / 2;
+        return this.game.ladders.find(l => {
+            if (l.floorIdx !== this.floorIdx) return false;
+            const lc = l.x + 20;
+            return (this.prevCenter - lc) * (center - lc) <= 0 && center !== this.prevCenter;
+        });
+    }
+
+    checkBallCollision() {
+        const ball = this.game.ball;
+        if (ball.state === 'HIT') {
+            // AABB, now with the ball's radius included (original tested the
+            // center point only, so edge grazes that visually touch missed)
+            if (ball.x + ball.radius > this.x && ball.x - ball.radius < this.x + this.width &&
+                ball.y + ball.radius > this.y && ball.y - ball.radius < this.y + this.height) {
+                this.hit();
+                ball.vx *= -0.5; // Bounce ball off
+                ball.state = 'AIR'; // Ball loses kill momentum
+            }
+        }
+    }
+
+    checkCollision(other) {
+        return (this.x < other.x + other.width &&
+            this.x + this.width > other.x &&
+            this.y < other.y + other.height &&
+            this.y + this.height > other.y);
+    }
+
+    hit() {
+        if (this.state === 'DIZZY' || this.state === 'FALL') return;
+        this.state = 'DIZZY';
+        this.dizzyTimer = 1.0; // 1 second dizzy before fall
+        this.color = '#ff00ff'; // Flash color (now actually used in draw)
+        this.squashT = 0.5; // squash & stretch spring
+        this.game.onEnemyHit(this);
+    }
+
+    draw(ctx) {
+        // Soft contact shadow (not while falling through the air)
+        if (this.state !== 'FALL') {
+            ctx.fillStyle = 'rgba(0,0,0,0.30)';
+            ctx.beginPath();
+            ctx.ellipse(this.x + this.width / 2, this.y + this.height + 6, 18, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // NeoGeo Style Baseball Player Sprite (Simplified) — same drawing, plus juice
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // Squash & stretch around the feet (visual only — hitbox never changes)
+        if (this.squashT > 0) {
+            const p = 1 - this.squashT / 0.5; // 0 → 1 over the spring
+            const ring = Math.exp(-3 * p) * Math.cos(p * 10);
+            const sx = 1 + 0.31 * ring;  // starts at 1.31 (measured hit squash)
+            const sy = 1 - 0.31 * ring;  // starts at 0.69, overshoots, rings down
+            ctx.translate(this.width / 2, this.height);
+            ctx.scale(sx, sy);
+            ctx.translate(-this.width / 2, -this.height);
+        }
+
+        if (this.state === 'DIZZY') {
+            ctx.translate(Math.sin(Date.now() / 50) * 5, 0); // Wobble
+        }
+
+        // Colors — flash magenta for the first beat of DIZZY (the original set
+        // this.color on hit but never drew with it; now it reads)
+        const uniformColor = (this.state === 'DIZZY' && this.dizzyTimer > 0.82) ? '#ff00ff' : '#cc0000'; // Red uniform for enemies
+        const skinColor = '#ffccaa';
+
+        // Body
+        ctx.fillStyle = uniformColor;
+        ctx.fillRect(5, 15, 20, 25);
+
+        // Head
+        ctx.fillStyle = skinColor;
+        ctx.fillRect(8, 0, 14, 15);
+
+        // Cap
+        ctx.fillStyle = '#aa0000';
+        ctx.fillRect(8, 0, 14, 5);
+        ctx.fillRect(18, 0, 8, 5); // Bill of cap facing right
+
+        // Legs (Animated)
+        ctx.fillStyle = '#fff'; // White pants
+        if (this.state === 'WALK' && this.frame === 0) {
+            ctx.fillRect(5, 40, 8, 10); // Left leg
+            ctx.fillRect(17, 40, 8, 10); // Right leg
+        } else if (this.state === 'WALK' && this.frame === 1) {
+            ctx.fillRect(5, 38, 8, 10); // Left leg up
+            ctx.fillRect(17, 42, 8, 8); // Right leg down
+        } else {
+            ctx.fillRect(5, 40, 8, 10);
+            ctx.fillRect(17, 40, 8, 10);
+        }
+
+        // Arms
+        ctx.fillStyle = uniformColor;
+        ctx.fillRect(10, 18, 15, 8); // Arms forward
+
+        ctx.restore();
+
+        // Dizzy stars circling the head
+        if (this.state === 'DIZZY') {
+            ctx.save();
+            ctx.fillStyle = '#ffe066';
+            const cx = this.x + 15, cy = this.y - 4;
+            for (let i = 0; i < 3; i++) {
+                const a = Date.now() / 180 + i * (Math.PI * 2 / 3);
+                const sx = cx + Math.cos(a) * 13, sy = cy + Math.sin(a) * 4.5;
+                ctx.beginPath();
+                for (let k = 0; k < 8; k++) {
+                    const ang = k * Math.PI / 4, r = k % 2 === 0 ? 4 : 1.8;
+                    const px = sx + Math.cos(ang) * r, py = sy + Math.sin(ang) * r;
+                    if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+    }
+}
+
+
+class Game {
+    constructor(canvas, inputEl) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.width = canvas.width;
+        this.height = canvas.height;
+
+        this.isRunning = false;
+        this.loopActive = false;
+        this.lastTime = 0;
+        this.elapsed = 0;
+
+        // Level Configuration - 5 Floors (unchanged from the original)
+        // Canvas height is 600.
+        // Floors at: 550, 440, 330, 220, 110
+        this.floors = [550, 440, 330, 220, 110];
+
+        // Ladders (1-2 per floor) — unchanged
+        this.ladders = [
+            { x: 200, floorIdx: 0, height: 110 },
+            { x: 600, floorIdx: 0, height: 110 },
+            { x: 400, floorIdx: 1, height: 110 },
+            { x: 150, floorIdx: 2, height: 110 },
+            { x: 650, floorIdx: 2, height: 110 },
+            { x: 300, floorIdx: 3, height: 110 }
+        ];
+
+        this.player = new Player(this);
+        this.ball = new Ball(this);
+        this.enemies = [];
+        this.sound = new Sound();
+
+        this.score = 0;
+        this.lives = 3;
+
+        // ---- pacing (improvement): spawn interval + enemy speed ramp ----
+        this.spawnTimer = 0;
+
+        // ---- feel kit state (measured recipes, see feel-study/FEEL.md) ----
+        this.hitStop = 0;        // seconds of frozen world on impact (0.09 bat, 0.12 life)
+        this.trauma = 0;         // camera shake trauma 0..1, offsets go as trauma²
+        this.punchT = 0;         // camera punch-in timer (+7% zoom, ~0.22 s)
+        this.flashA = 0;         // white/red flash alpha
+        this.flashColor = '#ffffff';
+        this.pops = [];          // floating score popups
+
+        // ---- stadium dressing (precomputed, static) ----
+        this.crowd = [];
+        const crowdColors = ['#e8c39e', '#c96f4a', '#7fb2d9', '#d9d9d9', '#a3d9a5', '#e88ca0', '#f2e394'];
+        for (let y = 18; y <= 88; y += 9) {
+            for (let x = 6; x < 800; x += 7) {
+                this.crowd.push({
+                    x: x + (Math.random() * 4 - 2),
+                    y: y + (Math.random() * 3 - 1.5),
+                    r: 1.5 + Math.random() * 1.2,
+                    c: crowdColors[Math.floor(Math.random() * crowdColors.length)],
+                    a: 0.35 + Math.random() * 0.45
+                });
+            }
+        }
+        this.trackSpecks = [];
+        for (let i = 0; i < 130; i++) {
+            this.trackSpecks.push({ x: Math.random() * 800, y: 562 + Math.random() * 36, r: Math.random() * 1.8 + 0.5 });
+        }
+        const fg = this.ctx.createLinearGradient(0, 0, 0, 12);
+        fg.addColorStop(0, '#6f9dbd'); fg.addColorStop(1, '#40698c');
+        this.floorGrad = fg;
+
+        // Input Handling — ONE pointerdown listener (mouse + touch unified).
+        // FIX (original bug): the original listened to mousedown AND touchstart;
+        // on touch devices a single tap could fire both and toss+swing at once.
+        const handleInput = (e) => {
+            if (this.isRunning) {
+                if (e.target && e.target.closest && e.target.closest('button')) return;
+                e.preventDefault();
+                this.player.handleInput('click');
+            }
+        };
+        (inputEl || window).addEventListener('pointerdown', handleInput);
+    }
+
+    // Difficulty ramp 0→1 over ~100 s of play
+    ramp() { return Math.min(1, this.elapsed / 100); }
+    spawnInterval() { return 2.5 - (2.5 - 1.15) * this.ramp(); }  // 2.5 s → 1.15 s
+    enemySpeedScale() { return 1 + 0.55 * this.ramp(); }           // 60 → ~93 px/s
+
+    reset() {
+        this.score = 0;
+        this.lives = 3;
+        this.enemies = [];
+        this.pops = [];
+        this.elapsed = 0;
+        this.spawnTimer = 0.4;
+        this.hitStop = 0;
+        this.trauma = 0;
+        this.punchT = 0;
+        this.flashA = 0;
+        this.ball.reset();
+        this.player.isSwinging = false;
+        this.updateHUD();
+    }
+
+    start() {
+        this.sound.init();
+        this.reset();
+        this.isRunning = true;
+        this.lastTime = performance.now();
+        this.sound.startJingle();
+        if (!this.loopActive) {
+            this.loopActive = true;
+            requestAnimationFrame(t => this.gameLoop(t));
+        }
+    }
+
+    spawnEnemy(floorIdx, x) {
+        if (!this.isRunning) return null;
+        const fi = (floorIdx === undefined) ? Math.floor(Math.random() * this.floors.length) : floorIdx;
+        const ex = (x === undefined) ? -30 : x; // Spawn on left
+        const e = new Enemy(this, ex, this.floors[fi], fi, this.enemySpeedScale());
+        this.enemies.push(e);
+        return e;
+    }
+
+    // ---- central event handlers (score / damage / juice) ----
+    addScore(n, x, y) {
+        this.score += n;
+        this.pops.push({ x, y, text: '+' + n, t: 0, life: 0.9 });
+        this.sound.score();
+        this.updateHUD();
+    }
+
+    onEnemyHit(enemy) {
+        this.sound.pop();
+        this.hitStop = Math.max(this.hitStop, 0.045);
+        this.trauma = Math.min(1, this.trauma + 0.22);
+    }
+
+    onBatHit() {
+        this.sound.crack();
+        this.hitStop = Math.max(this.hitStop, 0.09);   // measured hit-stop default
+        this.punchT = 0.22;                             // camera punch +7%
+        this.trauma = Math.min(1, this.trauma + 0.30);
+        this.flashA = Math.max(this.flashA, 0.30);
+        this.flashColor = '#ffffff';
+    }
+
+    onEnemyReachedPlayer() {
+        this.lives--;
+        this.sound.sting();
+        this.hitStop = Math.max(this.hitStop, 0.12);
+        this.trauma = 0.95;                             // big shake on a lost life
+        this.flashA = 0.38;
+        this.flashColor = '#ff2a1a';
+        this.updateHUD();
+        if (this.lives <= 0) this.gameOver();
+    }
+
+    gameOver() {
+        this.isRunning = false;
+        const el = document.getElementById('mrb2-over');
+        const fs = document.getElementById('mrb2-final');
+        if (fs) fs.innerText = `SCORE: ${this.score}`;
+        if (el) el.style.display = 'block';
+    }
+
+    updateHUD() {
+        const s = document.getElementById('mrb2-score');
+        const l = document.getElementById('mrb2-lives');
+        if (s) s.innerText = `SCORE: ${this.score}`;
+        if (l) l.innerText = `LIVES: ${this.lives}`;
+    }
+
+    update(dt) {
+        this.elapsed += dt;
+
+        // Spawning lives in the loop now.
+        // FIX (original bug): start() used a setInterval whose id was never
+        // stored or cleared — restarts would have stacked spawners forever.
+        this.spawnTimer -= dt;
+        if (this.spawnTimer <= 0) {
+            this.spawnEnemy();
+            this.spawnTimer = this.spawnInterval() * (0.85 + Math.random() * 0.3);
+        }
+
+        this.player.update(dt);
+        this.ball.update(dt);
+
+        for (const enemy of this.enemies) enemy.update(dt);
+        // FIX (original bug): splice() inside forEach skipped the enemy after
+        // every deleted one for a whole frame (stutter + missed updates).
+        this.enemies = this.enemies.filter(e => !e.markedForDeletion);
+    }
+
+    fxUpdate(dt) {
+        // Feel timers always run on real time, even while the world is frozen
+        if (this.hitStop > 0) this.hitStop -= dt;
+        this.trauma = Math.max(0, this.trauma - 0.9 * dt);       // measured decay ≈0.9/s
+        if (this.punchT > 0) this.punchT -= dt;
+        this.flashA = Math.max(0, this.flashA - 2.6 * dt);
+        for (const p of this.pops) { p.t += dt; p.y -= 46 * dt; }
+        this.pops = this.pops.filter(p => p.t < p.life);
+    }
+
+    drawBackground(ctx) {
+        // Night sky / stadium glow
+        const sky = ctx.createLinearGradient(0, 0, 0, this.height);
+        sky.addColorStop(0, '#0b1026');
+        sky.addColorStop(0.45, '#173a5e');
+        sky.addColorStop(1, '#1d4e4a');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        // Floodlight glows
+        for (const lx of [90, 710]) {
+            const g = ctx.createRadialGradient(lx, 34, 4, lx, 34, 150);
+            g.addColorStop(0, 'rgba(255,250,220,0.55)');
+            g.addColorStop(0.25, 'rgba(255,244,200,0.16)');
+            g.addColorStop(1, 'rgba(255,244,200,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(lx - 150, 0, 300, 190);
+            ctx.fillStyle = '#fffbe8';
+            ctx.fillRect(lx - 16, 26, 32, 12);
+        }
+
+        // The stands — crowd dots behind the top floor
+        ctx.fillStyle = '#232a4a';
+        ctx.fillRect(0, 0, this.width, 98);
+        for (const d of this.crowd) {
+            ctx.globalAlpha = d.a;
+            ctx.fillStyle = d.c;
+            ctx.beginPath();
+            ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // Outfield wall
+        const wall = ctx.createLinearGradient(0, 98, 0, 560);
+        wall.addColorStop(0, '#17384f');
+        wall.addColorStop(1, '#0f2c42');
+        ctx.fillStyle = wall;
+        ctx.fillRect(0, 98, this.width, 462);
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        for (let x = 40; x < 800; x += 80) ctx.fillRect(x, 98, 2, 462);
+        ctx.fillStyle = '#c9a227';
+        ctx.fillRect(0, 98, this.width, 3);
+        // faint distance marker, a little stadium charm
+        ctx.fillStyle = 'rgba(255,255,255,0.16)';
+        ctx.font = 'bold 44px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('375', 402, 190);
+        ctx.textAlign = 'left';
+
+        // Warning track below the bottom floor
+        ctx.fillStyle = '#7a4b28';
+        ctx.fillRect(0, 562, this.width, 38);
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        for (const s of this.trackSpecks) {
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.fillStyle = '#e8f4ff';
+        ctx.fillRect(0, 560, this.width, 2); // chalk line
+    }
+
+    draw() {
+        const ctx = this.ctx;
+        ctx.save();
+
+        // Camera: trauma shake (offsets ∝ trauma²) + punch-in zoom on bat contact
+        const now = performance.now();
+        const mag = this.trauma * this.trauma * 13;
+        const ox = Math.sin(now * 0.091) * mag;
+        const oy = Math.cos(now * 0.113) * mag * 0.7;
+        let zoom = 1;
+        if (this.punchT > 0) {
+            const p = 1 - this.punchT / 0.22;         // 0→1
+            zoom = 1 + 0.07 * Math.sin(Math.min(1, p) * Math.PI * 0.5) * (1 - p * 0.35);
+        }
+        const px = this.player.x + this.player.width / 2;
+        const py = this.player.y + this.player.height / 2;
+        ctx.translate(px + ox, py + oy);
+        ctx.scale(zoom, zoom);
+        ctx.translate(-px, -py);
+
+        this.drawBackground(ctx);
+
+        // Draw Ladders — rails + rungs (same red family as the original)
+        this.ladders.forEach(ladder => {
+            const floorY = this.floors[ladder.floorIdx];
+            const top = floorY - 110;
+            ctx.fillStyle = '#8e3a32';
+            ctx.fillRect(ladder.x - 2, top, 44, 122);
+            ctx.fillStyle = '#c1554a';
+            ctx.fillRect(ladder.x, top, 6, 120);
+            ctx.fillRect(ladder.x + 34, top, 6, 120);
+            ctx.fillStyle = '#e6a58e';
+            for (let i = 0; i < 8; i++) {
+                ctx.fillRect(ladder.x + 6, top + 4 + (i * 14), 28, 4);
+            }
+        });
+
+        // Draw Floors — steel ledges with a chalk top line (same geometry)
+        this.floors.forEach(y => {
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(0, y + 9, this.width, 10); // drop shadow
+            ctx.fillStyle = this.floorGrad;
+            ctx.fillRect(0, y, this.width, 12);
+            ctx.fillStyle = '#eaf6ff'; // chalk line
+            ctx.fillRect(0, y, this.width, 3);
+            ctx.fillStyle = 'rgba(10,25,40,0.55)';
+            ctx.fillRect(0, y + 10, this.width, 2);
+            ctx.fillStyle = 'rgba(10,25,40,0.5)';
+            for (let x = 32; x < 800; x += 64) {
+                ctx.beginPath();
+                ctx.arc(x, y + 6, 1.6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+
+        this.player.draw(ctx);
+        this.ball.draw(ctx);
+        this.enemies.forEach(enemy => enemy.draw(ctx));
+
+        // Score pops
+        for (const p of this.pops) {
+            const a = 1 - p.t / p.life;
+            ctx.save();
+            ctx.globalAlpha = a;
+            ctx.font = 'bold 21px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'rgba(20,30,10,0.85)';
+            ctx.strokeText(p.text, p.x, p.y);
+            ctx.fillStyle = '#ffe066';
+            ctx.fillText(p.text, p.x, p.y);
+            ctx.restore();
+        }
+        ctx.textAlign = 'left';
+
+        ctx.restore();
+
+        // Impact flash (screen space, above the world)
+        if (this.flashA > 0.005) {
+            ctx.fillStyle = this.flashColor;
+            ctx.globalAlpha = Math.min(0.4, this.flashA);
+            ctx.fillRect(0, 0, this.width, this.height);
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    gameLoop(timestamp) {
+        if (!this.isRunning) { this.loopActive = false; return; }
+
+        // FIX: clamp dt — the original let a backgrounded tab teleport enemies
+        const dt = Math.min(0.05, (timestamp - this.lastTime) / 1000 || 0.016);
+        this.lastTime = timestamp;
+
+        this.fxUpdate(dt);
+        if (this.hitStop <= 0) this.update(dt); // world freezes during hit-stop
+        this.draw();
+
+        requestAnimationFrame(t => this.gameLoop(t));
+    }
+}
+
+  /* ---- Mr. Baseball 2 boot (src/main.js, adapted for the embed) ----
+     The game is constructed lazily on the first PLAY tap and reused
+     after that; closing the reward stops its loop, and reopening it
+     resets to a clean start screen. */
+  var mrb2Game = null;
+  var mrb2StartFn = null;
+  var mrb2FitFn = null;
+  function mrb2Init() {
+    if (mrb2Game) return;
+    var canvas = el("mrb2-canvas");
+    var container = el("mrb2-container");
+    var stage = el("mrb2Stage");
+    var game = new Game(canvas, stage);
+    mrb2Game = game;
+    game.draw(); // paint the stadium once behind the start panel
+
+    // Letterbox fit: scale the fixed 800x600 cabinet to the largest
+    // size that fits the reward stage (the original fit to the window).
+    var fit = function () {
+      var w = stage.clientWidth, h = stage.clientHeight;
+      if (!w || !h) return;
+      var s = Math.min(w / 800, h / 600);
+      container.style.transform = "translate(-50%, -50%) scale(" + s + ")";
+    };
+    mrb2FitFn = fit;
+    fit();
+    window.addEventListener("resize", fit);
+    window.addEventListener("orientationchange", fit);
+
+    var startScreen = el("mrb2-start");
+    var overScreen = el("mrb2-over");
+    var restartBtn = el("mrb2-restart");
+    var startGame = function () {
+      if (!game.isRunning) {
+        game.start();
+        startScreen.style.display = "none";
+        overScreen.style.display = "none";
+      }
+    };
+    mrb2StartFn = startGame;
+    startScreen.addEventListener("click", startGame);
+    restartBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      startGame();
+    });
+
+    // QA hook for headless verification (same pattern as the original)
+    window.__mrb2 = {
+      game: game,
+      get phase() { return game.isRunning ? "playing" : (overScreen.style.display !== "none" ? "over" : "start"); },
+      get score() { return game.score; },
+      get lives() { return game.lives; },
+      get enemyCount() { return game.enemies.length; },
+      get ballState() { return game.ball.state; },
+      ballPos: function () { return { x: Math.round(game.ball.x), y: Math.round(game.ball.y) }; },
+      playerPos: function () { return { x: game.player.x, y: game.player.y, floorIdx: game.player.floorIdx }; },
+      enemies: function () { return game.enemies.map(function (e) { return { x: Math.round(e.x), y: Math.round(e.y), state: e.state, floorIdx: e.floorIdx }; }); },
+      start: function () { startGame(); },
+      tap: function () { game.player.handleInput("click"); },
+      spawnOn: function (floorIdx, x) { var e = game.spawnEnemy(floorIdx, x); return !!e; },
+      setLives: function (n) { game.lives = n; game.updateHUD(); }
+    };
+  }
+  function mrb2ShowGame() {
+    mrb2Init();
+    if (mrb2Game && !mrb2Game.isRunning) {
+      mrb2Game.reset();
+      mrb2Game.draw();
+    }
+    el("mrb2-start").style.display = "block";
+    el("mrb2-over").style.display = "none";
+    if (mrb2FitFn) mrb2FitFn();
+  }
+  function mrb2StopGame() {
+    if (mrb2Game) mrb2Game.isRunning = false;
+  }
 })();
 </script>
 <!-- ================================================================
