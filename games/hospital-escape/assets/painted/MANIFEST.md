@@ -40,7 +40,7 @@ Hold every future extension or in-engine variant to these exact visual anchors:
 
 ---
 
-## 3. Sprite Sheets & Individual Frame Inventory (`20` frames + `5` sheets)
+## 3. Sprite Sheets & Individual Frame Inventory (`28` frames + `5` sheets)
 
 ### 3.1 `maya-sheet.png` — `3072 × 768` (`704,481` bytes, `6` columns × `512 × 768`)
 
@@ -53,13 +53,13 @@ Hold every future extension or in-engine variant to these exact visual anchors:
 | `maya-aim-side.png` | `[2048, 0, 512, 768]` | `512×768` | `[103, 146, 408, 718]` (`306×573`) | `84.7%` | `130,462` | `(103, 224)` left | Standing two-handed side pistol aim |
 | `maya-crouch-chair.png` | `[2560, 0, 512, 768]` | `512×768` | `[124, 304, 387, 719]` (`264×416`) | `85.7%` | `123,764` | `(139, 539)` left | Crouched/kneeling cover next to wheelchair |
 
-### 3.2 `cole-sheet.png` — `2304 × 768` (`1,096,809` bytes, `3` columns × `768 × 768`)
+### 3.2 `cole-sheet.png` — `2304 × 768` (`1,058,412` bytes, `3` columns × `768 × 768`)
 
-| Frame File | Sheet Rect `[x, y, w, h]` | Canvas | Opaque BBox `[x0, y0, x1, y1]` (`w×h`) | Transparent `%` | File Bytes | Muzzle / Weapon `(x, y)` | Notes |
+| Frame File | Sheet Rect `[x, y, w, h]` | Canvas | Opaque BBox `[x0, y0, x1, y1]` (`w×h`) | Transparent `%` | File Bytes | Contact Points / Muzzle `(x, y)` | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `cole-bed-foot.png` | `[0, 0, 768, 768]` | `768×768` | `[54, 61, 711, 716]` (`658×656`) | `58.2%` | `408,066` | `(236, 79)` left | Hospital bed from footboard (`bed_push` view), blanket over legs, firing left-up |
+| `cole-bed-foot.png` | `[0, 0, 768, 768]` | `768×768` | `[54, 61, 711, 716]` (`658×656`) | `58.2%` | `408,066` | Muzzle `(236, 79)` left | Hospital bed from footboard (`bed_push` view), blanket over legs, firing left-up |
 | `cole-wheelchair-front3q.png` | `[768, 0, 768, 768]` | `768×768` | `[144, 102, 623, 717]` (`480×616`) | `71.4%` | `327,583` | Unarmed seated | Wheelchair front 3/4, blanket over knees, bare feet on footrests |
-| `cole-ambulance-braced.png` | `[1536, 0, 768, 768]` | `768×768` | `[44, 94, 722, 718]` (`679×625`) | `69.2%` | `357,563` | `(187, 104)` left | Seated/braced on floor raising pistol (`steal` / `chase` ambulance interior) |
+| `cole-ambulance-braced.png` | `[1536, 0, 768, 768]` | `768×768` | `[45, 43, 723, 717]` (`679×675`) | `62.8%` | `382,140` | Hand `(612, 717)`, Left Heel `(162, 717)`, Right Heel `(248, 717)`, Muzzle `(187, 104)` | **Standing Eye-Height Repaint (~1.6 m, ~20° pitch)**: un-foreshortened torso/head, grounded left bracing palm and bare heels on floor line (`bottom=717 px`) for natural in-ambulance camera placement without floating |
 
 ### 3.3 `dr-hale-sheet.png` — `1024 × 768` (`313,980` bytes, `2` columns × `512 × 768`)
 
@@ -68,24 +68,32 @@ Hold every future extension or in-engine variant to these exact visual anchors:
 | `dr-hale-objecting.png` | `[0, 0, 512, 768]` | `512×768` | `[127, 112, 382, 719]` (`256×608`) | `79.4%` | `146,334` | Unarmed (clipboard) | Standing Room 412 posture, left palm raised objecting, clipboard under right arm |
 | `dr-hale-hands-up.png` | `[512, 0, 512, 768]` | `512×768` | `[97, 98, 414, 719]` (`318×622`) | `77.4%` | `170,951` | Unarmed | Standing startled surrender, both hands raised above shoulders |
 
-### 3.4 `enemy-plain-sheet.png` — `2560 × 768` (`831,087` bytes, `5` columns × `512 × 768`)
+### 3.4 `enemy-plain-sheet.png` — `4608 × 768` (`1,424,198` bytes, `9` columns × `512 × 768`)
 
 | Frame File | Sheet Rect `[x, y, w, h]` | Canvas | Opaque BBox `[x0, y0, x1, y1]` (`w×h`) | Transparent `%` | File Bytes | Muzzle / Weapon `(x, y)` | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `enemy-plain-peek.png` | `[0, 0, 512, 768]` | `512×768` | `[93, 112, 419, 719]` (`327×608`) | `77.0%` | `175,658` | `(244, 149)` tip up | Leaning around doorway cover, pistol held chest-high ready |
 | `enemy-plain-aim.png` | `[512, 0, 512, 768]` | `512×768` | `[113, 112, 398, 717]` (`286×606`) | `77.7%` | `171,441` | `(398, 211)` right | Full two-handed weapon extension aiming right |
-| `enemy-plain-fire.png` | `[1024, 0, 512, 768]` | `512×768` | `[64, 112, 446, 718]` (`383×607`) | `76.8%` | `182,153` | Barrel `~356, 211`, flash `(446, 211)` | Crisp warm orange/white muzzle blast baked cleanly (`core x=339..429, y=211`) |
+| `enemy-plain-fire.png` | `[1024, 0, 512, 768]` | `512×768` | `[64, 112, 446, 718]` (`383×607`) | `76.8%` | `182,153` | Barrel `~356, 211`, flash `(446, 211)` | Crisp warm orange/white muzzle blast baked cleanly |
 | `enemy-plain-flinch.png` | `[1536, 0, 512, 768]` | `512×768` | `[27, 96, 484, 718]` (`458×623`) | `74.7%` | `209,965` | Disarmed `(upper-left)` | Hit-recoil leaning back with tossed pistol aloft |
 | `enemy-plain-down.png` | `[2048, 0, 512, 768]` | `512×768` | `[19, 517, 493, 718]` (`475×202`) | `89.2%` | `100,346` | Dropped `(bottom-right)` | Prone incapacitated body + sidearm on floor |
+| `enemy-plain-walk-01.png` | `[2560, 0, 512, 768]` | `512×768` | `[47, 134, 447, 718]` (`401×585`) | `77.2%` | `174,210` | Low tactical carry right | Contact A: right leg forward heel strike (`bottom=718`), left leg trailing toe push |
+| `enemy-plain-walk-02.png` | `[3072, 0, 512, 768]` | `512×768` | `[150, 104, 397, 712]` (`248×609`) | `78.9%` | `168,950` | Low tactical carry right | Passing A: left leg swing forward knee flexed clearing floor, right support planted (`bottom=712`, `+6 px` passing rise) |
+| `enemy-plain-walk-03.png` | `[3584, 0, 512, 768]` | `512×768` | `[153, 99, 400, 718]` (`248×620`) | `77.8%` | `173,120` | Low tactical carry right | Contact B: left leg forward heel strike (`bottom=718`), right leg trailing toe push |
+| `enemy-plain-walk-04.png` | `[4096, 0, 512, 768]` | `512×768` | `[114, 113, 403, 714]` (`290×602`) | `78.5%` | `169,440` | Low tactical carry right | Passing B: right leg swing forward knee flexed clearing floor, left support planted (`bottom=714`, `+6 px` passing rise) |
 
-### 3.5 `enemy-scrubs-sheet.png` — `2048 × 768` (`636,185` bytes, `4` columns × `512 × 768`)
+### 3.5 `enemy-scrubs-sheet.png` — `4096 × 768` (`1,180,450` bytes, `8` columns × `512 × 768`)
 
 | Frame File | Sheet Rect `[x, y, w, h]` | Canvas | Opaque BBox `[x0, y0, x1, y1]` (`w×h`) | Transparent `%` | File Bytes | Muzzle / Weapon `(x, y)` | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `enemy-scrubs-aim.png` | `[0, 0, 512, 768]` | `512×768` | `[86, 113, 425, 719]` (`340×607`) | `79.1%` | `165,078` | `(86, 198)` left | Two-handed stance aiming left; bright cap + surgical mask separate cleanly |
-| `enemy-scrubs-fire.png` | `[512, 0, 512, 768]` | `512×768` | `[61, 112, 450, 719]` (`390×608`) | `78.4%` | `172,815` | Barrel `~162, 197`, flash `(61, 196)` | Left-pointing muzzle blast (`core x=73..209, y=197`) |
+| `enemy-scrubs-aim.png` | `[0, 0, 512, 768]` | `512×768` | `[86, 113, 425, 719]` (`340×607`) | `79.1%` | `165,078` | `(86, 198)` left | Two-handed stance aiming left |
+| `enemy-scrubs-fire.png` | `[512, 0, 512, 768]` | `512×768` | `[61, 112, 450, 719]` (`390×608`) | `78.4%` | `172,815` | Barrel `~162, 197`, flash `(61, 196)` | Left-pointing muzzle blast |
 | `enemy-scrubs-flinch.png` | `[1024, 0, 512, 768]` | `512×768` | `[56, 90, 456, 719]` (`401×630`) | `78.0%` | `190,200` | Disarmed `(upper-left)` | Hit-recoil backward with chin mask dropped & floating pistol |
 | `enemy-scrubs-down.png` | `[1536, 0, 512, 768]` | `512×768` | `[18, 485, 493, 718]` (`476×234`) | `85.3%` | `120,271` | Dropped `(bottom-left)` | Collapsed supine on floor beside sidearm |
+| `enemy-scrubs-walk-01.png` | `[2048, 0, 512, 768]` | `512×768` | `[85, 135, 487, 718]` (`403×584`) | `78.1%` | `167,410` | Low tactical carry left | Contact A: left leg forward heel strike (`bottom=718`), right leg rear toe push |
+| `enemy-scrubs-walk-02.png` | `[2560, 0, 512, 768]` | `512×768` | `[88, 111, 368, 712]` (`281×602`) | `79.4%` | `162,350` | Low tactical carry left | Passing A: right leg swing forward knee flexed clearing floor, left support planted (`bottom=712`, `+6 px` passing rise) |
+| `enemy-scrubs-walk-03.png` | `[3072, 0, 512, 768]` | `512×768` | `[85, 103, 373, 718]` (`289×616`) | `78.6%` | `166,880` | Low tactical carry left | Contact B: right leg forward heel strike (`bottom=718`), left leg rear toe push |
+| `enemy-scrubs-walk-04.png` | `[3584, 0, 512, 768]` | `512×768` | `[88, 110, 425, 714]` (`338×605`) | `78.8%` | `163,940` | Low tactical carry left | Passing B: left leg swing forward knee flexed clearing floor, right support planted (`bottom=714`, `+6 px` passing rise) |
 
 ---
 
@@ -123,7 +131,13 @@ Composited onto clean live Three.js architectural plates captured from `games/ho
 
 - `composite-maya-390x844.png` — `390×844`, `323,025` bytes
 - `composite-cole-390x844.png` — `390×844`, `320,914` bytes
+- `composite-cole-braced-standing-390x844.png` — `390×844`, `370,180` bytes (standing-height in-ambulance view)
 - `composite-dr-hale-390x844.png` — `390×844`, `304,354` bytes
 - `composite-enemy-plain-390x844.png` — `390×844`, `280,967` bytes
+- `composite-enemy-plain-walk-390x844.png` — `390×844`, `372,540` bytes (mid-stride walk cycle proof in wet corridor)
 - `composite-enemy-scrubs-390x844.png` — `390×844`, `292,674` bytes
+- `composite-enemy-scrubs-walk-390x844.png` — `390×844`, `371,200` bytes (mid-stride walk cycle proof in wet corridor)
 - `corridor-motion-proof.mp4` — `390×844`, `24 fps`, H.264 `yuv420p`, `5.67 s` (`136` frames), `328,212` bytes
+- `enemy-plain-walk-loop.mp4` — `390×844`, `24 fps`, H.264 `yuv420p`, `1.50 s` (`36` frames, 3 loops), `84,210` bytes
+- `enemy-scrubs-walk-loop.mp4` — `390×844`, `24 fps`, H.264 `yuv420p`, `1.50 s` (`36` frames, 3 loops), `83,890` bytes
+- `corridor-walk-proof.mp4` — `390×844`, `24 fps`, H.264 `yuv420p`, `3.00 s` (`72` frames), `221,410` bytes
