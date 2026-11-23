@@ -1535,7 +1535,7 @@ MODULES.sudz={
 };
 
 /* ---------- SCOTT — Sip Your Beer Tennis (DON'T TOUCH) ---------- */
-var SIPZONE={x:308,y:594,w:72,h:92}; // mug floats above the recliner heads, never on the crew
+var SIPZONE={x:295,y:460,w:72,h:92}; // inside the CRT bottom-right (CRT ends y570) — never under the comm window
 MODULES.scott={
   id:"scott", friend:"scott", verb:"DON'T TOUCH!",
   hintTouch:"TOUCH: HANDS OFF! TAP MUG = SIP", hintKeys:"DESKTOP: HANDS OFF! B = SIP",
@@ -1610,7 +1610,7 @@ MODULES.scott={
         if(this.phase==="fly"||this.phase==="fault")PX(CC,this.ballX,this.ballY,2,2,"#f7f2e2");
         if(this.phase==="fault")Tplain(this.faultTxt,CRT.x+CRT.w/2,CRT.y+196,22,"#ffd98a","center");
         if(this.promptT>0.95)Tplain(this.prompt,CRT.x+this.promptX*3,CRT.y+this.promptY*3,17,Math.floor(this.t*10)%2?"#e84d26":"#ffd98a");
-        Tplain("HANDS OFF. THE AI BEATS ITSELF.",CRT.x+CRT.w/2,CRT.y+CRT.h-26,12,"#9fd8e8","center");
+        Tplain("HANDS OFF. THE AI BEATS ITSELF.",CRT.x+138,CRT.y+CRT.h-26,12,"#9fd8e8","center");
       },
       renderOverlay:function(){
         // the beer mug on the couch armrest — NOT the controller
@@ -2016,7 +2016,7 @@ MODULES.steve={
 };
 
 /* ---------- CHRIS — Ram It Loop (TAP replay in the window) ---------- */
-var REPLAYZONE={x:100,y:618,w:190,h:70}; // above the recliner heads, never on the crew
+var REPLAYZONE={x:75,y:494,w:240,h:58}; // inside the CRT bottom strip (CRT.y+376) — never under the comm window
 MODULES.chris={
   id:"chris", friend:"chris", verb:"KEEP THE LOOP ALIVE!",
   hintTouch:"TOUCH: TAP REPLAY IN THE GLOW", hintKeys:"DESKTOP: CLICK REPLAY OR SPACE",
@@ -2091,17 +2091,17 @@ MODULES.chris={
         Tplain("BEEP PRESSURE",CRT.x+CRT.w-22,CRT.y+330,11,"#e87ac9","right");
         if(this.exposure>0){
           R(CRT.x,CRT.y,CRT.w,CRT.h,"rgba(180,20,10,"+(0.16+0.12*Math.sin(this.t*30))+")");
-          Tplain("⚠ RAW RAM IT AUDIO ⚠",CRT.x+CRT.w/2,CRT.y+368,19,"#ffffff","center");
+          Tplain("⚠ RAW RAM IT AUDIO ⚠",CRT.x+CRT.w/2,CRT.y+158,19,"#ffffff","center");
         }
-        Tplain("THE BEEPS GET LOUDER AS IT ENDS",CRT.x+CRT.w/2,CRT.y+CRT.h-24,11,"#9fd8e8","center");
+        Tplain("THE BEEPS GET LOUDER AS IT ENDS",CRT.x+CRT.w/2,CRT.y+352,11,"#9fd8e8","center");
         g.restore();
       },
       renderOverlay:function(){
         var z=REPLAYZONE, hot=this.inWindow();
         R(z.x-4,z.y-4,z.w+8,z.h+8,hot?"#57e85e":"#54432c");
         R(z.x,z.y,z.w,z.h,hot?"#1d3a1d":"#2b1d12");
-        Tplain("↻ REPLAY",z.x+z.w/2,z.y+16,22,"#ffffff","center");
-        Tplain(hot?"NOW!":"before it ends…",z.x+z.w/2,z.y+46,11,hot?"#7ddb8a":"#a8906a","center");
+        Tplain("↻ REPLAY",z.x+z.w/2,z.y+7,24,"#ffffff","center");
+        Tplain(hot?"NOW!":"before it ends…",z.x+z.w/2,z.y+37,12,hot?"#7ddb8a":"#a8906a","center");
       }
     };
     return st;
