@@ -17,7 +17,9 @@ A.makeTextures = function(){ var T = A.tex;
   T.wall = cv(256, 256, function(g, w, h){ g.fillStyle = '#dfe2dc'; g.fillRect(0, 0, w, h); speck(g, w, h, 500, ['#cfd3cc', '#eef0ea'], 0.4);
     g.fillStyle = '#6f8f8c'; g.fillRect(0, h * 0.70, w, h * 0.30); g.fillStyle = '#5c7774'; g.fillRect(0, h * 0.70, w, 4);   // wainscot
     g.fillStyle = '#b9bcb5'; g.fillRect(0, h * 0.62, w, 9); g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, h * 0.62 + 9, w, 3);  // handrail
-    g.fillStyle = '#3d4a49'; g.fillRect(0, h * 0.95, w, h * 0.05); });
+    g.fillStyle = '#3d4a49'; g.fillRect(0, h * 0.95, w, h * 0.05);
+    for(var i = 0; i < 26; i++){ var sx = Math.random() * w, sw2 = 6 + Math.random() * 30; g.fillStyle = 'rgba(30,28,24,' + (0.06 + Math.random() * 0.12) + ')'; g.fillRect(sx, h * (0.86 + Math.random() * 0.08), sw2, 2 + Math.random() * 5); }   // cart scuffs at the base
+    var gr = g.createLinearGradient(0, h * 0.8, 0, h); gr.addColorStop(0, 'rgba(40,36,30,0)'); gr.addColorStop(1, 'rgba(40,36,30,.22)'); g.fillStyle = gr; g.fillRect(0, h * 0.8, w, h * 0.2); });   // grime at the wall base
   T.ceiling = cv(256, 256, function(g, w, h){ g.fillStyle = '#ecece6'; g.fillRect(0, 0, w, h); speck(g, w, h, 1400, ['#cfcfc7', '#ffffff'], 0.5); g.strokeStyle = '#a8a8a0'; g.lineWidth = 4; g.strokeRect(0, 0, w, h); });
   T.lightPanel = cv(64, 128, function(g, w, h){ g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); g.strokeStyle = '#c8cdd0'; g.lineWidth = 6; g.strokeRect(0, 0, w, h); for(var i = 1; i < 4; i++){ g.fillStyle = 'rgba(200,210,215,.6)'; g.fillRect(0, i * h / 4 - 1, w, 2); } });
   T.door = cv(128, 256, function(g, w, h){ g.fillStyle = '#7f9db3'; g.fillRect(0, 0, w, h); g.fillStyle = '#6a879c'; g.fillRect(8, 8, w - 16, h - 16); g.fillStyle = '#20303a'; g.fillRect(34, 40, 60, 70);
@@ -271,12 +273,13 @@ A.ambulance = function(){ var g = new THREE.Group(), white = A.mat(0xb9bbb8, { r
   var tm = A.mat(0x121212); [[-1, zb - 1.0], [1, zb - 1.0], [-1, zb + Lb / 2 + 0.9], [1, zb + Lb / 2 + 0.9]].forEach(function(c){ A.cyl(0.42, 0.42, 0.3, tm, c[0] * (W / 2 - 0.05), 0.42, c[1], g, 16).rotation.z = Math.PI / 2; });
   A.box(W - 0.2, 0.3, Lb + 2.3, dark, 0, 0.5, zb + 1.1, g);                                                                            // chassis
   g.userData.bayFloor = floor; g.userData.rearZ = zb - Lb / 2; return g; };
-A.train = function(){ var g = new THREE.Group(), side = new THREE.MeshStandardMaterial({ map: A.tex.train, roughness: 0.5, metalness: 0.3 }), dark = A.mat(0x1a1d22), yel = A.mat(0xe1b23c);
+A.train = function(){ var g = new THREE.Group(), side = new THREE.MeshStandardMaterial({ map: A.tex.train, roughness: 0.5, metalness: 0.3, emissive: 0x16243a, emissiveIntensity: 0.6 }), dark = A.mat(0x1a1d22), yel = A.mat(0xf2c12e, { emissive: 0x5a4208, emissiveIntensity: 0.9 });   // high-contrast livery: reads in the dark grade
   // locomotive (front = +z): long hood, raised cab, sloped nose, headlights, ditch lights, handrails, bogies
   var loco = new THREE.Group(); g.add(loco); A.box(3.0, 2.6, 17, side, 0, 2.6, -8.5, loco).material = [side, side, A.mat(0x2b4c7e), dark, A.mat(0x2b4c7e), A.mat(0x2b4c7e)];
   A.box(3.1, 1.2, 3.2, A.mat(0x2b4c7e), 0, 4.3, -1.8, loco); A.box(2.6, 0.6, 0.06, A.mat(0x182531, { metalness: 0.6, roughness: 0.1 }), 0, 4.45, -0.18, loco);
   var nose = A.box(3.0, 1.4, 1.4, yel, 0, 2.0, 0.6, loco); nose.rotation.x = 0.25;
-  [-0.9, 0.9].forEach(function(x){ A.box(0.35, 0.3, 0.1, A.mat(0xfff6d6, { emissive: 0xfff3c0, emissiveIntensity: 3 }), x, 1.6, 1.35, loco); }); A.box(0.6, 0.3, 0.1, A.mat(0xfff6d6, { emissive: 0xfff3c0, emissiveIntensity: 3 }), 0, 4.0, 0.0, loco);
+  [-0.9, 0.9].forEach(function(x){ A.sph(0.32, A.mat(0xfff6d6, { emissive: 0xfff3c0, emissiveIntensity: 9 }), x, 1.6, 1.4, loco); }); A.sph(0.36, A.mat(0xfff6d6, { emissive: 0xfff3c0, emissiveIntensity: 9 }), 0, 4.0, 0.05, loco);   // ditch lights + headlight: bloom
+  [-1.52, 1.52].forEach(function(x){ A.box(0.04, 0.35, 16.6, A.mat(0xf2c12e, { emissive: 0x6a4c08, emissiveIntensity: 1.2 }), x, 1.75, -8.5, loco); A.box(0.04, 0.2, 16.6, A.mat(0xd8282b, { emissive: 0x500808, emissiveIntensity: 1 }), x, 2.2, -8.5, loco); });   // side stripes
   A.box(3.2, 0.25, 0.4, A.mat(0x8c8c8c), 0, 0.9, 1.5, loco);                                                                         // pilot / plough
   function bogies(parent, z0, len){ [z0 + 2.2, z0 + len - 2.2].forEach(function(z){ A.box(2.6, 0.7, 3.0, dark, 0, 0.75, z, parent); [-1, 1].forEach(function(sx){ [-0.8, 0.8].forEach(function(dz){ A.cyl(0.5, 0.5, 0.2, A.mat(0x3a3a3a, { metalness: 0.6 }), sx * 1.28, 0.55, z + dz, parent, 14).rotation.z = Math.PI / 2; }); }); }); }
   bogies(loco, -17, 17); A.box(0.06, 1.0, 15, A.mat(0xd8d8d8), 1.6, 3.5, -9, loco); A.box(0.06, 1.0, 15, A.mat(0xd8d8d8), -1.6, 3.5, -9, loco);

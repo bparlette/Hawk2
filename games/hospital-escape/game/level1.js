@@ -49,16 +49,16 @@ var paths = [
   // 1 — the visit: camera held in the corner of Room 412 by the door, looking at the bed
   { id: 'room_view', vehicle: 'bed', points: [[2.9, 0, -6.2], [2.8, 0, -5.9]], height: 1.65, back: 0, speed: 0, look: [{ at: 0, target: [0.1, 1.0, -3.4] }], events: [] },
   // 2 — the bed push: Room 412 -> out the door -> West Wing hall. Rider point = Cole's head; the bed extends ahead of it.
-  rig(BED, { id: 'bed_hall', vehicle: 'bed', points: [[0, 0, -2.6], [0, 0, -8], [0, 0, -20], [0, 0, -32], [0, 0, -38.8]],
-    speedKeys: [{ at: 0, speed: 1.3 }, { at: 0.26, speed: 0 }, { at: 0.3, speed: 1.4 }, { at: 0.64, speed: 0 }, { at: 0.68, speed: 1.3 }],
-    look: [{ at: 0, target: 'group:bed_w1' }, { at: 0.45, target: 'group:bed_w2' }],
-    events: [{ at: 0.02, type: 'line', line: 'maya_02' }, { at: 0.1, type: 'wave', wave: 'bed_w1' }, { at: 0.2, type: 'line', line: 'cole_02' }, { at: 0.42, type: 'wave', wave: 'bed_w2' }, { at: 1, type: 'segmentEnd' }] }),
+  rig(BED, { id: 'bed_hall', vehicle: 'bed', points: [[0, 0, -2.6], [0, 0, -9], [0, 0, -13.6], [1.8, 0, -16], [8, 0, -16], [10.8, 0, -17.6], [12, 0, -21], [12, 0, -30], [12, 0, -38.6]],
+    speedKeys: [{ at: 0, speed: 1.3 }, { at: 0.374, speed: 0 }, { at: 0.397, speed: 1.3 }, { at: 0.673, speed: 0 }, { at: 0.7, speed: 1.3 }],
+    look: [{ at: 0, target: 'group:bed_w1' }, { at: 0.606, target: 'group:bed_w2' }],
+    events: [{ at: 0.02, type: 'line', line: 'maya_02' }, { at: 0.285, type: 'wave', wave: 'bed_w1' }, { at: 0.341, type: 'line', line: 'cole_02' }, { at: 0.549, type: 'wave', wave: 'bed_w2' }, { at: 1, type: 'segmentEnd' }] }),
   // 3 — transfer (held), then the wheelchair corridor (East Wing) to the elevator lobby
-  { id: 'transfer_view', vehicle: 'chair', points: [[1.6, 0, -37.2], [1.55, 0, -37.5]], height: 1.6, back: 0, speed: 0, look: [{ at: 0, target: [0.2, 0.8, -40.6] }], events: [] },
-  rig(CHAIR, { id: 'chair_corridor', vehicle: 'chair', points: [[1.0, 0, -40.6], [1.0, 0, -46], [0, 0, -52], [0, 0, -63]],
-    speedKeys: [{ at: 0, speed: 0 }, { at: 0.02, speed: 1.25 }, { at: 0.5, speed: 0 }, { at: 0.55, speed: 1.3 }],
-    look: [{ at: 0, target: 'group:tr_w1' }, { at: 0.3, target: 'group:tr_w2' }],
-    events: [{ at: 0.05, type: 'line', line: 'maya_04' }, { at: 0.3, type: 'wave', wave: 'tr_w2' }, { at: 0.34, type: 'line', line: 'maya_05' }, { at: 1, type: 'segmentEnd' }] }),
+  { id: 'transfer_view', vehicle: 'chair', points: [[13.3, 0, -36.9], [13.2, 0, -37.2]], height: 1.6, back: 0, speed: 0, look: [{ at: 0, target: [11.4, 0.8, -40.6] }], events: [] },
+  rig(CHAIR, { id: 'chair_corridor', vehicle: 'chair', points: [[11.8, 0, -40.6], [11.6, 0, -42.2], [7, 0, -42.2], [2.2, 0, -42.6], [0, 0, -46], [0, 0, -54], [0, 0, -63]],
+    speedKeys: [{ at: 0, speed: 0 }, { at: 0.02, speed: 1.25 }, { at: 0.595, speed: 0 }, { at: 0.632, speed: 1.3 }],
+    look: [{ at: 0, target: 'group:tr_w1' }, { at: 0.427, target: 'group:tr_w2' }],
+    events: [{ at: 0.05, type: 'line', line: 'maya_04' }, { at: 0.435, type: 'wave', wave: 'tr_w2' }, { at: 0.501, type: 'line', line: 'maya_05' }, { at: 1, type: 'segmentEnd' }] }),
   // 4 — the elevator: roll into the car (Ward 4B), doors close, descend; the car opens on the ground floor, hot
   rig(CHAIR, { id: 'elevator_in', vehicle: 'chair', points: [[0, 0, -63], [0, 0, -69], [0, 0, -75.9]], speedKeys: [{ at: 0, speed: 1.2 }, { at: 0.7, speed: 0.7 }],
     events: [{ at: 0.05, type: 'line', line: 'maya_06' }, { at: 0.8, type: 'line', line: 'cole_04' }, { at: 1, type: 'segmentEnd' }] }),
@@ -69,45 +69,45 @@ var paths = [
     speedKeys: [{ at: 0, speed: 1.3 }, { at: 0.28, speed: 0 }, { at: 0.33, speed: 1.4 }],
     look: [{ at: 0, target: 'group:g_w1' }, { at: 0.45, target: 'group:g_w2' }],
     events: [{ at: 0.05, type: 'wave', wave: 'g_w1' }, { at: 0.5, type: 'line', line: 'maya_08' }, { at: 0.56, type: 'pickup', weapon: 'machine_pistol' }, { at: 0.6, type: 'line', line: 'cole_05' }, { at: 0.62, type: 'wave', wave: 'g_w2' }, { at: 1, type: 'segmentEnd' }] }),
-  rig(CHAIR, { id: 'g_caf', vehicle: 'chair', points: [[16, G, -116], [26, G, -116], [36, G, -116.5], [45, G, -116]],
-    speedKeys: [{ at: 0, speed: 1.2 }, { at: 0.22, speed: 0 }, { at: 0.27, speed: 1.2 }, { at: 0.62, speed: 0 }, { at: 0.67, speed: 1.3 }],
-    look: [{ at: 0, target: 'group:caf_w1' }, { at: 0.45, target: 'group:caf_w2' }],
-    events: [{ at: 0.02, type: 'line', line: 'maya_09' }, { at: 0.08, type: 'wave', wave: 'caf_w1' }, { at: 0.42, type: 'wave', wave: 'caf_w2' }, { at: 0.46, type: 'line', line: 'cole_06' }, { at: 1, type: 'segmentEnd' }] }),
+  rig(CHAIR, { id: 'g_caf', vehicle: 'chair', points: [[16, G, -116], [23, G, -116], [28, G, -111.5], [34, G, -111], [39.5, G, -119], [45, G, -116]],
+    speedKeys: [{ at: 0, speed: 1.2 }, { at: 0.275, speed: 0 }, { at: 0.315, speed: 1.2 }, { at: 0.654, speed: 0 }, { at: 0.704, speed: 1.3 }],
+    look: [{ at: 0, target: 'group:caf_w1' }, { at: 0.525, target: 'group:caf_w2' }],
+    events: [{ at: 0.02, type: 'line', line: 'maya_09' }, { at: 0.08, type: 'wave', wave: 'caf_w1' }, { at: 0.497, type: 'wave', wave: 'caf_w2' }, { at: 0.553, type: 'line', line: 'cole_06' }, { at: 1, type: 'segmentEnd' }] }),
   { id: 'ward_foot', vehicle: 'chair', points: [[48.8, G, -116], [53, G, -116], [57, G, -121], [57, G, -131]], height: 1.62, back: 2.0, side: 0.45, speed: 0, events: [] },
-  rig(CHAIR, { id: 'g_wait', vehicle: 'chair', points: [[57, G, -131], [57, G, -139], [58, G, -148]],
-    speedKeys: [{ at: 0, speed: 1.1 }, { at: 0.35, speed: 0 }, { at: 0.4, speed: 1.2 }],
-    look: [{ at: 0, target: 'group:wait_w1' }], events: [{ at: 0.04, type: 'line', line: 'maya_11' }, { at: 0.12, type: 'wave', wave: 'wait_w1' }, { at: 0.5, type: 'line', line: 'cole_08' }, { at: 1, type: 'segmentEnd' }] }),
+  rig(CHAIR, { id: 'g_wait', vehicle: 'chair', points: [[57, G, -131], [54, G, -136.5], [57, G, -140.5], [59.5, G, -144], [58, G, -148]],
+    speedKeys: [{ at: 0, speed: 1.1 }, { at: 0.225, speed: 0 }, { at: 0.477, speed: 1.2 }],
+    look: [{ at: 0, target: 'group:wait_w1' }], events: [{ at: 0.04, type: 'line', line: 'maya_11' }, { at: 0.12, type: 'wave', wave: 'wait_w1' }, { at: 0.6, type: 'line', line: 'cole_08' }, { at: 1, type: 'segmentEnd' }] }),
   // 6 — the main entrance: holdout at the doors, then the exit push out under the canopy
   rig(CHAIR, { id: 'lobby_hold', vehicle: 'chair', points: [[58, G, -149], [58, G, -150.6]], speedKeys: [{ at: 0, speed: 0 }], lookClamp: 26,
     look: [{ at: 0, target: 'group:ent_w1' }], events: [{ at: 0, type: 'line', line: 'maya_12' }] }),
-  rig(CHAIR, { id: 'exit_push', vehicle: 'chair', points: [[58, G, -150.6], [58, G, -162], [58, G, -172.5]], speed: 1.7,
+  rig(CHAIR, { id: 'exit_push', vehicle: 'chair', points: [[58, G, -150.6], [55.6, G, -157], [58.6, G, -164], [58, G, -172.5]], speed: 1.7,
     events: [{ at: 0.05, type: 'line', line: 'maya_13' }, { at: 1, type: 'segmentEnd' }] }),
   // 7 — steal the ambulance: held camera at the bay, then the staging pull-out (rear rig looks back at the hospital)
   { id: 'bay_view', vehicle: 'chair', points: [[61.4, G, -174.2], [61.3, G, -174.6]], height: 1.65, back: 0, speed: 0, look: [{ at: 0, target: [58, G + 1.2, -181] }], events: [] },
   { id: 'bay_route', vehicle: 'ambulance', bayOffset: -0.55, points: [[58, G, -181], [58, G, -196], [66, G, -205.5], [90, G, -208]], height: 1.75, back: 0,
     speedKeys: [{ at: 0, speed: 2.2 }, { at: 0.5, speed: 6.5 }], look: [{ at: 0, target: 'group:lot_w1' }], events: [{ at: 0.03, type: 'line', line: 'cole_10' }, { at: 1, type: 'segmentEnd' }] },
   // 8 — the chase (east on Harbor Avenue) — 9 — the train finale (the Line 9 crossing)
-  { id: 'chase_road', vehicle: 'ambulance', bayOffset: -0.55, points: [[90, G, -208], [200, G, -212], [330, G, -201], [460, G, -215], [600, G, -205], [740, G, -213], [880, G, -208]], height: 1.75, back: 0, speed: 15,
+  { id: 'chase_road', vehicle: 'ambulance', bayOffset: -0.55, points: [[90, G, -208], [150, G, -209], [190, G, -225], [215, G, -262], [240, G, -305], [285, G, -325], [350, G, -322], [400, G, -300], [450, G, -298], [500, G, -318], [540, G, -352], [565, G, -400], [610, G, -428], [680, G, -432], [760, G, -430]], height: 1.75, back: 0, speed: 15,
     events: [{ at: 0.03, type: 'line', line: 'maya_15' }, { at: 1, type: 'segmentEnd' }] },
-  { id: 'finale_road', vehicle: 'ambulance', bayOffset: -0.55, points: [[880, G, -208], [1000, G, -211], [1120, G, -206], [1240, G, -209], [1360, G, -208]], height: 1.75, back: 0, speed: 15,
-    crossingAt: 0.86, trainAt: 0.873, trainOccupies: 12, events: [{ at: 0.76, type: 'line', line: 'maya_17' }, { at: 1, type: 'segmentEnd' }] }
+  { id: 'finale_road', vehicle: 'ambulance', bayOffset: -0.55, points: [[760, G, -430], [820, G, -442], [868, G, -472], [930, G, -484], [990, G, -458], [1040, G, -430], [1100, G, -426], [1300, G, -426]], height: 1.75, back: 0, speed: 15,
+    crossingAt: 0.86, trainAt: 0.873, trainOccupies: 12, events: [{ at: 0.74, type: 'line', line: 'maya_17' }, { at: 1, type: 'segmentEnd' }] }
 ];
 var W = function(id, trigger, spawns, onCleared){ var w = { id: id, trigger: trigger, spawns: spawns }; if(onCleared) w.onCleared = onCleared; return w; };
 var S = function(kind, at, count, stagger, behavior){ return { kind: kind, at: at, count: count, stagger: stagger, behavior: behavior }; };
 // spawn points are doorways / corners / counters (see env): cover = corner-pops that advance; rush = through a door and at you
 var waves = [
-  W('bed_w1', { type: 'pathEvent' }, [S('gunman', [-1.35, 0, -14.2], 1, 0, 'cover'), S('gunman', [1.35, 0, -17.4], 1, 0, 'cover')], { type: 'resume' }),
-  W('bed_w2', { type: 'pathEvent' }, [S('gunman', [0, 0, -36.5], 2, 0.9, 'rush'), S('gunman', [-1.35, 0, -31.4], 1, 0, 'cover')], { type: 'resume' }),
-  W('tr_w1', { type: 'segmentStart' }, [S('gunman', [-1.3, 0, -49.5], 1, 0, 'cover'), S('gunman', [0.2, 0, -58], 1, 0.6, 'rush')], { type: 'resume' }),
+  W('bed_w1', { type: 'pathEvent' }, [S('gunman', [7.2, 0, -14.8], 1, 0, 'cover'), S('gunman', [10.9, 0, -24.5], 1, 0.5, 'cover')], { type: 'resume' }),
+  W('bed_w2', { type: 'pathEvent' }, [S('gunman', [12, 0, -39.5], 2, 0.9, 'rush'), S('gunman', [13.2, 0, -31.5], 1, 0, 'cover')], { type: 'resume' }),
+  W('tr_w1', { type: 'segmentStart' }, [S('gunman', [3.4, 0, -40.9], 1, 0, 'cover'), S('gunman', [0.2, 0, -52], 1, 0.6, 'rush')], { type: 'resume' }),
   W('tr_w2', { type: 'pathEvent' }, [S('staff', [-1.3, 0, -58.4], 1, 0, 'cover'), S('staff', [1.3, 0, -60.2], 1, 0, 'cover'), S('staff', [0, 0, -65], 1, 0.6, 'rush')], { type: 'resume' }),
   W('el_w1', { type: 'segmentStart' }, [S('gunman', [-1.4, G, -84.5], 1, 0, 'cover'), S('gunman', [1.4, G, -86.5], 1, 0.4, 'cover'), S('gunman', [0, G, -90], 1, 0.8, 'rush')]),
   W('g_w1', { type: 'pathEvent' }, [S('gunman', [-1.3, G, -108.5], 1, 0, 'cover'), S('staff', [1.3, G, -110.5], 1, 0.5, 'cover'), S('gunman', [1.5, G, -116], 1, 1.0, 'rush')], { type: 'resume' }),
   W('g_w2', { type: 'pathEvent' }, [S('staff', [14.5, G, -114.6], 1, 0, 'cover'), S('staff', [17, G, -116], 1, 0.7, 'rush')]),
-  W('caf_w1', { type: 'pathEvent' }, [S('gunman', [30, G, -111], 1, 0, 'cover'), S('gunman', [33, G, -121], 1, 0.4, 'cover'), S('gunman', [38, G, -116.5], 1, 0.9, 'rush')], { type: 'resume' }),
+  W('caf_w1', { type: 'pathEvent' }, [S('gunman', [31, G, -121.5], 1, 0, 'cover'), S('gunman', [26, G, -106.5], 1, 0.4, 'cover'), S('gunman', [42, G, -108], 1, 0.9, 'rush')], { type: 'resume' }),
   W('caf_w2', { type: 'pathEvent' }, [S('staff', [43.4, G, -112], 1, 0, 'cover'), S('staff', [43.4, G, -120], 1, 0.3, 'cover'), S('gunman', [46, G, -116], 1, 0.8, 'rush')], { type: 'resume' }),
   W('foot_w1', { type: 'segmentStart' }, [S('gunman', [55, G, -114], 1, 0, 'cover'), S('staff', [58.6, G, -119], 1, 0.6, 'cover')], { type: 'wave', wave: 'foot_w2' }),
   W('foot_w2', { type: 'afterWave', wave: 'foot_w1', delay: 1.0 }, [S('staff', [57, G, -130], 2, 0.7, 'rush')]),
-  W('wait_w1', { type: 'pathEvent' }, [S('gunman', [54.5, G, -142], 1, 0, 'cover'), S('gunman', [60.5, G, -143], 1, 0.4, 'cover'), S('staff', [58, G, -149.5], 1, 0.9, 'rush')], { type: 'resume' }),
+  W('wait_w1', { type: 'pathEvent' }, [S('gunman', [63, G, -140.5], 1, 0, 'cover'), S('gunman', [52.4, G, -144.5], 1, 0.4, 'cover'), S('staff', [58, G, -149.5], 1, 0.9, 'rush')], { type: 'resume' }),
   W('ent_w1', { type: 'segmentStart' }, [S('staff', [58, G, -170.5], 3, 0.8, 'rush')], { type: 'wave', wave: 'ent_w2' }),
   W('ent_w2', { type: 'afterWave', wave: 'ent_w1', delay: 1.2 }, [S('gunman', [54.2, G, -163], 1, 0, 'cover'), S('gunman', [61.8, G, -163], 1, 0.4, 'cover'), S('gunman', [58, G, -171], 1, 1.0, 'rush')], { type: 'line', line: 'cole_09' }),
   W('lot_w1', { type: 'segmentStart' }, [S('gunman', [58, G, -170.5], 3, 0.7, 'rush')])
@@ -135,8 +135,8 @@ var beats = [
 ];
 // ext: bystanders — unarmed staff and patients crossing the fights (Virtua Cop). Hitting one costs score (tuning.score.bystander).
 var bystanders = [
-  { id: 'nurse_west', segment: 'bed_hall_push', kind: 'nurse', from: [-1.5, 0, -23], to: [1.6, 0, -24.4], delay: 7.5, speed: 1.4 },
-  { id: 'patient_door', segment: 'bed_hall_push', kind: 'patient', from: [1.4, 0, -28.2], to: [1.55, 0, -28.6], delay: 12, speed: 0.15, pause: [0.5, 4] },
+  { id: 'nurse_west', segment: 'bed_hall_push', kind: 'nurse', from: [6.2, 0, -14.6], to: [6.6, 0, -17.6], delay: 6.5, speed: 1.1 },
+  { id: 'patient_door', segment: 'bed_hall_push', kind: 'patient', from: [13.4, 0, -35.2], to: [13.5, 0, -35.6], delay: 17, speed: 0.15, pause: [0.5, 4] },
   { id: 'orderly_east', segment: 'transfer_chair_corridor', kind: 'orderly', from: [1.5, 0, -55], to: [-1.6, 0, -55.6], delay: 9, speed: 1.6 },
   { id: 'nurse_halls', segment: 'gauntlet_halls', kind: 'nurse', from: [-1.5, G, -108], to: [1.6, G, -108.5], delay: 4, speed: 1.7 },
   { id: 'caf_cook', segment: 'gauntlet_cafeteria', kind: 'orderly', from: [27, G, -124], to: [24, G, -108], delay: 3, speed: 2.2 },
@@ -159,10 +159,13 @@ var env = {
   floors: { upper: 0, ground: G },
   zones: [
     { kind: 'patientRoom', min: [-3.6, 0, -6.5], max: [3.6, 3.0, 0], door: [0, -6.5], label: '412', ward: 'WARD 4B' },
-    { kind: 'hall', y: 0, a: [0, -6.5], b: [0, -40.5], w: 3.4, h: 2.9, name: 'WEST WING', doorsL: [-14.2, -22, -31.4], doorsR: [-11, -17.4, -28.2, -36], station: { side: 1, z: -24.5 },
-      props: [['gurney', -1.15, -26.5, 0], ['ivPole', 1.4, -9.5, 0], ['wheelchair', -1.2, -33.5, 1.2]], signs: [['WARD 4B  ·  WEST WING', 0, -7.4], ['← ELEVATORS', 0, -39.6]] },
-    { kind: 'hall', y: 0, a: [0, -40.5], b: [0, -66], w: 3.4, h: 2.9, name: 'EAST WING', doorsL: [-49.5, -58.4], doorsR: [-46, -55, -60.2],
-      props: [['crashCart', -0.55, -42.6, 0.25], ['wheelchairParked', 1.0, -40.4, 0], ['gurney', 1.2, -51, 0]], signs: [['ELEVATORS  ↑', 0, -45]] },
+    { kind: 'hall', y: 0, a: [0, -6.5], b: [0, -17.7], w: 3.4, h: 2.9, name: 'WEST WING', doorsL: [-11.5], doorsR: [-10], props: [['ivPole', 1.4, -8.6, 0]], signs: [['WARD 4B  ·  WEST WING', 0, -7.4]] },
+    { kind: 'hall', y: 0, a: [-1.7, -16], b: [13.7, -16], w: 3.4, h: 2.9, name: 'WEST WING CROSS', caps: ['a', 'b'], doorsL: [7.2], doorsR: [4.5, 9.5], props: [['gurney', -0.6, -16.6, 1.57]], signs: [['WARD 4B  →  BEDS 413–430', 4, -16]] },
+    { kind: 'hall', y: 0, a: [12, -16], b: [12, -43.7], w: 3.4, h: 2.9, name: 'WEST WING B', caps: ['b'], doorsL: [-24.5, -31.5], doorsR: [-20.5, -28, -35.2], station: { side: -1, z: -27.5 },
+      props: [['crashCart', 12.2, -43.0, 1.57], ['gurney', 13.1, -38.6, 0]], signs: [['ELEVATORS  →', 12, -23]] },
+    { kind: 'hall', y: 0, a: [13.7, -42], b: [-1.7, -42], w: 3.4, h: 2.9, name: 'WEST WING LINK', caps: ['a', 'b'], doorsL: [6], doorsR: [9], props: [['ivPole', 5, -43.4, 0]], signs: [['← ELEVATORS  ·  EAST WING', 7, -42]] },
+    { kind: 'hall', y: 0, a: [0, -42], b: [0, -66], w: 3.4, h: 2.9, name: 'EAST WING', doorsL: [-49.5, -58.4], doorsR: [-46, -55, -60.2],
+      props: [['gurney', 1.2, -51, 0]], signs: [['ELEVATORS  ↑', 0, -47]] },
     { kind: 'elevatorLobby', y: 0, min: [-4, 0, -74], max: [4, 3.2, -66], carZ: [-74, -77.8], floorLabel: '4', openSide: 'front' },
     { kind: 'elevatorLobby', y: G, min: [-4, G, -86], max: [4, G + 3.2, -77.8], carZ: [-74, -77.8], floorLabel: 'G', openSide: 'back', noCar: true },
     { kind: 'hall', y: G, a: [0, -86], b: [0, -117.8], w: 3.6, h: 3.0, name: 'GROUND · CORRIDOR A', doorsL: [-101.5, -95], doorsR: [-104.5, -92, -110], props: [['crashCart', 1.2, -97, 0], ['ivPole', -1.4, -106, 0]], signs: [['CAFETERIA  →', 0, -96]] },

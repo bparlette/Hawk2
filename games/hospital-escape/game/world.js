@@ -27,6 +27,7 @@ W.build = function(scene, data){ A.makeTextures(); var env = data.env, root = ne
   var mats = { floor: texMat(A.tex.vinyl, 1, 1, { roughness: 0.55 }), wall: texMat(A.tex.wall, 1, 1), ceil: texMat(A.tex.ceiling, 1, 1, { roughness: 0.95 }),
     panel: new THREE.MeshBasicMaterial({ map: A.tex.lightPanel, toneMapped: false, color: 0xf6fbff }), pool: new THREE.MeshBasicMaterial({ color: 0xfff1d8, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }),
     door: new THREE.MeshStandardMaterial({ map: A.tex.door, roughness: 0.6 }), frame: M(0xb8bfc4, { metalness: 0.3, roughness: 0.4 }), glass: new THREE.MeshStandardMaterial({ color: 0xa8c8d8, transparent: true, opacity: 0.22, metalness: 0.6, roughness: 0.05, depthWrite: false }) };
+  W._halls = env.zones.filter(function(z){ return z.kind === 'hall'; }); W.data = data;
   env.zones.forEach(function(z){ var g = new THREE.Group(); g.name = z.kind; var f = BUILD[z.kind]; if(f) f(z, g, mats, data); root.add(W.merge(g)); });
   return root; };
 // tiled surface helper: a w x d floor/ceiling with the texture repeated every `tile` m
@@ -47,6 +48,11 @@ W.openDoorNear = function(p, r){ var best = null, bd = r || 2.6; W.doors.forEach
 W.update = function(dt, t){ W.doors.forEach(function(d){ if(d.target && !d.elevator){ d.t = (d.t || 0) + dt; if(d.t > 3.5) d.target = 0; } d.open += ((d.target ? 1 : 0) - d.open) * Math.min(1, dt * (d.elevator ? 2.5 : 6));
     if(d.slide){ d.slide[0].position.x = -0.35 - d.open * 0.68; d.slide[1].position.x = 0.35 + d.open * 0.68; } else d.hinge.rotation.y = -d.open * 1.5; });
   W.anims.forEach(function(f){ f(dt, t); }); };
+function hallRect(o){ var hw = o.w / 2; return { x0: Math.min(o.a[0], o.b[0]) - (Math.abs(o.b[0] - o.a[0]) < 0.01 ? hw : 0), x1: Math.max(o.a[0], o.b[0]) + (Math.abs(o.b[0] - o.a[0]) < 0.01 ? hw : 0),
+  z0: Math.min(o.a[1], o.b[1]) - (Math.abs(o.b[1] - o.a[1]) < 0.01 ? hw : 0), z1: Math.max(o.a[1], o.b[1]) + (Math.abs(o.b[1] - o.a[1]) < 0.01 ? hw : 0) }; }
+// clearance: distance (xz) from a point to a data path's control polyline (keeps furniture / buildings off the route)
+W.pathDist = function(data, ids, x, z){ var best = 1e9; ids.forEach(function(id){ var P = data.paths.filter(function(p){ return p.id === id; })[0]; if(!P) return; var pts = P.points;
+  for(var i = 0; i < pts.length - 1; i++){ var ax = pts[i][0], az = pts[i][2], bx = pts[i + 1][0], bz = pts[i + 1][2], vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l2)); best = Math.min(best, Math.hypot(x - ax - vx * t, z - az - vz * t)); } }); return best; };
 var BUILD = {
   patientRoom: function(z, g, mats){ var y = z.min[1], w = z.max[0] - z.min[0], d = z.max[2] - z.min[2], cx = (z.min[0] + z.max[0]) / 2, cz = (z.min[2] + z.max[2]) / 2, h = z.max[1] - y;
     slab(w, d, mats.floor, 1.2, g, new V(cx, y, cz), true); slab(w, d, mats.ceil, 1.2, g, new V(cx, y + h, cz), false);
@@ -65,8 +71,17 @@ var BUILD = {
     var ds = A.sign(z.label, { w: 256, h: 128, mw: 0.5, bg: '#21384a' }); ds.position.set(dx + 1.05, y + 1.8, z.door[1] - 0.08); ds.rotation.y = Math.PI; g.add(ds); },
   hall: function(z, g, mats){ var y = z.y, a = new V(z.a[0], y, z.a[1]), b = new V(z.b[0], y, z.b[1]), d = b.clone().sub(a), L = d.length(), alongX = Math.abs(d.x) > Math.abs(d.z); d.normalize();
     var mid = a.clone().add(b).multiplyScalar(0.5), hw = z.w / 2, nrm = new V(-d.z, 0, d.x);   // nrm = right side
-    var fl = slab(alongX ? L : z.w, alongX ? z.w : L, mats.floor, 1.2, g, new V(mid.x, y, mid.z), true); var ce = slab(alongX ? L : z.w, alongX ? z.w : L, mats.ceil, 1.2, g, new V(mid.x, y + z.h, mid.z), false);
-    [-1, 1].forEach(function(sd){ var p = mid.clone().addScaledVector(nrm, sd * hw); p.y = y + z.h / 2; wallStrip(L, z.h, mats.wall, g, p, Math.atan2(-sd * nrm.x, -sd * nrm.z)); });
+    var zi = (W._halls || []).indexOf(z) * 0.0015; var fl = slab(alongX ? L : z.w, alongX ? z.w : L, mats.floor, 1.2, g, new V(mid.x, y + zi, mid.z), true); var ce = slab(alongX ? L : z.w, alongX ? z.w : L, mats.ceil, 1.2, g, new V(mid.x, y + z.h - zi, mid.z), false);
+    // walls, cut wherever another hall on this floor crosses them (junctions / corners open up automatically)
+    var others = (W._halls || []).filter(function(o){ return o !== z && o.y === z.y; });
+    [-1, 1].forEach(function(sd){ var cuts = [];
+      others.forEach(function(o){ var r = hallRect(o), e = 0.02; for(var k = 0; k <= 400; k++){ var sp = L * k / 400, q = a.clone().addScaledVector(d, sp).addScaledVector(nrm, sd * hw);
+          var inside = q.x > r.x0 + e && q.x < r.x1 - e && q.z > r.z0 + e && q.z < r.z1 - e; if(inside) cuts.push(sp); } });
+      cuts.sort(function(p1, p2){ return p1 - p2; }); var runs = [], s0 = 0, i = 0, step = L / 400;
+      while(i < cuts.length){ var c0 = cuts[i], c1 = c0; while(i + 1 < cuts.length && cuts[i + 1] - c1 <= step * 1.5){ i++; c1 = cuts[i]; } if(c0 - step > s0) runs.push([s0, c0 - step]); s0 = c1 + step; i++; }
+      if(s0 < L) runs.push([s0, L]);
+      runs.forEach(function(rn){ var ln = rn[1] - rn[0]; if(ln < 0.05) return; var p = a.clone().addScaledVector(d, (rn[0] + rn[1]) / 2).addScaledVector(nrm, sd * hw); p.y = y + z.h / 2; wallStrip(ln, z.h, mats.wall, g, p, Math.atan2(-sd * nrm.x, -sd * nrm.z)); }); });
+    (z.caps || []).forEach(function(cp){ var at = cp === 'a' ? a : b, inward = cp === 'a' ? d.clone() : d.clone().negate(); var p = at.clone(); p.y = y + z.h / 2; wallStrip(z.w, z.h, mats.wall, g, p, Math.atan2(inward.x, inward.z)); });
     lights(g, mats, a, b, y, z.h, 3.2);
     var place = function(s, side){ return a.clone().addScaledVector(d, s).addScaledVector(nrm, side * (hw - 0.02)); };
     var sOf = function(c){ return alongX ? (c - a.x) * Math.sign(d.x) : (c - a.z) * Math.sign(d.z); };
@@ -103,7 +118,7 @@ var BUILD = {
     A.box(0.12, h - 2.4, 2.6, mats.wall, z.max[0], y + 2.4 + (h - 2.4) / 2, dz0, g);
     // floor-to-ceiling glass partition at x = glassX with a door gap on the rail line
     for(var zz = z.min[2] + 1; zz < z.max[2]; zz += 2){ if(Math.abs(zz - z.doorZ) < 1.4) continue; var gp = A.box(0.04, h - 0.1, 1.95, mats.glass, z.glassX, y + h / 2, zz, g); gp.userData.glass = true; A.box(0.08, h, 0.08, mats.frame, z.glassX, y + h / 2, zz + 1, g); }
-    for(var x = z.glassX + 3; x < z.counterX - 2; x += 3.4) for(var zt = z.min[2] + 2.5; zt < z.max[2] - 1.5; zt += 3.2){ if(Math.abs(zt - z.doorZ) < 1.6) continue; var t = A.table(); t.position.set(x, y, zt); g.add(t);
+    for(var x = z.glassX + 3; x < z.counterX - 2; x += 3.4) for(var zt = z.min[2] + 2.5; zt < z.max[2] - 1.5; zt += 3.2){ if(W.pathDist(W.data, ['g_caf'], x, zt) < 2.1) continue; var t = A.table(); t.position.set(x, y, zt); g.add(t);
       [-0.75, 0.75].forEach(function(o){ var c = A.box(0.42, 0.05, 0.42, M(0xd06a2a), x + o, y + 0.46, zt, g); A.box(0.42, 0.42, 0.05, M(0xd06a2a), x + o + (o > 0 ? 0.2 : -0.2), y + 0.7, zt, g).rotation.y = Math.PI / 2; }); }
     var cnt = new THREE.Group(); cnt.position.set(z.counterX, y, cz - 5.2); g.add(cnt); A.box(1.0, 1.0, d * 0.4, M(0x8a5a3a), 0, 0.5, 0, cnt); A.box(1.2, 0.06, d * 0.4, M(0xc8ccd0, { metalness: 0.7, roughness: 0.3 }), 0, 1.03, 0, cnt);
     A.box(0.04, 0.45, d * 0.38, mats.glass, -0.4, 1.3, 0, cnt); for(var q = -4; q <= 4; q += 1.5) A.box(0.5, 0.04, 0.35, M(0x2f6f8f), -0.65, 1.08, q, cnt);
@@ -122,7 +137,7 @@ var BUILD = {
     slab(w, d, mats.floor, 1.2, g, new V(cx, y, cz), true); slab(w, d, mats.ceil, 1.2, g, new V(cx, y + h, cz), false);
     wallStrip(d, h, mats.wall, g, new V(z.min[0], y + h / 2, cz), Math.PI / 2); wallStrip(d, h, mats.wall, g, new V(z.max[0], y + h / 2, cz), -Math.PI / 2);
     lights(g, mats, new V(cx, 0, z.max[2]), new V(cx, 0, z.min[2]), y, h, 3.0);
-    for(var r = 0; r < 4; r++){ [-1, 1].forEach(function(sd){ var row = A.chairRow(4); row.position.set(sd < 0 ? z.min[0] + 0.8 : 59.8, y, -135.5 - r * 3.4); row.rotation.y = 0; g.add(row); }); }
+    for(var r = 0; r < 4; r++){ [-1, 1].forEach(function(sd){ var row = A.chairRow(4), rx = sd < 0 ? z.min[0] + 0.8 : 61.4, rz = -135.5 - r * 3.4; if(W.pathDist(W.data, ['g_wait'], rx + 0.9, rz) < 1.6) return; row.position.set(rx, y, rz); row.rotation.y = 0; g.add(row); }); }
     var rd = new THREE.Group(); rd.position.set(z.max[0] - 1.4, y, -146); g.add(rd); A.box(1.0, 1.1, 3.2, M(0x6a8f9a), 0, 0.55, 0, rd); A.box(1.2, 0.06, 3.4, new THREE.MeshStandardMaterial({ map: A.tex.wood }), 0, 1.12, 0, rd);
     var adm = A.sign('ADMISSIONS', { w: 512, h: 128, mw: 1.8 }); adm.position.set(z.max[0] - 0.05, y + 2.4, -146); adm.rotation.y = -Math.PI / 2; g.add(adm);
     var vm = A.vending(); vm.position.set(z.min[0] + 0.5, y, -146); vm.rotation.y = Math.PI / 2; g.add(vm); var pl = A.plant(); pl.position.set(z.max[0] - 0.6, y, -134); g.add(pl);
@@ -158,9 +173,9 @@ var BUILD = {
         var seg = new THREE.Group(); seg.position.set(p.x, y, p.z); seg.rotation.y = yaw; g.add(seg);
         A.box(13, 0.04, step + 0.08, asphalt, 0, -0.02, 0, seg); if(i % 2 === 0) A.box(0.16, 0.05, step * 0.5, line, 0, 0.005, 0, seg); [-1, 1].forEach(function(sd){ A.box(0.12, 0.05, step + 0.08, white, sd * 6.1, 0.005, 0, seg); A.box(3.2, 0.16, step + 0.08, side, sd * 8.1, 0.06, 0, seg); A.box(0.2, 0.18, step + 0.08, M(0x9a978f), sd * 6.55, 0.07, 0, seg); });
         if(pid === 'bay_route') continue;
-        if(i % 4 === 0){ [-1, 1].forEach(function(sd){ var sl = A.streetLight(); sl.position.set(sd * 7.2, 0, 0); sl.rotation.y = sd > 0 ? Math.PI : 0; seg.add(sl); }); }
-        if(i % 3 === 1){ [-1, 1].forEach(function(sd){ var tr = A.tree(0.8 + rnd() * 0.5); tr.position.set(sd * 9.2, 0, rnd() * 3); seg.add(tr); }); }
-        if(i % 5 === 0){ [-1, 1].forEach(function(sd){ var bw = 14 + rnd() * 10, bh = 9 + rnd() * 20, fm = facades[Math.floor(rnd() * 4)].clone(); fm.map = fm.map.clone(); fm.map.needsUpdate = true; fm.map.repeat.set(bw / 14, bh / 16);
+        if(i % 4 === 0){ [-1, 1].forEach(function(sd){ var lq = p.clone().addScaledVector(right, sd * 7.2); if(W.pathDist(data, z.paths, lq.x, lq.z) < 6.6) return; var sl = A.streetLight(); sl.position.set(sd * 7.2, 0, 0); sl.rotation.y = sd > 0 ? Math.PI : 0; seg.add(sl); }); }
+        if(i % 3 === 1){ [-1, 1].forEach(function(sd){ var tq = p.clone().addScaledVector(right, sd * 9.2); if(W.pathDist(data, z.paths, tq.x, tq.z) < 8.4) return; var tr = A.tree(0.8 + rnd() * 0.5); tr.position.set(sd * 9.2, 0, rnd() * 3); seg.add(tr); }); }
+        if(i % 5 === 0){ [-1, 1].forEach(function(sd){ var bw = 14 + rnd() * 10, bh = 9 + rnd() * 20, bc = p.clone().addScaledVector(right, sd * (14 + bw / 2)); if(W.pathDist(data, z.paths, bc.x, bc.z) < Math.hypot(bw, 26) / 2 + 7) return; var fm = facades[Math.floor(rnd() * 4)].clone(); fm.map = fm.map.clone(); fm.map.needsUpdate = true; fm.map.repeat.set(bw / 14, bh / 16);
           var b = A.box(bw, bh, 26, fm, sd * (14 + bw / 2), bh / 2, 0, seg); }); } }
       var d = def; if(z.overpassAt && pid === 'chase_road'){ var op = path.pointAt(z.overpassAt), ot = path.tangentAtS(path.sOf(z.overpassAt)); ot.y = 0; ot.normalize(); var ob = new THREE.Group(); ob.position.set(op.x, y, op.z); ob.rotation.y = Math.atan2(ot.x, ot.z); g.add(ob);
         A.box(60, 1.4, 12, M(0x8a8a86), 0, 7.2, 0, ob); A.box(60, 1.0, 0.4, M(0x9a9a96), 0, 8.4, 5.8, ob); A.box(60, 1.0, 0.4, M(0x9a9a96), 0, 8.4, -5.8, ob); [-1, 1].forEach(function(sd){ A.box(1.6, 6.6, 10, M(0x7d7d79), sd * 9.5, 3.3, 0, ob); });

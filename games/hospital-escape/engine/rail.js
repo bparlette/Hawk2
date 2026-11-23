@@ -36,6 +36,9 @@ HE.compilePath = function(def){
 
 // ---- the rig: rider ON the path, pusher 0.55 m behind on the same path, camera `height` above the floor line and
 // `back` metres behind the rider ALONG the spline; look-at blends tangent <-> look keys. Speed from data only.
+// ext (gated by game.cameraOffset, set only by a game layer): a head/neck offset { yaw, pitch, roll (rad), pos: Vector3 }
+// applied INSIDE camera placement, so the reticle raycast uses exactly the camera the player sees
+HE.applyCameraOffset = function(game, cam){ var o = game.cameraOffset; if(!o) return; if(o.pos) cam.position.add(o.pos); if(o.yaw) cam.rotateY(o.yaw); if(o.pitch) cam.rotateX(o.pitch); if(o.roll) cam.rotateZ(o.roll); };
 HE.Rail = function(game){
   var r = { path: null, s: 0, released: 0, holdKey: -1, endReached: false, firedEvents: {}, lookDir: new THREE.Vector3(0, 0, -1), _speed: 0 };
   r.setPath = function(path, mode){ r.path = path; r.mode = mode; r.s = path.lead; r.released = 0; r.consumed = {}; r.endReached = false; r.firedEvents = {}; r.holdT = 0;
@@ -86,7 +89,7 @@ HE.Rail = function(game){
     if(!stopped && _des.dot(fwd) < Math.cos(110 * Math.PI / 180)) _des.copy(base);
     if(clampDeg){ var a = Math.acos(HE.clamp(_des.dot(base), -1, 1)), c = clampDeg * Math.PI / 180; if(a > c) _des.copy(base).lerp(_des, c / a).normalize(); }   // ext: keeps the heroes in frame
     if(snap) r.lookDir.copy(_des); else if(dt > 0) r.lookDir.lerp(_des, 1 - Math.exp(-dt / 0.35)).normalize();
-    cam.lookAt(_tgt.copy(pos).add(r.lookDir)); cam.updateMatrixWorld(); };
+    cam.lookAt(_tgt.copy(pos).add(r.lookDir)); HE.applyCameraOffset(game, cam); cam.updateMatrixWorld(); };
   return r;
 };
 })();

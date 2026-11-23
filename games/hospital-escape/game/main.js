@@ -10,7 +10,7 @@ var game = HE.install(HE.createGame({ seed: +Q.get('seed') || 1 })), scene = gam
 scene.children.filter(function(o){ return o.isLight; }).forEach(function(l){ scene.remove(l); });
 var hemi = new THREE.HemisphereLight(0xf2f7ff, 0x6b665c, 0.95), sun = new THREE.DirectionalLight(0xffffff, 0.45); sun.position.set(20, 40, 10); scene.add(hemi); scene.add(sun); scene.add(sun.target);
 var flashLight = new THREE.PointLight(0xffd59a, 0, 7, 2); scene.add(flashLight);
-var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2) * (Q.get('post') === '0' ? 1 : 0.7));   // patient-eyes: composite no longer runs at full res
 renderer.outputEncoding = THREE.LinearEncoding; renderer.toneMapping = THREE.NoToneMapping;   /* HDR scene target; ACES + sRGB happen in the post composite */ $('game').appendChild(renderer.domElement);
 function resize(){ renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); } addEventListener('resize', resize); resize();
 W.build(scene, HE.DATA);
@@ -53,7 +53,7 @@ gb.moveCover = function(o, p, e){ if(o){ var q = p.clone(); if(e && e.hideDir) q
 var _rm = gb.removeObject; gb.removeObject = function(o){ var i = game.extraOccluders.indexOf(o); if(i >= 0) game.extraOccluders.splice(i, 1); _rm(o); };
 gb.addCar = function(role, kind){ var c = A.car(kind); c.name = role; scene.add(c); gb.actors[role] = c; c.userData.spin = 0; return c; };
 var train = null; gb.addTrain = function(){ if(train) scene.remove(train); train = A.train(); scene.add(train); gb.train = train; placeTrain(0); sfx.horn(); };
-function placeTrain(t){ var ci = W.crossingInfo; if(!ci || !train) return; var ap = HE.DATA.tuning.trainApproach, x = Math.min((t - ap) * 32, 75); train.position.copy(ci.pos).addScaledVector(ci.along, x); train.lookAt(train.position.clone().add(ci.along)); }
+function placeTrain(t){ var ci = W.crossingInfo; if(!ci || !train) return; var ap = HE.DATA.tuning.trainApproach, x = Math.min((t - ap) * 13, 90);   /* rolls through at ~47 km/h: the locomotive crosses the frame for seconds */ train.position.copy(ci.pos).addScaledVector(ci.along, x); train.lookAt(train.position.clone().add(ci.along)); }
 gb.placeTrain = placeTrain; gb.removeTrain = function(){ if(train) scene.remove(train); train = null; };
 // ------------------------------------------------------------------ helpers
 var _a = new V(), _b = new V(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), DOWN = new V(0, -1, 0);
@@ -114,7 +114,7 @@ var sfx = { shot: function(heavy){ if(!AC) return; var n = noise(), f = AC.creat
   siren: function(on){ if(!AC) return; if(on && !sirenNode){ var o = AC.createOscillator(), l = AC.createOscillator(), lg = AC.createGain(), g = AC.createGain(); o.type = 'triangle'; o.frequency.value = 700; l.frequency.value = 0.7; lg.gain.value = 220; l.connect(lg); lg.connect(o.frequency); g.gain.value = 0.05; o.connect(g); g.connect(master); o.start(); l.start(); sirenNode = { o: o, l: l, g: g }; }
     if(!on && sirenNode){ sirenNode.o.stop(); sirenNode.l.stop(); sirenNode = null; } } };
 // ------------------------------------------------------------------ HUD + input
-var aimDrag = null, stick = null, keys = {}, started = false, auto = Q.get('auto') === '1', lastMode = null, score = 0, banner = null;
+var paused = false, aimDrag = null, stick = null, keys = {}, started = false, auto = Q.get('auto') === '1', lastMode = null, score = 0, banner = null;
 function showBanner(text, cls, ms){ var b = $('banner'); b.textContent = text; b.className = 'show ' + (cls || ''); clearTimeout(banner); banner = setTimeout(function(){ b.className = ''; }, ms || 1600); }
 function popup(text, x, y, cls){ var d = document.createElement('div'); d.className = 'pop ' + (cls || ''); d.textContent = text; d.style.left = x + 'px'; d.style.top = y + 'px'; $('pops').appendChild(d); setTimeout(function(){ d.remove(); }, 900); }
 function isUI(e){ return e.target.closest && e.target.closest('.btn,#card,#start,#dev'); }
@@ -138,7 +138,7 @@ function getInput(){ var kx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.Key
 $('startBtn').addEventListener('click', function(){ audioUnlock(); $('start').style.display = 'none'; started = true; game.gotoBeat(Q.get('beat') || 'visit'); if(Q.get('seg')) game.gotoSegment(Q.get('beat'), +Q.get('seg')); });
 $('cardBtn').addEventListener('click', function(){ $('card').style.display = 'none'; clearFlights(); if(game.ended) game.gotoBeat('visit'); else game.gotoBeat(game.beat); });
 window.__dbg.autopilot = function(on){ auto = !!on; if(!auto) inp.fire = false; return auto; };          // ext: verification autopilot (additive)
-window.__game = { game: game, start: function(beat){ $('start').style.display = 'none'; started = true; game.gotoBeat(beat || 'visit'); }, ff: function(secs, ap){ var n = Math.round(secs * 60); for(var i = 0; i < n && !game.ended && !game.lost; i++){ if(ap) HE.autopilot(game); game.step(1 / 60); present(1 / 60); } } };
+window.__game = { game: game, pause: function(v){ paused = !!v; }, start: function(beat){ $('start').style.display = 'none'; $('card').style.display = 'none'; started = true; game.gotoBeat(beat || 'visit'); }, ff: function(secs, ap){ var n = Math.round(secs * 60); for(var i = 0; i < n; i++){ if(!game.ended && !game.lost){ if(ap) HE.autopilot(game); game.step(1 / 60); } processEvents(); present(1 / 60); } } };
 if(Q.get('autostart') === '1'){ $('start').style.display = 'none'; started = true; game.gotoBeat(Q.get('beat') || 'visit'); }
 // ------------------------------------------------------------------ per-mode presentation
 var BEAT_TITLES = { visit: '1 · ROOM 412', bed_push: '2 · THE BED', transfer: '3 · THE TRANSFER', elevator: '4 · GOING DOWN', gauntlet: '5 · THE GAUNTLET', entrance: '6 · THE FRONT DOORS', steal: '7 · THE AMBULANCE', chase: '8 · HARBOR AVENUE', train_finale: '9 · THE LINE 9 CROSSING' };
@@ -148,7 +148,7 @@ function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(on){ scene.
   else { scene.fog = new THREE.Fog(0x1c2328, 14, 60); hemi.color.set(0xb9c9d6); hemi.groundColor.set(0x3a342e); hemi.intensity = 0.48; sun.color.set(0xdfe8ff); sun.intensity = 0.18; sun.position.set(20, 40, 10); sky.visible = false; } }
 setOutdoor(true); setOutdoor(false);
 function placeOnPath(o, path, s, off){ var p = path.pointAtS(s), t = fwdOf(path, s); o.position.copy(p); if(off) o.position.add(off); yawTo(o, t); return t; }
-function present(dt){ tAnim += dt; var st = game.state(), r = game.rail, m = st.mode, seg = st.segment || '';
+function present(dt){ tAnim += dt; patientStep(dt); var st = game.state(), r = game.rail, m = st.mode, seg = st.segment || '';
   if(st.beat !== lastBeat){ lastBeat = st.beat; if(started) showBanner(BEAT_TITLES[st.beat] || st.beat, 'title', 2200); }
   setOutdoor(st.beat === 'steal' && seg !== 'steal_cut' || st.beat === 'chase' || st.beat === 'train_finale' || seg === 'steal_cut');
   hale.visible = st.beat === 'visit'; if(m !== 'AMBULANCE' && seg !== 'steal_cut'){ var bp0 = game.path('bay_route'); placeOnPath(amb, bp0, bp0.lead); }
@@ -194,6 +194,58 @@ function stageCutscene(seg){ var r = game.rail;
     maya.position.copy(chair.position).add(new V(-0.75, 0, 0.2)); yawTo(maya, new V(1, 0, -0.2)); A.pose(maya, 'push', tAnim); bed.visible = true; }
   else if(seg === 'steal_cut'){ var ap = game.path('bay_route'); placeOnPath(amb, ap, ap.lead); chair.visible = true; chair.position.set(58.6, -12, -177.2); chair.rotation.y = Math.PI; cole.position.copy(chair.position); yawTo(cole, new V(0, 0, -1)); A.pose(cole, 'sit', tAnim);
     maya.position.set(59.6, -12, -178.4); yawTo(maya, new V(-0.4, 0, -1)); A.pose(maya, 'walk', tAnim); bed.visible = false; } }
+
+// ------------------------------------------------------------------ PATIENT EYES (PATIENT-EYES-SPEC.md): neck, lids, focus drift, ambulance sway
+// The neck drives game.cameraOffset (applied INSIDE the engine's camera placement, so aim = what you see).
+var PE = { sy: 0, sp: 0, vy: 0, vp: 0, ey: null, ep: null, jy: 0, jp: 0, jr: 0, jvy: 0, jvp: 0, jvr: 0, swR: 0, swY: 0, svR: 0, svY: 0,
+  lid: 0, blinkT: -1, blinkDur: 0.15, nextBlink: 3, heat: 0, drift: 0, driftT: 0, driftLen: 0, nextDrift: 6, closeT: 0, t: 0, hitN: 0 };
+game.cameraOffset = { yaw: 0, pitch: 0, roll: 0 };
+window.__pe = function(){ return { lid: PE.lid, red: post ? post.u.lidRed.value : 0, heat: PE.heat, drift: PE.drift, closeT: PE.closeT }; };   // verification readout
+var _ld = new V();
+function wrapA(a){ while(a > Math.PI) a -= 2 * Math.PI; while(a < -Math.PI) a += 2 * Math.PI; return a; }
+function pseudo(k){ var x = Math.sin(k * 12.9898 + PE.hitN * 78.233) * 43758.5453; return x - Math.floor(x); }
+function patientStep(dt){ if(dt <= 0) return; PE.t += dt; var st = game.state(), m = st.mode, cole = m !== 'FREE_FOOT', dmg = 1 - st.health / 100, O = game.cameraOffset, t = PE.t;
+  // --- engine look (pre-offset) as yaw/pitch; an under-damped spring follows it: lag + ~15% overshoot + settle
+  if(m === 'FREE_FOOT' && game.foot) _ld.copy(game.foot.fwd); else _ld.copy(game.rail.lookDir);
+  var ey = Math.atan2(-_ld.x, -_ld.z), ep = Math.asin(HE.clamp(_ld.y, -1, 1));
+  if(PE.ey === null || Math.abs(wrapA(ey - PE.ey)) > 1.2 || PE.seg !== st.segment){ PE.sy = ey; PE.sp = ep; PE.vy = PE.vp = 0; PE.jy = PE.jp = PE.jr = PE.jvy = PE.jvp = PE.jvr = 0; PE.swR = PE.swY = PE.svR = PE.svY = 0; PE.seg = st.segment; }   // segment cut: no whip-pan
+  PE.ey = ey; PE.ep = ep; var w = cole ? 6.5 - dmg * 2 : 9, z = 0.5;
+  PE.vy += (w * w * wrapA(ey - PE.sy) - 2 * z * w * PE.vy) * dt; PE.sy = wrapA(PE.sy + PE.vy * dt);
+  PE.vp += (w * w * (ep - PE.sp) - 2 * z * w * PE.vp) * dt; PE.sp += PE.vp * dt;
+  // --- weak neck: incommensurate wobble + drift, a hunch that deepens with damage
+  var amb = m === 'AMBULANCE', A0 = cole ? (0.007 + dmg * 0.022) * (amb ? 1.7 : 1) : 0.002;
+  var wy = A0 * (Math.sin(t * 0.91) + 0.6 * Math.sin(t * 2.33 + 1.0) + 0.3 * Math.sin(t * 4.07 + 2.2));
+  var wp = A0 * 0.8 * (Math.sin(t * 1.13 + 2.0) + 0.5 * Math.sin(t * 2.87 + 0.4));
+  var wr = A0 * 0.9 * (Math.sin(t * 0.67 + 0.5) + 0.4 * Math.sin(t * 1.93 + 1.7));
+  var hunch = cole && m !== 'CUTSCENE' ? -(0.022 + dmg * 0.05) : 0;
+  // --- hit jolt: an impulse, then an over-damped, slower-when-hurt re-centre
+  var jw = 4.2 - dmg * 2.4, jz = 1.15;
+  PE.jvy += (-jw * jw * PE.jy - 2 * jz * jw * PE.jvy) * dt; PE.jy += PE.jvy * dt;
+  PE.jvp += (-jw * jw * PE.jp - 2 * jz * jw * PE.jvp) * dt; PE.jp += PE.jvp * dt;
+  PE.jvr += (-jw * jw * PE.jr - 2 * jz * jw * PE.jvr) * dt; PE.jr += PE.jvr * dt;
+  // --- ambulance: the head rolls and lags WITH the vehicle (path yaw rate x speed), sloshy spring, scaled by damage
+  var tgR = 0, tgY = 0;
+  if(amb && game.rail.path){ var pth = game.rail.path, sp0 = game.rail.speed(), t1 = pth.tangentAtS(game.rail.s), t2 = pth.tangentAtS(game.rail.s + 4);
+    var rate = wrapA(Math.atan2(-t2.x, -t2.z) - Math.atan2(-t1.x, -t1.z)) / 4 * sp0;                       // rad/s of vehicle yaw
+    var k = 1 + dmg * 1.5; tgR = HE.clamp(-rate * 0.3 * k, -0.12, 0.12); tgY = HE.clamp(-rate * 0.16 * k, -0.07, 0.07);
+    var woozy = (0.01 + dmg * 0.02) * Math.min(1, sp0 / 12); tgR += woozy * Math.sin(t * 0.53 + 0.3); tgY += woozy * 0.7 * Math.sin(t * 0.41 + 1.1); }
+  var sw = 2.4, sz = 0.6; PE.svR += (sw * sw * (tgR - PE.swR) - 2 * sz * sw * PE.svR) * dt; PE.swR += PE.svR * dt; PE.svY += (sw * sw * (tgY - PE.swY) - 2 * sz * sw * PE.svY) * dt; PE.swY += PE.svY * dt;
+  O.yaw = (cole ? wrapA(PE.sy - ey) : 0) + wy + PE.jy + PE.swY; O.pitch = (cole ? PE.sp - ep : 0) + wp + hunch + PE.jp; O.roll = wr + PE.jr + PE.swR;
+  if(m === 'CUTSCENE'){ O.yaw *= 0.4; O.pitch = O.pitch * 0.4; O.roll *= 0.4; }
+  // --- eyelids: base coverage by health, droop under sustained fire, blinks (longer + more frequent when hurt), a forced hard blink per hit
+  PE.heat = Math.max(0, PE.heat - dt * 0.28);
+  var base = cole ? 0.03 + 0.26 * Math.pow(dmg, 1.15) : 0, droop = Math.min(0.14, PE.heat * 0.1), cover = Math.min(0.3, base + droop);   // FLOOR RULE: <= 30% per lid in play
+  PE.nextBlink -= dt; if(cole && PE.nextBlink <= 0 && PE.blinkT < 0){ PE.blinkT = 0; PE.blinkDur = 0.13 + dmg * 0.32; PE.nextBlink = (5.5 - dmg * 4.1) * (0.7 + 0.6 * pseudo(t)); }
+  var bl = 0; if(PE.blinkT >= 0){ PE.blinkT += dt; var u = PE.blinkT / PE.blinkDur; bl = u < 0.35 ? u / 0.35 : Math.max(0, 1 - (u - 0.35) / 0.65); if(u >= 1) PE.blinkT = -1; }
+  PE.lid = cover + bl * (0.5 - cover);                                                                       // a blink instant reaches full closure
+  // --- focus drift episodes: longer + more frequent out-of-focus stretches with damage
+  PE.nextDrift -= dt; if(cole && PE.nextDrift <= 0 && PE.driftT <= 0){ PE.driftLen = 1.0 + dmg * 3.2; PE.driftT = PE.driftLen; PE.nextDrift = (9 - dmg * 6.5) * (0.6 + 0.8 * pseudo(t + 3)); }
+  if(PE.driftT > 0){ PE.driftT -= dt; var dk = 1 - Math.abs(1 - 2 * (1 - PE.driftT / PE.driftLen)); PE.drift = Math.max(0, dk) * (0.35 + dmg * 0.65); } else PE.drift = Math.max(0, PE.drift - dt);
+  // --- the lose state: the lids shut, THEN "COLE IS DOWN"
+  if(st.lost){ PE.closeT = Math.min(1, PE.closeT + dt / 0.9); PE.lid = Math.max(PE.lid, PE.closeT * 0.56); } else PE.closeT = 0; }
+function patientHit(n){ PE.hitN++; var sgn = pseudo(PE.t + 7) < 0.5 ? -1 : 1, k = Math.min(2, n / 4.5) * (game.mode === 'AMBULANCE' ? 0.55 : 1);
+  PE.jvy += sgn * 0.85 * k; PE.jvp += 0.65 * k; PE.jvr += -sgn * 0.75 * k; PE.heat = Math.min(3, PE.heat + n / 9);
+  if(game.mode !== 'FREE_FOOT'){ PE.blinkT = 0; PE.blinkDur = 0.17 + (1 - game.combat.health / 100) * 0.2; } }   // forced hard blink / flinch
 // ------------------------------------------------------------------ engine events -> FX / HUD
 var logIdx = 0;
 function processEvents(){ var L = game._log; for(; logIdx < L.length; logIdx++){ var e = L[logIdx], d = e.data;
@@ -201,6 +253,7 @@ function processEvents(){ var L = game._log; for(; logIdx < L.length; logIdx++){
     var end = d.point ? new V().fromArray(d.point) : mz.clone().addScaledVector(aimRay(), 40); tracer(mz, end, 0xffe2a0, 0.06, 0.03); if(d.point){ sparks(end, d.hit ? 3 : 6); } }
   else if(e.type === 'partnerShot'){ var en = game.combat.byRole(d.role); if(en){ mayaTarget.copy(en.pos).setY(en.pos.y + 1.3); } mayaFireT = 0.45; var mm = A.muzzleWorld(maya, new V()); if(mm){ muzzle(mm); tracer(mm, new V().fromArray(d.to), 0xffd080, 0.07, 0.03); } sfx.shot(false); }
   else if(e.type === 'enemyShot'){ addFlight(d); var src = gb.actors[d.role], mz2 = src ? (A.muzzleWorld(src, new V()) || new V().fromArray(d.from)) : new V().fromArray(d.from); muzzle(mz2, true); sprite(TX.flash, mz2, 1.3, 0.07); sfx.enemy(d.red); }
+  else if(e.type === 'heroHit'){ patientHit(d.n || 5); }
   else if(e.type === 'shotLand'){ var p = new V().fromArray(d.at); sparks(p, d.hit ? 4 : 7); sfx.impact(); if(d.hit){ sprite(TX.red, p, 0.9, 0.18); sfx.hurt(); } }
   else if(e.type === 'hitmarker'){ var hm = $('hm'); hm.style.left = d.x * innerWidth + 'px'; hm.style.top = d.y * innerHeight + 'px'; hm.style.opacity = 1; }
   else if(e.type === 'kill'){ var o = gb.actors[d.role]; if(o && d.points){ var pp = project(o.position.clone().setY(o.position.y + 1.9)); popup('+' + d.points, pp.x, pp.y, d.quick ? 'quick' : ''); if(d.quick) popup('QUICK DRAW', pp.x, pp.y - 26, 'quick'); } }
@@ -215,19 +268,19 @@ function processEvents(){ var L = game._log; for(; logIdx < L.length; logIdx++){
   else if(e.type === 'pickup'){ showBanner('MACHINE PISTOL', 'title', 1400); } } }
 // ------------------------------------------------------------------ HUD render
 function hud(){ var s = game.state(), f = s.feedback, m = s.mode;
-  $('vig').style.opacity = f.vignette; $('wash').style.opacity = f.wash; $('hm').style.opacity = Math.max(0, (+$('hm').style.opacity || 0) - 0.07);
+  var pe = post && post.enabled && Q.get('post') !== '0'; $('vig').style.opacity = pe ? 0 : f.vignette; $('wash').style.opacity = pe ? 0 : f.wash;   // patient eyes: the lids + post carry damage $('hm').style.opacity = Math.max(0, (+$('hm').style.opacity || 0) - 0.07);
   var showGun = started && m && m !== 'CUTSCENE' && !s.lost && !s.ended; $('ret').style.display = showGun ? 'block' : 'none'; $('ret').style.left = inp.aim.x * innerWidth + 'px'; $('ret').style.top = inp.aim.y * innerHeight + 'px';
   fireBtn.style.display = showGun ? 'flex' : 'none'; var W0 = HE.DATA.tuning.weapons[s.ammo.weapon], low = s.ammo.mag <= W0.mag * 0.3 || game.combat.reloadT > 0; $('reload').style.display = showGun && (m === 'FREE_FOOT' || low) ? 'flex' : 'none'; $('reload').textContent = game.combat.reloadT > 0 ? '···' : 'RELOAD';
   $('full').style.display = m === 'FREE_FOOT' && showGun ? 'flex' : 'none';     // the full HUD exists only in the on-foot segment
   if(m === 'FREE_FOOT'){ $('hpbar').style.width = s.health + '%'; $('hpbar').style.background = s.nearDeath ? '#c9d84a' : '#f2f2ee'; $('ammo').textContent = s.ammo.mag + ' / ∞'; $('score').textContent = s.score; }
   $('sub').innerHTML = s.subtitle ? '<b>' + ({ HERO: 'COLE', FRIEND: 'MAYA' }[s.subtitle.speaker] || s.subtitle.speaker.replace(/^NPC:/, '').toUpperCase()) + '</b> ' + s.subtitle.text.replace(/</g, '&lt;') : '';
-  if(s.lost){ $('cardTitle').textContent = 'COLE IS DOWN'; $('cardBody').textContent = 'Every hit you took was a red shot first. Watch for the red.'; $('cardBtn').textContent = 'RETRY THIS BEAT'; $('card').style.display = 'flex'; }
+  if(s.lost && PE.closeT >= 0.95){ $('cardTitle').textContent = 'COLE IS DOWN'; $('cardBody').textContent = 'Every hit you took was a red shot first. Watch for the red.'; $('cardBtn').textContent = 'RETRY THIS BEAT'; $('card').style.display = 'flex'; }
   else if(s.ended && $('card').style.display !== 'flex'){ $('cardTitle').textContent = 'OUT. NOTHING IN THE MIRRORS.'; $('cardBody').innerHTML = 'Score <b>' + s.score + '</b> · Accuracy <b>' + Math.round(s.accuracy * 100) + '%</b><br>Staff & patients spared <b>' + s.bystanders.spared + '</b> · hit <b>' + s.bystanders.hit + '</b><br><small>Level 1 — St. Mercer Memorial</small>'; $('cardBtn').textContent = 'RUN IT AGAIN'; $('card').style.display = 'flex'; }
   var chasing = s.pursuers.some(function(p){ return p.state === 'pursuing' && p.kind !== 'suv'; }); sfx.siren(chasing && !s.won); }
 // ------------------------------------------------------------------ loop
 var acc = 0, last = performance.now(), DT = 1 / 60;
 function frame(now){ acc += Math.min(0.1, (now - last) / 1000); last = now;
-  if(started){ if(game.mode === 'FREE_FOOT'){ var gi = getInput(); if(!auto){ inp.move.x = gi.x; inp.move.y = gi.y; } }
+  if(started && !paused){ if(game.mode === 'FREE_FOOT'){ var gi = getInput(); if(!auto){ inp.move.x = gi.x; inp.move.y = gi.y; } }
     while(acc >= DT){ if(auto) HE.autopilot(game); game.step(DT); acc -= DT; processEvents(); present(DT); } }
   else { acc = 0; present(0); }
   sky.position.copy(camera.position); hud(); var sh = game.state().feedback.shake * 0.05, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh; camera.position.x += ox; camera.position.y += oy;
@@ -241,7 +294,9 @@ function tunePost(){ var u = post.u, s = game.state(), f = s.feedback, m = s.mod
   if(s.health < lastHp) kick = 1; lastHp = s.health; kick = Math.max(0, kick - 0.04);
   u.focus.value = focusS; u.nearBlur.value = m === 'CUTSCENE' ? 3 : m === 'AMBULANCE' ? 7 : 8; u.farBlur.value = outdoor ? 3.5 : 4.5;
   u.hurt.value = HE.clamp((f.vignette - 0.2) * 1.3 + kick * 0.6, 0, 1.2); u.dying.value = f.wash; u.kick.value = kick;
-  u.exposure.value = outdoor ? 0.62 : 0.72; u.soft.value = 1.25; u.edge.value = 6.5; sky.material.uniforms.time.value = tAnim;
+  u.exposure.value = outdoor ? 0.62 : 0.72; var foot = m === 'FREE_FOOT';
+  u.lidTop.value = PE.lid; u.lidBot.value = s.lost ? PE.lid : PE.lid * 0.82; u.lidRed.value = s.lost ? 0.6 : HE.clamp(PE.heat * 0.55 + (PE.blinkT >= 0 && PE.heat > 0.3 ? 0.5 : 0), 0, 1); u.drift.value = PE.drift; u.tunnel.value = f.wash;
+  if(foot){ u.soft.value = 0.6; u.edge.value = 3; } u.soft.value = 1.25; u.edge.value = 6.5; if(m === 'FREE_FOOT'){ u.soft.value = 0.6; u.edge.value = 3; } sky.material.uniforms.time.value = tAnim;
   var fl = outdoor && (Math.sin(tAnim * 0.37) > 0.995 || Math.sin(tAnim * 0.53 + 1) > 0.997) ? 1 : 0; sky.material.uniforms.flash.value += (fl - sky.material.uniforms.flash.value) * 0.3; }
 game.gotoBeat(Q.get('beat') || 'visit'); requestAnimationFrame(frame);
 })();

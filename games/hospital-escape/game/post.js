@@ -24,20 +24,20 @@ P.create = function(renderer, scene, camera){
   var comp = new THREE.ShaderMaterial({ depthTest: false, depthWrite: false, vertexShader: VS,
     uniforms: { tC: { value: null }, tD: { value: null }, tB: { value: null }, near: { value: 0.05 }, far: { value: 1500 }, res: { value: new THREE.Vector2() },
       focus: { value: 8 }, nearBlur: { value: 9 }, farBlur: { value: 5 }, soft: { value: 1.2 }, edge: { value: 6 }, hurt: { value: 0 }, dying: { value: 0 }, time: { value: 0 },
-      exposure: { value: 1.0 }, bloom: { value: 0.9 }, shadowTint: { value: new THREE.Color(0x1d3a44) }, hiTint: { value: new THREE.Color(0xffd7a0) }, sat: { value: 0.72 }, vig: { value: 1.0 }, grain: { value: 0.06 }, kick: { value: 0 } },
+      exposure: { value: 1.0 }, bloom: { value: 0.9 }, shadowTint: { value: new THREE.Color(0x1d3a44) }, hiTint: { value: new THREE.Color(0xffd7a0) }, sat: { value: 0.72 }, vig: { value: 1.0 }, grain: { value: 0.06 }, kick: { value: 0 }, lidTop: { value: 0 }, lidBot: { value: 0 }, lidRed: { value: 0 }, drift: { value: 0 }, tunnel: { value: 0 } },
     fragmentShader: [
-      'uniform sampler2D tC, tD, tB; uniform float near, far, focus, nearBlur, farBlur, soft, edge, hurt, dying, time, exposure, bloom, sat, vig, grain, kick; uniform vec2 res; uniform vec3 shadowTint, hiTint; varying vec2 vUv;',
+      'uniform sampler2D tC, tD, tB; uniform float near, far, focus, nearBlur, farBlur, soft, edge, hurt, dying, time, exposure, bloom, sat, vig, grain, kick, lidTop, lidBot, lidRed, drift, tunnel; uniform vec2 res; uniform vec3 shadowTint, hiTint; varying vec2 vUv;',
       'float lin(float d){ float z = d * 2.0 - 1.0; return 2.0 * near * far / (far + near - z * (far - near)); }',
       'float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }',
       'vec3 aces(vec3 x){ return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }',
       'vec3 tap(vec2 uv, float ca){ vec2 d = (uv - 0.5) * ca; return vec3(texture2D(tC, uv + d).r, texture2D(tC, uv).g, texture2D(tC, uv - d).b); }',
       'void main(){',
       '  vec2 c = vUv - 0.5; c.x *= res.x / res.y; float r = length(c);',
-      '  float beat = 0.5 + 0.5 * sin(time * 2.3) * sin(time * 2.3 + 0.6);',                              // a slow, uneven pulse
+      '  float beat = clamp(0.5 + 0.28 * sin(time * 2.027) + 0.17 * sin(time * 1.337 + 1.3) + 0.12 * sin(time * 0.795 + 2.1), 0.0, 1.0);',   // slow + uneven (3.1/4.7/7.9 s)
       '  float depth = lin(texture2D(tD, vUv).r);',
       '  float coc = depth < focus ? nearBlur * clamp((focus * 0.55 - depth) / (focus * 0.55), 0.0, 1.0) : farBlur * smoothstep(focus * 1.8, focus * 7.0, depth);',
       '  float rad = edge * smoothstep(0.28, 0.75, r) * (1.0 + hurt * 1.5);',
-      '  float base = soft * (0.75 + 0.5 * beat) * (1.0 + hurt * 2.0 + dying * 3.0);',
+      '  float base = soft * (0.45 + 1.1 * beat) * (1.0 + hurt * 2.0 + dying * 3.0) * (1.0 + drift * 3.5);',   // breathing ±42%; drift = an out-of-focus episode
       '  float R = max(max(coc, rad), base) / 844.0 * res.y;',                                               // radii are authored in px at 844 tall
       '  float ca = 0.004 + 0.012 * r * r + hurt * 0.01 + dying * 0.012;',
       '  vec3 acc = tap(vUv, ca); float wsum = 1.0;',
@@ -55,11 +55,15 @@ P.create = function(renderer, scene, camera){
       '  col = col * mix(shadowTint * 1.9, hiTint * 1.08, smoothstep(0.0, 0.9, l)) + shadowTint * 0.035;',   // split tone + lifted teal blacks
       '  col = aces(col); col = col * col * (3.0 - 2.0 * col) * 0.35 + col * 0.65;',   // extra S-curve contrast (low-key)
       '  col = pow(col, vec3(1.0 / 2.2));',
-      '  col *= 1.0 - vig * smoothstep(0.32, 0.95, r) * (0.85 + 0.15 * beat);',
+      '  col *= 1.0 - vig * smoothstep(0.32 - tunnel * 0.22, 0.95 - tunnel * 0.4, r) * (0.85 + 0.15 * beat);',   // near death the tunnel closes in
+      '  float lx = (vUv.x - 0.5) * 2.0; float edgeT = 1.0 - lidTop + 0.03 * lx * lx; float edgeB = lidBot - 0.03 * lx * lx;',   // eyelids: curved top + bottom edges
+      '  float m = max(smoothstep(edgeT - 0.05, edgeT + 0.012, vUv.y), 1.0 - smoothstep(edgeB - 0.012, edgeB + 0.05, vUv.y));',
+      '  vec3 lid = mix(vec3(0.0), vec3(0.2, 0.004, 0.004) * (0.6 + 0.4 * beat), lidRed);   // blood-black, pulsing',
+      '  col = mix(col, lid, m * step(0.001, lidTop + lidBot));',
       '  col += (hash(vUv * res + time * 61.0) - 0.5) * grain;',
       '  gl_FragColor = vec4(col, 1.0);',
       '}'].join('\n') });
-  var RS = 0.6;   // internal resolution: the look is soft by design, so the scene + effects run at 60% of the drawing buffer
+  var RS = 1.0;   // internal resolution: the look is soft by design, so the scene + effects run at 60% of the drawing buffer
   function size(){ var v = new THREE.Vector2(); renderer.getDrawingBufferSize(v); var w = Math.max(2, Math.floor(v.x * RS)), h = Math.max(2, Math.floor(v.y * RS)); if(w === W && h === H && rtScene) return; W = w; H = h;
     [rtScene, rtA, rtB].forEach(function(t){ if(t) t.dispose(); }); rtScene = mk(W, H, true); rtA = mk(Math.max(1, W >> 2), Math.max(1, H >> 2)); rtB = mk(Math.max(1, W >> 2), Math.max(1, H >> 2)); }
   function pass(mat, target){ quad.material = mat; renderer.setRenderTarget(target); renderer.render(qs, qc); }
