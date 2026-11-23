@@ -16,7 +16,7 @@ Dave is **The Video Game Critic** (videogamecritic.com). His real-life game nigh
 - **Tone:** affectionate parody. Everyone is roasted, nobody is mean. The jokes are the crew's own quotes and antics.
 - **A run:** title screen (Dave's room) → **8 friend microgames** in random order → **sudden death** → **Dave's Review** end screen. Lives are 4 beers; lose a microgame, lose a beer. The game speeds up as you go (sudden death runs at 1.6×).
 - **The 8 microgames** (each ≈6 seconds, one verb, deliberately terrible retro controls — the comedy is that every round controls differently, announced only by the friend's quote):
-  1. **Sudz — Finger Burn Decathlon:** RUB in circles to run his Intellivision decathlon man; rub one spot too long and the Finger Burn meter ends you.
+  1. **Sudz — Finger Burn Decathlon:** TAP! TAP! TAP! — mash rapid taps to run his Intellivision decathlon man; mash at max speed too long and the Finger Burn meter overheats and ends you, so ease off to let it cool.
   2. **Scott — Sip Your Beer Tennis:** DON'T TOUCH. The opponent double-faults himself to death; touching the controller makes you lunge and lose. Sipping your beer at the right moment is the only move.
   3. **Brent — The 80-Yard Kick:** AIM + RELEASE a field-goal kick while Brian wanders across the kick line.
   4. **Brian — Ball Grab Pachinko:** GUARD — drag a shield to stop the little green thief stealing your balls (Odyssey 2).

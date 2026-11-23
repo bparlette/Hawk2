@@ -788,7 +788,8 @@ function drawHUD(){
     R(bx,30,20,4,full?"#f7f2e2":"#54432c");
     R(bx+18,36,4,10,full?"#e8a020":"#3a2c1c");
   }
-  if(Shell.state==="PLAY")drawBeerGlass(352,8,Shell.timeLeft/Shell.timeTotal);
+  // timer glass sits mid-band, clear of the fixed #muteBtn (top-right)
+  if(Shell.state==="PLAY")drawBeerGlass(158,8,Shell.timeLeft/Shell.timeTotal);
 }
 
 /* ============================== CARDS ============================== */
@@ -1004,6 +1005,25 @@ var Shell={
     this.round=0; this.results=[]; this.review=null;
     this.passesDone=0; this.challengeFailed=false; this.runFinished=false;
     this.flow="run"; this.shelfPlay=null; this.savedDisplay=null;
+    /* direct launch (title debug / __dbg.startGame): a special module as a
+       one-round run. Locked modes fall through to a normal friend run. */
+    var SD_IDS=["squeeze","karate","jump"];
+    var SOLO_IDS=["warlords","hydrothunder","riverraid","jekyll"];
+    if(firstId&&MODULES[firstId]&&(SD_IDS.indexOf(firstId)>=0||SOLO_IDS.indexOf(firstId)>=0)){
+      var locked=false;
+      if(SOLO_IDS.indexOf(firstId)>=0&&SOLO_IDS.indexOf(firstId)<3)
+        locked=!(window.GNDUnlocks&&GNDUnlocks.isUnlocked("favoritesShelf"));
+      if(firstId==="jekyll")
+        locked=!(window.GNDUnlocks&&GNDUnlocks.isUnlocked("jekyllMode"));
+      if(!locked){
+        this.order=[]; this.passStart=0; this.sdDone=true; this.passesDone=1;
+        this.totalRounds=1;
+        if(SD_IDS.indexOf(firstId)>=0){ this.startSuddenDeath(firstId); return; }
+        this.order=[firstId];
+        this.nextIntro();
+        return;
+      }
+    }
     this.buildPass(firstId);
     this.nextIntro();
   },
@@ -1049,9 +1069,9 @@ var Shell={
   },
   /* DESIGN section 6: after the pass, if beers remain — one of Dave's
      Most Hated, in the 1-beer state, on the module's own duration clock */
-  startSuddenDeath:function(){
+  startSuddenDeath:function(forceId){
     var ids=["squeeze","karate","jump"];
-    var id=ids[Math.floor(this.rng()*ids.length)];
+    var id=(forceId&&MODULES[forceId])?forceId:ids[Math.floor(this.rng()*ids.length)];
     this.mod=MODULES[id];
     this.inSD=true; this.sdDone=true;
     this.sdSavedBeers=this.beers; this.beers=1; // the brink: one beer state
@@ -1117,6 +1137,7 @@ var Shell={
   finishRun:function(){
     if(this.runFinished)return;
     this.runFinished=true;
+    Comm.hide(); // a stale quote must never paint over UNLOCK / REVIEW
     this.review=buildReview();
     // DESIGN section 10: unlock checks at run end; new unlock cards are
     // shown before the Verdict
@@ -1134,6 +1155,7 @@ var Shell={
     else this.enterReview();
   },
   enterReview:function(){
+    Comm.hide(); // clear any leftover quote before the Verdict (grade line re-opens its own)
     this.state="REVIEW"; this.stateT=0;
     Voice.play("grade_"+this.review.grade.replace("+","p").replace("-","m"));
     var band=this.review.grade.charAt(0).toLowerCase();
@@ -1232,7 +1254,7 @@ var Shell={
     else { R(CRT.x,CRT.y,CRT.w,CRT.h,"#101018"); }
     scanlines(CRT.x,CRT.y,CRT.w,CRT.h);
     drawSteelBattalion(24,648);
-    drawCouch(668,this.state!=="INTRO",null);
+    drawReclinerRow(666); // same 9-seat row as the title, Dave included
     drawHUD();
     if(this.state==="PLAY"&&this.modState&&this.modState.renderOverlay)this.modState.renderOverlay();
     if(this.state==="INTRO")drawIntroCard();
@@ -1267,8 +1289,8 @@ function drawTitle(){
   scanlines(216,150,150,116);
   // the crew in movie-theater recliners, heads showing over the chair
   // backs, Dave at the right end of the row (Cherie, Nov 22, 2026)
-  drawReclinerRow(424);
-  drawSteelBattalion(30,618);
+  drawReclinerRow(392);
+  drawSteelBattalion(30,330); // the rig on its coffee table, in front of the crew facing the TVs
   // ball-top arcade stick box, standing on the carpet at the row's
   // right (it sat on Brad's lap before the recliners)
   R(300,652,44,26,"#14161a"); R(300,652,44,4,"#23262b");
@@ -1297,10 +1319,7 @@ function drawUnlockScreen(){
     Tplain((Shell.unlockIdx+1)+" OF "+Shell.newUnlocks.length,350,118,12,"#dddddd","right");
   if(def&&window.GNDUnlocks&&GNDUnlocks.drawUnlockCard)
     GNDUnlocks.drawUnlockCard(g,def,195,320,Math.max(0,2.6-Shell.stateT));
-  if(def){
-    Tplain(def.name,195,486,20,"#90ee90","center");
-    wrapSans(def.desc,70,522,14,"#dddddd",250,20);
-  }
+  // name + full description print exactly once: inside the unlock card above
   Tplain("TAP TO CONTINUE",195,612,12,"#aaaaaa","center");
 }
 function drawShelfScreen(){
@@ -1323,7 +1342,7 @@ function drawShelfScreen(){
       Shell.shelfRects.push({x:40,y:y,w:310,h:52,action:"play",arg:m.id});
     } else { R(40,y,310,52,"#1b213f");
       Tplain("\u{1F512} "+m.name.toUpperCase(),54,y+10,16,"#888888");
-      Tplain("UNLOCK: REACH ROUND 12 IN A RUN",54,y+32,11,"#888888");
+      Tplain("UNLOCK: FINISH A FULL PASS (ROUND 9)",54,y+32,11,"#888888");
     }
     y+=52;
   }
@@ -1346,12 +1365,14 @@ function drawShelfScreen(){
   y+=16;
   Tplain("UNLOCKS",40,y,12,"#90ee90"); y+=8;
   for(i=0;i<defs.length;i++){ d=defs[i];
-    Tplain((d.unlocked?"\u2605 ":"\u{1F512} ")+d.name+" \u2014 "+d.conditionText,40,y+14,11,d.unlocked?"#ffffff":"#888888");
+    var utx=(d.unlocked?"\u2605 ":"\u{1F512} ")+d.name+" \u2014 "+d.conditionText;
+    if(utx.length>48)utx=utx.slice(0,47)+"\u2026"; // keep long conditions inside the panel
+    Tplain(utx,40,y+14,11,d.unlocked?"#ffffff":"#888888");
     y+=22;
   }
-  R(95,762,200,44,"#000080"); R(95,762,200,5,"#90ee90");
-  Tplain("\u2190 BACK",195,776,15,"#ffffff","center");
-  Shell.shelfRects.push({x:95,y:762,w:200,h:44,action:"back"});
+  R(95,690,200,44,"#000080"); R(95,690,200,5,"#90ee90");
+  Tplain("\u2190 BACK",195,704,15,"#ffffff","center");
+  Shell.shelfRects.push({x:95,y:690,w:200,h:44,action:"back"});
 }
 
 /* ============================== MICROGAMES ============================== */
@@ -1447,7 +1468,7 @@ MODULES.sudz={
 };
 
 /* ---------- SCOTT — Sip Your Beer Tennis (DON'T TOUCH) ---------- */
-var SIPZONE={x:308,y:664,w:72,h:92};
+var SIPZONE={x:308,y:594,w:72,h:92}; // mug floats above the recliner heads, never on the crew
 MODULES.scott={
   id:"scott", friend:"scott", verb:"DON'T TOUCH!",
   hintTouch:"TOUCH: HANDS OFF! TAP MUG = SIP", hintKeys:"DESKTOP: HANDS OFF! B = SIP",
@@ -1928,7 +1949,7 @@ MODULES.steve={
 };
 
 /* ---------- CHRIS — Ram It Loop (TAP replay in the window) ---------- */
-var REPLAYZONE={x:100,y:668,w:190,h:70};
+var REPLAYZONE={x:100,y:618,w:190,h:70}; // above the recliner heads, never on the crew
 MODULES.chris={
   id:"chris", friend:"chris", verb:"KEEP THE LOOP ALIVE!",
   hintTouch:"TOUCH: TAP REPLAY IN THE GLOW", hintKeys:"DESKTOP: CLICK REPLAY OR SPACE",
@@ -2021,7 +2042,7 @@ MODULES.chris={
 };
 
 /* ---------- BRENDAN — How Much Did You Pay For This? (SLIDE the dial + TAP lock) ---------- */
-var LOCKZONE={x:110,y:672,w:170,h:62};
+var LOCKZONE={x:110,y:490,w:170,h:64}; // inside the CRT (CRT.y+372), never on the crew
 var PRICE_ITEMS=[
   {title:"MUTANT WARRIOR",sys:"ARCADIA 2001",price:40,art:"#7a4a9e"},
   {title:"SQUEEZE BOX",sys:"ATARI 2600",price:30,art:"#b03a3a"},
@@ -2054,7 +2075,7 @@ MODULES.brendan={
         if(this.state!=="playing")return;
         this.t+=dt;
         // SLIDE anywhere on the dial band (or the CRT) to set the price
-        if(input.down&&input.y>CRT.y+250&&input.y<CRT.y+400)
+        if(input.down&&input.y>CRT.y+225&&input.y<CRT.y+295)
           this.dial=clamp(Math.round((input.x-CRT.x)/CRT.w*60),0,60);
         if(input.keyEdge.ArrowLeft||input.keyEdge.KeyA)this.dial=clamp(this.dial-1,0,60);
         if(input.keyEdge.ArrowRight||input.keyEdge.KeyD)this.dial=clamp(this.dial+1,0,60);
@@ -2063,7 +2084,7 @@ MODULES.brendan={
       },
       onTap:function(x,y){
         if(x>=LOCKZONE.x&&x<=LOCKZONE.x+LOCKZONE.w&&y>=LOCKZONE.y&&y<=LOCKZONE.y+LOCKZONE.h)this.evaluate();
-        else if(y>CRT.y+250&&y<CRT.y+400)this.dial=clamp(Math.round((x-CRT.x)/CRT.w*60),0,60);
+        else if(y>CRT.y+225&&y<CRT.y+295)this.dial=clamp(Math.round((x-CRT.x)/CRT.w*60),0,60);
       },
       onKey:function(code){ if(code==="Enter"||code==="Space")this.evaluate(); },
       onTimeout:function(){ this.evaluate(); },
@@ -2085,18 +2106,18 @@ MODULES.brendan={
         Tplain("$ ???",CRT.x+228,CRT.y+172,13,"#241610","center");
         // heckle meter: Brendan's patience drains with the round clock
         var pat=Shell.timeTotal>0?Shell.timeLeft/Shell.timeTotal:0;
-        R(CRT.x+22,CRT.y+222,CRT.w-44,10,"#3a2a17");
-        R(CRT.x+22,CRT.y+222,(CRT.w-44)*pat,10,pat<0.3?"#e84d26":"#c39aff");
-        Tplain("BRENDAN'S PATIENCE",CRT.x+22,CRT.y+238,10,"#a8906a");
+        R(CRT.x+22,CRT.y+210,CRT.w-44,10,"#3a2a17");
+        R(CRT.x+22,CRT.y+210,(CRT.w-44)*pat,10,pat<0.3?"#e84d26":"#c39aff");
+        Tplain("BRENDAN'S PATIENCE",CRT.x+22,CRT.y+226,10,"#a8906a");
         // the price dial: slide it
-        R(CRT.x+22,CRT.y+292,CRT.w-44,12,"#12081f");
+        R(CRT.x+22,CRT.y+246,CRT.w-44,12,"#12081f");
         for(var tk=0;tk<=6;tk++){ var tx=CRT.x+22+tk*(CRT.w-44)/6;
-          R(tx-1,CRT.y+288,2,20,"#8a6f4d"); Tplain("$"+(tk*10),tx,CRT.y+312,10,"#a8906a","center"); }
+          R(tx-1,CRT.y+242,2,20,"#8a6f4d"); Tplain("$"+(tk*10),tx,CRT.y+266,10,"#a8906a","center"); }
         var kx=CRT.x+22+(CRT.w-44)*(this.dial/60);
-        R(kx-5,CRT.y+282,10,32,"#e8b020"); R(kx-5,CRT.y+282,10,5,"#f7c948");
-        Tplain("$"+this.dial,CRT.x+CRT.w/2,CRT.y+338,34,"#ffd98a","center");
-        Tplain("WHAT DID DAVE PAY?",CRT.x+CRT.w/2,CRT.y+382,13,"#f7f2e2","center");
-        Tplain("SLIDE THE DIAL · WITHIN $"+this.band+" WINS",CRT.x+CRT.w/2,CRT.y+404,11,"#9fd8e8","center");
+        R(kx-5,CRT.y+236,10,32,"#e8b020"); R(kx-5,CRT.y+236,10,5,"#f7c948");
+        Tplain("$"+this.dial,CRT.x+CRT.w/2,CRT.y+280,30,"#ffd98a","center");
+        Tplain("WHAT DID DAVE PAY?",CRT.x+CRT.w/2,CRT.y+318,13,"#f7f2e2","center");
+        Tplain("SLIDE THE DIAL · WITHIN $"+this.band+" WINS",CRT.x+CRT.w/2,CRT.y+340,11,"#9fd8e8","center");
       },
       renderOverlay:function(){
         var z=LOCKZONE;
@@ -2127,7 +2148,7 @@ var lastT=performance.now();
    The four unlocks (conditions are exact — each fires on its condition and
    not before):
      jekyllMode      "Jekyll Mode"           finish a run (reach the Review)
-     favoritesShelf  "Dave's Favorites"      reach Round 12 in a run
+     favoritesShelf  "Dave's Favorites"      finish a full pass (reach Round 9)
      noBeerChallenge "No-Beer Challenge"     finish a run with all 4 beers
      criticsCut      "Critic's Cut"          earn any A grade (A- / A / A+)
 
@@ -2166,9 +2187,9 @@ var lastT=performance.now();
       id: "favoritesShelf",
       name: "Dave's Favorites Shelf",
       desc: "Warlords. Hydro Thunder. River Raid. The good shelf.",
-      conditionText: "Reach Round 12",
+      conditionText: "Finish a full pass (Round 9)",
       mode: false,
-      test: function (s) { return (s.roundsReached | 0) >= 12; }
+      test: function (s) { return (s.roundsReached | 0) >= 9; }
     },
     {
       id: "noBeerChallenge",
@@ -2299,7 +2320,7 @@ var lastT=performance.now();
      */
     drawUnlockCard: function (ctx, def, cx, cy, t) {
       if (!ctx || !def) return { w: 0, h: 0 };
-      var w = 316, h = 96, x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
+      var w = 316, h = 112, x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
       var pulse = t != null ? (0.5 + 0.5 * Math.sin(t * 5)) : 0;
       ctx.save();
       ctx.fillStyle = "rgba(0,0,0,0.88)";
@@ -2318,9 +2339,17 @@ var lastT=performance.now();
       ctx.fillText(def.name || "", cx, y + 30);
       ctx.font = "bold 12px 'Courier New',monospace";
       ctx.fillStyle = "#3CBCFC";
+      // full description, word-wrapped to the card width — never clipped
       var desc = def.desc || "";
-      if (desc.length > 40) desc = desc.slice(0, 39) + "…";
-      ctx.fillText(desc, cx, y + 62);
+      var dwords = desc.split(" "), dlines = [], dcur = "";
+      for (var wi = 0; wi < dwords.length; wi++) {
+        var dt2 = dcur ? dcur + " " + dwords[wi] : dwords[wi];
+        if (dcur && ctx.measureText(dt2).width > w - 24) { dlines.push(dcur); dcur = dwords[wi]; }
+        else dcur = dt2;
+      }
+      if (dcur) dlines.push(dcur);
+      for (var li = 0; li < Math.min(2, dlines.length); li++)
+        ctx.fillText(dlines[li], cx, y + 60 + li * 16);
       ctx.restore();
       return { w: w, h: h };
     }
@@ -3977,7 +4006,7 @@ function frame(now){
   var dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
   Shell.update(dt);
   Shell.render();
-  drawComm();
+  if(Shell.state!=="UNLOCK")drawComm(); // unlock cards keep TAP TO CONTINUE uncovered
   Input.resetFrame();
 }
 requestAnimationFrame(frame);
