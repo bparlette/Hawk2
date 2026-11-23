@@ -92,19 +92,25 @@ P.attach = function(g){ if(g.userData.bb) return g.userData.bb;
 P.use = function(g, on){ on = !!(on && P.ready); if(g.userData.painted === on) return on; g.userData.painted = on;
   g.children.forEach(function(c){ if(c !== g.userData.bb) setLayer(c, !on); }); setLayer(g.userData.bb, on); g.layers.set(0); return on; };
 var _c = new THREE.Vector3(), _p = new THREE.Vector3(), _q = new THREE.Quaternion();
+function contactMid(f){ var a = 0; f.contact.forEach(function(c){ a += (c[0] + c[1]) / 2; }); return a / f.contact.length; }
 // show frame `name` on g's billboard, mirrored (mir = -1) as needed, facing camera `cam` (yaw only). Feet centre (or, ax = 'box', the
 // bbox centre — vehicles) on g's origin; the frame's measured bottom row on g's floor.
 P.show = function(g, name, mir, cam, tint, ax){ var bb = g.userData.bb, f = D.frames[name]; if(!bb || !f || !g.userData.painted) return null; var m = bb.userData.m, t = P.tex[name];
   var U = m.material.uniforms; U.map.value = t; U.texel.value = 1 / f.w; U.base.value = 1 - (f.bottom + 1) / f.h; U.cellW.value = f.w / S; U.cellH.value = f.h / S; U.face.value = f.face; U.time.value = P.time;
   U.sway.value = /down|bed-foot|braced/.test(name) ? 0.003 : /wheelchair|crouch/.test(name) ? 0.006 : 0.012; U.kick.value = g.userData.kick || 0; U.opac.value = g.userData.opac == null ? 1 : g.userData.opac; m.visible = U.opac.value > 0.01;
   m.userData.frame = f; mir = mir < 0 ? -1 : 1; var w = f.w / S, h = f.h / S; m.scale.set(w * mir, h, 1);
-  var anc = ax === 'box' ? (f.bbox[0] + f.bbox[2]) / 2 : f.feet; m.position.set(-((anc + 0.5) / f.w - 0.5) * w * mir, (f.bottom + 1) / S - h / 2, 0);
+  var anc = f.seat ? f.seat.toe[0] : f.contact ? contactMid(f) : ax === 'box' ? (f.bbox[0] + f.bbox[2]) / 2 : f.feet;   /* measured anchors (OPUS-INTEGRATE-WALK-COLE) win over computed ones */
+  m.position.set(-((anc + 0.5) / f.w - 0.5) * w * mir, (f.bottom + 1) / S - h / 2, 0);
   var col = U.tint.value; if(tint && tint.isColor) col.copy(tint); else { var k = tint == null ? 1 : tint; col.setRGB(k, k, k); } col.multiply(P.env); if(P.lightAt) P.lightAt(_p.set(g.matrixWorld.elements[12], g.matrixWorld.elements[13], g.matrixWorld.elements[14]), col);   // realism bar #3: the scene's night grade + local light (muzzle flashes)
-  var sw = (f.bbox[2] - f.bbox[0]) / S, sh = bb.userData.sh; sh.scale.set(Math.max(0.5, sw * 0.8), Math.max(0.35, Math.min(1.1, sw * 0.45)), 1); sh.position.x = ((f.bbox[0] + f.bbox[2]) / 2 - anc) / S * mir;
+  var sw = (f.bbox[2] - f.bbox[0]) / S, sh = bb.userData.sh; sh.scale.set(Math.max(0.5, sw * 0.8), Math.max(0.35, Math.min(1.1, sw * 0.45)), 1); sh.position.set(((f.bbox[0] + f.bbox[2]) / 2 - anc) / S * mir, 0.012, 0);
+  if(f.contact){ var cx0 = f.contact[0][0], cx1 = f.contact[f.contact.length - 1][1]; sh.scale.set((cx1 - cx0) / S + 0.35, 0.4, 1); sh.position.x = ((cx0 + cx1) / 2 - anc) / S * mir; }   // under the planted foot / feet
   g.updateMatrixWorld(true); g.getWorldPosition(_p); cam.getWorldPosition(_c); var yaw = Math.atan2(_c.x - _p.x, _c.z - _p.z);
   g.getWorldQuaternion(_q); var py = new THREE.Euler().setFromQuaternion(_q, 'YXZ').y; bb.rotation.set(0, yaw - py, 0); bb.userData.frame = f; bb.userData.mir = mir; bb.updateMatrixWorld(true); lightTerms(_p, cam, m, U);
   var cs = bb.userData.cs, cu = cs.material.uniforms, lit = U.best && g.userData.reflect !== false; cs.visible = !!lit && U.opac.value > 0.5; if(cs.visible){ cu.map.value = t; m.updateMatrixWorld(true); cu.invM.value.copy(m.matrixWorld).invert();
     cu.lightP.value.copy(U.best); cu.feet.value.copy(_p); cu.floorY.value = _p.y; cu.base.value = 1 - (f.bottom + 1) / f.h; cu.strength.value = Math.min(0.6, U.bestK * 0.75); }
+  if(f.seat){ var gs = g.scale.y || 1, hc = Math.max(0.3, _c.y - _p.y), D0 = Math.hypot(_c.x - _p.x, _c.z - _p.z), dy = (f.seat.toe[1] - (f.seat.hand[1] + f.seat.rear[1]) / 2) / S * gs,
+      back = Math.min(1.6, D0 * dy / Math.max(0.15, hc - dy)), sh2 = bb.userData.sh;   // where the seat actually is: the hand/rear-foot line sits this far BEHIND the toe line on the floor, for this camera
+    sh2.position.set(((f.seat.hand[0] + f.seat.rear[0]) / 2 - anc) / S * mir, 0.012, -back * 0.75 / gs); sh2.scale.set(Math.abs(f.seat.hand[0] - f.seat.rear[0]) / S + 0.3, (back * 1.5 + 0.45) / gs, 1); }   /* back is world metres; the billboard group may be scaled */
   var rf = bb.userData.rf, d = Math.hypot(_c.x - _p.x, _c.z - _p.z), on = P.reflect && g.userData.reflect !== false && d < 16;   // near characters only
   rf.visible = on; if(on){ var u = rf.material.uniforms; u.map.value = t; m.updateMatrixWorld(true); u.invM.value.copy(m.matrixWorld).invert(); u.floorY.value = _p.y;
     u.camM.value.set(_c.x, 2 * _p.y - _c.y, _c.z); u.base.value = 1 - (f.bottom + 1) / f.h; u.tint.value.copy(col).multiplyScalar(0.62 * U.lvl.value);

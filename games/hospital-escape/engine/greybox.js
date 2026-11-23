@@ -56,7 +56,8 @@ HE.Greybox = function(game){
   g.zoneObject = function(role, zone){ var m = g.object(role), out = null; if(!m) return null; m.traverse(function(o){ if(!out && o.userData.zone === zone) out = o; }); return out; };
   // ---- vehicles for the rider ----
   g.vehicles = {}; (function(){ var bed = new THREE.Group(); box(1.0, 0.18, 2.1, mats.bed, 0, 0.62, 0, bed); box(1.0, 0.25, 0.06, mats.steel, 0, 0.62, -1.05, bed); g.vehicles.bed = bed;
-    var ch = new THREE.Group(); box(0.6, 0.08, 0.55, mats.chair, 0, 0.5, 0, ch); box(0.6, 0.3, 0.06, mats.chair, 0, 0.62, 0.27, ch);   // backrest kept below the 1.0 m seated rig's eye line [-0.33, 0.33].forEach(function(x){ var w = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.03, 6, 16), mats.steel); w.position.set(x, 0.3, 0.1); w.rotation.y = Math.PI / 2; ch.add(w); }); g.vehicles.chair = ch;
+    var ch = new THREE.Group(); box(0.6, 0.08, 0.55, mats.chair, 0, 0.5, 0, ch); box(0.6, 0.3, 0.06, mats.chair, 0, 0.62, 0.27, ch);   /* backrest kept below the 1.0 m seated rig's eye line */
+    [-0.33, 0.33].forEach(function(x){ var w = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.03, 6, 16), mats.steel); w.position.set(x, 0.3, 0.1); w.rotation.y = Math.PI / 2; ch.add(w); }); g.vehicles.chair = ch;
     var amb = new THREE.Group(); box(2.3, 0.15, 5.6, mats.amb, 0, 0.85, 0, amb); box(2.3, 2.0, 0.1, mats.amb, 0, 1.9, 2.8, amb); box(0.1, 2.0, 5.6, mats.amb, -1.15, 1.9, 0, amb); box(0.1, 2.0, 5.6, mats.amb, 1.15, 1.9, 0, amb); box(2.3, 0.1, 5.6, mats.amb, 0, 2.9, 0, amb);
       box(0.12, 0.35, 5.6, mats.ambStripe, -1.2, 1.6, 0, amb); box(0.12, 0.35, 5.6, mats.ambStripe, 1.2, 1.6, 0, amb); g.vehicles.ambulance = amb;
     Object.keys(g.vehicles).forEach(function(k){ g.vehicles[k].visible = false; g.dyn.add(g.vehicles[k]); }); })();

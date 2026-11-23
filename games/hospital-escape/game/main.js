@@ -217,7 +217,7 @@ function paintCast(dt, st, m, seg){ if(!PT || !PT.ready){ return; } var r = game
   cole.scale.setScalar(1);
   if(m === 'CUTSCENE' && seg === 'visit_room'){ PT.use(cole, true); bed.visible = false; cole.position.copy(bed.position).addScaledVector(fwdOf(game.path('bed_hall'), game.path('bed_hall').lead), 1.0); cole.position.y = bed.position.y; PT.show(cole, 'cole-bed-foot', 1, camera, 1, 'box'); }
   else if(m === 'CUTSCENE' && (seg === 'transfer_cut' || seg === 'steal_cut')){ PT.use(cole, true); chair.visible = false; cole.position.copy(chair.position); PT.show(cole, 'cole-wheelchair-front3q', 1, camera, 1, 'box'); }
-  else if(m === 'AMBULANCE' && estK > 0){ PT.use(cole, true); cole.userData.reflect = false;   /* the bay floor is ribbed steel, not wet linoleum */ amb.updateMatrixWorld(true); cole.position.copy(amb.localToWorld(new V(0.05, 0.81, -2.25))); PT.show(cole, 'cole-ambulance-braced', 1, camera, 1, 'box'); }
+  else if(m === 'AMBULANCE' && estK > 0){ PT.use(cole, true); cole.userData.reflect = false;   /* the bay floor is ribbed steel, not wet linoleum */ amb.updateMatrixWorld(true); cole.position.copy(amb.localToWorld(new V(0.05, 0.81, -1.7))); cole.scale.setScalar(0.62);   /* seated on the bay floor: head ~1.0 m above it (the painting's figure is drawn at standing scale, like the chair Cole Moth scaled 0.73) */ PT.show(cole, 'cole-ambulance-braced', 1, camera, 1, 'box'); }
   else if(m === 'FREE_FOOT'){ PT.use(cole, true); chair.visible = false; cole.position.copy(chair.position); var dc = cole.position.distanceTo(camera.position); cole.userData.opac = HE.clamp((dc - 3.0) / 1.5, 0, 1);   // parked: the painted patient in his chair, faded out while he is right beside Maya's camera
     PT.show(cole, 'cole-wheelchair-front3q', 1, camera, 1, 'box'); cole.userData.bb.userData.sh.visible = cole.userData.opac > 0.5; }
   else if(m === 'RAIL_CHAIR' && st.vehicle === 'bed' && estK > 0){ PT.use(cole, true); bed.visible = false; var bf2 = fwdOf(game.rail.path, game.rail.s); cole.position.copy(bed.position).addScaledVector(bf2, 1.0); cole.position.y = bed.position.y; PT.show(cole, 'cole-bed-foot', 1, camera, 1, 'box'); }   // defect 5: the bed push's establishing shot takes the PAINTED bed (the visit treatment) — the occupant is the painted Cole, not the grey figure
@@ -234,10 +234,22 @@ function fgMuzzle(out){ var q = camera.quaternion; return out.copy(camera.positi
 // an enemy as its painted frames: peek / aim / fire / flinch / down, mirrored to face the screen centre (the camera side)
 function paintEnemy(e, p, dt){ var u = p.userData, pk = u.pk, fr; u.kick = Math.max(0, (u.fireT || 0) / 0.14); u.fireT = Math.max(0, (u.fireT || 0) - dt); u.flinchT = Math.max(0, (u.flinchT || 0) - dt);
   if(u.dead){ u.deadT += dt; p.position.y = e.pos.y; fr = u.deadT < 0.3 ? 'flinch' : 'down'; }
-  else { var moving = (e.behavior === 'cover' && e.cover && e.pos.distanceTo(e.cover) > 0.05) || (e.behavior === 'rush' && e.pos.distanceTo(game.playerPos().setY(e.pos.y)) > 3.6), hidden = e.behavior === 'cover' && !e.exposed;
-    fr = u.fireT > 0 ? 'fire' : u.flinchT > 0 ? 'flinch' : (hidden || moving) ? (pk === 'enemy-plain' ? 'peek' : 'aim') : 'aim'; }
-  if(u.face == null || (!u.dead && fr !== 'fire' && fr !== 'flinch')) u.face = PT.sideOf(p.position, camera) > 0 ? -1 : 1;   // toward screen centre; frozen through fire / flinch / down
+  else { var hidden = e.behavior === 'cover' && !e.exposed;
+    // WALK (OPUS-INTEGRATE-WALK-COLE): measured world speed, not behaviour flags. The pose advances by DISTANCE travelled —
+    // one pose per 0.44 m (half the 0.88 m step measured between walk-03's two contact clusters) — so the planted foot doesn't skate
+    // at any speed. A new walk starts on pose 02 (the cycle's first full stride; walk-01 is the near-standing frame, audit trait).
+    var sp = 0; if(u.lastPos && dt > 0){ sp = Math.hypot(e.pos.x - u.lastPos.x, e.pos.z - u.lastPos.z) / dt; } u.walkV = (u.walkV || 0) + (sp - (u.walkV || 0)) * Math.min(1, dt * 10);
+    var walking = u.walkV > 0.25 && !hidden; if(walking){ if(!u.walking) u.walkD = 0.44; u.walkD += sp * dt; } u.walking = walking;
+    fr = u.fireT > 0 ? 'fire' : u.flinchT > 0 ? 'flinch' : walking ? 'walk-0' + (1 + Math.floor(u.walkD / 0.44) % 4) : hidden ? (pk === 'enemy-plain' ? 'peek' : 'aim') : 'aim'; }
+  if(fr.indexOf('walk') === 0 && u.lastPos){ var cr = new V(1, 0, 0).applyQuaternion(camera.quaternion), vx = (e.pos.x - u.lastPos.x) * cr.x + (e.pos.z - u.lastPos.z) * cr.z;   // world velocity along the view's right: camera turns don't flip him
+    if(Math.abs(vx) > 0.002) u.face = vx > 0 ? 1 : -1; else if(u.face == null) u.face = PT.sideOf(p.position, camera) > 0 ? -1 : 1; }   // walks the way he crosses the screen
+  else if(u.face == null || (!u.dead && fr !== 'fire' && fr !== 'flinch')) u.face = PT.sideOf(p.position, camera) > 0 ? -1 : 1;   // toward screen centre; frozen through fire / flinch / down
+  if(dt > 0){ (u.lastPos || (u.lastPos = new V())).copy(e.pos); }
   var nm = pk + '-' + fr; PT.show(p, nm, u.face * PT.frames[nm].face, camera);
+  // feet planted: a walk pose is HELD where it began (stop-motion, like the painted cycle itself) and steps to the next pose's spot,
+  // so the planted foot never slides; the engine position stays continuous (the visual leads/lags it by < 0.44 m)
+  var bbo = p.userData.bb; if(bbo){ if(fr.indexOf('walk') === 0){ if(u.pose !== fr || !u.poseAt){ u.pose = fr; (u.poseAt || (u.poseAt = new V())).copy(e.pos); }
+      p.updateMatrixWorld(true); bbo.position.copy(p.worldToLocal(u.poseAt.clone())); bbo.position.y = 0; } else { u.pose = null; bbo.position.set(0, 0, 0); } }
   if(e.aiming > 0 && !u.dead && dt > 0 && Math.random() < 0.5){ var mz = PT.muzzle(p, new V()); if(mz) sprite(TX.glint, mz, 0.3 + Math.random() * 0.15, 0.06); } }
 function stageCutscene(seg){ var r = game.rail;
   if(seg === 'visit_room'){ var bp = game.path('bed_hall'); placeOnPath(bed, bp, bp.lead - 0.25); bed.visible = true; var t = fwdOf(bp, bp.lead);
@@ -250,7 +262,7 @@ function stageCutscene(seg){ var r = game.rail;
 
 // ------------------------------------------------------------------ PATIENT EYES (PATIENT-EYES-SPEC.md): neck, lids, focus drift, ambulance sway
 // The neck drives game.cameraOffset (applied INSIDE the engine's camera placement, so aim = what you see).
-var estK = 0, estWas = false;
+var estK = 0, estWas = false, BAY_CAM_Z = 0;   /* local z of the bay rig camera (= -bayOffset), read from the path at use */
 var PE = { sy: 0, sp: 0, vy: 0, vp: 0, ey: null, ep: null, jy: 0, jp: 0, jr: 0, jvy: 0, jvp: 0, jvr: 0, swR: 0, swY: 0, svR: 0, svY: 0,
   lid: 0, lidB: 0, out: 0, fade: null, nextFade: 9, pend: -1, spike: 0, heat: 0, drift: 0, driftT: 0, driftLen: 0, nextDrift: 6, closeT: 0, t: 0, hitN: 0 };
 game.cameraOffset = { yaw: 0, pitch: 0, roll: 0 };
@@ -294,8 +306,8 @@ function patientStep(dt){ if(dt <= 0) return; PE.t += dt; var st = game.state(),
   estK = 0; O.pos = O.pos || new V(); O.pos.set(0, 0, 0); var sT = game.segT, rp = game.rail.path;
   if(PT && PT.ready && rp && st.segment === 'bed_hall_push' && sT < 3.4){ var e0 = HE.clamp((sT - 1.9) / 1.5, 0, 1); estK = 1 - e0 * e0 * (3 - 2 * e0);
     var tt = fwdOf(rp, game.rail.s); O.pos.addScaledVector(tt, -1.35 * estK).add(new V(-tt.z, 0, tt.x).multiplyScalar(-0.4 * estK)); O.pos.y += 0.3 * estK; O.pitch += -0.06 * estK; }
-  else if(PT && PT.ready && rp && st.segment === 'steal_staging' && sT < 1.9){ estK = 1; var ta = rp.tangentAtS(game.rail.s); ta.y = 0; ta.normalize();
-    O.pos.addScaledVector(ta, -6.1).add(new V(ta.z, 0, -ta.x).multiplyScalar(0.25)); O.pos.y += 0.75; O.yaw = Math.PI; O.pitch = -0.3; O.roll = 0; }   // high, looking down into the bay: the painting's own viewpoint
+  else if(PT && PT.ready && rp && st.segment === 'steal_staging' && sT < 1.9){ estK = 1; BAY_CAM_Z = -(rp.def.bayOffset == null ? 1.9 : rp.def.bayOffset); var ta = rp.tangentAtS(game.rail.s); ta.y = 0; ta.normalize();
+    O.pos.addScaledVector(ta, -4.85 - BAY_CAM_Z).add(new V(ta.z, 0, -ta.x).multiplyScalar(0.2)); O.pos.y += 0.85; O.yaw = Math.PI; O.pitch = -0.33; O.roll = 0; }   // the repainted braced Cole's own viewpoint: standing eye height (~1.6 m above the bay floor he sits on), ~20° down
   else if(rp && st.segment === 'elevator_ride' && game.rail.pathT() > 0.85){ var rk = HE.clamp((game.rail.pathT() - 0.85) / 0.08, 0, 1); estK = rk * rk * (3 - 2 * rk); O.yaw += 0.22 * estK; O.pitch += -0.05 * estK; }   // defect 7: once the chair is inside the car (pathT > 0.85 — never during the el_up lobby fight), turn the view to the occupants (Maya at the chair's side + the chair itself) instead of staring at the car doors; the segment cut to the ground doors ends it
   // --- eyelids: base coverage by health + droop under sustained fire (FLOOR RULE <= 30%/lid), plus ONE lid system on top: CONSCIOUSNESS.
   // No blinks. Fades are driven by hurt (deeper, longer, more often as HP falls) and spike after heavy hits: heavy slow onset -> hold ->
