@@ -1,23 +1,15 @@
-# NOTE — OPUS-FIX-PLAY-VISIBILITY is SUPERSEDED: Moth is fixing directly
-Hospital Escape · Nov 23 · Cherie's direction
+# STATUS NOTE — the seven play defects moved to Moth (Nov 23, ~13:37)
 
-Cherie has directed Moth to fix the seven play defects from her
-Nov 23 play session DIRECTLY, in the game code, instead of relaying
-them through tasking.
+Cherie redirected the play-defect fixes to Moth directly ("Fix all
+seven yourself, now"). The following taskings are SUPERSEDED — do
+not build them, Moth's fix build is already in progress and the
+audit lane will check it:
 
-**OPUS-FIX-PLAY-VISIBILITY.md and its three addendums
-(ADDENDUM, ADDENDUM2, ADDENDUM3) are SUPERSEDED. Opus: do not work
-them — you would be duplicating Moth's in-flight fixes.**
+- tasking/OPUS-FIX-PLAY-VISIBILITY.md
+- tasking/OPUS-FIX-PLAY-VISIBILITY-ADDENDUM.md
+- tasking/OPUS-FIX-PLAY-VISIBILITY-ADDENDUM2.md
+- tasking/OPUS-FIX-PLAY-VISIBILITY-ADDENDUM3.md
 
-What stands (NOT superseded, keep going if you're on them):
-- OPUS-FOREGROUND-COLE.md — separate tasking, still yours.
-- NEON-ENEMY-WALK-AND-COLE.md — Neon's, unchanged.
-
-Moth's fixes + proofs will land as
-`tasking/responses/moth-fix-play-visibility.md` with captures in
-`tasking/responses/moth-fix-play-visibility-shots/`, under the same
-no-regression constraints the tasking carried (fairness 0 violations
-+ 6/6 control, pace ~209 s / 5.7 s / ~122–126 s, 24/24 tests).
-Anything already landed toward these defects before this note
-(e.g. the defect-2 red-X fix) will be verified, credited, and built
-on — not redone.
+NOT superseded — still live assignments:
+- tasking/OPUS-FOREGROUND-COLE.md (Opus: foreground Cole style match)
+- tasking/NEON-ENEMY-WALK-AND-COLE.md (Neon: walk cycles + braced Cole repaint)
