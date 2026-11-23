@@ -165,3 +165,23 @@ Both use the existing `game.cameraOffset` hook (its `pos` term was already part 
   - enemy walk cycles (plain and scrubs), so relocating enemies stop gliding;
   - optionally, a braced-in-bay frame from a standing eye-line.
 - **Procedural Cole in the play rig.** In the over-the-shoulder play rig, the near foreground still shows the procedural Cole: the back of his head and shoulders, plus the blanket. That is "minimal patient presence" by the FRAMING RULING, but it is visibly a different style from the painted cast. A painted back-of-head/shoulders frame, or simply hiding his head in play, is one call away if Cherie wants it.
+
+## Update: believability pass 2 ("believable assets, not flat stickers", Cherie's follow-up)
+Pushed in `42b63ca` and `9d237b7`. The painted figures are now **re-seated in each room by a dedicated figure shader** (`game/painted.js` `figMat`), not drawn as flat textured cards.
+
+- **Lit by the room's real lamps.**
+  - The 87 ceiling panels are recovered from the merged world meshes (`collectLights`).
+  - Each figure's light level comes from the lamps near it: about 0.6 between lamps, about 1.1 under one.
+  - An overhead falloff lights head and shoulders more than legs.
+  - A side gradient brightens the side facing the nearest lamp.
+- **Light wrap and rim.** The room's colour bleeds into the outer 2–3 px of the silhouette, and a cool rim catches top-lit and back-lit edges. This removes the cut-out line.
+- **Grounding.**
+  - Contact darkening at the feet.
+  - **A real cast shadow from the figure's own lamp:** each floor fragment traces toward the lamp through the painted silhouette. It is contact-hardening: sharp at the feet, softer and fainter higher up.
+  - The contact shadow and wet-floor reflection from pass 1 remain. Reflections now take the figure's light.
+- **Grade.** Saturation is pulled to the scene's, and fog applies like the walls.
+- **Alive, not pasted.** Slow breathing and a weight-shift sway rise from planted feet; the amplitude is smaller seated and lying. Shooters kick back on the fire frame.
+
+**Foreground Cole:** see `opus-foreground-cole.md`.
+
+The fairness and pace re-run after this pass is unchanged: 224 damage events, 0 violations; control 6/6; 208.7 / 207.8 / 210.4 s; 24/24 tests.
