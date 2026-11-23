@@ -49,7 +49,7 @@ The game must never feel like moving forward in a straight line.
   longest straight stretch? Name the beats that feel like a corridor
   on rails.
 
-## What "review" means here
-Reviews only — nobody builds from this spec until Cherie rules on the reviews.
-Grade the CURRENT live build (pass 2, 3be95cf) against every point above:
-present / partial / absent, with evidence (captures, code references).
+## Sequence (Cherie's ruling, Nov 23, 2026)
+Opus BUILDS this spec first (OPUS-PATIENT-EYES.md). Then Neon reviews the
+NEW build against every point above (NEON-PATIENT-EYES-REVIEW.md):
+present / partial / absent, with evidence at phone size.
