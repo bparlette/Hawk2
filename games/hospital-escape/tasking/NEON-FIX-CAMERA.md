@@ -79,4 +79,28 @@ Invariants in both: camera never drops to first-person (the heroes never leave t
 
 ---
 
-*Brief written by Moth from Cherie's direction, Nov 22, 2026. Companion files: `tasking/NEON.md` (step-one brief), `tasking/OPUS.md` + `tasking/ENGINE-CONTRACT.md` (engine lane — the camera spec in §6 is written to be lifted into engine data unchanged).*
+## 7. ENEMY MOVEMENT — nobody stands still
+
+Cherie's words (Nov 22, 23:36 EST), verbatim:
+
+> "The people should not be static. They should be popping from around corners and coming through doors moving at you."
+
+This is a hard requirement on the step-one rail beats, on top of §§1–4. The current build's enemies stand in the open waiting to be shot — that is the defect this section fixes.
+
+**No static targets.** Every enemy in a rail beat is always doing one of these three things:
+
+- **Popping from around a corner** — lean/peek out from a corner or doorway edge, fire, duck back. The pop is the tell: the player sees the movement before the shots.
+- **Coming through a door** — a door opens, the enemy comes through it and advances. Doors are entrances, not decoration.
+- **Moving at the player** — advancing down the corridor toward the bed/chair. Nobody holds a firing position in the open for the length of a wave.
+
+**Advance pressure.** Over the course of a wave, enemies close distance toward the bed/chair, using doorways and corners as waypoints — the fight comes to the player, it does not wait down the hall. Fire intensity rises as they get closer (this feeds §3: the nearer they are, the more visible incoming fire, tracers, and impacts around the heroes). A wave that ends with every enemy still at spawn distance is wrong.
+
+**Readability at phone size.** All of this must read clearly at 390×844 from the over-the-shoulder camera (§§1, 6): corner-pops and door entrances are staged in view, ahead of the player — never behind the camera, never so far down the corridor that the movement is invisible. If the player can't see an enemy move, the movement didn't happen.
+
+**Shared behavior language (both lanes).** Opus's engine (`games/hospital-escape/engine/`) already models enemies with a cover/rush/hold behavior set under a wave director. That is the shared vocabulary, and your slice must speak it so the two halves converge: **corner-pops = cover behavior; coming through doors and advancing = rush/advance.** Implement it in your own simple system in the slice (spawn points at corners/doors, waypoint advance toward the player, peek-fire-duck cycles) — do not import the engine, and do not invent a different behavior set. Where your simple version can't match the engine's behavior, say so in your response.
+
+**Response evidence (adds to §5).** Your response (`games/hospital-escape/tasking/responses/neon-fix-camera.md`) must include 390×844 captures — or a short clip with a written description — that show enemies **mid-advance or mid-corner-pop**, not standing. At least one capture from the bed push and one from the wheelchair corridor showing enemy movement in progress.
+
+---
+
+*Brief written by Moth from Cherie's direction, Nov 22, 2026 (§7 added the same night, from her 23:36 direction). Companion files: `tasking/NEON.md` (step-one brief), `tasking/OPUS.md` + `tasking/ENGINE-CONTRACT.md` (engine lane — the camera spec in §6 is written to be lifted into engine data unchanged).*
