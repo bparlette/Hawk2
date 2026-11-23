@@ -149,14 +149,26 @@ if(Q.get('autostart') === '1'){ $('start').style.display = 'none'; started = tru
 var BEAT_TITLES = { visit: '1 · ROOM 412', bed_push: '2 · THE BED', transfer: '3 · THE TRANSFER', elevator: '4 · GOING DOWN', gauntlet: '5 · THE GAUNTLET', entrance: '6 · THE FRONT DOORS', steal: '7 · THE AMBULANCE', chase: '8 · HARBOR AVENUE', train_finale: '9 · THE LINE 9 CROSSING' };
 var outdoor = false, tAnim = 0, lastBeat = null, coleAim = new V(0, 0, -1), mayaFireT = 0, mayaTarget = new V(), bedParked = null, chairParked = null, ambParked = null;
 // night hospital (dim, cold ambient; the ceiling panels and pools carry the light) / storm dusk outside
-function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(PT){ PT.env.setRGB(on ? 0.76 : 1.0, on ? 0.81 : 1.0, on ? 0.92 : 1.0); PT.indoor = !on; }   /* painted cast graded to the room */ if(on){ scene.fog = new THREE.Fog(0x2b3440, 35, 300); hemi.color.set(0x7f93b0); hemi.groundColor.set(0x1d1a19); hemi.intensity = 0.45; sun.color.set(0xa8b8d8); sun.intensity = 0.55; sun.position.set(-60, 50, 40); sky.visible = true; }
+function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(PT){ PT.env.setRGB(on ? 0.79 : 1.0, on ? 0.83 : 1.0, on ? 0.92 : 1.0); PT.indoor = !on; }   /* painted cast graded to the room */ if(on){ scene.fog = new THREE.Fog(0x2b3440, 35, 300); hemi.color.set(0x8799b0); hemi.groundColor.set(0x1d1a19); hemi.intensity = 0.47; sun.color.set(0xb6bcd0); sun.intensity = 0.50; sun.position.set(-60, 50, 40); sky.visible = true; }
   else { scene.fog = new THREE.Fog(0x1c2328, 14, 60); hemi.color.set(0xb9c9d6); hemi.groundColor.set(0x3a342e); hemi.intensity = 0.48; sun.color.set(0xdfe8ff); sun.intensity = 0.18; sun.position.set(20, 40, 10); sky.visible = false; } }
+// BEAUTY PASS B1: per-area indoor fog (was one binary 14/60). [color, near, far] — far is set per area so the
+// longest scripted shot there stays <= ~40% fogged (probe-dist.cjs, seeds 3+7: halls max 24.5 m, elevator
+// doors 15.7 m, cafeteria 18.4 m, holdout 16.1 m). Outdoor keeps the setOutdoor fog. Painted cast follows via
+// painted.js's fog chunks — do not re-tint sprites for a fog change.
+var AREA_FOG = { visit_room: [0x1c2328, 10, 44], bed_hall_push: [0x1c2328, 11, 50], transfer_cut: [0x1c2328, 11, 50], transfer_chair_corridor: [0x1c2328, 11, 50],
+  elevator_ride: [0x1a2126, 5, 30], elevator_doors_ground: [0x1a2126, 5, 30], gauntlet_halls: [0x1c2328, 11, 50], gauntlet_cafeteria: [0x1c2328, 12, 55],
+  gauntlet_ward_on_foot: [0x1c2328, 8, 34], gauntlet_waiting_room: [0x1c2328, 10, 44], entrance_holdout: [0x1c2328, 12, 58] };
+function areaFog(seg, pathT){ if(outdoor || !scene.fog) return; var a = AREA_FOG[seg], c, n, f;
+  if(seg === 'entrance_exit_push'){ var t = Math.max(0, Math.min(1, pathT || 0)); c = 0x1c2328; n = 12 + 12 * t; f = 58 + 82 * t; }   // lobby fog eases toward the street values on the way out
+  else if(a){ c = a[0]; n = a[1]; f = a[2]; } else return;
+  if(scene.fog.color.getHex() !== c) scene.fog.color.setHex(c); scene.fog.near = n; scene.fog.far = f; }
 setOutdoor(true); setOutdoor(false);
 function placeOnPath(o, path, s, off){ var p = path.pointAtS(s), t = fwdOf(path, s); o.position.copy(p); if(off) o.position.add(off); yawTo(o, t); return t; }
 function present(dt){ tAnim += dt; if(PT) PT.time = tAnim; patientStep(dt); var st = game.state(), r = game.rail, m = st.mode, seg = st.segment || '';
   if((estK > 0 || estWas) && r.path && (m === 'RAIL_CHAIR' || m === 'AMBULANCE')) r.place(0, false); estWas = estK > 0;   // the offset lands on this very frame (a clean cut)
   if(st.beat !== lastBeat){ lastBeat = st.beat; if(started) showBanner(BEAT_TITLES[st.beat] || st.beat, 'title', 2200); }
   setOutdoor(st.beat === 'steal' && seg !== 'steal_cut' || st.beat === 'chase' || st.beat === 'train_finale' || seg === 'steal_cut');
+  areaFog(seg, r.pathT ? r.pathT() : 0);
   hale.visible = st.beat === 'visit'; if(m !== 'AMBULANCE' && seg !== 'steal_cut'){ var bp0 = game.path('bay_route'); placeOnPath(amb, bp0, bp0.lead); }
   var aimDir = aimRay(); coleAim.lerp(aimDir, Math.min(1, dt * 14)).normalize();
   mayaFireT = Math.max(0, mayaFireT - dt);
@@ -409,13 +421,21 @@ function frame(now){ acc += Math.min(0.1, (now - last) / 1000); last = now;
   camera.position.x -= ox; camera.position.y -= oy; requestAnimationFrame(frame); }
 // what the wounded eye focuses on: the nearest threat in view (enemy / pursuer), else the corridor ahead
 var focusS = 8, kick = 0, lastHp = 100;
+// BEAUTY PASS A1: per-segment exposure (was one binary indoor 0.72 / outdoor 0.62). Every value sits within
+// +/-0.06 of its binary base and none goes under the old outdoor floor 0.62; placed from the fixed-baseline
+// luminance survey so Room 412, the corridors, cafeteria and lobby sit on one night grade and the dark
+// outdoor beats (steal mean luma 33/255 vs indoor 63-75) lift toward the same movie.
+var EXPO = { visit_room: 0.70, bed_hall_push: 0.74, transfer_cut: 0.72, transfer_chair_corridor: 0.72, elevator_ride: 0.72, elevator_doors_ground: 0.72,
+  gauntlet_halls: 0.73, gauntlet_cafeteria: 0.73, gauntlet_ward_on_foot: 0.72, gauntlet_waiting_room: 0.72, entrance_holdout: 0.76, entrance_exit_push: 0.72,
+  steal_cut: 0.66, steal_staging: 0.68, chase_harbor_ave: 0.66, finale_line9_crossing: 0.66 };
+var COMBAT_SEG = { bed_hall_push: 1, transfer_chair_corridor: 1, elevator_doors_ground: 1, gauntlet_halls: 1, gauntlet_cafeteria: 1, gauntlet_ward_on_foot: 1, gauntlet_waiting_room: 1, entrance_holdout: 1, entrance_exit_push: 1 };
 function tunePost(){ var u = post.u, s = game.state(), f = s.feedback, m = s.mode, cam = camera.position, best = 1e9;
   game.combat.live().forEach(function(e){ var d = e.pos.distanceTo(cam); if(d < best) best = d; }); game.chase.list.forEach(function(p){ if(p.state === 'pursuing'){ var o = gb.actors[p.role]; if(o){ var d = o.position.distanceTo(cam); if(d < best) best = d; } } });
   var want = best < 1e8 ? best : (m === 'AMBULANCE' ? 16 : m === 'CUTSCENE' ? 3.2 : 8); focusS += (want - focusS) * 0.06;
   if(s.health < lastHp) kick = 1; lastHp = s.health; kick = Math.max(0, kick - 0.04);
-  u.focus.value = focusS; u.nearBlur.value = m === 'CUTSCENE' ? 3 : m === 'AMBULANCE' ? 7 : 8; u.farBlur.value = outdoor ? 3.5 : 4.5;
+  u.focus.value = focusS; u.nearBlur.value = m === 'CUTSCENE' ? 3 : m === 'AMBULANCE' ? 7 : 8; u.farBlur.value = outdoor ? 3.5 : (COMBAT_SEG[s.segment] ? 5.0 : 4.5);   // BEAUTY PASS A3: combat-segment farBlur cap 5.0 (was flat 4.5; 5.5 was tried and pushed the 20 m+ shooters toward mush in dof-check — 5.0 is the cap where the farthest scripted shooter still reads at 390x844); fairness-gated, first to revert
   u.hurt.value = HE.clamp((f.vignette - 0.2) * 1.3 + kick * 0.6, 0, 1.2); u.dying.value = f.wash; u.kick.value = kick;
-  u.exposure.value = outdoor ? 0.62 : 0.72; var foot = m === 'FREE_FOOT';
+  u.exposure.value = EXPO[s.segment] != null ? EXPO[s.segment] : (outdoor ? 0.62 : 0.72); var foot = m === 'FREE_FOOT';
   u.lidTop.value = PE.lid; u.lidBot.value = PE.lidB; u.lidRed.value = HE.clamp(PE.heat * 0.55, 0, 1) * (1 - PE.out);   /* going out = black */ u.drift.value = PE.drift; u.tunnel.value = f.wash;
   if(foot){ u.soft.value = 0.6; u.edge.value = 3; } u.soft.value = 1.25; u.edge.value = 6.5; if(m === 'FREE_FOOT'){ u.soft.value = 0.6; u.edge.value = 3; } sky.material.uniforms.time.value = tAnim;
   var fl = outdoor && (Math.sin(tAnim * 0.37) > 0.995 || Math.sin(tAnim * 0.53 + 1) > 0.997) ? 1 : 0; sky.material.uniforms.flash.value += (fl - sky.material.uniforms.flash.value) * 0.3; }
