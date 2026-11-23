@@ -4124,5 +4124,122 @@ window.__dbg={
     else { Input.keys[code]=false; Input.keyUpEdge[code]=true; } }
 };
 </script>
+<!-- ================================================================
+     Dave remove this if you don't want Mr baseball 2 in the game
+     ================================================================
+     MR. BASEBALL 2 REWARD — ONE SELF-CONTAINED BLOCK
+
+     Everything between this comment and the matching END comment at
+     the bottom of the block is the Mr. Baseball 2 reward: when the
+     player beats all the games and reaches Dave's verdict with a
+     full pass behind them, a reward card offers Mr. Baseball 2 as a
+     bonus game, playable right here in an overlay.
+
+     TO REMOVE IT: delete this entire block — from this comment down
+     to the END comment at the bottom — and save. Nothing else in
+     this file references the block; it watches the game's own
+     __dbg state by itself, so deleting it leaves the game exactly
+     as it was.
+     ================================================================ -->
+<style>
+  #mrBaseballReward{position:fixed;inset:0;z-index:2000;display:none;
+    align-items:center;justify-content:center;background:rgba(4,6,12,.88);
+    font-family:Verdana,Geneva,Tahoma,sans-serif;-webkit-text-size-adjust:100%;}
+  #mrBaseballReward.open{display:flex;}
+  #mrbCard{background:#0d1526;border:3px solid #90ee90;border-radius:14px;
+    max-width:340px;width:calc(100vw - 48px);padding:26px 22px 20px;
+    text-align:center;color:#f4f1e8;box-shadow:0 12px 40px rgba(0,0,0,.6);}
+  #mrbTitle{font-size:25px;font-weight:bold;line-height:1.25;color:#ffffff;}
+  #mrbGrade{font-size:14px;color:#90ee90;margin-top:8px;min-height:18px;}
+  #mrbSub{font-size:14px;color:#dddddd;margin-top:16px;}
+  #mrbGame{font-size:33px;font-weight:bold;color:#ffd94d;letter-spacing:1px;
+    margin:6px 0 20px;line-height:1.15;}
+  #mrbPlay{display:block;width:100%;background:#2f9e44;color:#ffffff;border:0;
+    border-radius:10px;font-family:inherit;font-size:21px;font-weight:bold;
+    padding:16px 10px;cursor:pointer;}
+  #mrbPlay:active{background:#27853a;}
+  #mrbTab{display:inline-block;margin-top:14px;font-size:13px;color:#9db8ff;}
+  #mrbCloseCard{display:block;margin:14px auto 0;background:none;border:0;
+    font-family:inherit;font-size:13px;color:#aaaaaa;cursor:pointer;
+    text-decoration:underline;padding:6px;}
+  #mrbGameWrap{display:none;position:absolute;inset:0;background:#000;}
+  #mrbFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;}
+  #mrbCloseGame{position:absolute;top:calc(10px + env(safe-area-inset-top));right:10px;
+    z-index:2001;background:#b02a2a;color:#ffffff;border:2px solid #ffffff;
+    border-radius:8px;font-family:inherit;font-size:15px;font-weight:bold;
+    padding:10px 14px;cursor:pointer;}
+</style>
+<div id="mrBaseballReward" role="dialog" aria-label="Mr. Baseball 2 reward">
+  <div id="mrbCard">
+    <div id="mrbTitle">YOU BEAT EVERY GAME!</div>
+    <div id="mrbGrade"></div>
+    <div id="mrbSub">Special reward unlocked:</div>
+    <div id="mrbGame">MR. BASEBALL 2</div>
+    <button id="mrbPlay" type="button">&#9654; PLAY</button>
+    <a id="mrbTab" href="https://bparlette.github.io/Hawk/games/mr-baseball-2/" target="_blank" rel="noopener">Open in a new tab instead</a>
+    <button id="mrbCloseCard" type="button">No thanks &mdash; back to the verdict</button>
+  </div>
+  <div id="mrbGameWrap">
+    <iframe id="mrbFrame" title="Mr. Baseball 2" allowfullscreen></iframe>
+    <button id="mrbCloseGame" type="button">&#10005; CLOSE</button>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  /* Mr. Baseball 2 reward — self-contained. Polls the game's own
+     __dbg surface; fires once, only when the verdict screen (REVIEW)
+     is reached with a full pass played (9+ rounds on the board —
+     the game's own "finish a full pass" milestone) and beers still
+     in hand, i.e. the player actually beat all the games rather
+     than running dry early. */
+  var GAME_URL = "https://bparlette.github.io/Hawk/games/mr-baseball-2/";
+  var fired = false;
+  function el(id) { return document.getElementById(id); }
+  function show() {
+    if (fired) return;
+    fired = true;
+    var ov = el("mrBaseballReward");
+    if (!ov) return;
+    try {
+      var r = window.__dbg && window.__dbg.review;
+      if (r && r.grade) el("mrbGrade").textContent = "Dave's grade: " + r.grade;
+    } catch (e) {}
+    ov.classList.add("open");
+  }
+  function hide() {
+    var ov = el("mrBaseballReward");
+    if (ov) ov.classList.remove("open");
+    var f = el("mrbFrame");
+    if (f) { try { f.src = "about:blank"; } catch (e) {} f.removeAttribute("src"); }
+    el("mrbGameWrap").style.display = "none";
+    el("mrbCard").style.display = "block";
+  }
+  function play() {
+    el("mrbCard").style.display = "none";
+    el("mrbGameWrap").style.display = "block";
+    el("mrbFrame").src = GAME_URL;
+  }
+  el("mrbPlay").addEventListener("click", play);
+  el("mrbCloseCard").addEventListener("click", hide);
+  el("mrbCloseGame").addEventListener("click", hide);
+  var iv = setInterval(function () {
+    try {
+      var d = window.__dbg;
+      if (!d) return;
+      if (d.state === "REVIEW" && d.results && d.results.length >= 9 && d.beers >= 1) {
+        clearInterval(iv);
+        show();
+      }
+    } catch (e) {}
+  }, 400);
+})();
+</script>
+<!-- ================================================================
+     END OF THE MR. BASEBALL 2 REWARD BLOCK
+     Dave remove this if you don't want Mr baseball 2 in the game —
+     delete from the matching comment at the top of the block down
+     to this one, and the game is exactly as it was.
+     ================================================================ -->
 </body>
 </html>
