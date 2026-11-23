@@ -214,18 +214,22 @@ function paintCast(dt, st, m, seg){ if(!PT || !PT.ready){ return; } var r = game
   else if(m === 'CUTSCENE' && seg === 'transfer_cut'){ PT.use(maya, true); PT.show(maya, 'maya-crouch-chair', 1, camera); }
   else PT.use(maya, false);
   // Cole: the painted patient where the camera sees HIM (cutscenes + the ambulance establishing shot); his own eyes otherwise
+  cole.scale.setScalar(1);
   if(m === 'CUTSCENE' && seg === 'visit_room'){ PT.use(cole, true); bed.visible = false; cole.position.copy(bed.position).addScaledVector(fwdOf(game.path('bed_hall'), game.path('bed_hall').lead), 1.0); cole.position.y = bed.position.y; PT.show(cole, 'cole-bed-foot', 1, camera, 1, 'box'); }
   else if(m === 'CUTSCENE' && (seg === 'transfer_cut' || seg === 'steal_cut')){ PT.use(cole, true); chair.visible = false; cole.position.copy(chair.position); PT.show(cole, 'cole-wheelchair-front3q', 1, camera, 1, 'box'); }
   else if(m === 'AMBULANCE' && estK > 0){ PT.use(cole, true); cole.userData.reflect = false;   /* the bay floor is ribbed steel, not wet linoleum */ amb.updateMatrixWorld(true); cole.position.copy(amb.localToWorld(new V(0.05, 0.81, -2.25))); PT.show(cole, 'cole-ambulance-braced', 1, camera, 1, 'box'); }
   else if(m === 'FREE_FOOT'){ PT.use(cole, true); chair.visible = false; cole.position.copy(chair.position); var dc = cole.position.distanceTo(camera.position); cole.userData.opac = HE.clamp((dc - 3.0) / 1.5, 0, 1);   // parked: the painted patient in his chair, faded out while he is right beside Maya's camera
     PT.show(cole, 'cole-wheelchair-front3q', 1, camera, 1, 'box'); cole.userData.bb.userData.sh.visible = cole.userData.opac > 0.5; }
+  else if(m === 'RAIL_CHAIR' && st.vehicle === 'bed' && estK > 0){ PT.use(cole, true); bed.visible = false; var bf2 = fwdOf(game.rail.path, game.rail.s); cole.position.copy(bed.position).addScaledVector(bf2, 1.0); cole.position.y = bed.position.y; PT.show(cole, 'cole-bed-foot', 1, camera, 1, 'box'); }   // defect 5: the bed push's establishing shot takes the PAINTED bed (the visit treatment) — the occupant is the painted Cole, not the grey figure
+  else if((m === 'RAIL_CHAIR' && st.vehicle !== 'bed') || m === 'HOLDOUT'){ PT.use(cole, true); chair.visible = false; cole.position.copy(chair.position); cole.scale.setScalar(0.73); PT.show(cole, 'cole-wheelchair-front3q', 1, camera, 1, 'box'); }   // defect 5: the wheelchair's occupant is the painted Cole in every chair beat (the FREE_FOOT treatment extended to play views) — no more empty chair behind Maya. Scaled 0.73: the painting's figure measures 1.79 m but a seated man's head tops ~1.31 m — at full size his head would fill the play view and block the fairness sight-lines over the chair
   else PT.use(cole, false);
   if(m !== 'FREE_FOOT'){ cole.userData.opac = 1; if(cole.userData.bb) cole.userData.bb.userData.sh.visible = true; }
   // OPUS-FOREGROUND-COLE: in his own play views the procedural Cole (back of head, shoulders, gun arm) clashed with the painted cast and
   // no painted back view exists -> he is hidden there (method b). The bed / chair / ambulance bay still frame the view; his shots leave
   // from an off-screen gun point at the lower right of HIS view (fgMuzzle).
+  coleGunFG = (m === 'RAIL_CHAIR' && st.vehicle !== 'bed') || m === 'HOLDOUT' || m === 'AMBULANCE';   // in the chair / bay play views his shots still leave from the off-screen gun point, painted occupant or not (the painting carries no muzzle)
   coleHidden = (m === 'RAIL_CHAIR' || m === 'HOLDOUT' || m === 'AMBULANCE') && !cole.userData.painted; cole.visible = !coleHidden; }
-var coleHidden = false;
+var coleHidden = false, coleGunFG = false;
 function fgMuzzle(out){ var q = camera.quaternion; return out.copy(camera.position).add(new V(0.2, -0.3, -0.62).applyQuaternion(q)); }
 // an enemy as its painted frames: peek / aim / fire / flinch / down, mirrored to face the screen centre (the camera side)
 function paintEnemy(e, p, dt){ var u = p.userData, pk = u.pk, fr; u.kick = Math.max(0, (u.fireT || 0) / 0.14); u.fireT = Math.max(0, (u.fireT || 0) - dt); u.flinchT = Math.max(0, (u.flinchT || 0) - dt);
@@ -292,6 +296,7 @@ function patientStep(dt){ if(dt <= 0) return; PE.t += dt; var st = game.state(),
     var tt = fwdOf(rp, game.rail.s); O.pos.addScaledVector(tt, -1.35 * estK).add(new V(-tt.z, 0, tt.x).multiplyScalar(-0.4 * estK)); O.pos.y += 0.3 * estK; O.pitch += -0.06 * estK; }
   else if(PT && PT.ready && rp && st.segment === 'steal_staging' && sT < 1.9){ estK = 1; var ta = rp.tangentAtS(game.rail.s); ta.y = 0; ta.normalize();
     O.pos.addScaledVector(ta, -6.1).add(new V(ta.z, 0, -ta.x).multiplyScalar(0.25)); O.pos.y += 0.75; O.yaw = Math.PI; O.pitch = -0.3; O.roll = 0; }   // high, looking down into the bay: the painting's own viewpoint
+  else if(rp && st.segment === 'elevator_ride' && game.rail.pathT() > 0.85){ var rk = HE.clamp((game.rail.pathT() - 0.85) / 0.08, 0, 1); estK = rk * rk * (3 - 2 * rk); O.yaw += 0.22 * estK; O.pitch += -0.05 * estK; }   // defect 7: once the chair is inside the car (pathT > 0.85 — never during the el_up lobby fight), turn the view to the occupants (Maya at the chair's side + the chair itself) instead of staring at the car doors; the segment cut to the ground doors ends it
   // --- eyelids: base coverage by health + droop under sustained fire (FLOOR RULE <= 30%/lid), plus ONE lid system on top: CONSCIOUSNESS.
   // No blinks. Fades are driven by hurt (deeper, longer, more often as HP falls) and spike after heavy hits: heavy slow onset -> hold ->
   // uneven swim back (re-dips). At full depth he is OUT: lids meet, black, muffled. The engine deals no damage while closure >= outGate.
@@ -346,7 +351,7 @@ function updateVisibleZone(st){ var Z = game.visibleZone || (game.visibleZone = 
 // ------------------------------------------------------------------ engine events -> FX / HUD
 var logIdx = 0;
 function processEvents(){ var L = game._log; for(; logIdx < L.length; logIdx++){ var e = L[logIdx], d = e.data;
-  if(e.type === 'shot'){ var gunner = game.mode === 'FREE_FOOT' ? maya : cole, mz = (gunner === cole && coleHidden) ? fgMuzzle(new V()) : (A.muzzleWorld(gunner, new V()) || camera.position.clone()); muzzle(mz, d.weapon === 'machine_pistol'); sfx.shot(d.weapon === 'machine_pistol');
+  if(e.type === 'shot'){ var gunner = game.mode === 'FREE_FOOT' ? maya : cole, mz = (gunner === cole && (coleHidden || coleGunFG)) ? fgMuzzle(new V()) : (A.muzzleWorld(gunner, new V()) || camera.position.clone()); muzzle(mz, d.weapon === 'machine_pistol'); sfx.shot(d.weapon === 'machine_pistol');
     var end = d.point ? new V().fromArray(d.point) : mz.clone().addScaledVector(aimRay(), 40); tracer(mz, end, 0xffe2a0, 0.06, 0.03); if(d.point){ sparks(end, d.hit ? 3 : 6); } }
   else if(e.type === 'partnerShot'){ var en = game.combat.byRole(d.role); if(en){ mayaTarget.copy(en.pos).setY(en.pos.y + 1.3); } mayaFireT = 0.45; var mm = A.muzzleWorld(maya, new V()); if(mm){ muzzle(mm); tracer(mm, new V().fromArray(d.to), 0xffd080, 0.07, 0.03); } sfx.shot(false); }
   else if(e.type === 'enemyShot'){ var src = gb.actors[d.role];
