@@ -16,13 +16,27 @@
   #wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000000;
     background-image:radial-gradient(1px 1px at 20px 30px,#ffffff 50%,transparent 51%),radial-gradient(1px 1px at 70px 90px,#aaaaFF 50%,transparent 51%),radial-gradient(1.5px 1.5px at 120px 50px,#dddddd 50%,transparent 51%);
     background-size:150px 120px;}
-  #siteBar{font-family:Verdana,sans-serif;font-size:12px;color:#dddddd;padding:7px 0 3px;letter-spacing:.4px;}
-  #siteBar a{color:#90ee90;font-weight:bold;text-decoration:none;}
+  /* "presented by" credit: overlay INSIDE the stage at the bottom edge.
+     The stage's bottom strip is empty floor in every state, so the credit
+     costs no screen area. The bar itself ignores taps (only the link is
+     live), so it can never block a game tap. */
+  #siteBar{position:fixed;left:0;right:0;bottom:0;z-index:1100;text-align:center;pointer-events:none;
+    font-family:Verdana,sans-serif;font-size:10px;line-height:1;color:#dddddd;padding:2px 0 3px;letter-spacing:.4px;
+    background:rgba(0,0,0,.55);}
+  #siteBar a{color:#90ee90;font-weight:bold;text-decoration:none;pointer-events:auto;}
   canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;background:#241610;
     /* fit ANY container (standalone page or someone else's iframe): scale to
-       the smaller dimension, aspect locked, never overflow (30px reserved
-       for the siteBar above) */
-    width:min(100vw,calc((100vh - 30px) * 390 / 844));height:auto;aspect-ratio:390 / 844;max-width:100vw;max-height:100vh;}
+       the smaller dimension, aspect locked, never overflow */
+    width:min(100vw,calc(100vh * 390 / 844));height:auto;aspect-ratio:390 / 844;max-width:100vw;max-height:100vh;}
+  /* PHONES (portrait, phone-like aspect): fill the screen edge-to-edge —
+     full viewport WIDTH is the hard rule (no black side bars), height via
+     the dynamic viewport so browser chrome can't shrink the stage.
+     Internal rendering stays 390x844; phone aspects sit within ~0.5% of
+     390:844 so the stretch is invisible, and tap mapping is per-axis
+     (canvasPos scales x and y independently), so taps stay exact. */
+  @media (orientation:portrait) and (max-aspect-ratio:3/5){
+    canvas{width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;aspect-ratio:auto;}
+  }
   #muteBtn{position:fixed;top:calc(8px + env(safe-area-inset-top));right:10px;z-index:1200;
     width:44px;height:44px;border-radius:10px;border:2px solid #000080;background:rgba(0,0,60,.92);
     color:#90ee90;font-size:21px;line-height:1;cursor:pointer;padding:0;}
