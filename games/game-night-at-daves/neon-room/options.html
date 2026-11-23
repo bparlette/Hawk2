@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>GAME NIGHT AT DAVE'S — 3 Recliner &amp; Head Options (Neon)</title>
+  <style>
+    :root {
+      --vgc-navy: #000080;
+      --vgc-green: #90ee90;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100dvh; overflow: hidden;
+      background: #040408; color: #f4efe6;
+      font-family: "Courier New", Courier, monospace;
+      touch-action: none;
+    }
+    .stage-shell {
+      position: relative; width: 100%; height: 100dvh;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 35%, #121226 0%, #030307 82%);
+    }
+    .phone-frame {
+      position: relative; height: 100dvh; max-height: 100dvh;
+      aspect-ratio: 390 / 844; max-width: 100vw;
+      background: #06060d; overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(144, 238, 144, 0.2), 0 20px 60px rgba(0, 0, 0, 0.85);
+      touch-action: none;
+    }
+    #roomCanvas {
+      width: 100%; height: 100%; display: block;
+      image-rendering: pixelated; image-rendering: crisp-edges;
+      touch-action: none;
+    }
+    .ui-layer {
+      position: absolute; inset: 0; pointer-events: none; z-index: 1200;
+    }
+    .opt-bar {
+      position: absolute; top: 34px; left: 8px; right: 8px;
+      display: flex; gap: 5px; pointer-events: auto;
+    }
+    .opt-btn {
+      flex: 1; padding: 5px 4px; border-radius: 6px;
+      border: 1.5px solid #4858a8; background: rgba(0, 0, 128, 0.88);
+      color: #d8e2ff; font-family: "Courier New", monospace;
+      font-size: 10px; font-weight: 900; letter-spacing: 0.4px;
+      cursor: pointer; touch-action: manipulation;
+    }
+    .opt-btn.active {
+      background: #1a2a8c; border-color: var(--vgc-green); color: var(--vgc-green);
+      box-shadow: 0 0 10px rgba(144, 238, 144, 0.35);
+    }
+  </style>
+</head>
+<body>
+  <div class="stage-shell">
+    <div class="phone-frame">
+      <canvas id="roomCanvas" width="260" height="562"></canvas>
+      <div class="ui-layer">
+        <div class="opt-bar" id="optBar">
+          <button class="opt-btn active" data-opt="A">A: DEEP RECLINE</button>
+          <button class="opt-btn" data-opt="B">B: 2-ROW WIDE</button>
+          <button class="opt-btn" data-opt="C">C: LOW CINEMA</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    const canvas = document.getElementById('roomCanvas');
+    const ctx = canvas.getContext('2d');
+    const optBtns = [...document.querySelectorAll('.opt-btn')];
+    const W = 260;
+    const H = 562;
+
+    let activeOpt = 'A';
+    let time = 1.2;
+
+    function px(x, y, w, h, col) {
+      ctx.fillStyle = col;
+      ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+    }
+    function pill(x, y, w, h, col) {
+      x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+      ctx.fillStyle = col;
+      if (w >= 4 && h >= 4) {
+        ctx.fillRect(x + 1, y, w - 2, h);
+        ctx.fillRect(x, y + 1, w, h - 2);
+      } else ctx.fillRect(x, y, w, h);
+    }
+    function roundedRect(x, y, w, h, col, r = 2) {
+      x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+      ctx.fillStyle = col;
+      ctx.fillRect(x + r, y, w - r * 2, h);
+      ctx.fillRect(x, y + r, w, h - r * 2);
+      if (r >= 2) ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+    }
+
+    const CREW = [
+      { name: 'SUDZ', hairType: 'crop', hair: '#8a623c', hairHi: '#b08254', hairShade: '#5b3e24', shirt: '#c9322c', shirtShade: '#8a1e1a', feet: true, sock: '#252832', pants: '#2e3a4e' },
+      { name: 'SCOTT', hairType: 'cap', hair: '#222630', hairHi: '#424b5e', hairShade: '#12151c', shirt: '#d98a22', shirtShade: '#965c12', feet: false },
+      { name: 'BRENT', hairType: 'full', hair: '#c8cdd6', hairHi: '#f0f4fa', hairShade: '#8a92a1', shirt: '#328a46', shirtShade: '#1e5b2c', feet: true, sock: '#5a6270', pants: '#38465e' },
+      { name: 'BRIAN', hairType: 'cap', hair: '#232732', hairHi: '#454d60', hairShade: '#12151c', shirt: '#ebe6dc', shirtShade: '#b8b0a2', feet: false },
+      { name: 'STEVE', hairType: 'wave', hair: '#2b1d14', hairHi: '#4a3425', hairShade: '#170f0a', shirt: '#1c3c86', shirtShade: '#102454', feet: true, sock: '#e6e8ee', pants: '#9a7e5a' },
+      { name: 'CHRIS', hairType: 'buzz', hair: '#887866', hairHi: '#aa9985', hairShade: '#5c5043', shirt: '#228c88', shirtShade: '#145a57', feet: false },
+      { name: 'BRAD', hairType: 'crop', hair: '#b85426', hairHi: '#df7644', hairShade: '#7d3414', shirt: '#2ea8ff', shirtShade: '#1a6eb3', feet: true, sock: '#252832', pants: '#333d50' },
+      { name: 'BRENDAN', hairType: 'long', hair: '#1e1922', hairHi: '#3d3546', hairShade: '#110d14', shirt: '#7a3ab8', shirtShade: '#4e227a', feet: false },
+      { name: 'DAVE', hairType: 'sweep', hair: '#d6dbe4', hairHi: '#f6f9ff', hairShade: '#99a1b0', shirt: '#263858', shirtShade: '#162238', isDave: true, feet: true, sock: '#1f222a', pants: '#2c3342' },
+    ];
+
+    const STARS = Array.from({ length: 36 }, (_, i) => ({
+      x: (i * 37 + 11) % W, y: (i * 19 + 3) % 24,
+      bright: i % 3 === 0 ? '#ffffff' : i % 2 === 0 ? '#90ee90' : '#7b88c9',
+    }));
+    const SPINE_R = ['#b52b2b', '#26538d', '#d18d2a', '#2b7a46', '#7d2e82', '#d8d2c4', '#40485c', '#c94932'];
+    const SPINE_L = ['#ebe6da', '#ded8ca', '#f2eee4', '#d1cab9', '#c6c0b2', '#e4dfd2'];
+
+    function drawRoomBackdrop() {
+      // Masthead
+      px(0, 0, W, 26, '#05050b');
+      for (const s of STARS) px(s.x, s.y, 1, 1, s.bright);
+      px(0, 25, W, 2, '#000080');
+      px(0, 27, W, 1, '#90ee90');
+      ctx.font = 'bold 8px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#c8d0e0';
+      ctx.fillText('presented by', 82, 13);
+      ctx.fillStyle = '#90ee90';
+      ctx.fillText('videogamecritic.com', 162, 13);
+
+      // Wall & Shelves
+      px(0, 28, W, 212, '#28201a');
+      px(0, 28, 34, 212, '#0f0e12');
+      px(W - 34, 28, 34, 212, '#0f0e12');
+      for (let row = 0; row < 7; row++) {
+        const sy = 34 + row * 29;
+        px(2, sy + 25, 30, 3, '#1e1c24');
+        px(W - 32, sy + 25, 30, 3, '#1e1c24');
+        for (let bx = 3; bx < 31; bx += 3) {
+          const colL = row >= 4 ? (bx % 6 === 0 ? '#b8322c' : '#262936') : SPINE_L[(bx + row) % SPINE_L.length];
+          px(bx, sy + 4, 2, 21, colL);
+          px(W - 34 + bx, sy + 4, 2, 21, SPINE_R[(bx + row * 3) % SPINE_R.length]);
+        }
+      }
+
+      // Big TV + CRT + Console Stack
+      roundedRect(40, 76, 114, 72, '#12151e', 2);
+      px(43, 79, 108, 66, '#0c1a34');
+      px(44, 80, 106, 10, '#000080');
+      ctx.font = 'bold 6px "Courier New", monospace';
+      ctx.fillStyle = '#90ee90';
+      ctx.fillText('VIDEOGAMECRITIC.COM', 97, 85);
+      ctx.font = '900 12px "Courier New", monospace';
+      ctx.fillStyle = '#ffcf48';
+      ctx.fillText('GAME NIGHT', 97, 105);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText("AT DAVE'S", 97, 119);
+      ctx.font = 'bold 6px "Courier New", monospace';
+      ctx.fillStyle = '#90ee90';
+      ctx.fillText("Dave's reviewing tonight.", 97, 134);
+
+      // Pac-Man lamp + Silver CRT
+      ['#ff3b3b', '#ff8cd9', '#3be8ff', '#ff9d2e', '#ffe63b'].forEach((col, i) => {
+        px(170 + i * 8, 82, 6, 7, col);
+      });
+      roundedRect(160, 90, 60, 56, '#989ba4', 3);
+      roundedRect(165, 95, 50, 40, '#142426', 3);
+      px(170, 103, 34, 4, '#29e3ff');
+      px(172, 111, 24, 3, '#ffcf48');
+      px(174, 118, 28, 3, '#90ee90');
+
+      // Console stands
+      px(42, 152, 110, 84, '#14151c');
+      px(50, 162, 28, 12, '#d6d2c8');
+      px(86, 164, 24, 10, '#ccc8d4');
+      px(52, 184, 36, 14, '#1d2126');
+      px(68, 189, 4, 4, '#44ff44');
+      px(162, 148, 56, 88, '#181a22');
+      px(194, 158, 18, 14, '#c82b36');
+
+      // Carpet floor
+      px(0, 236, W, H - 236, '#8d7a62');
+      const fg = ctx.createLinearGradient(0, 236, 0, H);
+      fg.addColorStop(0, 'rgba(30,22,16,0.34)');
+      fg.addColorStop(0.55, 'rgba(20,14,10,0.22)');
+      fg.addColorStop(1, 'rgba(5,5,10,0.95)');
+      ctx.fillStyle = fg;
+      ctx.fillRect(0, 236, W, H - 236);
+
+      // Coffee table + Steel Battalion rig (compact so recliners have generous room!)
+      roundedRect(64, 246, 132, 28, '#5e432c', 2);
+      px(66, 248, 128, 22, '#75563a');
+      px(76, 256, 94, 10, '#ddd8cc');
+      roundedRect(78, 246, 24, 18, '#1d2028', 2);
+      px(88, 237, 4, 11, '#14161c');
+      roundedRect(104, 245, 36, 20, '#171a22', 2);
+      for (let bx = 0; bx < 5; bx++) {
+        px(107 + bx * 6, 249, 4, 3, '#42e878');
+        px(107 + bx * 6, 255, 4, 3, bx === 4 ? '#ffca3a' : '#2db860');
+      }
+      roundedRect(142, 246, 24, 18, '#1d2028', 2);
+      px(152, 237, 4, 11, '#14161c');
+      pill(174, 250, 16, 11, '#8c94a2'); // helmet
+      roundedRect(44, 260, 16, 12, '#14161d', 2);
+      pill(49, 251, 6, 6, '#2e90ff'); // blue ball-top stick
+    }
+
+    // Shared back-of-head renderer (scalable: big=true for Option B wide seats!)
+    function drawHeadBack(c, cx, hy, big = false, rimLight = false) {
+      const s = big ? 1.45 : 1.0;
+      const hw = Math.round(12 * s);
+      const hh = Math.round(12 * s);
+      const sw = Math.round(18 * s);
+      const sh = Math.round(9 * s);
+      const hx = Math.round(cx);
+      hy = Math.round(hy);
+
+      // Shoulders sunk deep below headrest crest
+      roundedRect(hx - sw / 2, hy + hh, sw, sh, c.shirtShade, 2);
+      roundedRect(hx - sw / 2 + 1, hy + hh, sw - 2, sh - 2, c.shirt, 2);
+      // Neck
+      px(hx - Math.round(3 * s), hy + hh - 2, Math.round(6 * s), 3, '#b88a68');
+
+      // Ears
+      px(hx - hw / 2 - 1, hy + Math.round(5 * s), 2, Math.round(3 * s), '#c89974');
+      px(hx + hw / 2 - 1, hy + Math.round(5 * s), 2, Math.round(3 * s), '#c89974');
+
+      // Back of head / hair
+      if (c.hairType === 'cap') {
+        roundedRect(hx - hw / 2, hy, hw, hh, c.hairShade, 3);
+        roundedRect(hx - hw / 2 + 1, hy + 1, hw - 2, hh - 3, c.hair, 2);
+        px(hx - hw / 2 + 2, hy + 1, hw - 4, 2, rimLight ? '#8cc8ff' : c.hairHi);
+        // Snapback rear opening
+        px(hx - Math.round(3 * s), hy + hh - 4, Math.round(6 * s), 2, '#c89b78');
+        px(hx - Math.round(3 * s), hy + hh - 3, Math.round(6 * s), 1, '#12141a');
+      } else if (c.hairType === 'long') {
+        roundedRect(hx - hw / 2, hy, hw, hh + Math.round(10 * s), c.hairShade, 3);
+        roundedRect(hx - hw / 2 + 1, hy + 1, hw - 2, hh + Math.round(7 * s), c.hair, 2);
+        px(hx - hw / 2 + 2, hy + 1, hw - 4, 3, rimLight ? '#7fa8e8' : c.hairHi);
+      } else if (c.hairType === 'buzz') {
+        roundedRect(hx - hw / 2 + 1, hy + 1, hw - 2, hh - 1, '#c89974', 3);
+        roundedRect(hx - hw / 2 + 1, hy, hw - 2, hh - 4, c.hair, 3);
+        px(hx - hw / 2 + 3, hy + 1, hw - 6, 2, rimLight ? '#d8e4ff' : c.hairHi);
+      } else {
+        roundedRect(hx - hw / 2, hy, hw, hh, c.hairShade, 3);
+        roundedRect(hx - hw / 2 + 1, hy + 1, hw - 2, hh - 2, c.hair, 2);
+        px(hx - hw / 2 + 2, hy + 1, hw - 4, Math.round(3 * s), rimLight ? '#b4d8ff' : c.hairHi);
+        if (c.hairType === 'wave') {
+          px(hx - hw / 2 + 2, hy + Math.round(5 * s), Math.round(4 * s), 2, c.hairHi);
+          px(hx + 1, hy + Math.round(6 * s), Math.round(4 * s), 2, c.hairHi);
+        }
+      }
+    }
+
+    function drawArmProp(ax, ay, prop, wide = false) {
+      const cx = Math.round(ax + (wide ? 6 : 4));
+      // Recessed black cup holder in the FRONT half of the armrest
+      pill(cx - 3, ay + 2, 7, 6, '#141212');
+      px(cx - 2, ay + 3, 5, 4, '#2a2624');
+      px(cx - 1, ay + 4, 3, 2, '#080707');
+
+      if (prop === 'beerCan') {
+        px(cx - 2, ay - 4, 5, 8, '#e8c432');
+        px(cx - 2, ay - 4, 5, 2, '#e2e8f0');
+        px(cx - 1, ay - 1, 3, 3, '#c9322c');
+      } else if (prop === 'redCup') {
+        px(cx - 2, ay - 4, 5, 8, '#d42c30');
+        px(cx - 2, ay - 4, 5, 1, '#f4f0e8');
+      } else if (prop === 'glass') {
+        px(cx - 2, ay - 3, 5, 7, '#b4d2dc');
+        px(cx - 1, ay, 3, 3, '#e0c682');
+      } else if (prop === 'remote') {
+        px(cx - 2, ay + 10, 5, 9, '#e6e4de');
+        px(cx - 1, ay + 12, 3, 2, '#4a5262');
+      } else if (prop === 'gradebook') {
+        roundedRect(cx - 4, ay + 9, 9, 12, '#9e1f26', 1);
+        px(cx - 2, ay + 11, 5, 8, '#f4efe2');
+        px(cx - 1, ay + 13, 3, 1, '#2a3448');
+        px(cx - 1, ay + 16, 3, 1, '#c9322c');
+      }
+    }
+
+    // =========================================================================
+    // OPTION A: "DEEP RECLINE — TRUE PAINTER'S DEPTH"
+    // Armrests & cup holders are drawn BEFORE the reclined chair backs so they
+    // physically sit IN FRONT OF & BETWEEN the chairs (never behind the seat!).
+    // =========================================================================
+    function drawOptionA() {
+      const marginX = 6;
+      const step = (W - marginX * 2) / CREW.length;
+      const seats = CREW.map((_, i) => {
+        const norm = (i - 4) / 4;
+        return { cx: Math.round(marginX + step * (i + 0.5)), topY: 334 + Math.round(norm * norm * 9), w: 23 };
+      });
+
+      // LAYER 1 (FARTHEST): Connected extended footrests & socked feet
+      for (let i = 0; i < CREW.length; i++) {
+        const c = CREW[i];
+        if (!c.feet) continue;
+        const g = seats[i];
+        roundedRect(g.cx - 8, g.topY - 19, 16, 24, '#8c7658', 3);
+        roundedRect(g.cx - 7, g.topY - 18, 14, 21, '#d8c7aa', 2);
+        px(g.cx - 6, g.topY - 18, 12, 3, '#f2e8d4');
+        px(g.cx - 6, g.topY - 16, 5, 18, c.pants);
+        px(g.cx + 1, g.topY - 16, 5, 18, c.pants);
+        pill(g.cx - 7, g.topY - 22, 5, 7, c.sock);
+        pill(g.cx + 2, g.topY - 21, 5, 7, c.sock);
+      }
+
+      // LAYER 2 (MIDDLE — IN FRONT OF THE CHAIR BACKS!): Wide console armrests + cup holders!
+      // Because they are drawn BEFORE the backrests, the reclined backs naturally lean OVER & BEHIND them!
+      const props = { 0: 'glass', 2: 'beerCan', 4: 'remote', 6: 'redCup', 9: 'gradebook' };
+      for (let a = 0; a <= CREW.length; a++) {
+        const ax = a === 0 ? seats[0].cx - 16 : a === CREW.length ? seats[8].cx + 8 : Math.round((seats[a - 1].cx + seats[a].cx) / 2 - 4);
+        const ay = (a === 0 ? seats[0].topY : a === CREW.length ? seats[8].topY : Math.min(seats[a - 1].topY, seats[a].topY)) + 1;
+        // Front console armrest jutting FORWARD toward the TVs between the reclined seats
+        roundedRect(ax, ay - 6, 9, 34, '#7d684c', 3);
+        roundedRect(ax + 1, ay - 5, 7, 29, '#d6c5a8', 2);
+        px(ax + 2, ay - 5, 5, 5, '#f2e8d4'); // soft rounded front-top bolster of armrest
+        drawArmProp(ax, ay - 1, props[a] || null, false);
+      }
+
+      // LAYER 3 (CLOSEST TO VIEWER): Reclined plush chair backrests + heads sunk inside!
+      // Cleanly overlaps the rear half of the armrests so armrests read 100% IN FRONT of the seats!
+      for (let i = 0; i < CREW.length; i++) {
+        const g = seats[i];
+        const c = CREW[i];
+        const lx = Math.round(g.cx - g.w / 2);
+
+        // Ground shadow behind reclined shell
+        px(lx - 1, g.topY + 58, g.w + 2, 10, 'rgba(0,0,0,0.52)');
+
+        // Reclined top pillow headrest dome (with concave dimple where head sinks!)
+        roundedRect(lx + 1, g.topY + 2, g.w - 2, 22, '#8b7457', 5);
+        roundedRect(lx + 2, g.topY + 3, g.w - 4, 19, '#e4d5ba', 4);
+        px(lx + 4, g.topY + 3, g.w - 8, 3, '#f6eedc');
+        roundedRect(lx + 5, g.topY + 6, g.w - 10, 12, '#c5b190', 3);
+
+        // Sitter's back of head sunk deep into the pillow!
+        drawHeadBack(c, g.cx, g.topY + 5, false, false);
+
+        // Thick curved lumbar & back shell leaning BACK toward camera (overlapping rear of armrests!)
+        const by = g.topY + 23;
+        px(lx + 2, by - 1, g.w - 4, 2, '#5e4934');
+        roundedRect(lx, by + 1, g.w, 25, '#786248', 5);
+        roundedRect(lx + 1, by + 2, g.w - 2, 22, '#d8c7ab', 4);
+        roundedRect(lx + 4, by + 3, g.w - 8, 5, '#f0e6d2', 2); // curved pillow top
+        px(g.cx - 1, by + 9, 2, 11, '#a99374'); // leather tuft crease
+        // Lower reclined leather skirt
+        roundedRect(lx, by + 25, g.w, 16, '#69553e', 3);
+        roundedRect(lx + 1, by + 26, g.w - 2, 12, '#bfa989', 2);
+        px(lx + 4, by + 38, g.w - 8, 3, '#1a1714'); // recliner base rail
+      }
+    }
+
+    // =========================================================================
+    // OPTION B: "TWO-ROW WIDE THEATER" (4 Front + 5 Back Stadium Curve!)
+    // Giving every single recliner nearly DOUBLE the width (~44px wide!) so the
+    // big overstuffed La-Z-Boy cushions, side armrests, cup holders & hair POP!
+    // =========================================================================
+    function drawWideRecliner(cx, topY, c, armPropLeft, armPropRight) {
+      const seatW = 36;
+      const lx = Math.round(cx - seatW / 2);
+
+      // 1. Connected extended footrest (front of seat, farthest from camera)
+      if (c.feet) {
+        roundedRect(cx - 12, topY - 16, 24, 22, '#8b7457', 4);
+        roundedRect(cx - 11, topY - 15, 22, 19, '#d8c7ab', 3);
+        px(cx - 9, topY - 15, 18, 3, '#f4ead6');
+        px(cx - 9, topY - 13, 7, 16, c.pants);
+        px(cx + 2, topY - 13, 7, 16, c.pants);
+        pill(cx - 10, topY - 19, 7, 8, c.sock);
+        pill(cx + 3, topY - 18, 7, 8, c.sock);
+      }
+
+      // 2. Wide puffy armrests extending FORWARD on BOTH sides (drawn BEFORE back shell!)
+      // Left arm
+      roundedRect(lx - 7, topY + 2, 11, 28, '#7e684c', 3);
+      roundedRect(lx - 6, topY + 3, 9, 23, '#d7c6aa', 2);
+      px(lx - 5, topY + 3, 7, 5, '#f2e8d4');
+      if (armPropLeft) drawArmProp(lx - 6, topY + 5, armPropLeft, true);
+
+      // Right arm
+      roundedRect(lx + seatW - 4, topY + 2, 11, 28, '#7e684c', 3);
+      roundedRect(lx + seatW - 3, topY + 3, 9, 23, '#d7c6aa', 2);
+      px(lx + seatW - 2, topY + 3, 7, 5, '#f2e8d4');
+      if (armPropRight) drawArmProp(lx + seatW - 3, topY + 5, armPropRight, true);
+
+      // 3. Floor shadow
+      px(lx - 3, topY + 46, seatW + 6, 8, 'rgba(0,0,0,0.52)');
+
+      // 4. Giant sculpted plush headrest pillow dome
+      roundedRect(lx, topY + 2, seatW, 23, '#887154', 6);
+      roundedRect(lx + 1, topY + 3, seatW - 2, 20, '#e5d6bc', 5);
+      roundedRect(lx + 5, topY + 4, seatW - 10, 4, '#f7efe0', 2);
+      // Soft concave pillow nestle dimple
+      roundedRect(lx + 8, topY + 8, seatW - 16, 12, '#c5b190', 4);
+
+      // 5. Larger, richer back-of-head sunk into the wide headrest!
+      drawHeadBack(c, cx, topY + 3, true, false);
+
+      // 6. Wide bulging tufted lumbar back leaning BACK toward camera (overlapping rear of arms!)
+      const by = topY + 24;
+      px(lx + 3, by - 1, seatW - 6, 2, '#5c4732');
+      roundedRect(lx - 1, by + 1, seatW + 2, 24, '#756046', 6);
+      roundedRect(lx, by + 2, seatW, 21, '#d8c7ab', 5);
+      roundedRect(lx + 5, by + 3, seatW - 10, 5, '#f2e8d4', 2);
+      px(cx - 1, by + 9, 2, 10, '#a68f70'); // center leather tuft
+      px(lx + 3, by + 20, seatW - 6, 3, '#968062');
+      // Base rail
+      px(lx + 4, by + 24, seatW - 8, 3, '#1a1714');
+    }
+
+    function drawOptionB() {
+      // Front row (4 seats closer to TVs): Sudz(0), Scott(1), Brent(2), Brian(3)
+      const frontXs = [40, 100, 160, 220];
+      const frontPropsR = ['glass', 'beerCan', 'remote', null];
+      for (let i = 0; i < 4; i++) {
+        drawWideRecliner(frontXs[i], 304 + (i === 0 || i === 3 ? 5 : 0), CREW[i], null, frontPropsR[i]);
+      }
+
+      // Back row (5 seats closer to camera, raised stadium style): Steve(4), Chris(5), Brad(6), Brendan(7), Dave(8)
+      const backXs = [28, 79, 130, 181, 232];
+      const backPropsR = [null, 'redCup', null, null, 'gradebook'];
+      for (let i = 0; i < 5; i++) {
+        const drop = (i === 0 || i === 4) ? 6 : (i === 1 || i === 3) ? 2 : 0;
+        drawWideRecliner(backXs[i], 372 + drop, CREW[i + 4], null, backPropsR[i]);
+      }
+    }
+
+    // =========================================================================
+    // OPTION C: "LOW CINEMA SILHOUETTE" (Dramatic TV Rim-Light & Angled Recline)
+    // Lower movie-theater eye-level camera: tall curved reclined leather backs
+    // with blue CRT rim-light, cup-holder consoles tucked deep in the valleys,
+    // and strong angled side-recline profiles on the outer seats!
+    // =========================================================================
+    function drawOptionC() {
+      const marginX = 8;
+      const step = (W - marginX * 2) / CREW.length;
+      const seats = CREW.map((_, i) => {
+        const norm = (i - 4) / 4;
+        return { cx: Math.round(marginX + step * (i + 0.5)), topY: 326 + Math.round(norm * norm * 14), w: 24 };
+      });
+
+      // LAYER 1: Angled footrest tips peeking up over the headrest gaps
+      for (let i = 0; i < CREW.length; i++) {
+        const c = CREW[i];
+        if (!c.feet) continue;
+        const g = seats[i];
+        roundedRect(g.cx - 7, g.topY - 12, 14, 15, '#7c6850', 3);
+        px(g.cx - 6, g.topY - 12, 12, 2, '#9ec4ea'); // cool TV rim light on footrest lip!
+        pill(g.cx - 6, g.topY - 16, 5, 6, c.sock);
+        pill(g.cx + 1, g.topY - 15, 5, 6, c.sock);
+      }
+
+      // LAYER 2: Recessed forward console armrests tucked between shoulders (BEHIND the curved backs!)
+      const props = { 0: 'glass', 2: 'beerCan', 4: 'remote', 6: 'redCup', 9: 'gradebook' };
+      for (let a = 0; a <= CREW.length; a++) {
+        const ax = a === 0 ? seats[0].cx - 16 : a === CREW.length ? seats[8].cx + 8 : Math.round((seats[a - 1].cx + seats[a].cx) / 2 - 4);
+        const ay = (a === 0 ? seats[0].topY : a === CREW.length ? seats[8].topY : Math.min(seats[a - 1].topY, seats[a].topY)) + 8;
+        roundedRect(ax, ay - 8, 8, 22, '#6c5842', 2);
+        roundedRect(ax + 1, ay - 7, 6, 17, '#baa78b', 2);
+        px(ax + 1, ay - 7, 6, 2, '#b0c8e0'); // TV glow on front arm edge
+        drawArmProp(ax, ay - 4, props[a] || null, false);
+      }
+
+      // LAYER 3: Tall, deeply curved, backlit theater recliner shells leaning back at 30 deg!
+      for (let i = 0; i < CREW.length; i++) {
+        const g = seats[i];
+        const c = CREW[i];
+        const lx = Math.round(g.cx - g.w / 2);
+
+        // Deep dramatic cinema shadow under chair
+        px(lx - 1, g.topY + 64, g.w + 2, 12, 'rgba(0,0,0,0.65)');
+
+        // Outer curved leather shell (slightly darker moody living-room tone + cool CRT top rim!)
+        roundedRect(lx, g.topY + 2, g.w, 64, '#5a4835', 6);
+        roundedRect(lx + 1, g.topY + 3, g.w - 2, 60, '#b5a184', 5);
+
+        // Cool blue-white TV rim highlight along the top dome of each headrest!
+        px(lx + 4, g.topY + 2, g.w - 8, 2, '#c8dcf4');
+        px(lx + 3, g.topY + 4, g.w - 6, 3, '#dfd1b8');
+
+        // Soft shaded headrest pillow pocket
+        roundedRect(lx + 4, g.topY + 7, g.w - 8, 14, '#9c886c', 4);
+
+        // Back of head with subtle cool TV rim-light on crown!
+        drawHeadBack(c, g.cx, g.topY + 5, false, true);
+
+        // Deep reclined scalloped back cushions (2 stacked rounded bolsters leaning back!)
+        const m1 = g.topY + 24;
+        px(lx + 2, m1 - 1, g.w - 4, 2, '#473726');
+        roundedRect(lx, m1 + 1, g.w, 22, '#69553e', 5);
+        roundedRect(lx + 1, m1 + 2, g.w - 2, 19, '#c7b497', 4);
+        roundedRect(lx + 4, m1 + 3, g.w - 8, 4, '#e3d5bc', 2);
+
+        const m2 = m1 + 22;
+        px(lx + 2, m2 - 1, g.w - 4, 2, '#473726');
+        roundedRect(lx, m2 + 1, g.w, 18, '#594633', 4);
+        roundedRect(lx + 1, m2 + 2, g.w - 2, 14, '#a69274', 3);
+        px(lx + 4, m2 + 3, g.w - 8, 3, '#c4b194');
+      }
+    }
+
+    function drawFooter() {
+      const fy = 442;
+      const g = ctx.createLinearGradient(0, fy - 10, 0, H);
+      g.addColorStop(0, 'rgba(6,6,14,0)');
+      g.addColorStop(0.24, 'rgba(6,6,14,0.92)');
+      g.addColorStop(1, 'rgba(4,4,10,0.98)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, fy - 10, W, H - fy + 10);
+
+      px(40, 452, 180, 2, '#90ee90');
+      px(40, 454, 180, 19, '#000080');
+      ctx.font = 'bold 9px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('★ UNLOCKS · FAVORITES', W / 2, 464);
+
+      ctx.font = 'bold 7.5px "Courier New", monospace';
+      ctx.fillStyle = '#d4cbb8';
+      ctx.fillText('SUDZ · SCOTT · BRENT · BRIAN · STEVE', W / 2, 486);
+      ctx.fillText('CHRIS · BRAD · BRENDAN · DAVE', W / 2, 497);
+
+      ctx.font = 'bold 8.5px "Courier New", monospace';
+      ctx.fillStyle = '#90ee90';
+      ctx.fillText('8 ROUNDS · 4 BEERS · ONE VERDICT', W / 2, 514);
+
+      const labels = {
+        A: 'OPTION A — DEEP RECLINE (TRUE DEPTH)',
+        B: 'OPTION B — 2-ROW WIDE THEATER',
+        C: 'OPTION C — LOW CINEMA SILHOUETTE',
+      };
+      ctx.font = 'bold 8px "Courier New", monospace';
+      ctx.fillStyle = '#ffcf48';
+      ctx.fillText(labels[activeOpt], W / 2, 536);
+    }
+
+    function render() {
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, W, H);
+      drawRoomBackdrop();
+      if (activeOpt === 'A') drawOptionA();
+      else if (activeOpt === 'B') drawOptionB();
+      else drawOptionC();
+      drawFooter();
+    }
+
+    function setOption(opt) {
+      activeOpt = opt;
+      optBtns.forEach((b) => b.classList.toggle('active', b.dataset.opt === opt));
+      render();
+    }
+
+    optBtns.forEach((b) => b.addEventListener('click', () => setOption(b.dataset.opt)));
+    window.__setOption = setOption;
+    render();
+  </script>
+</body>
+</html>
