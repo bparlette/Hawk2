@@ -6,10 +6,10 @@
 const { chromium } = require('playwright'); const fs = require('fs'), path = require('path'), os = require('os');
 const CDN = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js', cache = path.join(os.tmpdir(), 'three-0.128.0.min.js'), OUT = process.argv[2];
 const SOAK = [['bed_push', 0], ['transfer', 1], ['elevator', 0], ['gauntlet', 0], ['gauntlet', 1], ['gauntlet', 3], ['entrance', 0], ['steal', 1], ['chase', 0], ['train_finale', 0]];
-(async () => { const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }); const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+(async () => { const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--allow-file-access-from-files'] }); const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   const total = { runs: 0, damage: 0, violations: 0, visualOnly: 0, damagingShots: 0, minVisT: 9, minPx: 999, examples: [] }; const lines = [];
   for(const seed of (process.env.CAPTURE_ONLY ? [] : [7, 3, 11])){ const p = await ctx.newPage(), errs = []; p.on('pageerror', e => errs.push(String(e))); await p.route(CDN, r => r.fulfill({ body: fs.readFileSync(cache), contentType: 'text/javascript' }));
-    await p.goto('file://' + path.resolve(__dirname, '../index.html') + '?seed=' + seed, { waitUntil: 'domcontentloaded', timeout: 120000 }); await p.waitForFunction(() => window.__game && window.__dbg); await p.evaluate(() => __game.pause(true));
+    await p.goto('file://' + path.resolve(__dirname, '../index.html') + '?seed=' + seed, { waitUntil: 'domcontentloaded', timeout: 120000 }); await p.waitForFunction(() => window.__game && window.__dbg && window.__painted !== undefined); await p.evaluate(() => __game.pause(true));
     const audit = `(label, i0) => { const ev = __dbg.events().slice(i0 || 0), F = __game.game.data.tuning.fairness, out = { label, damage: 0, violations: 0, visualOnly: 0, damagingShots: 0, minVisT: 9, minPx: 999, bad: [] };
       ev.forEach((e, i) => { if(e.type === 'enemyShot'){ if(e.data.red) out.damagingShots++; else out.visualOnly++; }
         if(e.type !== 'heroHit' || !e.data.src || e.data.src === 'dbg') return; out.damage++;
@@ -31,7 +31,7 @@ const SOAK = [['bed_push', 0], ['transfer', 1], ['elevator', 0], ['gauntlet', 0]
   lines.forEach(l => console.log(l.damage == null ? JSON.stringify(l) : `${l.label.padEnd(42)} damage events ${String(l.damage).padStart(3)}  violations ${l.violations}  damaging shots ${l.damagingShots}  visual-only shots ${l.visualOnly}  min visible-for ${l.minVisT === 9 ? '-' : l.minVisT + ' s'}  min height ${l.minPx === 999 ? '-' : l.minPx + ' px'}${l.lostAt ? '  (lost at ' + l.lostAt + ' s)' : ''}`));
   console.log('TOTAL ' + JSON.stringify(total)); console.log(total.violations === 0 ? 'FAIRNESS AUDIT: PASS' : 'FAIRNESS AUDIT: FAIL');
   if(OUT){ fs.mkdirSync(OUT, { recursive: true }); const p = await ctx.newPage(); await p.route(CDN, r => r.fulfill({ body: fs.readFileSync(cache), contentType: 'text/javascript' }));
-    await p.goto('file://' + path.resolve(__dirname, '../index.html') + '?seed=7', { waitUntil: 'domcontentloaded', timeout: 120000 }); await p.waitForFunction(() => window.__game);
+    await p.goto('file://' + path.resolve(__dirname, '../index.html') + '?seed=7', { waitUntil: 'domcontentloaded', timeout: 120000 }); await p.waitForFunction(() => window.__game && window.__painted !== undefined);
     for(const [beat, segI, name] of [['bed_push', 0, 'first-damage-bed-push'], ['gauntlet', 1, 'first-damage-cafeteria'], ['chase', 0, 'first-damage-chase']]){
       const info = await p.evaluate(`(() => { const G = __game, g = G.game; G.pause(false); G.start('${beat}'); if(${segI}) __dbg.gotoSegment('${beat}', ${segI}); const n0 = __dbg.events().length; let n = 0, shot = null;
         let atStep = null; while(n < 60 * 60){ g.input.fire = false; g.step(1/60); n++; const ev = __dbg.events(); for(let i = n0; i < ev.length; i++){ if(ev[i].type === 'enemyShot' && ev[i].data.red){ shot = ev[i]; break; } }

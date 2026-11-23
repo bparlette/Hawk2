@@ -47,7 +47,7 @@ var L = [
 
 var paths = [
   // 1 — the visit: camera held in the corner of Room 412 by the door, looking at the bed
-  { id: 'room_view', vehicle: 'bed', points: [[2.9, 0, -6.2], [2.8, 0, -5.9]], height: 1.65, back: 0, speed: 0, look: [{ at: 0, target: [0.1, 1.0, -3.4] }], events: [] },
+  { id: 'room_view', vehicle: 'bed', points: [[3.75, 0, -7.05], [3.65, 0, -6.75]], height: 1.65, back: 0, speed: 0, look: [{ at: 0, target: [0.1, 1.0, -3.4] }], events: [] },
   // 2 — the bed push: Room 412 -> out the door -> West Wing hall. Rider point = Cole's head; the bed extends ahead of it.
   rig(BED, { id: 'bed_hall', vehicle: 'bed', points: [[0, 0, -2.6], [0, 0, -9], [0, 0, -13.6], [1.8, 0, -16], [8, 0, -16], [10.8, 0, -17.6], [12, 0, -21], [12, 0, -30], [12, 0, -38.6]],
     speedKeys: [{ at: 0, speed: 2.9 }, { at: 0.374, speed: 0 }, { at: 0.397, speed: 2.9 }, { at: 0.673, speed: 0 }, { at: 0.7, speed: 2.9 }],
@@ -157,7 +157,7 @@ var tuning = {
   components: { tire: 30, driver: 40, engine: 60 },
   cover: { exposed: 1.5, hidden: 1.1, lateral: 0.7, advance: 3.0, advanceEvery: 2, minDist: 6.5, side: 0.5, recoverAfter: 5 },
   enemyFireDelay: 0.6, firstShot: 0.35, autopilot: { react: 1.6 }, trainApproach: 1.0, footSpeed: 5.2, footHalfWidth: 4.5, ambulanceFov: 80,
-  shotSpeed: 24, aimTell: 0.45, closeRange: 14, healOnBeat: 35, holdRelease: 0.25, fairness: { telegraph: 0.6, minPx: 40, margin: 0.03 }, screenFire: 1.1, footTurn: 1.9,
+  shotSpeed: 24, aimTell: 0.45, closeRange: 14, healOnBeat: 35, holdRelease: 0.25, fairness: { telegraph: 0.6, minPx: 40, margin: 0.03, outGate: 0.85 }, screenFire: 1.1, footTurn: 1.9,
   partner: { fireEvery: 1.25, accuracy: 0.5, damage: 10 },
   score: { kill: 100, quick: 50, quickDraw: 1.2, streak: 10, wreck: 250, bystander: 500 }
 };

@@ -29,11 +29,15 @@ scene.add(sky);
 var cole = A.cast.cole(), maya = A.cast.maya(), hale = A.cast.hale(); [cole, maya, hale].forEach(function(p){ scene.add(p); });
 HE.bindActor('hero', cole); HE.bindActor('friend', maya);
 var bed = A.bed(), chair = A.wheelchair(), amb = A.ambulance(); scene.add(bed); scene.add(chair); scene.add(amb);
+// the painted cast (OPUS-INTEGRATE-PAINTED): billboards from assets/painted; the procedural people stay as the fallback
+var PT = window.HEPAINT || null, PS = window.HEPAINTED_DATA ? HEPAINTED_DATA.scale : 341.6, paintLight = new THREE.PointLight(0xffa042, 0, 3.5, 2), paintLightT = 0; scene.add(paintLight);
+if(PT){ PT.lightAt = function(pos, col){ [flashLight, paintLight].forEach(function(L){ if(L.intensity <= 0) return; var k = L.intensity * Math.pow(Math.max(0, 1 - L.position.distanceTo(pos) / (L.distance * 1.6)), 2) * 0.22; col.r += 1.0 * k; col.g += 0.6 * k; col.b += 0.28 * k; }); }; }   // warm muzzle spill on the painted cast
+if(PT && Q.get('painted') !== '0'){ [cole, maya, hale].forEach(function(g){ PT.attach(g); }); PT.load('assets/painted/', function(ok){ window.__painted = ok; }); } else window.__painted = false;
 var gb = game.greybox; gb.showVehicle = function(){}; Object.keys(gb.vehicles).forEach(function(k){ gb.vehicles[k].visible = false; });
 var nEnemy = 0;
 gb.addActor = function(role, kind){ var p;
   if(kind === 'bystander'){ var b = game.bystanders.list.filter(function(x){ return x.role === role; })[0]; p = A.cast.bystander(b ? b.def.kind : 'nurse', nEnemy++); }
-  else p = (A.cast[kind] || A.cast.gunman)(nEnemy++);
+  else { p = (A.cast[kind] || A.cast.gunman)(nEnemy++); if(PT && PT.live.length && (kind === 'gunman' || kind === 'staff')){ PT.attach(p); p.userData.pk = kind === 'staff' ? 'enemy-scrubs' : 'enemy-plain'; } }
   p.name = role; scene.add(p); gb.actors[role] = p; p.userData.kind = kind; return p; };
 gb.killActor = function(role){ var p = gb.actors[role]; if(p){ p.userData.dead = true; p.userData.deadT = 0; } };
 gb.removeActor = function(role){ var p = gb.actors[role]; if(p && p.parent) p.parent.remove(p); delete gb.actors[role]; };
@@ -79,7 +83,7 @@ function stepFx(dt){ for(var i = fx.length - 1; i >= 0; i--){ var f = fx[i]; f.t
     if(f.grow) f.o.scale.setScalar(f.size * (1 + f.grow * k));
     if(f.o.material){ var base = f.alpha == null ? 1 : f.alpha; f.o.material.opacity = base * (1 - k); }
     if(k >= 1){ scene.remove(f.o); if(f.o.material){ if(f.o.material.map && f.o.material.map !== null && f.fadeMat) {} f.o.material.dispose(); } if(f.o.geometry) f.o.geometry.dispose(); fx.splice(i, 1); } }
-  flashLight.intensity = Math.max(0, flashLight.intensity - dt * 30); }
+  flashLight.intensity = Math.max(0, flashLight.intensity - dt * 30); paintLightT -= dt; if(paintLightT <= 0) paintLight.intensity = 0; }
 // incoming shots in flight (from the engine's enemyShot events): red = will hit (the telegraph), pale = will miss
 var flights = [];
 function addFlight(d){ var from = new V().fromArray(d.from), to = new V().fromArray(d.to), red = d.red;
@@ -144,11 +148,12 @@ if(Q.get('autostart') === '1'){ $('start').style.display = 'none'; started = tru
 var BEAT_TITLES = { visit: '1 · ROOM 412', bed_push: '2 · THE BED', transfer: '3 · THE TRANSFER', elevator: '4 · GOING DOWN', gauntlet: '5 · THE GAUNTLET', entrance: '6 · THE FRONT DOORS', steal: '7 · THE AMBULANCE', chase: '8 · HARBOR AVENUE', train_finale: '9 · THE LINE 9 CROSSING' };
 var outdoor = false, tAnim = 0, lastBeat = null, coleAim = new V(0, 0, -1), mayaFireT = 0, mayaTarget = new V(), bedParked = null, chairParked = null, ambParked = null;
 // night hospital (dim, cold ambient; the ceiling panels and pools carry the light) / storm dusk outside
-function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(on){ scene.fog = new THREE.Fog(0x2b3440, 35, 300); hemi.color.set(0x7f93b0); hemi.groundColor.set(0x1d1a19); hemi.intensity = 0.45; sun.color.set(0xa8b8d8); sun.intensity = 0.55; sun.position.set(-60, 50, 40); sky.visible = true; }
+function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(PT) PT.env.setRGB(on ? 0.76 : 0.9, on ? 0.81 : 0.95, on ? 0.92 : 1.0);   /* painted cast graded to the room */ if(on){ scene.fog = new THREE.Fog(0x2b3440, 35, 300); hemi.color.set(0x7f93b0); hemi.groundColor.set(0x1d1a19); hemi.intensity = 0.45; sun.color.set(0xa8b8d8); sun.intensity = 0.55; sun.position.set(-60, 50, 40); sky.visible = true; }
   else { scene.fog = new THREE.Fog(0x1c2328, 14, 60); hemi.color.set(0xb9c9d6); hemi.groundColor.set(0x3a342e); hemi.intensity = 0.48; sun.color.set(0xdfe8ff); sun.intensity = 0.18; sun.position.set(20, 40, 10); sky.visible = false; } }
 setOutdoor(true); setOutdoor(false);
 function placeOnPath(o, path, s, off){ var p = path.pointAtS(s), t = fwdOf(path, s); o.position.copy(p); if(off) o.position.add(off); yawTo(o, t); return t; }
 function present(dt){ tAnim += dt; patientStep(dt); var st = game.state(), r = game.rail, m = st.mode, seg = st.segment || '';
+  if((estK > 0 || estWas) && r.path && (m === 'RAIL_CHAIR' || m === 'AMBULANCE')) r.place(0, false); estWas = estK > 0;   // the offset lands on this very frame (a clean cut)
   if(st.beat !== lastBeat){ lastBeat = st.beat; if(started) showBanner(BEAT_TITLES[st.beat] || st.beat, 'title', 2200); }
   setOutdoor(st.beat === 'steal' && seg !== 'steal_cut' || st.beat === 'chase' || st.beat === 'train_finale' || seg === 'steal_cut');
   hale.visible = st.beat === 'visit'; if(m !== 'AMBULANCE' && seg !== 'steal_cut'){ var bp0 = game.path('bay_route'); placeOnPath(amb, bp0, bp0.lead); }
@@ -170,7 +175,8 @@ function present(dt){ tAnim += dt; patientStep(dt); var st = game.state(), r = g
     if(amb.userData.lightbar) amb.userData.lightbar.children.forEach(function(c, i){ c.visible = Math.floor(tAnim * 6 + i) % 2 === 0; }); }
   else if(m === 'CUTSCENE'){ stageCutscene(seg); }
   // enemies: pose by behaviour state (corner-pop lean / duck, advance, aim tell, dead)
-  game.combat.enemies.forEach(function(e){ var p = gb.actors[e.role]; if(!p) return; if(p.userData.dead){ p.userData.deadT += dt; A.pose(p, 'dead', 0); p.position.y = e.pos.y; return; }
+  paintCast(dt, st, m, seg);
+  game.combat.enemies.forEach(function(e){ var p = gb.actors[e.role]; if(!p) return; if(p.userData.pk && PT.use(p, true)){ paintEnemy(e, p, dt); return; } if(p.userData.dead){ p.userData.deadT += dt; A.pose(p, 'dead', 0); p.position.y = e.pos.y; return; }
     var moving = (e.behavior === 'cover' && e.cover && e.pos.distanceTo(e.cover) > 0.05) || (e.behavior === 'rush' && e.pos.distanceTo(game.playerPos().setY(e.pos.y)) > 3.6);
     if(moving) A.pose(p, e.behavior === 'rush' ? 'aimWalk' : 'run', tAnim + e.t); else if(e.behavior === 'cover' && !e.exposed) A.pose(p, 'peek', tAnim, { side: 1 }); else A.pose(p, e.behavior === 'cover' ? 'lean' : 'aim', tAnim, { side: e.hideDir ? -Math.sign(e.hideDir.x || e.hideDir.z || 1) : 1 });
     if(e.exposed || moving){ var tgt = game.heroTarget(); aimArm(p, 'R', tgt.clone().sub(p.position.clone().setY(p.position.y + 1.35)).normalize()); }
@@ -186,10 +192,43 @@ function present(dt){ tAnim += dt; patientStep(dt); var st = game.state(), r = g
   W.doors.forEach(function(d){ if(!d.elevator) return; if(seg === 'elevator_ride'){ if(d.floor === 'upper' && d.end === 0) d.target = r.pathT() < 0.86 ? 1 : 0; if(d.floor === 'ground') d.target = 0; }
     else if(seg === 'elevator_doors_ground'){ if(d.floor === 'ground' && d.end === 1) d.target = game.segT > 0.35 ? 1 : 0; } });
   W.update(dt, tAnim); stepFx(dt); stepFlights(); }
+// ------------------------------------------------------------------ the painted cast: per-beat frames + placement
+var pushPh = 0, haleUp = false, BAR = { bed: new V(0, 1.0, -0.12), chair: new V(0, 1.05, -0.36) }, _gs = new V();
+function screenX(p){ return p.clone().project(camera).x; }
+// Maya's grip (audit note 1): solve her billboard so the painted hands land ON the push bar as seen from the camera. The hand
+// point is put on the camera->bar ray at the depth where its painted height (per frame, above that frame's own bottom) meets it.
+function gripSolve(veh, barLocal, f, mir){ veh.updateMatrixWorld(true); var B = veh.localToWorld(_gs.copy(barLocal)), C = camera.position, fl = veh.position.y;
+  var hand = (f.bottom + 1 - f.grip[1]) / PS, hc = C.y - fl, hb = B.y - fl, k = HE.clamp((hc - hand) / Math.max(0.05, hc - hb), 0.3, 0.98);
+  var H = C.clone().lerp(B, k), dx = (f.grip[0] - f.feet) / PS * mir, yaw = Math.atan2(C.x - H.x, C.z - H.z);
+  maya.position.set(H.x - Math.cos(yaw) * dx, fl, H.z + Math.sin(yaw) * dx); }
+function paintCast(dt, st, m, seg){ if(!PT || !PT.ready){ return; } var r = game.rail;
+  // Dr. Hale (the opening only): objecting -> hands up once Maya's gun is out (her line)
+  if(st.beat !== 'visit') haleUp = false; if(hale.visible){ PT.use(hale, true); if(st.subtitle && st.subtitle.speaker === 'FRIEND') haleUp = true; PT.show(hale, haleUp ? 'dr-hale-hands-up' : 'dr-hale-objecting', 1, camera); }
+  // Maya
+  if((m === 'RAIL_CHAIR') && r.path){ PT.use(maya, true); var veh = st.vehicle === 'bed' ? bed : chair, sp = r.speed();
+    if(mayaFireT > 0){ var fa = PT.frames['maya-aim-side'], dir = screenX(mayaTarget) > screenX(maya.position) ? 1 : -1; PT.show(maya, 'maya-aim-side', dir * fa.face, camera); }
+    else { pushPh = sp > 0.05 ? pushPh + sp * dt / 0.36 : Math.round(pushPh / 2) * 2; var nm = 'maya-push-0' + (1 + (Math.floor(pushPh) % 4)), f = PT.frames[nm]; gripSolve(veh, BAR[st.vehicle === 'bed' ? 'bed' : 'chair'], f, 1); PT.show(maya, nm, 1, camera); } }
+  else if(m === 'HOLDOUT'){ PT.use(maya, true); var ne = game.combat.live()[0], fc = PT.frames['maya-crouch-chair'], dr = ne ? (screenX(ne.pos) > screenX(maya.position) ? 1 : -1) : -1; PT.show(maya, 'maya-crouch-chair', dr * fc.face, camera); }
+  else if(m === 'CUTSCENE' && (seg === 'visit_room' || seg === 'steal_cut')){ PT.use(maya, true); PT.show(maya, 'maya-aim-side', seg === 'visit_room' ? 1 : -1, camera); }
+  else if(m === 'CUTSCENE' && seg === 'transfer_cut'){ PT.use(maya, true); PT.show(maya, 'maya-crouch-chair', 1, camera); }
+  else PT.use(maya, false);
+  // Cole: the painted patient where the camera sees HIM (cutscenes + the ambulance establishing shot); his own eyes otherwise
+  if(m === 'CUTSCENE' && seg === 'visit_room'){ PT.use(cole, true); bed.visible = false; cole.position.copy(bed.position).addScaledVector(fwdOf(game.path('bed_hall'), game.path('bed_hall').lead), 1.0); cole.position.y = bed.position.y; PT.show(cole, 'cole-bed-foot', 1, camera, 1, 'box'); }
+  else if(m === 'CUTSCENE' && (seg === 'transfer_cut' || seg === 'steal_cut')){ PT.use(cole, true); chair.visible = false; cole.position.copy(chair.position); PT.show(cole, 'cole-wheelchair-front3q', 1, camera, 1, 'box'); }
+  else if(m === 'AMBULANCE' && estK > 0){ PT.use(cole, true); cole.userData.reflect = false;   /* the bay floor is ribbed steel, not wet linoleum */ amb.updateMatrixWorld(true); cole.position.copy(amb.localToWorld(new V(0.05, 0.81, -2.25))); PT.show(cole, 'cole-ambulance-braced', 1, camera, 1, 'box'); }
+  else PT.use(cole, false); }
+// an enemy as its painted frames: peek / aim / fire / flinch / down, mirrored to face the screen centre (the camera side)
+function paintEnemy(e, p, dt){ var u = p.userData, pk = u.pk, fr; u.fireT = Math.max(0, (u.fireT || 0) - dt); u.flinchT = Math.max(0, (u.flinchT || 0) - dt);
+  if(u.dead){ u.deadT += dt; p.position.y = e.pos.y; fr = u.deadT < 0.3 ? 'flinch' : 'down'; }
+  else { var moving = (e.behavior === 'cover' && e.cover && e.pos.distanceTo(e.cover) > 0.05) || (e.behavior === 'rush' && e.pos.distanceTo(game.playerPos().setY(e.pos.y)) > 3.6), hidden = e.behavior === 'cover' && !e.exposed;
+    fr = u.fireT > 0 ? 'fire' : u.flinchT > 0 ? 'flinch' : (hidden || moving) ? (pk === 'enemy-plain' ? 'peek' : 'aim') : 'aim'; }
+  if(u.face == null || (!u.dead && fr !== 'fire' && fr !== 'flinch')) u.face = PT.sideOf(p.position, camera) > 0 ? -1 : 1;   // toward screen centre; frozen through fire / flinch / down
+  var nm = pk + '-' + fr; PT.show(p, nm, u.face * PT.frames[nm].face, camera);
+  if(e.aiming > 0 && !u.dead && dt > 0 && Math.random() < 0.5){ var mz = PT.muzzle(p, new V()); if(mz) sprite(TX.glint, mz, 0.3 + Math.random() * 0.15, 0.06); } }
 function stageCutscene(seg){ var r = game.rail;
   if(seg === 'visit_room'){ var bp = game.path('bed_hall'); placeOnPath(bed, bp, bp.lead - 0.25); bed.visible = true; var t = fwdOf(bp, bp.lead);
     cole.position.copy(bed.position).addScaledVector(t, 0.78); cole.position.y += 0.8; yawTo(cole, t); A.pose(cole, 'recline', tAnim); aimArm(cole, 'R', new V(0.5, -0.4, -0.3).normalize());
-    maya.position.set(0.95, 0, -3.1); yawTo(maya, new V(-0.4, 0, -1)); A.pose(maya, 'talk', tAnim); hale.position.set(0.3, 0, -4.75); yawTo(hale, new V(0.45, 0, 1)); A.pose(hale, 'talk', tAnim + 1); chair.visible = false; }
+    maya.position.set(0.95, 0, -3.1); yawTo(maya, new V(-0.4, 0, -1)); A.pose(maya, 'talk', tAnim); hale.position.set(PT && PT.ready ? 0.75 : 0.3, 0, PT && PT.ready ? -5.0 : -4.75); yawTo(hale, new V(0.45, 0, 1)); A.pose(hale, 'talk', tAnim + 1); chair.visible = false; }
   else if(seg === 'transfer_cut'){ var cp = game.path('chair_corridor'); chair.visible = true; placeOnPath(chair, cp, cp.lead); var tt = fwdOf(cp, cp.lead); cole.position.copy(chair.position); yawTo(cole, tt); A.pose(cole, 'sit', tAnim);
     maya.position.copy(chair.position).add(new V(-0.75, 0, 0.2)); yawTo(maya, new V(1, 0, -0.2)); A.pose(maya, 'push', tAnim); bed.visible = true; }
   else if(seg === 'steal_cut'){ var ap = game.path('bay_route'); placeOnPath(amb, ap, ap.lead); chair.visible = true; chair.position.set(58.6, -12, -177.2); chair.rotation.y = Math.PI; cole.position.copy(chair.position); yawTo(cole, new V(0, 0, -1)); A.pose(cole, 'sit', tAnim);
@@ -197,10 +236,13 @@ function stageCutscene(seg){ var r = game.rail;
 
 // ------------------------------------------------------------------ PATIENT EYES (PATIENT-EYES-SPEC.md): neck, lids, focus drift, ambulance sway
 // The neck drives game.cameraOffset (applied INSIDE the engine's camera placement, so aim = what you see).
+var estK = 0, estWas = false;
 var PE = { sy: 0, sp: 0, vy: 0, vp: 0, ey: null, ep: null, jy: 0, jp: 0, jr: 0, jvy: 0, jvp: 0, jvr: 0, swR: 0, swY: 0, svR: 0, svY: 0,
-  lid: 0, blinkT: -1, blinkDur: 0.15, nextBlink: 3, heat: 0, drift: 0, driftT: 0, driftLen: 0, nextDrift: 6, closeT: 0, t: 0, hitN: 0 };
+  lid: 0, lidB: 0, out: 0, fade: null, nextFade: 9, pend: -1, spike: 0, heat: 0, drift: 0, driftT: 0, driftLen: 0, nextDrift: 6, closeT: 0, t: 0, hitN: 0 };
 game.cameraOffset = { yaw: 0, pitch: 0, roll: 0 };
-window.__pe = function(){ return { lid: PE.lid, red: post ? post.u.lidRed.value : 0, heat: PE.heat, drift: PE.drift, closeT: PE.closeT }; };   // verification readout
+window.__pe = function(){ return { lid: PE.lid, lidB: PE.lidB, out: PE.out, closure: closure(), phase: PE.fade ? PE.fade.ph : null, depth: PE.fade ? PE.fade.depth : 0, w: PE.w, red: post ? post.u.lidRed.value : 0, heat: PE.heat, drift: PE.drift, closeT: PE.closeT }; };   // verification readout
+function closure(){ return Math.min(1, PE.lid + PE.lidB); }                                   // fraction of the screen behind the lids
+game.heroClosure = closure;                                                                      // engine consciousness gate (tuning.fairness.outGate)   // verification readout
 var _ld = new V();
 function wrapA(a){ while(a > Math.PI) a -= 2 * Math.PI; while(a < -Math.PI) a += 2 * Math.PI; return a; }
 function pseudo(k){ var x = Math.sin(k * 12.9898 + PE.hitN * 78.233) * 43758.5453; return x - Math.floor(x); }
@@ -209,15 +251,15 @@ function patientStep(dt){ if(dt <= 0) return; PE.t += dt; var st = game.state(),
   if(m === 'FREE_FOOT' && game.foot) _ld.copy(game.foot.fwd); else _ld.copy(game.rail.lookDir);
   var ey = Math.atan2(-_ld.x, -_ld.z), ep = Math.asin(HE.clamp(_ld.y, -1, 1));
   if(PE.ey === null || Math.abs(wrapA(ey - PE.ey)) > 1.2 || PE.seg !== st.segment){ PE.sy = ey; PE.sp = ep; PE.vy = PE.vp = 0; PE.jy = PE.jp = PE.jr = PE.jvy = PE.jvp = PE.jvr = 0; PE.swR = PE.swY = PE.svR = PE.svY = 0; PE.seg = st.segment; }   // segment cut: no whip-pan
-  PE.ey = ey; PE.ep = ep; var w = cole ? 6.5 - dmg * 2 : 9, z = 0.5;
+  PE.ey = ey; PE.ep = ep; var out = PE.out, w = (cole ? 6.5 - dmg * 2 : 9) * (1 - 0.72 * out), z = 0.5 + 0.25 * out; PE.w = w;   // slack neck while he's going/gone out
   PE.vy += (w * w * wrapA(ey - PE.sy) - 2 * z * w * PE.vy) * dt; PE.sy = wrapA(PE.sy + PE.vy * dt);
   PE.vp += (w * w * (ep - PE.sp) - 2 * z * w * PE.vp) * dt; PE.sp += PE.vp * dt;
   // --- weak neck: incommensurate wobble + drift, a hunch that deepens with damage
-  var amb = m === 'AMBULANCE', A0 = cole ? (0.007 + dmg * 0.022) * (amb ? 1.7 : 1) : 0.002;
+  var amb = m === 'AMBULANCE', A0 = cole ? (0.007 + dmg * 0.022) * (amb ? 1.7 : 1) * (1 + 1.6 * out) : 0.002;
   var wy = A0 * (Math.sin(t * 0.91) + 0.6 * Math.sin(t * 2.33 + 1.0) + 0.3 * Math.sin(t * 4.07 + 2.2));
   var wp = A0 * 0.8 * (Math.sin(t * 1.13 + 2.0) + 0.5 * Math.sin(t * 2.87 + 0.4));
   var wr = A0 * 0.9 * (Math.sin(t * 0.67 + 0.5) + 0.4 * Math.sin(t * 1.93 + 1.7));
-  var hunch = cole && m !== 'CUTSCENE' ? -(0.022 + dmg * 0.05) : 0;
+  var hunch = cole && m !== 'CUTSCENE' ? -(0.022 + dmg * 0.05) - out * 0.17 : 0, sag = cole ? out * 0.1 * (PE.fade ? PE.fade.side : 1) : 0;   // the head drops + tips as he goes
   // --- hit jolt: an impulse, then an over-damped, slower-when-hurt re-centre
   var jw = 4.2 - dmg * 2.4, jz = 1.15;
   PE.jvy += (-jw * jw * PE.jy - 2 * jz * jw * PE.jvy) * dt; PE.jy += PE.jvy * dt;
@@ -230,25 +272,55 @@ function patientStep(dt){ if(dt <= 0) return; PE.t += dt; var st = game.state(),
     var k = 1 + dmg * 1.5; tgR = HE.clamp(-rate * 0.3 * k, -0.12, 0.12); tgY = HE.clamp(-rate * 0.16 * k, -0.07, 0.07);
     var woozy = (0.01 + dmg * 0.02) * Math.min(1, sp0 / 12); tgR += woozy * Math.sin(t * 0.53 + 0.3); tgY += woozy * 0.7 * Math.sin(t * 0.41 + 1.1); }
   var sw = 2.4, sz = 0.6; PE.svR += (sw * sw * (tgR - PE.swR) - 2 * sz * sw * PE.svR) * dt; PE.swR += PE.svR * dt; PE.svY += (sw * sw * (tgY - PE.swY) - 2 * sz * sw * PE.svY) * dt; PE.swY += PE.svY * dt;
-  O.yaw = (cole ? wrapA(PE.sy - ey) : 0) + wy + PE.jy + PE.swY; O.pitch = (cole ? PE.sp - ep : 0) + wp + hunch + PE.jp; O.roll = wr + PE.jr + PE.swR;
+  O.yaw = (cole ? wrapA(PE.sy - ey) : 0) + wy + PE.jy + PE.swY; O.pitch = (cole ? PE.sp - ep : 0) + wp + hunch + PE.jp; O.roll = wr + PE.jr + PE.swR + sag;
   if(m === 'CUTSCENE'){ O.yaw *= 0.4; O.pitch = O.pitch * 0.4; O.roll *= 0.4; }
-  // --- eyelids: base coverage by health, droop under sustained fire, blinks (longer + more frequent when hurt), a forced hard blink per hit
+  // --- establishing shots (presentation only; the rig, speeds and timings are untouched): the bed push opens pulled back
+  // behind Maya so her hands on the push bar read, then dollies into the play framing by 3.4 s (first wave ~5.7 s); the
+  // ambulance opens outside the open rear doors on Cole braced on the bay floor, then cuts to the bay at 1.9 s.
+  estK = 0; O.pos = O.pos || new V(); O.pos.set(0, 0, 0); var sT = game.segT, rp = game.rail.path;
+  if(PT && PT.ready && rp && st.segment === 'bed_hall_push' && sT < 3.4){ var e0 = HE.clamp((sT - 1.9) / 1.5, 0, 1); estK = 1 - e0 * e0 * (3 - 2 * e0);
+    var tt = fwdOf(rp, game.rail.s); O.pos.addScaledVector(tt, -1.35 * estK).add(new V(-tt.z, 0, tt.x).multiplyScalar(-0.4 * estK)); O.pos.y += 0.3 * estK; O.pitch += -0.06 * estK; }
+  else if(PT && PT.ready && rp && st.segment === 'steal_staging' && sT < 1.9){ estK = 1; var ta = rp.tangentAtS(game.rail.s); ta.y = 0; ta.normalize();
+    O.pos.addScaledVector(ta, -6.1).add(new V(ta.z, 0, -ta.x).multiplyScalar(0.25)); O.pos.y += 0.75; O.yaw = Math.PI; O.pitch = -0.3; O.roll = 0; }   // high, looking down into the bay: the painting's own viewpoint
+  // --- eyelids: base coverage by health + droop under sustained fire (FLOOR RULE <= 30%/lid), plus ONE lid system on top: CONSCIOUSNESS.
+  // No blinks. Fades are driven by hurt (deeper, longer, more often as HP falls) and spike after heavy hits: heavy slow onset -> hold ->
+  // uneven swim back (re-dips). At full depth he is OUT: lids meet, black, muffled. The engine deals no damage while closure >= outGate.
   PE.heat = Math.max(0, PE.heat - dt * 0.28);
-  var base = cole ? 0.03 + 0.26 * Math.pow(dmg, 1.15) : 0, droop = Math.min(0.14, PE.heat * 0.1), cover = Math.min(0.3, base + droop);   // FLOOR RULE: <= 30% per lid in play
-  PE.nextBlink -= dt; if(cole && PE.nextBlink <= 0 && PE.blinkT < 0){ PE.blinkT = 0; PE.blinkDur = 0.13 + dmg * 0.32; PE.nextBlink = (5.5 - dmg * 4.1) * (0.7 + 0.6 * pseudo(t)); }
-  var bl = 0; if(PE.blinkT >= 0){ PE.blinkT += dt; var u = PE.blinkT / PE.blinkDur; bl = u < 0.35 ? u / 0.35 : Math.max(0, 1 - (u - 0.35) / 0.65); if(u >= 1) PE.blinkT = -1; }
-  PE.cover = cover; PE.lid = cover + bl * (0.5 - cover); updateVisibleZone(st);                                                                       // a blink instant reaches full closure
+  var base = cole ? 0.03 + 0.26 * Math.pow(dmg, 1.15) : 0, droop = Math.min(0.14, PE.heat * 0.1), cover = Math.min(0.3, base + droop);
+  if(cole && !st.lost){
+    if(!PE.fade && dmg > 0.12 && m !== 'CUTSCENE' && estK === 0){ PE.nextFade -= dt; if(PE.nextFade <= 0) fadeStart(dmg, 0); }
+    if(PE.pend >= 0){ PE.pend -= dt; if(PE.pend < 0 && m !== 'CUTSCENE') fadeStart(dmg, PE.spike); }
+    if(PE.fade) fadeStep(dt, dmg); }
+  else if(!cole){ PE.fade = null; PE.pend = -1; PE.out = Math.max(0, PE.out - dt * 2); }
+  if(st.lost){ PE.fade = null; PE.closeT = Math.min(1, PE.closeT + dt / 1.6); var e = PE.closeT * PE.closeT * (3 - 2 * PE.closeT); PE.out = Math.max(PE.out, e); }   // the fade that doesn't come back
+  else PE.closeT = 0;
+  PE.cover = cover; PE.lid = cover + PE.out * (0.56 - cover); PE.lidB = PE.lid * (0.82 + 0.18 * PE.out); updateVisibleZone(st);
+  muffle(PE.out);
   // --- focus drift episodes: longer + more frequent out-of-focus stretches with damage
   PE.nextDrift -= dt; if(cole && PE.nextDrift <= 0 && PE.driftT <= 0){ PE.driftLen = 1.0 + dmg * 3.2; PE.driftT = PE.driftLen; PE.nextDrift = (9 - dmg * 6.5) * (0.6 + 0.8 * pseudo(t + 3)); }
   if(PE.driftT > 0){ PE.driftT -= dt; var dk = 1 - Math.abs(1 - 2 * (1 - PE.driftT / PE.driftLen)); PE.drift = Math.max(0, dk) * (0.35 + dmg * 0.65); } else PE.drift = Math.max(0, PE.drift - dt);
-  // --- the lose state: the lids shut, THEN "COLE IS DOWN"
-  if(st.lost){ PE.closeT = Math.min(1, PE.closeT + dt / 0.9); PE.lid = Math.max(PE.lid, PE.closeT * 0.56); } else PE.closeT = 0; }
+}
 function patientHit(n){ PE.hitN++; var sgn = pseudo(PE.t + 7) < 0.5 ? -1 : 1, k = Math.min(2, n / 4.5) * (game.mode === 'AMBULANCE' ? 0.55 : 1);
   PE.jvy += sgn * 0.85 * k; PE.jvp += 0.65 * k; PE.jvr += -sgn * 0.75 * k; PE.heat = Math.min(3, PE.heat + n / 9);
-  if(game.mode !== 'FREE_FOOT'){ PE.blinkT = 0; PE.blinkDur = 0.17 + (1 - game.combat.health / 100) * 0.2; } }   // forced hard blink / flinch
+  var dmg = 1 - game.combat.health / 100, heavy = (n / 5) * (0.45 + 1.6 * dmg) + Math.max(0, PE.heat - 0.8) * 0.6;   // how hard this one hits HIM, now
+  if(game.mode !== 'FREE_FOOT' && heavy > 0.85 && PE.pend < 0){ PE.pend = 0.22 + 0.25 * pseudo(PE.t + 2); PE.spike = Math.min(0.4, (heavy - 0.85) * 0.5 + 0.12); } }   // a fade spike, after the hit
+// one consciousness episode. depth 0..1 (1 = OUT). Starts from wherever he is (a spike during a swim-back drags him back under).
+function fadeStart(dmg, spike){ var d = HE.clamp(0.16 + 0.92 * Math.pow(dmg, 1.25) + spike, 0.12, 1); if(PE.fade && PE.fade.ph !== 'swim' && PE.fade.depth >= d) return;
+  PE.fade = { ph: 'on', t: 0, from: PE.out, depth: d, on: 0.75 + 0.95 * d, hold: 0.12 + 0.75 * d * d, swim: 1.1 + 2.1 * d, side: pseudo(PE.t + 5) < 0.5 ? -1 : 1, ph0: pseudo(PE.t + 9) * 6.28 };
+  PE.spike = 0; }
+function fadeStep(dt, dmg){ var F = PE.fade; F.t += dt;
+  if(F.ph === 'on'){ var u = Math.min(1, F.t / F.on), e = u * u * u * (u * (6 * u - 15) + 10); PE.out = F.from + (F.depth - F.from) * Math.pow(e, 1.35); if(u >= 1){ F.ph = 'hold'; F.t = 0; } }   // heavy + slow
+  else if(F.ph === 'hold'){ PE.out = F.depth >= 0.99 ? 1 : F.depth - 0.05 * F.depth * Math.abs(Math.sin(F.t * 5.3 + F.ph0)); if(F.t >= F.hold){ F.ph = 'swim'; F.t = 0; } }
+  else { var p = Math.min(1, F.t / F.swim), back = Math.pow(1 - p, 1.5), dip = 0.3 * F.depth * Math.pow(Math.max(0, Math.sin(p * Math.PI * 3 + F.ph0)), 2) * 4 * p * (1 - p) * (1 - p);   // uneven: surfaces, sinks a little, surfaces
+    PE.out = Math.max(0, F.depth * back + dip); if(p >= 1){ PE.fade = null; PE.out = 0; PE.nextFade = (15 - 10 * dmg) * (0.7 + 0.6 * pseudo(PE.t + 11)); } } }
+// muffled hearing while he's going out: a master low-pass + duck
+var muffleF = null, muffleLast = -1;
+function muffle(out){ if(!AC || !master) return; if(!muffleF){ muffleF = AC.createBiquadFilter(); muffleF.type = 'lowpass'; muffleF.Q.value = 0.9; master.disconnect(); master.connect(muffleF); muffleF.connect(AC.destination); }
+  if(Math.abs(out - muffleLast) < 0.01) return; muffleLast = out; var t = AC.currentTime;
+  muffleF.frequency.setTargetAtTime(300 + 17700 * Math.pow(1 - out, 3), t, 0.05); master.gain.setTargetAtTime(0.55 * (1 - 0.55 * out), t, 0.05); }
 
 // ------------------------------------------------------------------ FAIRNESS hooks (OPUS-FIX-FAIRNESS-PACE §1): what the player can actually see
-// visibleZone = the screen minus the eyelids (health + droop; blink instants excluded) and the near-death tunnel, in 0..1 screen coords
+// visibleZone = the screen minus the eyelids (health + droop + consciousness fade; there are no blinks) and the near-death tunnel, 0..1 screen coords
 // losBlocked  = a ray from the camera to the shooter is blocked by scenery, furniture, cover or another character (glass does not block)
 var losRay = new THREE.Raycaster(), losList = null;
 function occluders(){ if(!losList) losList = []; losList.length = 0; worldRoot.children.forEach(function(o){ losList.push(o); });
@@ -256,18 +328,24 @@ function occluders(){ if(!losList) losList = []; losList.length = 0; worldRoot.c
   Object.keys(gb.actors).forEach(function(k){ losList.push(gb.actors[k]); }); return losList; }
 game.losBlocked = function(from, to, selfRole){ var d = to.clone().sub(from), L = d.length(); losRay.set(from, d.normalize()); losRay.near = 0.05; losRay.far = Math.max(0.1, L - 0.45);
   var hits = losRay.intersectObjects(occluders(), true);
-  for(var i = 0; i < hits.length; i++){ var o = hits[i].object; if(o.material && (o.material.transparent || o.material.opacity < 0.9)) continue; if(o.isSprite) continue;
+  for(var i = 0; i < hits.length; i++){ var o = hits[i].object; if(o.material && !o.userData.solid && (o.material.transparent || o.material.opacity < 0.9)) continue; if(o.isSprite) continue;
     var r = o; while(r && r.parent && r.parent !== scene && !r.name) r = r.parent; if(r && r.name === selfRole) continue; var self = false; for(var q = o; q; q = q.parent) if(q.name === selfRole){ self = true; break; } if(self) continue;
     return true; } return false; };
 function updateVisibleZone(st){ var Z = game.visibleZone || (game.visibleZone = { x0: 0, x1: 1, y0: 0, y1: 1 }); if(st.mode === 'FREE_FOOT'){ Z.x0 = 0; Z.x1 = 1; Z.y0 = 0; Z.y1 = 1; return; }
-  var c = PE.cover || 0, tun = st.feedback.wash * 0.12; Z.y0 = c + tun; Z.y1 = 1 - c * 0.82 - tun; Z.x0 = tun; Z.x1 = 1 - tun; }
+  var tun = st.feedback.wash * 0.12; Z.y0 = PE.lid + tun; Z.y1 = 1 - PE.lidB - tun; Z.x0 = tun; Z.x1 = 1 - tun; }
 // ------------------------------------------------------------------ engine events -> FX / HUD
 var logIdx = 0;
 function processEvents(){ var L = game._log; for(; logIdx < L.length; logIdx++){ var e = L[logIdx], d = e.data;
   if(e.type === 'shot'){ var gunner = game.mode === 'FREE_FOOT' ? maya : cole, mz = A.muzzleWorld(gunner, new V()) || camera.position.clone(); muzzle(mz, d.weapon === 'machine_pistol'); sfx.shot(d.weapon === 'machine_pistol');
     var end = d.point ? new V().fromArray(d.point) : mz.clone().addScaledVector(aimRay(), 40); tracer(mz, end, 0xffe2a0, 0.06, 0.03); if(d.point){ sparks(end, d.hit ? 3 : 6); } }
   else if(e.type === 'partnerShot'){ var en = game.combat.byRole(d.role); if(en){ mayaTarget.copy(en.pos).setY(en.pos.y + 1.3); } mayaFireT = 0.45; var mm = A.muzzleWorld(maya, new V()); if(mm){ muzzle(mm); tracer(mm, new V().fromArray(d.to), 0xffd080, 0.07, 0.03); } sfx.shot(false); }
-  else if(e.type === 'enemyShot'){ addFlight(d); var src = gb.actors[d.role], mz2 = src ? (A.muzzleWorld(src, new V()) || new V().fromArray(d.from)) : new V().fromArray(d.from); muzzle(mz2, true); sprite(TX.flash, mz2, 1.3, 0.07); sfx.enemy(d.red); }
+  else if(e.type === 'enemyShot'){ var src = gb.actors[d.role];
+    var en3 = game.combat.byRole(d.role), fl = null, br = null; if(src && src.userData.painted && en3 && !src.userData.dead){ src.userData.fireT = 0.14; src.userData.flinchT = 0; paintEnemy(en3, src, 0);   // fire frame NOW, so the flash anchors on it
+      fl = PT.muzzle(src, new V(), true); br = PT.muzzle(src, new V(), false); }
+    if(fl && br){ paintLight.position.copy(fl); paintLight.intensity = 3.2; paintLightT = 0.07;   // 70 ms warm spill (MANIFEST §5)
+      sprite(TX.flash, fl, 0.55, 0.06); addFlight(Object.assign({}, d, { from: br.toArray() })); sfx.enemy(d.red); }                            // the telegraph leaves the painted barrel
+    else { addFlight(d); var mz2 = src ? (A.muzzleWorld(src, new V()) || new V().fromArray(d.from)) : new V().fromArray(d.from); muzzle(mz2, true); sprite(TX.flash, mz2, 1.3, 0.07); sfx.enemy(d.red); } }
+  else if(e.type === 'hit'){ var ho = gb.actors[d.role]; if(ho && d.hp > 0) ho.userData.flinchT = 0.24 + (ho.userData.fireT || 0); }   /* a hit mid-shot flinches right after the fire frame */
   else if(e.type === 'heroHit'){ patientHit(d.n || 5); }
   else if(e.type === 'shotLand'){ var p = new V().fromArray(d.at); sparks(p, d.hit ? 4 : 7); sfx.impact(); if(d.hit){ sprite(TX.red, p, 0.9, 0.18); sfx.hurt(); } }
   else if(e.type === 'hitmarker'){ var hm = $('hm'); hm.style.left = d.x * innerWidth + 'px'; hm.style.top = d.y * innerHeight + 'px'; hm.style.opacity = 1; }
@@ -310,7 +388,7 @@ function tunePost(){ var u = post.u, s = game.state(), f = s.feedback, m = s.mod
   u.focus.value = focusS; u.nearBlur.value = m === 'CUTSCENE' ? 3 : m === 'AMBULANCE' ? 7 : 8; u.farBlur.value = outdoor ? 3.5 : 4.5;
   u.hurt.value = HE.clamp((f.vignette - 0.2) * 1.3 + kick * 0.6, 0, 1.2); u.dying.value = f.wash; u.kick.value = kick;
   u.exposure.value = outdoor ? 0.62 : 0.72; var foot = m === 'FREE_FOOT';
-  u.lidTop.value = PE.lid; u.lidBot.value = s.lost ? PE.lid : PE.lid * 0.82; u.lidRed.value = s.lost ? 0.6 : HE.clamp(PE.heat * 0.55 + (PE.blinkT >= 0 && PE.heat > 0.3 ? 0.5 : 0), 0, 1); u.drift.value = PE.drift; u.tunnel.value = f.wash;
+  u.lidTop.value = PE.lid; u.lidBot.value = PE.lidB; u.lidRed.value = HE.clamp(PE.heat * 0.55, 0, 1) * (1 - PE.out);   /* going out = black */ u.drift.value = PE.drift; u.tunnel.value = f.wash;
   if(foot){ u.soft.value = 0.6; u.edge.value = 3; } u.soft.value = 1.25; u.edge.value = 6.5; if(m === 'FREE_FOOT'){ u.soft.value = 0.6; u.edge.value = 3; } sky.material.uniforms.time.value = tAnim;
   var fl = outdoor && (Math.sin(tAnim * 0.37) > 0.995 || Math.sin(tAnim * 0.53 + 1) > 0.997) ? 1 : 0; sky.material.uniforms.flash.value += (fl - sky.material.uniforms.flash.value) * 0.3; }
 game.gotoBeat(Q.get('beat') || 'visit'); requestAnimationFrame(frame);

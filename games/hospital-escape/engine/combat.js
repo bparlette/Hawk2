@@ -103,13 +103,18 @@ HE.Combat = function(game){
   // ext (data-gated by tuning.shotSpeed): enemy shots are travelling projectiles. A shot that will hit is flagged red
   // at launch and its damage lands on ARRIVAL — never damage from nowhere. Without shotSpeed: instant (v1 behaviour).
   c.fireAtHero = function(role, from, hit, dmg, vis){
-    if(!T.shotSpeed){ if(hit) c.damage(dmg, role); return; }
+    if(!T.shotSpeed){ if(hit && !c.heroOut(role)) c.damage(dmg, role); return; }
     var R = game.rng, tgt = game.heroTarget(), f = from.clone(); f.y += 1.45; var to = tgt.clone();
     if(!hit){ var off = new THREE.Vector3((R() - 0.5) * 2.4, (R() - 0.6) * 1.6, (R() - 0.5) * 1.2); if(off.length() < 0.7) off.setLength(0.7); to.add(off); to.y = Math.max(game.floorY() + 0.02, to.y); }
     var eta = game.time + f.distanceTo(to) / T.shotSpeed, sh = { role: role, from: f, to: to, hit: hit, red: hit, dmg: dmg, t0: game.time, eta: eta };
     c.shots.push(sh); game.log('enemyShot', { role: role, hit: hit, red: hit, from: [+f.x.toFixed(2), +f.y.toFixed(2), +f.z.toFixed(2)], to: [+to.x.toFixed(2), +to.y.toFixed(2), +to.z.toFixed(2)], eta: +eta.toFixed(3), vis: vis || null }); };
   c.stepShots = function(){ for(var i = c.shots.length - 1; i >= 0; i--){ var sh = c.shots[i]; if(game.time + 1e-9 < sh.eta) continue; c.shots.splice(i, 1);
-      game.log('shotLand', { role: sh.role, hit: sh.hit, at: [+sh.to.x.toFixed(2), +sh.to.y.toFixed(2), +sh.to.z.toFixed(2)] }); if(sh.hit) c.damage(sh.dmg, sh.role); } };
+      game.log('shotLand', { role: sh.role, hit: sh.hit, at: [+sh.to.x.toFixed(2), +sh.to.y.toFixed(2), +sh.to.z.toFixed(2)] }); if(sh.hit && !c.heroOut(sh.role)) c.damage(sh.dmg, sh.role); } };
+  // ext (data-gated by tuning.fairness.outGate): CONSCIOUSNESS GATE. While the hero is OUT (the presentation reports eyelid
+  // closure via game.heroClosure() >= outGate) no damage applies. Checked at the moment damage would apply (arrival); the shot
+  // still flies and lands for pressure, logged 'heroSpared'. Absent outGate or hook: v1 behaviour.
+  c.heroOut = function(role){ var F = T.fairness; if(!F || !F.outGate || !game.heroClosure) return false; var cl = +game.heroClosure() || 0;
+    if(cl >= F.outGate){ game.log('heroSpared', { role: role, closure: +cl.toFixed(3) }); return true; } return false; };
   // ext (data-gated by tuning.partner): Maya fires too, in the rail/holdout beats — logged, seeded, at the nearest exposed enemy in view
   c.stepPartner = function(dt){ var Pt = T.partner; if(!Pt || !(game.mode === 'RAIL_CHAIR' || game.mode === 'HOLDOUT')) return; c.partnerT = (c.partnerT == null ? 1 : c.partnerT) - dt; if(c.partnerT > 0) return;
     var cam = game.camera.position, best = null, bd = 1e9; game.camera.getWorldDirection(_cf);

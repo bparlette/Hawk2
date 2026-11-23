@@ -3,9 +3,9 @@ const { chromium } = require('playwright'); const fs = require('fs'), path = req
 const CDN = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js', cache = path.join(os.tmpdir(), 'three-0.128.0.min.js'), OUT = process.argv[2] || '.';
 const get = u => new Promise((res, rej) => https.get(u, r => { const b = []; r.on('data', d => b.push(d)); r.on('end', () => res(Buffer.concat(b))); }).on('error', rej));
 (async () => { if(!fs.existsSync(cache)) fs.writeFileSync(cache, await get(CDN)); fs.mkdirSync(OUT, { recursive: true });
-  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }), ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--allow-file-access-from-files'] }), ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   const open = async () => { const page = await ctx.newPage(), errs = []; page.on('pageerror', e => errs.push(String(e))); await page.route(CDN, r => r.fulfill({ body: fs.readFileSync(cache), contentType: 'text/javascript' }));
-    await page.goto('file://' + path.resolve(__dirname, '../index.html') + '?seed=3', { waitUntil: 'domcontentloaded', timeout: 120000 }); await page.waitForFunction(() => window.__game && window.__dbg); return { page, errs }; };
+    await page.goto('file://' + path.resolve(__dirname, '../index.html') + '?seed=3', { waitUntil: 'domcontentloaded', timeout: 120000 }); await page.waitForFunction(() => window.__game && window.__dbg && window.__painted !== undefined); return { page, errs }; };
   const shot = async (page, name, js) => { await page.evaluate(() => __game.pause(false)); const info = await page.evaluate(js); await page.evaluate(() => __game.pause(true)); await page.waitForTimeout(500); await page.screenshot({ path: path.join(OUT, name + '.png') }); console.log(name.padEnd(26), JSON.stringify(info)); };
   const st = 'const s = __dbg.state(); return { seg: s.segment, pathT: +s.pathT.toFixed(3), health: s.health, lost: s.lost, lid: +window.__pe().lid.toFixed(3), red: +window.__pe().red.toFixed(2) };';
   let { page, errs } = await open();

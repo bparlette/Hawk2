@@ -67,6 +67,10 @@ function validate(D){
   var T = D.tuning || {}; ['pistol', 'machine_pistol'].forEach(function(w){ var x = (T.weapons || {})[w]; if(!x || !num(x.mag) || !num(x.reloadTime) || !num(x.damage)) err('tuning.weapons.' + w + ' needs mag/reloadTime/damage'); });
   ['tire', 'driver', 'engine'].forEach(function(c){ if(!num((T.components || {})[c])) err('tuning.components.' + c + ' missing'); });
   ['shotSpeed', 'aimTell', 'closeRange', 'healOnBeat', 'screenFire', 'footTurn', 'firstShot', 'holdRelease'].forEach(function(k){ if(T[k] != null && !(num(T[k]) && T[k] > 0)) err('tuning.' + k + ' must be > 0'); });   // ext fields
+  if(T.fairness != null){ var F = T.fairness; if(typeof F !== 'object') err('tuning.fairness must be an object');
+    else { ['telegraph', 'minPx'].forEach(function(k){ if(!(num(F[k]) && F[k] >= 0)) err('tuning.fairness.' + k + ' must be >= 0'); });
+      if(F.margin != null && !(num(F.margin) && F.margin >= 0 && F.margin < 0.5)) err('tuning.fairness.margin must be in [0, 0.5)');
+      if(F.outGate != null && !(num(F.outGate) && F.outGate > 0 && F.outGate <= 1)) err('tuning.fairness.outGate must be in (0, 1]'); } }   // ext: consciousness gate
   return { checked: n, errors: E };
 }
 root.HE = root.HE || {}; root.HE.validateData = validate;

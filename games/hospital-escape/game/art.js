@@ -219,11 +219,11 @@ A.bed = function(){ var g = new THREE.Group(), steel = A.mat(0xb8bcc0, { metalne
   [-0.47, 0.47].forEach(function(x){ A.box(0.04, 0.5, 0.04, steel, x, 0.8, -0.06, g); }); A.box(0.98, 0.04, 0.04, steel, 0, 1.02, -0.06, g); A.box(0.98, 0.36, 0.05, A.mat(0xcfd6da), 0, 0.68, 2.06, g);   // open head rail + foot board
   var back = A.box(0.9, 0.08, 0.6, A.mat(0xaeb3b4), 0, 0.9, 0.42, g); back.rotation.x = 0.72;                                                    // raised back section (Cole reclines on it)
   [-0.5, 0.5].forEach(function(x){ A.box(0.03, 0.03, 1.4, steel, x, 0.88, 0.95, g); A.box(0.03, 0.22, 0.03, steel, x, 0.77, 0.3, g); A.box(0.03, 0.22, 0.03, steel, x, 0.77, 1.6, g); });   // side rails
-  A.box(0.9, 0.03, 0.03, steel, 0, 1.12, -0.12, g);                                                                                     // push bar at the head
+  A.box(0.9, 0.035, 0.035, steel, 0, 1.0, -0.12, g); [-0.45, 0.45].forEach(function(x){ A.box(0.03, 0.2, 0.03, steel, x, 0.9, -0.12, g); });   // push bar at the head (1.0 m: Maya's painted grip height)
   [[-0.4, 0.1], [0.4, 0.1], [-0.4, 1.9], [0.4, 1.9]].forEach(function(c){ A.cyl(0.07, 0.07, 0.05, dark, c[0], 0.08, c[1], g).rotation.z = Math.PI / 2; A.box(0.03, 0.38, 0.03, steel, c[0], 0.29, c[1], g); });
   var bl = new THREE.MeshStandardMaterial({ map: A.tex.blanket, roughness: 0.95 }); var b = A.box(0.9, 0.14, 1.25, bl, 0, 0.8, 1.38, g); b.name = 'blanket';
   var pil = A.box(0.5, 0.1, 0.3, A.mat(0xffffff), 0, 1.22, 0.06, g); pil.rotation.x = 0.72;   // pillow on the raised back
-  g.userData.grip = new V(0, 1.12, -0.18); return g; };
+  g.userData.grip = new V(0, 1.0, -0.12); return g; };
 A.wheelchair = function(){ var g = new THREE.Group(), steel = A.mat(0x9aa0a6, { metalness: 0.7, roughness: 0.3 }), seat = A.mat(0x24272b);
   A.box(0.48, 0.05, 0.46, seat, 0, 0.5, 0, g); A.box(0.48, 0.45, 0.05, seat, 0, 0.78, -0.22, g);                                         // seat + low back (Cole's shoulders clear it)
   [-0.27, 0.27].forEach(function(x){ var w = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.025, 8, 24), A.mat(0x111111)); w.position.set(x, 0.31, -0.05); w.rotation.y = Math.PI / 2; g.add(w);

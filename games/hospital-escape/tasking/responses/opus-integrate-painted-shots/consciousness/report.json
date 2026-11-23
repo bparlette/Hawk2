@@ -1,0 +1,320 @@
+{
+ "22": {
+  "episodeSeconds": 5.07,
+  "onsetSeconds": 1.53,
+  "peakOut": 0.834,
+  "peakClosure": 0.994,
+  "neckW_atPeak": 1.98,
+  "neckW_awake": 4.94,
+  "pitchAtPeak": -0.213,
+  "shots": [
+   {
+    "nm": "0-start",
+    "t": 0,
+    "i": 539,
+    "out": 0,
+    "cl": 0.41,
+    "w": 4.94,
+    "pitch": -0.071,
+    "roll": 0.002,
+    "ph": "on",
+    "replayOut": 0
+   },
+   {
+    "nm": "1-onset",
+    "t": 0.73,
+    "i": 583,
+    "out": 0.305,
+    "cl": 0.614,
+    "w": 3.92,
+    "pitch": -0.135,
+    "roll": -0.057,
+    "ph": "on",
+    "replayOut": 0.305
+   },
+   {
+    "nm": "2-peak",
+    "t": 1.47,
+    "i": 627,
+    "out": 0.834,
+    "cl": 0.994,
+    "w": 1.98,
+    "pitch": -0.213,
+    "roll": -0.144,
+    "ph": "on",
+    "replayOut": 0.834
+   },
+   {
+    "nm": "3-swim",
+    "t": 3.05,
+    "i": 722,
+    "out": 0.57,
+    "cl": 0.8,
+    "w": 2.92,
+    "pitch": -0.135,
+    "roll": -0.078,
+    "ph": "swim",
+    "replayOut": 0.57
+   },
+   {
+    "nm": "4-swim2",
+    "t": 3.97,
+    "i": 777,
+    "out": 0.191,
+    "cl": 0.537,
+    "w": 4.24,
+    "pitch": -0.085,
+    "roll": -0.038,
+    "ph": "swim",
+    "replayOut": 0.191
+   },
+   {
+    "nm": "5-back",
+    "t": 5.05,
+    "i": 842,
+    "out": 0,
+    "cl": 0.41,
+    "w": 4.94,
+    "pitch": -0.079,
+    "roll": 0.006,
+    "ph": null,
+    "replayOut": 0
+   }
+  ]
+ },
+ "55": {
+  "episodeSeconds": 3.7,
+  "onsetSeconds": 1.22,
+  "peakOut": 0.499,
+  "peakClosure": 0.662,
+  "neckW_atPeak": 3.59,
+  "neckW_awake": 5.6,
+  "pitchAtPeak": -0.148,
+  "shots": [
+   {
+    "nm": "0-start",
+    "t": 0,
+    "i": 539,
+    "out": 0,
+    "cl": 0.244,
+    "w": 5.6,
+    "pitch": -0.051,
+    "roll": 0.001,
+    "ph": "on",
+    "replayOut": 0
+   },
+   {
+    "nm": "1-onset",
+    "t": 0.58,
+    "i": 574,
+    "out": 0.186,
+    "cl": 0.395,
+    "w": 4.9,
+    "pitch": -0.088,
+    "roll": -0.031,
+    "ph": "on",
+    "replayOut": 0.186
+   },
+   {
+    "nm": "2-peak",
+    "t": 1.17,
+    "i": 609,
+    "out": 0.499,
+    "cl": 0.662,
+    "w": 3.59,
+    "pitch": -0.148,
+    "roll": -0.082,
+    "ph": "on",
+    "replayOut": 0.499
+   },
+   {
+    "nm": "3-swim",
+    "t": 2.18,
+    "i": 670,
+    "out": 0.341,
+    "cl": 0.525,
+    "w": 4.23,
+    "pitch": -0.076,
+    "roll": -0.052,
+    "ph": "swim",
+    "replayOut": 0.341
+   },
+   {
+    "nm": "4-swim2",
+    "t": 2.88,
+    "i": 712,
+    "out": 0.113,
+    "cl": 0.335,
+    "w": 5.13,
+    "pitch": -0.051,
+    "roll": -0.021,
+    "ph": "swim",
+    "replayOut": 0.113
+   },
+   {
+    "nm": "5-back",
+    "t": 3.68,
+    "i": 760,
+    "out": 0,
+    "cl": 0.244,
+    "w": 5.6,
+    "pitch": -0.041,
+    "roll": -0.01,
+    "ph": null,
+    "replayOut": 0
+   }
+  ]
+ },
+ "85": {
+  "episodeSeconds": 2.78,
+  "onsetSeconds": 0.98,
+  "peakOut": 0.246,
+  "peakClosure": 0.34,
+  "neckW_atPeak": 5.1,
+  "neckW_awake": 6.2,
+  "pitchAtPeak": -0.082,
+  "shots": [
+   {
+    "nm": "0-start",
+    "t": 0,
+    "i": 539,
+    "out": 0,
+    "cl": 0.108,
+    "w": 6.2,
+    "pitch": -0.034,
+    "roll": 0.001,
+    "ph": "on",
+    "replayOut": 0
+   },
+   {
+    "nm": "1-onset",
+    "t": 0.47,
+    "i": 567,
+    "out": 0.092,
+    "cl": 0.194,
+    "w": 5.82,
+    "pitch": -0.05,
+    "roll": -0.014,
+    "ph": "on",
+    "replayOut": 0.092
+   },
+   {
+    "nm": "2-peak",
+    "t": 0.93,
+    "i": 595,
+    "out": 0.246,
+    "cl": 0.34,
+    "w": 5.1,
+    "pitch": -0.082,
+    "roll": -0.038,
+    "ph": "on",
+    "replayOut": 0.246
+   },
+   {
+    "nm": "3-swim",
+    "t": 1.63,
+    "i": 637,
+    "out": 0.167,
+    "cl": 0.265,
+    "w": 5.46,
+    "pitch": -0.056,
+    "roll": -0.03,
+    "ph": "swim",
+    "replayOut": 0.167
+   },
+   {
+    "nm": "4-swim2",
+    "t": 2.17,
+    "i": 669,
+    "out": 0.056,
+    "cl": 0.16,
+    "w": 5.94,
+    "pitch": -0.028,
+    "roll": -0.014,
+    "ph": "swim",
+    "replayOut": 0.056
+   },
+   {
+    "nm": "5-back",
+    "t": 2.77,
+    "i": 705,
+    "out": 0,
+    "cl": 0.108,
+    "w": 6.2,
+    "pitch": -0.021,
+    "roll": -0.005,
+    "ph": null,
+    "replayOut": 0
+   }
+  ]
+ },
+ "gate": [
+  {
+   "closure": 1,
+   "damage": 0,
+   "events": [
+    "heroSpared"
+   ]
+  },
+  {
+   "closure": 0.9,
+   "damage": 0,
+   "events": [
+    "heroSpared"
+   ]
+  },
+  {
+   "closure": 0.85,
+   "damage": 0,
+   "events": [
+    "heroSpared"
+   ]
+  },
+  {
+   "closure": 0.84,
+   "damage": 4,
+   "events": [
+    "heroHit"
+   ]
+  },
+  {
+   "closure": 0.5,
+   "damage": 4,
+   "events": [
+    "heroHit"
+   ]
+  }
+ ],
+ "play": [
+  {
+   "seed": 7,
+   "heroHits": 2,
+   "maxClosureAtAHit": 0.405,
+   "spared": 0,
+   "fades": 3,
+   "secondsOut": 2,
+   "won": true,
+   "lost": false
+  },
+  {
+   "seed": 3,
+   "heroHits": 0,
+   "maxClosureAtAHit": 0,
+   "spared": 0,
+   "fades": 3,
+   "secondsOut": 0,
+   "won": true,
+   "lost": false
+  },
+  {
+   "seed": 11,
+   "heroHits": 3,
+   "maxClosureAtAHit": 0.226,
+   "spared": 0,
+   "fades": 2,
+   "secondsOut": 0,
+   "won": true,
+   "lost": false
+  }
+ ]
+}

@@ -5,9 +5,9 @@
 // time-to-first-shot = seconds from START until the first moment the player has a live target on screen in a fire-enabled mode.
 const { chromium } = require('playwright'); const fs = require('fs'), path = require('path'), os = require('os');
 const CDN = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js', cache = path.join(os.tmpdir(), 'three-0.128.0.min.js'), ROOT = process.argv[2], SEED = process.argv[3] || 7;
-(async () => { const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }), p = await b.newPage({ viewport: { width: 390, height: 844 } }); const errs = [];
+(async () => { const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--allow-file-access-from-files'] }), p = await b.newPage({ viewport: { width: 390, height: 844 } }); const errs = [];
   p.on('pageerror', e => errs.push(String(e))); await p.route(CDN, r => r.fulfill({ body: fs.readFileSync(cache), contentType: 'text/javascript' }));
-  await p.goto('file://' + ROOT + '/games/hospital-escape/index.html?seed=' + SEED, { waitUntil: 'domcontentloaded', timeout: 120000 }); await p.waitForFunction(() => window.__game && window.__dbg);
+  await p.goto('file://' + ROOT + '/games/hospital-escape/index.html?seed=' + SEED, { waitUntil: 'domcontentloaded', timeout: 120000 }); await p.waitForFunction(() => window.__game && window.__dbg && window.__painted !== undefined);
   const r = await p.evaluate(() => { const G = window.__game, g = G.game; if(G.pause) G.pause(true); G.start('visit'); const per = {}, order = []; let t = 0, tfs = null, n = 0;
     const onScreen = () => { if(g.mode === 'FREE_FOOT') return true; if(g.mode === 'CUTSCENE') return false;
       return g.liveEnemies().some(e => { const pr = g.project(e.role); return pr && pr.onScreen; }) || g.chase.list.some(pp => pp.state === 'pursuing' && (pr => pr && pr.onScreen)(g.project(pp.role))); };
