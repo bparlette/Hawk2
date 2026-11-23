@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>FALLEN CITY BRAWL — STAGE 1: FALLEN DOWNTOWN</title>
+  <style>
+    :root {
+      --bg: #080711;
+      --ink: #0d0b14;
+      --gold: #ffca3a;
+      --red: #e62e3d;
+      --cyan: #3be8ff;
+      --green: #54ff88;
+      --cream: #f6efe2;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 25%, #1c1330 0%, #07060d 78%);
+      color: var(--cream);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .shell {
+      width: 100%;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      gap: 6px;
+    }
+
+    /* Arcade Stage Frame */
+    .arcade-frame {
+      position: relative;
+      width: 100%;
+      max-width: 1120px;
+      aspect-ratio: 16 / 9;
+      max-height: calc(100dvh - 54px);
+      background: #0a0814;
+      border: 3px solid #2b2242;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 202, 58, 0.16);
+    }
+
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: pixelated;
+      touch-action: none;
+    }
+
+    /* Classic 90s Beat-'Em-Up Top HUD */
+    .hud-top {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 8px 12px;
+      display: grid;
+      grid-template-columns: 1.35fr auto 1.25fr;
+      align-items: start;
+      gap: 10px;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .player-hud {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .portrait {
+      width: 44px;
+      height: 44px;
+      border-radius: 7px;
+      background: linear-gradient(180deg, #273c66 0%, #151e34 100%);
+      border: 2.5px solid var(--gold);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 11px;
+      line-height: 1.05;
+      color: var(--cream);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+      flex-shrink: 0;
+    }
+
+    .portrait span {
+      font-size: 9px;
+      color: var(--red);
+      letter-spacing: 0.5px;
+    }
+
+    .bars {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .bar-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 11px;
+      font-weight: 900;
+      text-shadow: 0 2px 3px #000;
+      letter-spacing: 0.5px;
+    }
+
+    .score-val {
+      color: var(--gold);
+      font-family: "Courier New", monospace;
+      font-size: 13px;
+    }
+
+    .hp-track {
+      height: 13px;
+      background: #1b0c12;
+      border: 2px solid #0d0b14;
+      border-radius: 3px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .hp-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #e62e3d 0%, #ffca3a 55%, #54ff88 100%);
+      transition: width 0.08s linear;
+    }
+
+    .riot-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .riot-track {
+      flex: 1;
+      height: 8px;
+      background: #0c1724;
+      border: 1.5px solid #0d0b14;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .riot-fill {
+      height: 100%;
+      width: 40%;
+      background: linear-gradient(90deg, #1b9cff 0%, #3be8ff 100%);
+      transition: width 0.08s linear;
+    }
+
+    .riot-fill.ready {
+      background: linear-gradient(90deg, #3be8ff 0%, #ffffff 50%, #ffca3a 100%);
+      box-shadow: 0 0 10px var(--cyan);
+    }
+
+    .riot-lbl {
+      font-size: 9.5px;
+      font-weight: 900;
+      color: var(--cyan);
+      text-shadow: 0 1px 3px #000;
+      white-space: nowrap;
+    }
+
+    .hud-center {
+      text-align: center;
+      background: rgba(10, 8, 18, 0.72);
+      border: 1.5px solid rgba(255, 202, 58, 0.45);
+      border-radius: 8px;
+      padding: 3px 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    .stage-tag {
+      font-size: 9.5px;
+      font-weight: 900;
+      color: var(--gold);
+      letter-spacing: 0.8px;
+    }
+
+    .timer-val {
+      font-family: "Courier New", monospace;
+      font-size: 20px;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--cream);
+    }
+
+    .enemy-hud {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .enemy-card {
+      width: 100%;
+      max-width: 240px;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .enemy-card.visible {
+      opacity: 1;
+    }
+
+    .enemy-hp-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #ff2b5e 0%, #ff8c24 100%);
+      transition: width 0.08s linear;
+    }
+
+    .combo-badge {
+      font-family: Impact, "Arial Black", sans-serif;
+      font-size: 18px;
+      color: var(--gold);
+      text-shadow: 2px 2px 0 #0d0b14, 0 0 10px rgba(255, 160, 30, 0.6);
+      letter-spacing: 0.6px;
+      opacity: 0;
+      transform: scale(0.9);
+      transition: all 0.12s ease;
+    }
+
+    .combo-badge.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .top-btns {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      display: flex;
+      gap: 5px;
+      z-index: 40;
+      pointer-events: auto;
+    }
+
+    /* Title / Start Overlay */
+    .title-overlay {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 42%, rgba(28, 16, 46, 0.86) 0%, rgba(7, 6, 14, 0.94) 80%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 18px;
+      z-index: 50;
+      gap: 10px;
+    }
+
+    .title-overlay.hidden {
+      display: none;
+    }
+
+    .game-logo {
+      margin: 0;
+      font-family: Impact, "Arial Black", sans-serif;
+      font-size: clamp(30px, 6vw, 58px);
+      line-height: 0.95;
+      letter-spacing: 2px;
+      color: var(--gold);
+      text-shadow: 0 4px 0 #9c1b24, 0 8px 24px rgba(230, 46, 61, 0.55);
+    }
+
+    .game-sub {
+      margin: 0;
+      font-size: clamp(12px, 1.8vw, 16px);
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: var(--cyan);
+      text-transform: uppercase;
+    }
+
+    .start-btn {
+      margin-top: 6px;
+      background: linear-gradient(180deg, #ff4050 0%, #b81424 100%);
+      color: var(--cream);
+      border: 3px solid var(--gold);
+      border-radius: 10px;
+      padding: 11px 32px;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(230, 46, 61, 0.5);
+    }
+
+    .start-btn:hover { filter: brightness(1.12); }
+    .start-btn:active { transform: translateY(2px); }
+
+    .move-strip {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px 14px;
+      max-width: 720px;
+      font-size: 12px;
+      color: #d6dff5;
+      background: rgba(12, 10, 22, 0.72);
+      border: 1px solid #352b54;
+      border-radius: 10px;
+      padding: 8px 14px;
+    }
+
+    .move-strip b { color: var(--gold); }
+
+    /* Desktop Footer Controls Bar */
+    .footer-bar {
+      width: 100%;
+      max-width: 1120px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 11.5px;
+      color: #b5c0de;
+      flex-shrink: 0;
+    }
+
+    .footer-keys {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .footer-keys b { color: var(--gold); }
+
+    .util-btns {
+      display: flex;
+      gap: 6px;
+    }
+
+    .util-btn {
+      background: #1a182c;
+      color: var(--cream);
+      border: 1px solid #3f3864;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .util-btn:hover { background: #262340; }
+
+    /* Mobile Touch Controls (shown on narrow or touch devices) */
+    .touch-controls {
+      display: none;
+      width: 100%;
+      max-width: 520px;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px));
+      z-index: 1200;
+      touch-action: none;
+      flex-shrink: 0;
+    }
+
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 46px);
+      grid-template-rows: repeat(3, 42px);
+      gap: 4px;
+    }
+
+    .pad-btn {
+      background: rgba(28, 25, 48, 0.92);
+      border: 2px solid #4d457a;
+      border-radius: 8px;
+      color: var(--cream);
+      font-size: 16px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+
+    .pad-btn.active {
+      background: var(--gold);
+      color: #100d18;
+      border-color: #fff;
+    }
+
+    .action-pad {
+      display: grid;
+      grid-template-columns: repeat(2, 74px);
+      gap: 7px;
+    }
+
+    .act-btn {
+      height: 50px;
+      border: 2px solid #0d0b14;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      color: var(--cream);
+      box-shadow: 0 3px 0 #090710;
+      touch-action: none;
+    }
+
+    .act-btn:active, .act-btn.active { transform: translateY(2px); filter: brightness(1.18); }
+    .act-atk { background: linear-gradient(180deg, #ff3e4e 0%, #b81826 100%); }
+    .act-jmp { background: linear-gradient(180deg, #ffcf48 0%, #d48c12 100%); color: #120e08; }
+    .act-parry { background: linear-gradient(180deg, #4b7ec2 0%, #26487a 100%); }
+    .act-riot { background: linear-gradient(180deg, #29e3ff 0%, #0f88b8 100%); color: #08121c; }
+
+    @media (max-width: 860px), (pointer: coarse) {
+      .shell {
+        justify-content: flex-start;
+        padding: 4px 4px 8px;
+        gap: 8px;
+      }
+      .arcade-frame {
+        max-height: none;
+        width: 100%;
+      }
+      .footer-keys {
+        display: none;
+      }
+      .footer-bar {
+        justify-content: flex-end;
+      }
+      .touch-controls {
+        display: flex;
+        margin-top: auto;
+      }
+      .portrait {
+        width: 32px;
+        height: 32px;
+        font-size: 8.5px;
+      }
+      .hud-top {
+        padding: 4px 6px;
+        gap: 5px;
+      }
+      .bar-head {
+        font-size: 9px;
+        white-space: nowrap;
+      }
+      .score-val {
+        font-size: 10px;
+      }
+      .timer-val {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="arcade-frame">
+      <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+      <!-- Classic Arcade Top HUD -->
+      <div class="hud-top">
+        <div class="player-hud">
+          <div class="portrait">
+            <span>SWAT</span>
+            CLAY
+          </div>
+          <div class="bars">
+            <div class="bar-head">
+              <span id="weaponTag">SGT. CLAY</span>
+              <span class="score-val" id="scoreVal">000000</span>
+            </div>
+            <div class="hp-track"><div class="hp-fill" id="hpFill"></div></div>
+            <div class="riot-row">
+              <div class="riot-track"><div class="riot-fill" id="riotFill"></div></div>
+              <span class="riot-lbl" id="riotLbl">RIOT 40%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-center">
+          <div class="stage-tag">STAGE 1</div>
+          <div class="timer-val" id="timerVal">99</div>
+        </div>
+
+        <div class="enemy-hud">
+          <div class="enemy-card" id="enemyCard">
+            <div class="bar-head">
+              <span id="enemyName">STREET PUNK</span>
+              <span id="enemyHpTxt"></span>
+            </div>
+            <div class="hp-track"><div class="enemy-hp-fill" id="enemyHpFill"></div></div>
+          </div>
+          <div class="combo-badge" id="comboBadge">4 HITS!</div>
+        </div>
+      </div>
+
+      <!-- Title Overlay -->
+      <div class="title-overlay" id="titleOverlay">
+        <h1 class="game-logo">FALLEN CITY BRAWL</h1>
+        <p class="game-sub">STAGE 1: FALLEN DOWNTOWN • ONE-LEVEL ARCADE EDITION</p>
+        <div class="move-strip">
+          <span><b>WASD / ARROWS</b> Move</span>
+          <span><b>J / Z</b> 4-Hit Combo / Throw / Pickup</span>
+          <span><b>K / SPACE</b> Jump &amp; Jump Kick</span>
+          <span><b>L / U</b> Timed Parry / Block</span>
+          <span><b>I / E</b> Wolf Pack RIOT Super</span>
+        </div>
+        <button class="start-btn" id="btnStart">INSERT COIN — FIGHT!</button>
+      </div>
+    </div>
+
+    <!-- Desktop Footer Controls -->
+    <div class="footer-bar">
+      <div class="footer-keys">
+        <span><b>WASD/Arrows</b> Move</span>
+        <span><b>J/Z</b> Attack · Throw · Pickup</span>
+        <span><b>K/Space</b> Jump Kick</span>
+        <span><b>L/U</b> Parry</span>
+        <span><b>I/E</b> Wolf RIOT</span>
+        <span><b>Shift</b> Dash</span>
+      </div>
+      <div class="util-btns">
+        <button class="util-btn" id="btnMute">SFX ON</button>
+        <button class="util-btn" id="btnRestart">RESTART (R)</button>
+      </div>
+    </div>
+
+    <!-- Mobile Touch Arcade Controls -->
+    <div class="touch-controls">
+      <div class="dpad">
+        <div></div>
+        <button class="pad-btn" data-dir="up">▲</button>
+        <div></div>
+        <button class="pad-btn" data-dir="left">◀</button>
+        <div></div>
+        <button class="pad-btn" data-dir="right">▶</button>
+        <div></div>
+        <button class="pad-btn" data-dir="down">▼</button>
+        <div></div>
+      </div>
+
+      <div class="action-pad">
+        <button class="act-btn act-atk" id="touchAtk">ATK</button>
+        <button class="act-btn act-jmp" id="touchJmp">JMP</button>
+        <button class="act-btn act-parry" id="touchParry">PARRY</button>
+        <button class="act-btn act-riot" id="touchRiot">RIOT</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { BrawlAudio } from './src/audio.js';
+    import { BrawlGame } from './src/game.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const titleOverlay = document.getElementById('titleOverlay');
+    const btnStart = document.getElementById('btnStart');
+    const btnMute = document.getElementById('btnMute');
+    const btnRestart = document.getElementById('btnRestart');
+    const hpFill = document.getElementById('hpFill');
+    const riotFill = document.getElementById('riotFill');
+    const riotLbl = document.getElementById('riotLbl');
+    const weaponTag = document.getElementById('weaponTag');
+    const scoreVal = document.getElementById('scoreVal');
+    const timerVal = document.getElementById('timerVal');
+    const enemyCard = document.getElementById('enemyCard');
+    const enemyName = document.getElementById('enemyName');
+    const enemyHpFill = document.getElementById('enemyHpFill');
+    const comboBadge = document.getElementById('comboBadge');
+
+    const audio = new BrawlAudio();
+    const game = new BrawlGame(canvas, audio);
+
+    function startFight() {
+      audio.unlock();
+      titleOverlay.classList.add('hidden');
+      if (game.gameOver || game.stageClear) game.reset();
+      if (!game.started) game.startGame();
+    }
+
+    btnStart.addEventListener('click', startFight);
+    btnRestart.addEventListener('click', () => {
+      audio.unlock();
+      game.reset();
+      game.startGame();
+      titleOverlay.classList.add('hidden');
+    });
+    btnMute.addEventListener('click', () => {
+      audio.unlock();
+      const muted = audio.toggleMute();
+      btnMute.textContent = muted ? 'SFX OFF' : 'SFX ON';
+    });
+
+    // Keyboard Controls
+    window.addEventListener('keydown', (e) => {
+      audio.unlock();
+      const k = e.code;
+      if (!game.started && (k === 'Enter' || k === 'Space' || k === 'KeyJ' || k === 'KeyZ')) {
+        e.preventDefault();
+        startFight();
+        return;
+      }
+      if (k === 'ArrowLeft' || k === 'KeyA') { e.preventDefault(); game.keys.left = true; }
+      else if (k === 'ArrowRight' || k === 'KeyD') { e.preventDefault(); game.keys.right = true; }
+      else if (k === 'ArrowUp' || k === 'KeyW') { e.preventDefault(); game.keys.up = true; }
+      else if (k === 'ArrowDown' || k === 'KeyS') { e.preventDefault(); game.keys.down = true; }
+      else if (k === 'ShiftLeft' || k === 'ShiftRight') { game.keys.dash = true; }
+      else if (k === 'KeyL' || k === 'KeyU') { e.preventDefault(); game.setBlock(true); }
+      else if (!e.repeat && (k === 'KeyJ' || k === 'KeyZ')) { e.preventDefault(); game.pressAttack(); }
+      else if (!e.repeat && (k === 'KeyK' || k === 'Space')) { e.preventDefault(); game.pressJump(); }
+      else if (!e.repeat && (k === 'KeyI' || k === 'KeyE')) { e.preventDefault(); game.pressRiotSuper(); }
+      else if (!e.repeat && k === 'KeyR') { game.reset(); game.startGame(); titleOverlay.classList.add('hidden'); }
+      else if (!e.repeat && k === 'KeyM') {
+        const muted = audio.toggleMute();
+        btnMute.textContent = muted ? 'SFX OFF' : 'SFX ON';
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const k = e.code;
+      if (k === 'ArrowLeft' || k === 'KeyA') game.keys.left = false;
+      else if (k === 'ArrowRight' || k === 'KeyD') game.keys.right = false;
+      else if (k === 'ArrowUp' || k === 'KeyW') game.keys.up = false;
+      else if (k === 'ArrowDown' || k === 'KeyS') game.keys.down = false;
+      else if (k === 'ShiftLeft' || k === 'ShiftRight') game.keys.dash = false;
+      else if (k === 'KeyL' || k === 'KeyU') game.setBlock(false);
+    });
+
+    // Touch D-Pad & Arcade Buttons
+    document.querySelectorAll('.pad-btn').forEach((btn) => {
+      const dir = btn.dataset.dir;
+      const down = (e) => { e.preventDefault(); audio.unlock(); btn.classList.add('active'); game.keys[dir] = true; };
+      const up = (e) => { e.preventDefault(); btn.classList.remove('active'); game.keys[dir] = false; };
+      btn.addEventListener('pointerdown', down);
+      btn.addEventListener('pointerup', up);
+      btn.addEventListener('pointercancel', up);
+      btn.addEventListener('pointerleave', (e) => { if (btn.classList.contains('active')) up(e); });
+    });
+
+    const bindTap = (id, fn) => {
+      const el = document.getElementById(id);
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        audio.unlock();
+        if (!game.started) startFight();
+        else fn();
+      });
+    };
+    bindTap('touchAtk', () => game.pressAttack());
+    bindTap('touchJmp', () => game.pressJump());
+    bindTap('touchRiot', () => game.pressRiotSuper());
+
+    const touchParry = document.getElementById('touchParry');
+    touchParry.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.unlock(); touchParry.classList.add('active'); game.setBlock(true); });
+    const releaseParry = (e) => { e.preventDefault(); touchParry.classList.remove('active'); game.setBlock(false); };
+    touchParry.addEventListener('pointerup', releaseParry);
+    touchParry.addEventListener('pointercancel', releaseParry);
+
+    // Sync HUD
+    function syncHud() {
+      const p = game.player;
+      hpFill.style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
+      riotFill.style.width = `${Math.min(100, p.riot)}%`;
+      const riotReady = p.riot >= 100;
+      riotFill.classList.toggle('ready', riotReady);
+      riotLbl.textContent = riotReady ? 'RIOT READY! [I]' : `RIOT ${Math.floor(p.riot)}%`;
+      weaponTag.textContent = p.weapon
+        ? `SGT. CLAY · ${p.weapon.kind.toUpperCase()} (${p.weapon.uses})`
+        : 'SGT. CLAY';
+      scoreVal.textContent = String(game.score).padStart(6, '0');
+      timerVal.textContent = String(Math.ceil(game.stageTimer)).padStart(2, '0');
+
+      const boss = game.enemies.find((e) => e.isBoss && !e.dead);
+      const tgt = boss || (game.lastTarget && !game.lastTarget.dead ? game.lastTarget : null);
+      if (tgt) {
+        enemyCard.classList.add('visible');
+        enemyName.textContent = tgt.isBoss ? `★ BOSS: ${tgt.name}` : tgt.name;
+        enemyHpFill.style.width = `${Math.max(0, (tgt.hp / tgt.maxHp) * 100)}%`;
+      } else {
+        enemyCard.classList.remove('visible');
+      }
+
+      if (game.combo >= 2) {
+        comboBadge.classList.add('visible');
+        comboBadge.textContent = `${game.combo} HITS!`;
+      } else {
+        comboBadge.classList.remove('visible');
+      }
+    }
+
+    // Main 60Hz Loop
+    let lastTs = performance.now();
+    function loop(ts) {
+      const dt = Math.min((ts - lastTs) / 1000, 0.033);
+      lastTs = ts;
+      game.step(dt);
+      game.render();
+      syncHud();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // Deterministic verification hook
+    window.__brawl = {
+      start: () => {
+        startFight();
+        game.render();
+        syncHud();
+      },
+      moveTo: (x, y = 428) => {
+        game.player.x = x;
+        game.player.y = y;
+      },
+      attack: () => game.pressAttack(),
+      triggerRiot: () => {
+        game.player.riot = 100;
+        game.pressRiotSuper();
+      },
+      jumpToBoss: () => {
+        game.activeWave = null;
+        game.enemies = [];
+        game.waves[0].triggered = true;
+        game.waves[0].cleared = true;
+        game.waves[1].triggered = true;
+        game.waves[1].cleared = true;
+        game.player.x = 1860;
+        game.camX = 1680;
+        game.step(1 / 60);
+      },
+      step: (frames = 1) => {
+        for (let i = 0; i < frames; i++) game.step(1 / 60);
+        game.render();
+        syncHud();
+      },
+      state: () => ({
+        started: game.started,
+        score: game.score,
+        hp: game.player.hp,
+        riot: game.player.riot,
+        x: Math.round(game.player.x),
+        enemies: game.enemies.length,
+        wolfActive: game.wolf.active,
+        stageClear: game.stageClear,
+        gameOver: game.gameOver,
+      }),
+    };
+  </script>
+</body>
+</html>
