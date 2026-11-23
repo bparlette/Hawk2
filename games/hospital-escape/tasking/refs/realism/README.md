@@ -11,12 +11,14 @@ Source posts:
 
 - `post1-station.mp4` — Post 1, Video 1: the photoreal train-station
   render (35.7 s, 1280×720). THE reference.
-- `post2-gameplay.mp4` — Post 1, Video 2: GTA-style Philippines gameplay
-  reel (88.1 s, 1920×1080). Same post, visibly a grade below — the
-  real-time tier.
+- `post2-gameplay-web.mp4` — Post 1, Video 2: GTA-style Philippines
+  gameplay reel (88.1 s). Same post, visibly a grade below — the
+  real-time tier. This is a 720p web copy (21 MB): the 69 MB 1080p
+  original exceeds GitHub's 25 MB web-upload limit and is archived
+  locally with Moth; `frames2/` below carries its full-res frames.
 - `frames1/` — frames extracted from `post1-station.mp4` (f01–f06 spread
   across the video + 2 native-resolution frames).
-- `frames2/` — frames extracted from `post2-gameplay.mp4` (f01–f06 + 2
+- `frames2/` — frames extracted from the post2 gameplay video (f01–f06 + 2
   native-resolution frames).
 - `POST-TEXT.md` — both posts' text verbatim, URLs, authors, dates,
   engagement numbers. Plain record.
