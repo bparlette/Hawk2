@@ -66,7 +66,7 @@ function validate(D){
   // tuning (frozen field names; numbers tunable)
   var T = D.tuning || {}; ['pistol', 'machine_pistol'].forEach(function(w){ var x = (T.weapons || {})[w]; if(!x || !num(x.mag) || !num(x.reloadTime) || !num(x.damage)) err('tuning.weapons.' + w + ' needs mag/reloadTime/damage'); });
   ['tire', 'driver', 'engine'].forEach(function(c){ if(!num((T.components || {})[c])) err('tuning.components.' + c + ' missing'); });
-  ['shotSpeed', 'aimTell', 'closeRange', 'healOnBeat', 'screenFire', 'footTurn', 'firstShot'].forEach(function(k){ if(T[k] != null && !(num(T[k]) && T[k] > 0)) err('tuning.' + k + ' must be > 0'); });   // ext fields
+  ['shotSpeed', 'aimTell', 'closeRange', 'healOnBeat', 'screenFire', 'footTurn', 'firstShot', 'holdRelease'].forEach(function(k){ if(T[k] != null && !(num(T[k]) && T[k] > 0)) err('tuning.' + k + ' must be > 0'); });   // ext fields
   return { checked: n, errors: E };
 }
 root.HE = root.HE || {}; root.HE.validateData = validate;

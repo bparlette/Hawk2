@@ -17,7 +17,7 @@ W.merge = function(group){ group.updateMatrixWorld(true); var byMat = {}, keep =
     e.list.forEach(function(o){ var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); g.applyMatrix4(o.matrixWorld);
       var p = g.attributes.position.array, n = g.attributes.normal.array, u = g.attributes.uv ? g.attributes.uv.array : null;
       for(var i = 0; i < p.length; i++){ pos.push(p[i]); nor.push(n[i]); } for(var j = 0; j < p.length / 3; j++){ uv.push(u ? u[j * 2] : 0, u ? u[j * 2 + 1] : 0); } });
-    var bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); bg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); bg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); bg.computeBoundingSphere();
+    var bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); bg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); bg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); bg.computeBoundingSphere(); bg.computeBoundingBox();   /* box lets a ray reject far zones in one test (fairness LOS) */
     out.add(new THREE.Mesh(bg, e.mat)); });
   // transparent + multi-material meshes are kept as they are
   group.traverse(function(o){ if(o.isMesh && !inKeep(o) && (Array.isArray(o.material) || o.material.transparent)){ var c = o.clone(); o.matrixWorld.decompose(c.position, c.quaternion, c.scale); out.add(c); } });
@@ -28,7 +28,10 @@ W.build = function(scene, data){ A.makeTextures(); var env = data.env, root = ne
     panel: new THREE.MeshBasicMaterial({ map: A.tex.lightPanel, toneMapped: false, color: 0xf6fbff }), pool: new THREE.MeshBasicMaterial({ color: 0xfff1d8, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }),
     door: new THREE.MeshStandardMaterial({ map: A.tex.door, roughness: 0.6 }), frame: M(0xb8bfc4, { metalness: 0.3, roughness: 0.4 }), glass: new THREE.MeshStandardMaterial({ color: 0xa8c8d8, transparent: true, opacity: 0.22, metalness: 0.6, roughness: 0.05, depthWrite: false }) };
   W._halls = env.zones.filter(function(z){ return z.kind === 'hall'; }); W.data = data;
-  env.zones.forEach(function(z){ var g = new THREE.Group(); g.name = z.kind; var f = BUILD[z.kind]; if(f) f(z, g, mats, data); root.add(W.merge(g)); });
+  env.zones.forEach(function(z){ var g = new THREE.Group(); g.name = z.kind; var f = BUILD[z.kind]; if(f) f(z, g, mats, data);
+    // zones that build in chunks (the street) merge per chunk: small bounding boxes keep line-of-sight rays cheap
+    var chunks = g.children.filter(function(c){ return c.userData.chunk; }); if(chunks.length){ chunks.forEach(function(c){ g.remove(c); root.add(W.merge(c)); }); }
+    root.add(W.merge(g)); });
   return root; };
 // tiled surface helper: a w x d floor/ceiling with the texture repeated every `tile` m
 function slab(w, d, mat, tile, parent, pos, up){ var m = mat.clone(); if(m.map){ m.map = m.map.clone(); m.map.needsUpdate = true; m.map.repeat.set(w / tile, d / tile); } return plane(w, d, m, parent, pos, [up ? -Math.PI / 2 : Math.PI / 2, 0, 0]); }
@@ -167,10 +170,11 @@ var BUILD = {
     for(var tx = 30; tx < 100; tx += 9){ var t = A.tree(1 + (tx % 3) * 0.15); t.position.set(tx, y, -215 - (tx % 2) * 3); g.add(t); } },
   street: function(z, g, mats, data){ var y = z.y, asphalt = texMat(A.tex.asphalt, 1, 1, { roughness: 0.92 }), side = texMat(A.tex.sidewalk, 1, 1), line = M(0xe8e0b8, { roughness: 0.6 }), white = M(0xf2f2f2);
     var facades = [A.tex.facade(3, '#7c6f63', '#ffd99a'), A.tex.facade(11, '#5e6a74', '#cfe6ff'), A.tex.facade(19, '#8a7d6b', '#ffe2a8'), A.tex.facade(23, '#4f5560', '#ffcc88')].map(function(t){ t.wrapS = t.wrapT = THREE.RepeatWrapping; return new THREE.MeshStandardMaterial({ map: t, roughness: 0.85 }); });
-    var seed = 5, rnd = function(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    var seed = 5, rnd = function(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }, chunkG = {};
     z.paths.forEach(function(pid){ var def = data.paths.filter(function(p){ return p.id === pid; })[0]; var path = HE.compilePath(def), step = 6, n = Math.ceil(path.span / step);
       for(var i = 0; i < n; i++){ var s = path.lead + i * step, p = path.pointAtS(s + step / 2), t = path.tangentAtS(s + step / 2); t.y = 0; t.normalize(); var yaw = Math.atan2(t.x, t.z), right = new V(-t.z, 0, t.x);
-        var seg = new THREE.Group(); seg.position.set(p.x, y, p.z); seg.rotation.y = yaw; g.add(seg);
+        var ck = 'c' + pid + Math.floor(i / 20); if(!chunkG[ck]){ chunkG[ck] = new THREE.Group(); chunkG[ck].userData.chunk = true; g.add(chunkG[ck]); }
+        var seg = new THREE.Group(); seg.position.set(p.x, y, p.z); seg.rotation.y = yaw; chunkG[ck].add(seg);
         A.box(13, 0.04, step + 0.08, asphalt, 0, -0.02, 0, seg); if(i % 2 === 0) A.box(0.16, 0.05, step * 0.5, line, 0, 0.005, 0, seg); [-1, 1].forEach(function(sd){ A.box(0.12, 0.05, step + 0.08, white, sd * 6.1, 0.005, 0, seg); A.box(3.2, 0.16, step + 0.08, side, sd * 8.1, 0.06, 0, seg); A.box(0.2, 0.18, step + 0.08, M(0x9a978f), sd * 6.55, 0.07, 0, seg); });
         if(pid === 'bay_route') continue;
         if(i % 4 === 0){ [-1, 1].forEach(function(sd){ var lq = p.clone().addScaledVector(right, sd * 7.2); if(W.pathDist(data, z.paths, lq.x, lq.z) < 6.6) return; var sl = A.streetLight(); sl.position.set(sd * 7.2, 0, 0); sl.rotation.y = sd > 0 ? Math.PI : 0; seg.add(sl); }); }

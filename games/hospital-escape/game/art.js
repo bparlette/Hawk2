@@ -189,7 +189,7 @@ A.pose = function(p, name, t, opt){ var J = p.userData.J; if(!J) return; opt = o
     set('shR', -2.6 + (opt.pitch || 0), opt.yaw || 0, 0.15); set('elR', 0); }
   if(name === 'push' || name === 'pushFire'){ set('spine', 0.74); set('shL', -0.85, 0, -0.06); set('elL', -0.2); set('shR', -0.85, 0, 0.06); set('elR', -0.2); set('neck', -0.6); set('head', -0.12); J.hips.position.y = 0.9;
     k = S(t * 5.2) * (opt.speed || 0); set('hipL', k * 0.4 - 0.1); set('hipR', -k * 0.4 - 0.1); set('knL', Math.max(0, -k) * 0.5 + 0.1); set('knR', Math.max(0, k) * 0.5 + 0.1);
-    if(name === 'pushFire'){ set('shR', -1.5 + (opt.pitch || 0), opt.yaw || 0, -0.1); set('elR', 0); set('spine', 0.2, (opt.yaw || 0) * 0.3, 0); } }
+    if(name === 'pushFire'){ set('shR', -1.5 + (opt.pitch || 0), opt.yaw || 0, -0.1); set('elR', 0); set('spine', 0.74, 0, 0); } }   // fires one-handed, staying as low as the push and never twisting across the player's line of sight
   if(name === 'recline'){ J.hips.position.y = 0.0; set('spine', -0.72); set('neck', 0.35); set('head', 0.1); set('hipL', -1.5); set('hipR', -1.5); set('knL', 0.12); set('knR', 0.12); set('shL', -0.3, 0, 0.15); set('elL', -0.9);
     set('shR', -1.4 + (opt.pitch || 0), opt.yaw || 0, 0.1); }
   if(name === 'drive'){ J.hips.position.y = 0.52; set('hipL', -1.4); set('hipR', -1.4); set('knL', 1.3); set('knR', 1.3); set('shL', -1.1); set('elL', -0.6); set('shR', -1.1); set('elR', -0.6); }

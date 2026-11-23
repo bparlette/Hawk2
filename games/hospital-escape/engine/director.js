@@ -146,7 +146,7 @@ HE.createGame = function(opts){
     game.placeActors(); game.combat.updateFeedback(dt);
     if(game.lost) return;
     // hold safety: a hold with nothing left that could ever release it releases itself (never soft-locks)
-    if(RAIL_MODES[m] && game.rail.speed() === 0 && !game.rail.endReached && game.rail.pathT() < 1 && !game.waves.busy() && game.combat.live().length === 0){ game.idleHold = (game.idleHold || 0) + dt; if(game.idleHold > 1.0){ game.idleHold = 0; game.rail.release(); game.log('holdAutoRelease', {}); } } else game.idleHold = 0;
+    if(RAIL_MODES[m] && game.rail.speed() === 0 && !game.rail.endReached && game.rail.pathT() < 1 && !game.waves.busy() && game.combat.live().length === 0){ game.idleHold = (game.idleHold || 0) + dt; if(game.idleHold > (data.tuning.holdRelease || 1.0)){   /* ext: tuning.holdRelease */ game.idleHold = 0; game.rail.release(); game.log('holdAutoRelease', {}); } } else game.idleHold = 0;
     var alive = game.combat.live().length, chasing = game.chase.list.some(game.chase.active);
     var finale = game.rail.path && game.rail.path.def.crossingAt != null && m === 'AMBULANCE';
     if(finale){ if(game.won){ game.quietT -= dt; if(game.quietT <= 0) advance(); } return; }

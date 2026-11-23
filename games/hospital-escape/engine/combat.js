@@ -69,26 +69,45 @@ HE.Combat = function(game){
         if(e.offT > T.cover.recoverAfter){ e.offT = 0; game.camera.getWorldDirection(_cf); _cf.y = 0; _cf.normalize(); var np = game.camera.position.clone().addScaledVector(_cf, 8); np.y = e.pos.y;
           e.pos.copy(np); if(e.cover) e.cover.copy(np); if(e.coverBox) game.greybox.moveCover(e.coverBox, np, e); game.log('reposition', { role: e.role }); } }
       c.placeEnemy(e);
+      e.fair = T.fairness ? (e.exposed ? c.fairTick(e, e.pos, 1.75, dt) : (e.visT = 0, false)) : true;
       if(e.exposed && e.firstSeen == null) e.firstSeen = e.t;
       if(e.t < T.enemyFireDelay || !e.exposed){ e.aiming = 0; return; }
       // fair-fire rule: an enemy only shoots from inside the camera's view arc (±75° of where the camera looks)
       game.camera.getWorldDirection(_cf); _to.subVectors(e.pos, game.camera.position).setY(0).normalize(); _cf.setY(0).normalize(); if(_to.dot(_cf) < Math.cos(75 * Math.PI / 180)) return;
       // ext (data-gated by tuning.screenFire): stricter fair-fire — only from on (or just off) the actual screen, so the shot is always seen
-      if(T.screenFire){ _to.copy(e.pos); _to.y += 1.3; _to.project(game.camera); if(_to.z > 1 || Math.abs(_to.x) > T.screenFire || Math.abs(_to.y) > 1.2) return; }
+      if(T.screenFire && !T.fairness){ _to.copy(e.pos); _to.y += 1.3; _to.project(game.camera); if(_to.z > 1 || Math.abs(_to.x) > T.screenFire || Math.abs(_to.y) > 1.2) return; }
       if(e.aiming > 0){ e.aiming -= dt; if(e.aiming > 0) return; }
       else { e.fireT -= dt; if(e.fireT > 0) return;
         if(T.aimTell){ e.aiming = T.aimTell; game.log('enemyAim', { role: e.role }); return; } }   // ext: the aiming glint is the last tell before the shot
       var near = T.closeRange ? HE.clamp(e.pos.distanceTo(P) / T.closeRange, 0.45, 1) : 1;     // ext: fire intensity rises as they close
       e.fireT = K.fireEvery * near * (0.8 + 0.4 * R());
-      var hit = R() < K.accuracy; game.log('enemyFire', { role: e.role, hit: hit }); c.fireAtHero(e.role, e.pos, hit, K.damage); }); };
+      var hit = R() < K.accuracy && e.fair !== false; if(hit && T.fairness) hit = c.fairFire(e, e.pos, 1.75); game.log('enemyFire', { role: e.role, hit: hit }); c.fireAtHero(e.role, e.pos, hit, K.damage, e.vis); }); };
+  // ext (data-gated by tuning.fairness): the SHOOTER FAIRNESS CONTRACT. A shooter may deal damage only if, as it fires,
+  // it is inside the player's effective visible zone (game.visibleZone: the screen minus eyelids/tunnel, with margin),
+  // its line of sight from the camera is clear (game.losBlocked hook: scenery, furniture, characters), it is >= minPx tall
+  // on an 844-px-tall screen, and it has been continuously visible that way for >= telegraph seconds. Otherwise its shots
+  // are visual-only (never red, never damage). Every shot logs these facts at fire time for the audit.
+  var _a = new THREE.Vector3(), _b = new THREE.Vector3();
+  c.fairVis = function(pos, height, self){ var F = T.fairness, cam = game.camera; _a.copy(pos); _a.y += height * 0.72; _b.copy(_a).project(cam);
+    var sx = (_b.x + 1) / 2, sy = (1 - _b.y) / 2, front = _b.z < 1, Z = game.visibleZone || { x0: 0, x1: 1, y0: 0, y1: 1 }, m = F.margin;
+    var inZone = front && sx > Z.x0 + m && sx < Z.x1 - m && sy > Z.y0 + m && sy < Z.y1 - m;
+    _b.copy(pos).project(cam); var yb = (1 - _b.y) / 2; _b.copy(pos); _b.y += height; _b.project(cam); var px = Math.abs(yb - (1 - _b.y) / 2) * 844;
+    return { inZone: inZone, sx: +sx.toFixed(3), sy: +sy.toFixed(3), px: Math.round(px), occl: false }; };
+  // at the INSTANT of a damaging shot, line of sight is re-tested fresh (the per-frame check is throttled to 0.12 s)
+  c.fairFire = function(o, pos, height){ if(!T.fairness || !o.fair) return !!o.fair || !T.fairness; var bl = !!(game.losBlocked && game.losBlocked(game.camera.position, _a.copy(pos).setY(pos.y + height * 0.72), o.role));
+    if(bl){ o.fair = false; o.visT = 0; o.occl = true; if(o.vis){ o.vis.occl = true; o.vis.visT = 0; } } return !bl; };
+  c.fairTick = function(o, pos, height, dt){ var F = T.fairness; if(!F) return true; o.fairT = (o.fairT || 0) - dt; var v = c.fairVis(pos, height, o);
+    if(v.inZone && v.px >= F.minPx){ if(o.fairT <= 0){ o.fairT = 0.2; o.occl = !!(game.losBlocked && game.losBlocked(game.camera.position, _a.copy(pos).setY(pos.y + height * 0.72), o.role)); } v.occl = !!o.occl; }
+    else { v.occl = !!o.occl; }
+    var ok = v.inZone && v.px >= F.minPx && !v.occl; o.visT = ok ? (o.visT || 0) + dt : 0; v.visT = +(o.visT || 0).toFixed(2); o.vis = v; return ok && o.visT >= F.telegraph; };
   // ext (data-gated by tuning.shotSpeed): enemy shots are travelling projectiles. A shot that will hit is flagged red
   // at launch and its damage lands on ARRIVAL — never damage from nowhere. Without shotSpeed: instant (v1 behaviour).
-  c.fireAtHero = function(role, from, hit, dmg){
+  c.fireAtHero = function(role, from, hit, dmg, vis){
     if(!T.shotSpeed){ if(hit) c.damage(dmg, role); return; }
     var R = game.rng, tgt = game.heroTarget(), f = from.clone(); f.y += 1.45; var to = tgt.clone();
     if(!hit){ var off = new THREE.Vector3((R() - 0.5) * 2.4, (R() - 0.6) * 1.6, (R() - 0.5) * 1.2); if(off.length() < 0.7) off.setLength(0.7); to.add(off); to.y = Math.max(game.floorY() + 0.02, to.y); }
     var eta = game.time + f.distanceTo(to) / T.shotSpeed, sh = { role: role, from: f, to: to, hit: hit, red: hit, dmg: dmg, t0: game.time, eta: eta };
-    c.shots.push(sh); game.log('enemyShot', { role: role, hit: hit, red: hit, from: [+f.x.toFixed(2), +f.y.toFixed(2), +f.z.toFixed(2)], to: [+to.x.toFixed(2), +to.y.toFixed(2), +to.z.toFixed(2)], eta: +eta.toFixed(3) }); };
+    c.shots.push(sh); game.log('enemyShot', { role: role, hit: hit, red: hit, from: [+f.x.toFixed(2), +f.y.toFixed(2), +f.z.toFixed(2)], to: [+to.x.toFixed(2), +to.y.toFixed(2), +to.z.toFixed(2)], eta: +eta.toFixed(3), vis: vis || null }); };
   c.stepShots = function(){ for(var i = c.shots.length - 1; i >= 0; i--){ var sh = c.shots[i]; if(game.time + 1e-9 < sh.eta) continue; c.shots.splice(i, 1);
       game.log('shotLand', { role: sh.role, hit: sh.hit, at: [+sh.to.x.toFixed(2), +sh.to.y.toFixed(2), +sh.to.z.toFixed(2)] }); if(sh.hit) c.damage(sh.dmg, sh.role); } };
   // ext (data-gated by tuning.partner): Maya fires too, in the rail/holdout beats — logged, seeded, at the nearest exposed enemy in view

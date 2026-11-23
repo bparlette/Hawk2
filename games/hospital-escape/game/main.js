@@ -13,7 +13,7 @@ var flashLight = new THREE.PointLight(0xffd59a, 0, 7, 2); scene.add(flashLight);
 var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2) * (Q.get('post') === '0' ? 1 : 0.7));   // patient-eyes: composite no longer runs at full res
 renderer.outputEncoding = THREE.LinearEncoding; renderer.toneMapping = THREE.NoToneMapping;   /* HDR scene target; ACES + sRGB happen in the post composite */ $('game').appendChild(renderer.domElement);
 function resize(){ renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); } addEventListener('resize', resize); resize();
-W.build(scene, HE.DATA);
+var worldRoot = W.build(scene, HE.DATA);
 var post = window.HEPOST ? HEPOST.create(renderer, scene, camera) : null; window.__post = post; window.__renderer = renderer;
 scene.traverse(function(o){ if(o.material && o.material.map === A.tex.lightPanel){ o.material.color.setRGB(3.2, 3.3, 3.5); } });   // HDR ceiling panels -> bloom
 var sky = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 12), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, uniforms: {},
@@ -138,7 +138,7 @@ function getInput(){ var kx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.Key
 $('startBtn').addEventListener('click', function(){ audioUnlock(); $('start').style.display = 'none'; started = true; game.gotoBeat(Q.get('beat') || 'visit'); if(Q.get('seg')) game.gotoSegment(Q.get('beat'), +Q.get('seg')); });
 $('cardBtn').addEventListener('click', function(){ $('card').style.display = 'none'; clearFlights(); if(game.ended) game.gotoBeat('visit'); else game.gotoBeat(game.beat); });
 window.__dbg.autopilot = function(on){ auto = !!on; if(!auto) inp.fire = false; return auto; };          // ext: verification autopilot (additive)
-window.__game = { game: game, pause: function(v){ paused = !!v; }, start: function(beat){ $('start').style.display = 'none'; $('card').style.display = 'none'; started = true; game.gotoBeat(beat || 'visit'); }, ff: function(secs, ap){ var n = Math.round(secs * 60); for(var i = 0; i < n; i++){ if(!game.ended && !game.lost){ if(ap) HE.autopilot(game); game.step(1 / 60); } processEvents(); present(1 / 60); } } };
+window.__game = { game: game, tick: function(){ processEvents(); present(1 / 60); }, pause: function(v){ paused = !!v; }, start: function(beat){ $('start').style.display = 'none'; $('card').style.display = 'none'; started = true; game.gotoBeat(beat || 'visit'); }, ff: function(secs, ap){ var n = Math.round(secs * 60); for(var i = 0; i < n; i++){ if(!game.ended && !game.lost){ if(ap) HE.autopilot(game); game.step(1 / 60); } processEvents(); present(1 / 60); } } };
 if(Q.get('autostart') === '1'){ $('start').style.display = 'none'; started = true; game.gotoBeat(Q.get('beat') || 'visit'); }
 // ------------------------------------------------------------------ per-mode presentation
 var BEAT_TITLES = { visit: '1 · ROOM 412', bed_push: '2 · THE BED', transfer: '3 · THE TRANSFER', elevator: '4 · GOING DOWN', gauntlet: '5 · THE GAUNTLET', entrance: '6 · THE FRONT DOORS', steal: '7 · THE AMBULANCE', chase: '8 · HARBOR AVENUE', train_finale: '9 · THE LINE 9 CROSSING' };
@@ -237,7 +237,7 @@ function patientStep(dt){ if(dt <= 0) return; PE.t += dt; var st = game.state(),
   var base = cole ? 0.03 + 0.26 * Math.pow(dmg, 1.15) : 0, droop = Math.min(0.14, PE.heat * 0.1), cover = Math.min(0.3, base + droop);   // FLOOR RULE: <= 30% per lid in play
   PE.nextBlink -= dt; if(cole && PE.nextBlink <= 0 && PE.blinkT < 0){ PE.blinkT = 0; PE.blinkDur = 0.13 + dmg * 0.32; PE.nextBlink = (5.5 - dmg * 4.1) * (0.7 + 0.6 * pseudo(t)); }
   var bl = 0; if(PE.blinkT >= 0){ PE.blinkT += dt; var u = PE.blinkT / PE.blinkDur; bl = u < 0.35 ? u / 0.35 : Math.max(0, 1 - (u - 0.35) / 0.65); if(u >= 1) PE.blinkT = -1; }
-  PE.lid = cover + bl * (0.5 - cover);                                                                       // a blink instant reaches full closure
+  PE.cover = cover; PE.lid = cover + bl * (0.5 - cover); updateVisibleZone(st);                                                                       // a blink instant reaches full closure
   // --- focus drift episodes: longer + more frequent out-of-focus stretches with damage
   PE.nextDrift -= dt; if(cole && PE.nextDrift <= 0 && PE.driftT <= 0){ PE.driftLen = 1.0 + dmg * 3.2; PE.driftT = PE.driftLen; PE.nextDrift = (9 - dmg * 6.5) * (0.6 + 0.8 * pseudo(t + 3)); }
   if(PE.driftT > 0){ PE.driftT -= dt; var dk = 1 - Math.abs(1 - 2 * (1 - PE.driftT / PE.driftLen)); PE.drift = Math.max(0, dk) * (0.35 + dmg * 0.65); } else PE.drift = Math.max(0, PE.drift - dt);
@@ -246,6 +246,21 @@ function patientStep(dt){ if(dt <= 0) return; PE.t += dt; var st = game.state(),
 function patientHit(n){ PE.hitN++; var sgn = pseudo(PE.t + 7) < 0.5 ? -1 : 1, k = Math.min(2, n / 4.5) * (game.mode === 'AMBULANCE' ? 0.55 : 1);
   PE.jvy += sgn * 0.85 * k; PE.jvp += 0.65 * k; PE.jvr += -sgn * 0.75 * k; PE.heat = Math.min(3, PE.heat + n / 9);
   if(game.mode !== 'FREE_FOOT'){ PE.blinkT = 0; PE.blinkDur = 0.17 + (1 - game.combat.health / 100) * 0.2; } }   // forced hard blink / flinch
+
+// ------------------------------------------------------------------ FAIRNESS hooks (OPUS-FIX-FAIRNESS-PACE §1): what the player can actually see
+// visibleZone = the screen minus the eyelids (health + droop; blink instants excluded) and the near-death tunnel, in 0..1 screen coords
+// losBlocked  = a ray from the camera to the shooter is blocked by scenery, furniture, cover or another character (glass does not block)
+var losRay = new THREE.Raycaster(), losList = null;
+function occluders(){ if(!losList) losList = []; losList.length = 0; worldRoot.children.forEach(function(o){ losList.push(o); });
+  game.extraOccluders.forEach(function(o){ losList.push(o); }); [cole, maya, bed, chair, amb, hale].forEach(function(o){ if(o.visible) losList.push(o); });
+  Object.keys(gb.actors).forEach(function(k){ losList.push(gb.actors[k]); }); return losList; }
+game.losBlocked = function(from, to, selfRole){ var d = to.clone().sub(from), L = d.length(); losRay.set(from, d.normalize()); losRay.near = 0.05; losRay.far = Math.max(0.1, L - 0.45);
+  var hits = losRay.intersectObjects(occluders(), true);
+  for(var i = 0; i < hits.length; i++){ var o = hits[i].object; if(o.material && (o.material.transparent || o.material.opacity < 0.9)) continue; if(o.isSprite) continue;
+    var r = o; while(r && r.parent && r.parent !== scene && !r.name) r = r.parent; if(r && r.name === selfRole) continue; var self = false; for(var q = o; q; q = q.parent) if(q.name === selfRole){ self = true; break; } if(self) continue;
+    return true; } return false; };
+function updateVisibleZone(st){ var Z = game.visibleZone || (game.visibleZone = { x0: 0, x1: 1, y0: 0, y1: 1 }); if(st.mode === 'FREE_FOOT'){ Z.x0 = 0; Z.x1 = 1; Z.y0 = 0; Z.y1 = 1; return; }
+  var c = PE.cover || 0, tun = st.feedback.wash * 0.12; Z.y0 = c + tun; Z.y1 = 1 - c * 0.82 - tun; Z.x0 = tun; Z.x1 = 1 - tun; }
 // ------------------------------------------------------------------ engine events -> FX / HUD
 var logIdx = 0;
 function processEvents(){ var L = game._log; for(; logIdx < L.length; logIdx++){ var e = L[logIdx], d = e.data;
