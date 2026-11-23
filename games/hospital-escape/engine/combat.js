@@ -58,8 +58,9 @@ HE.Combat = function(game){
   c.live = function(){ return c.enemies.filter(function(e){ return e.alive; }); };
   c.stepEnemies = function(dt){ var P = game.playerPos(), R = game.rng;
     c.enemies.forEach(function(e){ if(!e.alive) return; var K = T.enemies[e.kind]; e.t += dt;
-      if(e.behavior === 'rush'){ var d = P.clone().sub(e.pos).setY(0), L = d.length(); if(L > 3.5) e.pos.addScaledVector(d.normalize(), Math.min(L - 3.5, K.speed * dt)); }
+      if(e.behavior === 'rush'){ var d = P.clone().sub(e.pos).setY(0), L = d.length(), rs = T.rushStop || 3.5; if(L > rs) e.pos.addScaledVector(d.normalize(), Math.min(L - rs, K.speed * dt)); else if(T.rushStop && L < rs - 0.3) e.pos.addScaledVector(d.normalize(), -K.speed * dt); }   // ext: rushStop — holds its distance, backs off if the rider closes (screen presence)
       else if(e.behavior === 'cover'){ if(e.pos.distanceTo(e.cover) > 0.05){ var v = e.cover.clone().sub(e.pos), l = v.length(); e.pos.addScaledVector(v.normalize(), Math.min(l, K.speed * dt)); e.exposed = true; }
+        else if(T.cover.commit && e.committed){ e.exposed = true; if(T.rushStop){ var kd = e.pos.clone().sub(P).setY(0), kl = kd.length(); if(kl < T.rushStop - 0.3){ e.pos.addScaledVector(kd.normalize(), K.speed * dt); e.cover.copy(e.pos); } } }   // committed shooters also keep their distance   // ext (cover.commit): once it is an active shooter it STAYS out — no hide-and-peek while attacking
         else { e.peekT += dt; var per = T.cover.exposed + T.cover.hidden, cyc = e.peekT % per; e.exposed = cyc < T.cover.exposed;
           // ext: advance pressure — every `advanceEvery` peek cycles the cover point steps toward the player (doorways/corners as waypoints)
           if(T.cover.advance && Math.floor(e.peekT / per) >= (e.adv || 0) + (T.cover.advanceEvery || 2)){ e.adv = (e.adv || 0) + (T.cover.advanceEvery || 2); var tp = P.clone().sub(e.cover).setY(0), dl = tp.length();
@@ -70,7 +71,9 @@ HE.Combat = function(game){
           e.pos.copy(np); if(e.cover) e.cover.copy(np); if(e.coverBox) game.greybox.moveCover(e.coverBox, np, e); game.log('reposition', { role: e.role }); } }
       c.placeEnemy(e);
       e.fair = T.fairness ? (e.exposed ? c.fairTick(e, e.pos, 1.75, dt) : (e.visT = 0, false)) : true;
-      if(e.exposed && e.firstSeen == null) e.firstSeen = e.t;
+      if(e.exposed && e.firstSeen == null) e.firstSeen = e.t; if(e.fair && T.fairness) e.committed = true;
+      // ext (fairness.seenOnly): no shot at all — not even a visual-only one — unless the shooter meets the visibility contract right now
+      if(T.fairness && T.fairness.seenOnly && !e.fair){ e.aiming = 0; return; }
       if(e.t < T.enemyFireDelay || !e.exposed){ e.aiming = 0; return; }
       // fair-fire rule: an enemy only shoots from inside the camera's view arc (±75° of where the camera looks)
       game.camera.getWorldDirection(_cf); _to.subVectors(e.pos, game.camera.position).setY(0).normalize(); _cf.setY(0).normalize(); if(_to.dot(_cf) < Math.cos(75 * Math.PI / 180)) return;

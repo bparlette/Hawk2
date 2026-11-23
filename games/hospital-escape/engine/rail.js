@@ -84,7 +84,7 @@ HE.Rail = function(game){
     // stopped (hold / path end) with live enemies and no live look target: turn to the nearest threat (no behind-clamp
     // while stopped) so a wave can never pin the rider from outside the view
     if(stopped && !r.lookIsLiveGroup){ var ne = game.nearestEnemy && game.nearestEnemy(pos); if(ne) tg = _tgt.copy(ne).setY(ne.y + 1.2); }
-    var base = r.baseDir(pos), clampDeg = r.path.def.lookClamp;
+    var base = r.baseDir(pos), clampDeg = stopped && r.path.def.holdClamp != null ? r.path.def.holdClamp : r.path.def.lookClamp;   // ext: holdClamp — during a hold the view may turn further, to the live threat
     if(tg) _des.subVectors(tg, pos).normalize(); else _des.copy(base);
     if(!stopped && _des.dot(fwd) < Math.cos(110 * Math.PI / 180)) _des.copy(base);
     if(clampDeg){ var a = Math.acos(HE.clamp(_des.dot(base), -1, 1)), c = clampDeg * Math.PI / 180; if(a > c) _des.copy(base).lerp(_des, c / a).normalize(); }   // ext: keeps the heroes in frame
