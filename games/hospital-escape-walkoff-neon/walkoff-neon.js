@@ -649,6 +649,18 @@ function ovMakeFigure(baseScene, ctx, clips, D, gn){ var model = ovCloneSkinned(
   Object.keys(C).forEach(function(n){ if(!C[n]) return; var a = fig.mixer.clipAction(C[n]); a.setLoop(/UpFire|Death|Hit/.test(n) ? THREE.LoopOnce : THREE.LoopRepeat, Infinity); a.clampWhenFinished = /UpFire|Death|Hit/.test(n); fig.actions[n] = a; });
   fig.spine = ['Spine', 'Spine1', 'Spine2'].map(function(n){ return ovBoneOf(model, n); }); fig.armR = [ovBoneOf(model, 'RightArm'), ovBoneOf(model, 'RightHand')];
   ovSeatPistol(fig); return fig; }
+// True world-space yaw for a bone. three@0.128's rotateOnWorldAxis() only premultiplies
+// the LOCAL quaternion by the axis-angle — it never converts the axis into the bone's
+// parent frame — so on a posed spine bone the "yaw" came out as pitch and folded the
+// torso forward as the aim twist grew (the SIDE-view "falling over"). Conjugating by the
+// parent's world quaternion (parent^-1 * yaw * parent) makes it a pure world-Y turn.
+var _twQ = new QT(), _twP = new QT(), _twD = new QT(), _twUp = new V3(0, 1, 0);
+function ovTwistBone(b, a){
+  b.parent.getWorldQuaternion(_twP);
+  _twQ.setFromAxisAngle(_twUp, a);
+  _twD.copy(_twP).invert().multiply(_twQ).multiply(_twP);
+  b.quaternion.premultiply(_twD);
+}
 function ovLay(f, slot, name, fade){ var cur = f.layers[slot]; if(cur === name) return; var a = f.actions[name]; if(!a) return; a.reset(); a.enabled = true; a.setEffectiveWeight(1); a.play(); if(cur && f.actions[cur]) a.crossFadeFrom(f.actions[cur], fade, false); f.layers[slot] = name; }
 function ovDrive(f, dt){   // his drive(), plaza edition: always moving at PATH_SPEED, aiming at the camera, never firing
   ovLay(f, 'low', 'LegsWalk', 0.2); if(f.actions.LegsWalk) f.actions.LegsWalk.timeScale = PATH_SPEED / f.pace;
@@ -657,7 +669,7 @@ function ovDrive(f, dt){   // his drive(), plaza edition: always moving at PATH_
   f.model.updateMatrixWorld(true); var sh = f.armR[0].getWorldPosition(new V3()), ad = f.armR[1].getWorldPosition(new V3()).sub(sh); ad.y = 0;
   if(ad.lengthSq() > 1e-8){ ad.normalize(); var to = camera.position.clone().sub(sh); to.y = 0;
     if(to.lengthSq() > 1e-8){ to.normalize(); var want = Math.max(-1.4, Math.min(1.4, Math.atan2(ad.z * to.x - ad.x * to.z, ad.dot(to)))); f.twist += (want - f.twist) * Math.min(1, dt * 8); } }
-  if(Math.abs(f.twist) > 1e-3) f.spine.forEach(function(b){ if(b) b.rotateOnWorldAxis(new V3(0, 1, 0), f.twist / 3); });
+  if(Math.abs(f.twist) > 1e-3) f.spine.forEach(function(b){ if(b) ovTwistBone(b, f.twist / 3); });
   ovLampTerms(f); }
 function makeOpusMover(fig, D, label, slot){
   var wrap = new THREE.Group(); wrap.scale.setScalar(TARGET_H / D.h); wrap.add(fig.root);
