@@ -1,0 +1,607 @@
+{
+  "gunman": {
+    "file": "gunman-mixamo.glb",
+    "bytes": 3963928,
+    "tris": 9774,
+    "mats": 4,
+    "clips": {
+      "Pistol_Idle": {
+        "clip": "Pistol_Idle",
+        "frames": 250,
+        "duration_s": 8.3,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 15.48,
+        "median_min_foot_z_mm": 19.84
+      },
+      "Pistol_Aim": {
+        "clip": "Pistol_Aim",
+        "frames": 214,
+        "duration_s": 7.1,
+        "authored_root_mps": 0.015,
+        "authored_stance_mps": 0.015,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -2.93,
+        "median_min_foot_z_mm": 0.15
+      },
+      "Pistol_Walk": {
+        "clip": "Pistol_Walk",
+        "frames": 25,
+        "duration_s": 0.8,
+        "authored_root_mps": 2.5857,
+        "authored_stance_mps": 2.5457,
+        "stance_samples": 23,
+        "stance_slide_mm": 4.67,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.05
+      },
+      "Pistol_Walk_Back": {
+        "clip": "Pistol_Walk_Back",
+        "frames": 32,
+        "duration_s": 1.0333,
+        "authored_root_mps": 1.4216,
+        "authored_stance_mps": 1.4368,
+        "stance_samples": 32,
+        "stance_slide_mm": 1.16,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.06
+      },
+      "Pistol_Strafe_L": {
+        "clip": "Pistol_Strafe_L",
+        "frames": 18,
+        "duration_s": 0.5667,
+        "authored_root_mps": 2.1795,
+        "authored_stance_mps": 2.2002,
+        "stance_samples": 17,
+        "stance_slide_mm": 5.44,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.14
+      },
+      "Pistol_Strafe_R": {
+        "clip": "Pistol_Strafe_R",
+        "frames": 18,
+        "duration_s": 0.5667,
+        "authored_root_mps": 2.1795,
+        "authored_stance_mps": 2.2002,
+        "stance_samples": 17,
+        "stance_slide_mm": 5.45,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.14
+      },
+      "Pistol_Walk_ArcL": {
+        "clip": "Pistol_Walk_ArcL",
+        "frames": 24,
+        "duration_s": 0.7667,
+        "authored_root_mps": 2.566,
+        "authored_stance_mps": 2.5266,
+        "stance_samples": 21,
+        "stance_slide_mm": 4.54,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.14
+      },
+      "Pistol_Walk_ArcR": {
+        "clip": "Pistol_Walk_ArcR",
+        "frames": 23,
+        "duration_s": 0.7333,
+        "authored_root_mps": 2.5183,
+        "authored_stance_mps": 2.5096,
+        "stance_samples": 22,
+        "stance_slide_mm": 3.5,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": -0.0
+      },
+      "Pistol_Run_Aimed": {
+        "clip": "Pistol_Run_Aimed",
+        "frames": 23,
+        "duration_s": 0.7333,
+        "authored_root_mps": 3.0546,
+        "authored_stance_mps": 2.9487,
+        "stance_samples": 20,
+        "stance_slide_mm": 7.15,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": -0.0
+      },
+      "Pistol_Run": {
+        "clip": "Pistol_Run",
+        "frames": 16,
+        "duration_s": 0.5,
+        "authored_root_mps": 4.8069,
+        "authored_stance_mps": 4.8123,
+        "stance_samples": 7,
+        "stance_slide_mm": 5.96,
+        "min_foot_z_mm": 0.0,
+        "median_min_foot_z_mm": 0.0
+      },
+      "Pistol_Kneel_Idle": {
+        "clip": "Pistol_Kneel_Idle",
+        "frames": 115,
+        "duration_s": 3.8,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 3.37,
+        "median_min_foot_z_mm": 3.66
+      },
+      "Shooting": {
+        "clip": "Shooting",
+        "frames": 36,
+        "duration_s": 1.1667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 20.34,
+        "median_min_foot_z_mm": 20.38
+      },
+      "Shooting_Gun": {
+        "clip": "Shooting_Gun",
+        "frames": 160,
+        "duration_s": 5.3,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 0.93,
+        "median_min_foot_z_mm": 3.44
+      },
+      "Gunplay": {
+        "clip": "Gunplay",
+        "frames": 7,
+        "duration_s": 0.2,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -3.55,
+        "median_min_foot_z_mm": -1.89
+      },
+      "Cover_Fire": {
+        "clip": "Cover_Fire",
+        "frames": 81,
+        "duration_s": 2.6667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -14.11,
+        "median_min_foot_z_mm": -11.62
+      },
+      "Cover_Peek": {
+        "clip": "Cover_Peek",
+        "frames": 74,
+        "duration_s": 2.4333,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -38.61,
+        "median_min_foot_z_mm": -35.8
+      },
+      "Cover_Idle_Stand": {
+        "clip": "Cover_Idle_Stand",
+        "frames": 69,
+        "duration_s": 2.2667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -0.28,
+        "median_min_foot_z_mm": -0.0
+      },
+      "Cover_Idle_Crouch": {
+        "clip": "Cover_Idle_Crouch",
+        "frames": 78,
+        "duration_s": 2.5667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 19.1,
+        "median_min_foot_z_mm": 19.22
+      },
+      "Hit_React": {
+        "clip": "Hit_React",
+        "frames": 83,
+        "duration_s": 2.7333,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -3.39,
+        "median_min_foot_z_mm": 2.4
+      },
+      "Hit_React_L": {
+        "clip": "Hit_React_L",
+        "frames": 79,
+        "duration_s": 2.6,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -37.85,
+        "median_min_foot_z_mm": -32.41
+      },
+      "Death_Front": {
+        "clip": "Death_Front",
+        "frames": 133,
+        "duration_s": 4.4,
+        "authored_root_mps": 0.0774,
+        "authored_stance_mps": 0.0774,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -107.06,
+        "median_min_foot_z_mm": -79.32
+      },
+      "Death_Back": {
+        "clip": "Death_Back",
+        "frames": 139,
+        "duration_s": 4.6,
+        "authored_root_mps": 0.2009,
+        "authored_stance_mps": 0.2009,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -2.23,
+        "median_min_foot_z_mm": 5.0
+      },
+      "Turn_In_Place": {
+        "clip": "Turn_In_Place",
+        "frames": 111,
+        "duration_s": 3.6667,
+        "authored_root_mps": 0.036,
+        "authored_stance_mps": 0.036,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -0.76,
+        "median_min_foot_z_mm": 0.51
+      },
+      "Pistol_Walk_Fire": {
+        "clip": "Pistol_Walk_Fire",
+        "frames": 25,
+        "duration_s": 0.8,
+        "authored_root_mps": 2.5857,
+        "authored_stance_mps": 2.5457,
+        "stance_samples": 23,
+        "stance_slide_mm": 4.67,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.05
+      },
+      "Pistol_Walk_Fire_SG": {
+        "clip": "Pistol_Walk_Fire_SG",
+        "frames": 25,
+        "duration_s": 0.8,
+        "authored_root_mps": 2.5857,
+        "authored_stance_mps": 2.5457,
+        "stance_samples": 23,
+        "stance_slide_mm": 4.67,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.05
+      },
+      "Pistol_Strafe_L_Fire": {
+        "clip": "Pistol_Strafe_L_Fire",
+        "frames": 18,
+        "duration_s": 0.5667,
+        "authored_root_mps": 2.1795,
+        "authored_stance_mps": 2.2002,
+        "stance_samples": 17,
+        "stance_slide_mm": 5.44,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.14
+      },
+      "Pistol_Run_Aimed_Fire": {
+        "clip": "Pistol_Run_Aimed_Fire",
+        "frames": 23,
+        "duration_s": 0.7333,
+        "authored_root_mps": 3.0546,
+        "authored_stance_mps": 2.9487,
+        "stance_samples": 20,
+        "stance_slide_mm": 7.15,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": -0.0
+      },
+      "Crouch_Walk_Aim": {
+        "clip": "Crouch_Walk_Aim",
+        "frames": 35,
+        "duration_s": 1.1333,
+        "authored_root_mps": 1.7093,
+        "authored_stance_mps": 1.6999,
+        "stance_samples": 31,
+        "stance_slide_mm": 1.64,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.0
+      }
+    }
+  },
+  "maya": {
+    "file": "maya-mixamo.glb",
+    "bytes": 1526836,
+    "tris": 9127,
+    "mats": 3,
+    "clips": {
+      "Wheelchair_Push": {
+        "clip": "Wheelchair_Push",
+        "frames": 30,
+        "duration_s": 0.9667,
+        "authored_root_mps": 1.5163,
+        "authored_stance_mps": 1.5377,
+        "stance_samples": 31,
+        "stance_slide_mm": 1.99,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.04
+      },
+      "Bed_Push_Loop": {
+        "clip": "Bed_Push_Loop",
+        "frames": 91,
+        "duration_s": 3.0,
+        "authored_root_mps": 0.1863,
+        "authored_stance_mps": 0.1984,
+        "stance_samples": 98,
+        "stance_slide_mm": 0.2,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.18
+      },
+      "Bed_Push_Start": {
+        "clip": "Bed_Push_Start",
+        "frames": 143,
+        "duration_s": 4.7333,
+        "authored_root_mps": 0.2648,
+        "authored_stance_mps": 0.2755,
+        "stance_samples": 130,
+        "stance_slide_mm": 0.24,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.0
+      },
+      "Bed_Push_Raw": {
+        "clip": "Bed_Push_Raw",
+        "frames": 120,
+        "duration_s": 3.9667,
+        "authored_root_mps": 0.0857,
+        "authored_stance_mps": 0.1657,
+        "stance_samples": 18,
+        "stance_slide_mm": 0.37,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.01
+      },
+      "Bed_Push_Stop": {
+        "clip": "Bed_Push_Stop",
+        "frames": 79,
+        "duration_s": 2.6,
+        "authored_root_mps": 0.2746,
+        "authored_stance_mps": 0.3187,
+        "stance_samples": 65,
+        "stance_slide_mm": 0.41,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.02
+      },
+      "Walk_Fem": {
+        "clip": "Walk_Fem",
+        "frames": 30,
+        "duration_s": 0.9667,
+        "authored_root_mps": 1.5121,
+        "authored_stance_mps": 1.5286,
+        "stance_samples": 28,
+        "stance_slide_mm": 1.93,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.0
+      }
+    },
+    "ik": {
+      "Wheelchair_Push": {
+        "pre_wrist_z_m": 0.8497,
+        "post_wrist_z_m": 0.9824,
+        "wrist_lift_cm": 13.27,
+        "mean_handle_gap_mm": 16.69
+      },
+      "Bed_Push_Loop": {
+        "pre_wrist_z_m": 0.9817,
+        "post_wrist_z_m": 1.0,
+        "wrist_lift_cm": 1.83,
+        "mean_handle_gap_mm": 0.0
+      }
+    }
+  },
+  "cole": {
+    "file": "cole-mixamo.glb",
+    "bytes": 3023908,
+    "tris": 8994,
+    "mats": 3,
+    "clips": {
+      "Sit_Idle_Breath": {
+        "clip": "Sit_Idle_Breath",
+        "frames": 130,
+        "duration_s": 4.3,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 40.55,
+        "median_min_foot_z_mm": 40.68
+      },
+      "Sit_Idle_Thighs": {
+        "clip": "Sit_Idle_Thighs",
+        "frames": 193,
+        "duration_s": 6.4,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 26.38,
+        "median_min_foot_z_mm": 26.47
+      },
+      "Sit_Idle_Still": {
+        "clip": "Sit_Idle_Still",
+        "frames": 90,
+        "duration_s": 2.9667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 26.41,
+        "median_min_foot_z_mm": 26.49
+      },
+      "Sit_Aim_Pistol": {
+        "clip": "Sit_Aim_Pistol",
+        "frames": 164,
+        "duration_s": 5.4333,
+        "authored_root_mps": 0.0023,
+        "authored_stance_mps": 0.0023,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 12.12,
+        "median_min_foot_z_mm": 12.75
+      },
+      "Sit_Lower_Pistol": {
+        "clip": "Sit_Lower_Pistol",
+        "frames": 162,
+        "duration_s": 5.3667,
+        "authored_root_mps": 0.0022,
+        "authored_stance_mps": 0.0022,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 11.81,
+        "median_min_foot_z_mm": 12.34
+      },
+      "Sit_Gun_Motion": {
+        "clip": "Sit_Gun_Motion",
+        "frames": 145,
+        "duration_s": 4.8,
+        "authored_root_mps": 0.0001,
+        "authored_stance_mps": 0.0001,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 5.51,
+        "median_min_foot_z_mm": 5.98
+      },
+      "Sit_Rub_Arm": {
+        "clip": "Sit_Rub_Arm",
+        "frames": 240,
+        "duration_s": 7.9667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 6.13,
+        "median_min_foot_z_mm": 7.41
+      },
+      "Sit_Dodge": {
+        "clip": "Sit_Dodge",
+        "frames": 268,
+        "duration_s": 8.9,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 21.41,
+        "median_min_foot_z_mm": 36.23
+      },
+      "Sit_Disbelief": {
+        "clip": "Sit_Disbelief",
+        "frames": 144,
+        "duration_s": 4.7667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 26.32,
+        "median_min_foot_z_mm": 27.19
+      },
+      "Lay_Breathless": {
+        "clip": "Lay_Breathless",
+        "frames": 26,
+        "duration_s": 0.8333,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 991.32,
+        "median_min_foot_z_mm": 991.45
+      },
+      "Lay_Sleeping": {
+        "clip": "Lay_Sleeping",
+        "frames": 52,
+        "duration_s": 1.7,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 980.35,
+        "median_min_foot_z_mm": 980.4
+      },
+      "Lay_Moaning": {
+        "clip": "Lay_Moaning",
+        "frames": 65,
+        "duration_s": 2.1333,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 952.47,
+        "median_min_foot_z_mm": 953.36
+      },
+      "Injured_Walk": {
+        "clip": "Injured_Walk",
+        "frames": 31,
+        "duration_s": 1.0,
+        "authored_root_mps": 1.7233,
+        "authored_stance_mps": 1.7718,
+        "stance_samples": 27,
+        "stance_slide_mm": 1.3,
+        "min_foot_z_mm": 0.0,
+        "median_min_foot_z_mm": 0.03
+      },
+      "Sit_To_Stand": {
+        "clip": "Sit_To_Stand",
+        "frames": 69,
+        "duration_s": 2.2667,
+        "authored_root_mps": 0.207,
+        "authored_stance_mps": 0.207,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -23.94,
+        "median_min_foot_z_mm": -9.79
+      },
+      "Stand_To_Sit": {
+        "clip": "Stand_To_Sit",
+        "frames": 68,
+        "duration_s": 2.2333,
+        "authored_root_mps": 0.2127,
+        "authored_stance_mps": 0.2127,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -11.86,
+        "median_min_foot_z_mm": -3.59
+      },
+      "Sit_Aim_Fire": {
+        "clip": "Sit_Aim_Fire",
+        "frames": 130,
+        "duration_s": 4.3,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 40.55,
+        "median_min_foot_z_mm": 40.68
+      }
+    },
+    "seated_crown": {
+      "Sit_Aim_Fire": {
+        "raw_crown_z_m": 1.2644,
+        "hips_z_m": 0.5615,
+        "raw_min_foot_z_m": 0.0404
+      },
+      "Sit_Aim_Pistol": {
+        "raw_crown_z_m": 1.1283,
+        "hips_z_m": 0.5615,
+        "raw_min_foot_z_m": 0.0083
+      },
+      "Sit_Idle_Breath": {
+        "raw_crown_z_m": 1.3111,
+        "hips_z_m": 0.5615,
+        "raw_min_foot_z_m": 0.0404
+      }
+    }
+  }
+}
