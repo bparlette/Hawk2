@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Hospital Escape · Hallway FINAL — Neon T4 vs Moth T5</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #050708; color: #e2eef2; font-family: system-ui, -apple-system, sans-serif; }
+  body { max-width: 880px; margin: 0 auto; padding: 10px 10px 28px; }
+  h1 { font-size: 17px; letter-spacing: .04em; }
+  h1 span { color: #7ee0f0; }
+  .sub { font-size: 12.5px; color: #a9c6cf; margin: 4px 0 10px; line-height: 1.5; }
+  .warn { border: 1px solid #e8b730; background: rgba(232,183,48,.08); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.55; color: #f2e3bb; margin-bottom: 14px; }
+  .warn b { color: #ffd98a; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+  .colhead { border: 1px solid rgba(110,190,210,.3); border-radius: 10px; padding: 8px 10px; background: #0a1218; }
+  .colhead .who { font-size: 14px; font-weight: 700; letter-spacing: .03em; }
+  .colhead .who span { color: #7ee0f0; }
+  .colhead .light { font-size: 11px; line-height: 1.5; color: #a9c6cf; margin-top: 4px; }
+  .colhead a { color: #7ee0f0; font-size: 11.5px; font-weight: 600; }
+  h2 { font-size: 14px; letter-spacing: .05em; margin: 18px 0 6px; color: #ffd98a; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  figure { background: #0a1218; border: 1px solid rgba(110,190,210,.22); border-radius: 10px; overflow: hidden; }
+  figure img { width: 100%; display: block; background: #000; aspect-ratio: 390/844; object-fit: cover; }
+  figcaption { font-size: 11px; line-height: 1.5; color: #a9c6cf; padding: 6px 8px 8px; }
+  figcaption b { color: #e2eef2; }
+  .nums { font-size: 12px; color: #cde6ee; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+  th, td { border: 1px solid rgba(110,190,210,.25); padding: 6px 8px; text-align: left; font-variant-numeric: tabular-nums; }
+  th { background: #0a1218; color: #7ee0f0; }
+  .foot { font-size: 11px; line-height: 1.55; color: #8fb4c0; margin-top: 16px; }
+  .foot a { color: #7ee0f0; }
+</style>
+</head>
+<body>
+<h1>HOSPITAL ESCAPE · <span>HALLWAY FINAL</span></h1>
+<p class="sub">Neon Take 4 vs Moth Take 5 — the top two of the 15-take hallway bake-off (Neon T4 ranked #1, Moth T5 #2). Three matched viewpoints, stills rendered at phone size 390×844. Tap any still for full size.</p>
+
+<div class="warn"><b>NOT the same stage — read this first.</b> This final was called as “same stage”, but the two takes could not be re-staged onto one stage without rebuilding one of them. <b>Neon T4 stands on West Wing B</b> (straight corridor, 27.7 m long, 3.4 m wide, 2.9 m ceiling, doors 413–418). <b>Moth T5 stands on Moth’s gauntlet</b> (an L: Corridor A 31.8 m + Corridor B, 3.6 m wide, 3.0 m ceiling). Moth’s T5 treatment is built into his gauntlet shell code — walls, station alcove, cube-capture floor reflection, light shafts and grade are all placed in gauntlet coordinates — so moving it onto West Wing B means rewriting his stage builder: a new build, not his T5. What <b>is</b> matched: the three viewpoint roles (entrance / mid-corridor / nurses’ station), the 390×844 phone frame, eye height ≈1.6 m, and each take rendered by its own unmodified page code. Camera FOV also differs — Neon 60°, Moth 66°, each take’s own default. Judge the treatment knowing the rooms differ.</div>
+
+<div class="cols">
+  <div class="colhead">
+    <div class="who">NEON · TAKE 4 <span>“Kit-Bash+Area”</span></div>
+    <div class="light"><b>Lighting:</b> no bake — real-time analytical area light: custom GLSL evaluates all 9 ceiling panels as area lights inside CC0 PBR materials, + 2 shadow-casting spots and warm door-spill points; ACES in the renderer. Props from a kit-bash GLB (GLTFLoader).</div>
+    <div style="margin-top:5px"><a href="../hospital-escape-hallway-neon/?take=4" target="_blank" rel="noopener">open Neon T4 live ↗</a></div>
+  </div>
+  <div class="colhead">
+    <div class="who">MOTH · TAKE 5 <span>“Cinematography”</span></div>
+    <div class="light"><b>Lighting:</b> no bake — real-time: CC0 photo PBR lit by warm points + 1 shadow spot; the wet floor reflects a one-shot cube capture; additive light shafts, dust motes, FogExp2, ACES + an in-page film-grade pass (teal shadows, grain, vignette).</div>
+    <div style="margin-top:5px"><a href="../hospital-escape-hallway-moth/" target="_blank" rel="noopener">open Moth’s page live ↗</a> (his TAKE 5 button)</div>
+  </div>
+</div>
+
+<h2>1 · ENTRANCE VIEW</h2>
+<div class="pair">
+  <figure>
+    <a class="full" href="#" target="_blank" rel="noopener"><img data-b64="neon-entrance.png.gz.b64" alt="Neon T4 entrance view"></a>
+    <figcaption><b>Neon T4</b> · West Wing B entrance<br><span class="nums">272 draw calls · 5,042 triangles</span><br>cam (12.0, 1.55, −16.8) → (12.0, 1.38, −28.0)</figcaption>
+  </figure>
+  <figure>
+    <a class="full" href="#" target="_blank" rel="noopener"><img data-b64="moth-entrance.png.gz.b64" alt="Moth T5 entrance view"></a>
+    <figcaption><b>Moth T5</b> · gauntlet Corridor A entrance<br><span class="nums">267 draw calls · 4,552 triangles</span><br>cam (0, 1.62, 4.2) → (0, 1.25, −12)</figcaption>
+  </figure>
+</div>
+
+<h2>2 · MID-CORRIDOR</h2>
+<div class="pair">
+  <figure>
+    <a class="full" href="#" target="_blank" rel="noopener"><img data-b64="neon-mid.png.gz.b64" alt="Neon T4 mid-corridor view"></a>
+    <figcaption><b>Neon T4</b> · West Wing B, dolly midpoint<br><span class="nums">188 draw calls · 3,896 triangles</span><br>cam (12.0, 1.55, −28.8) → (12.0, 1.38, −36.8)</figcaption>
+  </figure>
+  <figure>
+    <a class="full" href="#" target="_blank" rel="noopener"><img data-b64="moth-mid.png.gz.b64" alt="Moth T5 mid-corridor view"></a>
+    <figcaption><b>Moth T5</b> · gauntlet Corridor A midpoint (dolly curve)<br><span class="nums">169 draw calls · 2,698 triangles</span><br>cam (0, 1.55, −10.7) → (0, 1.55, −12.9)</figcaption>
+  </figure>
+</div>
+
+<h2>3 · NURSES’ STATION</h2>
+<div class="pair">
+  <figure>
+    <a class="full" href="#" target="_blank" rel="noopener"><img data-b64="neon-station.png.gz.b64" alt="Neon T4 nurses station view"></a>
+    <figcaption><b>Neon T4</b> · West Wing B, station at z −27.5 (left)<br><span class="nums">238 draw calls · 4,408 triangles</span><br>cam (12.0, 1.55, −21.5) → (11.65, 1.32, −28.5)</figcaption>
+  </figure>
+  <figure>
+    <a class="full" href="#" target="_blank" rel="noopener"><img data-b64="moth-station.png.gz.b64" alt="Moth T5 nurses station view"></a>
+    <figcaption><b>Moth T5</b> · gauntlet station alcove, Corridor A east wall<br><span class="nums">201 draw calls · 3,280 triangles</span><br>cam (−0.7, 1.6, −10.2) → (1.5, 1.0, −16.8)</figcaption>
+  </figure>
+</div>
+
+<h2>MEASURED NUMBERS — ENTRANCE VIEW</h2>
+<table>
+  <tr><th></th><th>Neon T4</th><th>Moth T5</th></tr>
+  <tr><td>Draw calls</td><td>272</td><td>267</td></tr>
+  <tr><td>Triangles</td><td>5,042</td><td>4,552</td></tr>
+  <tr><td>Lighting / bake</td><td>None — real-time GLSL area lights + shadow spots</td><td>None — real-time points/spot + cube-capture reflection + grade pass</td></tr>
+</table>
+<p class="sub" style="margin-top:6px">Measured fresh on 2026-11-24 from each page’s own renderer.info on the captured frame — not the builders’ claims. Moth T5’s count includes his grade pass, as his page renders it. (The combine round’s 21-call Neon T6 / 28-call Opus T6 were merged-geometry builds; T4/T5 carry their full unmerged scenes.)</p>
+
+<p class="foot">Method: stills rendered from the unmodified pages on Hawk2 main @ 4780a7974b in headless Chromium at 390×844, driven through each page’s own judging rig (Neon: __hallwayRig.setView; Moth: __cap). Each page’s pinned three.js r128 was served locally — the same build — because the sandbox browser cannot reach the CDN. Cross-check: Moth T5’s fresh entrance/station numbers (267 / 4,552 and 201 / 3,280) reproduce his bake-off’s own capture exactly. Stills are stored as gzip+base64 text (the connector corrupts raw binaries) and decoded in-page; the PNGs themselves are lossless. No verdict on this page — the final call is Cherie’s.</p>
+
+<script>
+  // Decode the lossless stills (gzip+base64 text -> PNG blob) in-page.
+  document.querySelectorAll('img[data-b64]').forEach(function(img){
+    fetch(img.getAttribute('data-b64')).then(function(r){ return r.text(); }).then(function(txt){
+      var bin = atob(txt.replace(/\s+/g, ''));
+      var bytes = new Uint8Array(bin.length);
+      for(var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+      return new Response(stream).blob();
+    }).then(function(blob){
+      var url = URL.createObjectURL(new Blob([blob], { type: 'image/png' }));
+      img.src = url;
+      var a = img.closest('a.full'); if(a) a.href = url;
+    }).catch(function(e){
+      img.alt += ' (failed to decode: ' + e.message + ')';
+    });
+  });
+</script>
+</body>
+</html>
