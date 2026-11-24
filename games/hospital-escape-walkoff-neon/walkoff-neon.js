@@ -12,7 +12,13 @@
    All six walk the same rounded-rectangle loop at 1.2 m/s; each Walk clip is paced
    from its own foot-contact constant (timeScale = 1.2 / authored), so no foot slide.
    Neon figure normalization (scale + ground offset) reuses her cast3d-neon.js values
-   (fixedH / z0 per mode, target height 1.80 m). three.js is the pinned CDN 0.128.0. */
+   (fixedH / z0 per mode, target height 1.80 m). three.js is the pinned CDN 0.128.0.
+   OPUS (Nov 24, Cherie: "Add all of his"): slots 6-10 = his shooter-entry best five
+   (VALID designs, cross-folder from games/hospital-escape-3d-sample-opus/valid/),
+   slot 11 = his N2+ (CMU 35_02 foot-locked retarget parsed at load — withLoaders also
+   pulls BVHLoader.js from the same pinned CDN; flagged, not hidden), slot 12 = his
+   Ex1+ spec reskin of gold 1. Thirteen walk the loop now; the finalists, their pacing
+   and the ORIG / IMPROVED toggle are unchanged. */
 (function(){
 'use strict';
 window.__WALKOFF_ERRORS = [];
@@ -139,6 +145,7 @@ function withLoaders(cb){
   var need = [];
   if(!THREE.GLTFLoader) need.push('loaders/GLTFLoader.js');
   if(!THREE.SkeletonUtils) need.push('utils/SkeletonUtils.js');
+  if(!THREE.BVHLoader) need.push('loaders/BVHLoader.js');   // OPUS N2+ retargets the CMU BVH at load (same pinned three@0.128.0 CDN)
   if(!need.length) return cb();
   var i = 0; (function next(){ if(i >= need.length) return cb(); loadScript(CDN + need[i++], next); })();
 }
@@ -343,8 +350,8 @@ function neonImprove(fig, norm){
 }
 
 // ------------------------------------------------------------------ figures
-var movers = [null, null, null, null, null, null];
-var MODE_INDEX = { '1': 0, 'n1': 1, 'n2': 2, 'n3': 3, 'n4': 4, 'n5': 5 };
+var movers = [null, null, null, null, null, null, null, null, null, null, null, null, null];   // 0 = Ex1 (gold '1'), 1-5 = Neon N1-N5, 6-10 = OPUS Ex1-Ex5, 11 = OPUS N2+, 12 = OPUS Ex1+
+var MODE_INDEX = { '1': 0, 'n1': 1, 'n2': 2, 'n3': 3, 'n4': 4, 'n5': 5, 'o1': 6, 'o2': 7, 'o3': 8, 'o4': 9, 'o5': 10, 'n2p': 11, 'e1p': 12 };
 function makeMover(fig, height, walkActionClip, authored, label, gold, slot){
   var wrap = new THREE.Group(); wrap.scale.setScalar(TARGET_H / height); wrap.add(fig);
   addBlob(wrap);
@@ -354,10 +361,10 @@ function makeMover(fig, height, walkActionClip, authored, label, gold, slot){
   scene.add(group);
   var mixer = new THREE.AnimationMixer(fig);
   var act = mixer.clipAction(walkActionClip); act.timeScale = PATH_SPEED / authored; act.play();
-  var m = { group: group, mixer: mixer, s: slot * PATH.length / 6, yaw: 0, label: label };
+  var m = { group: group, mixer: mixer, s: slot * PATH.length / movers.length, yaw: 0, label: label };
   movers[slot] = m; return m;
 }
-var pending = 1 + NEON_MODES.length, failed = [];
+var pending = 1 + NEON_MODES.length + 5 + 2, failed = [];   // +5 OPUS VALID designs, +1 OPUS N2+ (oneDone inside OPUS_N2P), +1 OPUS Ex1+ (counted in the gunman parse callback)
 function oneDone(){
   if(--pending > 0) return;
   document.getElementById('load').style.display = 'none';
@@ -376,7 +383,7 @@ function buildEx1(gunman){
 function buildNeon(mode, slot, gltf){
   var clips = clipLookup(gltf.animations);
   var clip = clips[mode.walkClip];
-  if(!clip){ window.__WALKOFF_ERRORS.push(mode.key + ': walk clip ' + mode.walkClip + ' missing'); failed.push(mode.key); oneDone(); return; }
+  if(!clip){ window.__WALKOFF_ERRORS.push(mode.key + ': walk clip ' + mode.walkClip + ' missing'); failed.push(mode.key); oneDone(); if(mode.key === 'valid-mocap'){ failed.push('n2p'); oneDone(); } return; }
   var fig = gltf.scene;
   prepNeonMaterials(fig);
   // Her normalization: scale the raw GLB so it stands 1.80 m with its ground offset at y=0.
@@ -387,21 +394,285 @@ function buildNeon(mode, slot, gltf){
   if(mode.key === 'valid-ual' || mode.key === 'valid-mocap'){
     impAppliers[slot] = neonImprove(fig, norm); impAppliers[slot](IMPROVED); }
   makeMover(norm, 1.80, clip, mode.authored, mode.label, false, slot);
+  if(mode.key === 'valid-mocap') OPUS_N2P(mode, gltf);   // OPUS N2+ reuses this loaded body; its own oneDone() accounts for slot 11
   oneDone();
 }
 withLoaders(function(){
   if(!THREE.GLTFLoader || !THREE.SkeletonUtils){ window.__WALKOFF_ERRORS.push('GLTFLoader/SkeletonUtils unavailable'); return; }
   var loader = new THREE.GLTFLoader();
   chunkBytes('__GUNMAN_GZ_B64').then(function(buf){
-    if(!buf){ window.__WALKOFF_ERRORS.push('gunman chunks failed to decode'); failed.push('ex1'); oneDone(); return; }
-    loader.parse(buf, '', function(g){ buildEx1(g); oneDone(); },
-      function(e){ window.__WALKOFF_ERRORS.push('gunman parse: ' + e); failed.push('ex1'); oneDone(); });
-  }).catch(function(e){ window.__WALKOFF_ERRORS.push('gunman load: ' + e); failed.push('ex1'); oneDone(); });
+    if(!buf){ window.__WALKOFF_ERRORS.push('gunman chunks failed to decode'); failed.push('ex1'); failed.push('e1p'); oneDone(); oneDone(); return; }
+    loader.parse(buf, '', function(g){ buildEx1(g); oneDone();
+        try { buildEx1Plus(g, clipLookup(g.animations)); } catch(e){ window.__WALKOFF_ERRORS.push('opus e1p: ' + e); failed.push('e1p'); }
+        oneDone(); },
+      function(e){ window.__WALKOFF_ERRORS.push('gunman parse: ' + e); failed.push('ex1'); failed.push('e1p'); oneDone(); oneDone(); });
+  }).catch(function(e){ window.__WALKOFF_ERRORS.push('gunman load: ' + e); failed.push('ex1'); failed.push('e1p'); oneDone(); oneDone(); });
   NEON_MODES.forEach(function(mode, i){
     loader.load(NEON_BASE + mode.key + '.glb', function(g){ buildNeon(mode, i + 1, g); },
-      undefined, function(err){ window.__WALKOFF_ERRORS.push(mode.key + ' load: ' + (err && err.message || err)); failed.push(mode.key); oneDone(); });
+      undefined, function(err){ window.__WALKOFF_ERRORS.push(mode.key + ' load: ' + (err && err.message || err)); failed.push(mode.key); oneDone(); if(mode.key === 'valid-mocap'){ failed.push('n2p'); oneDone(); } });
   });
 });
+
+
+// ================================================================== OPUS ADDITIONS (Nov 24, Cherie: "Add all of his")
+// All seven of Opus's walking figures join the same loop, same cameras, same 1.2 m/s:
+//   slots 6-10  OPUS Ex1..Ex5 — his shooter-entry pages 1..5 as they serve today: the VALID
+//               "best five" designs (commit 93b1ca96 replaced the C-technique builds on those
+//               pages) — photoreal VALID bodies (MIT) + CC0 UAL clips, garment recolour shader,
+//               seated pistol, walk legs + aim upper layer, foot-contact pace measured per design
+//               at load. Assets load cross-folder from games/hospital-escape-3d-sample-opus/valid/
+//               (no binary duplicated). Build code adapted from his opus-valid.js, engine hooks removed.
+//   slot 11     OPUS N2+ — his leaders improvement: Neon's N2 body/dressing, CMU 35_02 mocap
+//               foot-locked onto the VALID rig at load (shippable) + UAL Pistol_Idle gun-ready
+//               layer. Code verbatim from his leaders.js (games/hospital-escape-leaders-opus/),
+//               BVH fetched from that folder. NOTE: this is why withLoaders now also loads
+//               BVHLoader.js from the same pinned three@0.128.0 CDN — flagged, not hidden.
+//   slot 12     OPUS Ex1+ — his leaders improvement of gold 1: spec reskin (rust bomber #733829,
+//               knit beanie, stubble), one merged mesh, rim light, gun-carry upper body over C's
+//               Walk legs at the adjudicated 1.30 m/s. Code verbatim from his leaders.js.
+// The ORIG / IMPROVED toggle still applies to the finalists (slots 0, 1, 2) only.
+var OPUS_VALID_DIR = '../hospital-escape-3d-sample-opus/valid/';
+var OPUS_BVH_URL = '../hospital-escape-leaders-opus/cmu-35_02.bvh';
+var V3 = THREE.Vector3, QT = THREE.Quaternion;
+function comp(a, i, k){ var v = a.array[i * a.itemSize + k]; if(a.normalized){ var A = a.array; v /= A instanceof Uint8Array ? 255 : A instanceof Uint16Array ? 65535 : A instanceof Int8Array ? 127 : A instanceof Int16Array ? 32767 : 1; } return v; }   // r128: no getComponent; glTF weights may be normalized ints
+function mergeSkinned(root, rules){ var parts = []; root.traverse(function(o){ if(o.isSkinnedMesh) parts.push(o); }); if(parts.length < 2) return root;
+  var sk = parts[0].skeleton, attrs = { position: [], normal: [], skinIndex: [], skinWeight: [], color: [] }, idx = [], off = 0;
+  var bindW = parts[0].bindMatrix, boneW = {}; sk.bones.forEach(function(b, i){ boneW[b.name] = new V3().setFromMatrixPosition(new THREE.Matrix4().copy(sk.boneInverses[i]).invert()); });
+  var sN = {}, key2 = function(x, y, z){ return Math.round(x * 2000) + ',' + Math.round(y * 2000) + ',' + Math.round(z * 2000); };   // averaged normal per shared position: pushing keeps seams closed
+  if(rules) parts.forEach(function(p){ var g = p.geometry; for(var i = 0; i < g.attributes.position.count; i++){ var k = key2(g.attributes.position.getX(i), g.attributes.position.getY(i), g.attributes.position.getZ(i)), a = sN[k] || (sN[k] = new V3()); a.x += g.attributes.normal.getX(i); a.y += g.attributes.normal.getY(i); a.z += g.attributes.normal.getZ(i); } });
+  Object.keys(sN).forEach(function(k){ sN[k].normalize(); }); var ibw = new THREE.Matrix4().copy(bindW).invert();
+  var unit = rules ? 1.81 / Math.max(1e-6, (boneW.Head.y - Math.min(boneW.FootL.y, boneW.FootR.y)) * 1.12) : 1, vv = new V3(), nn = new V3(), nm = new THREE.Matrix3().getNormalMatrix(bindW);
+  parts.forEach(function(p){ var g = p.geometry, n = g.attributes.position.count, col = (p.material.color || new THREE.Color(1, 1, 1)), vc = g.attributes.color;
+    var map = p.skeleton.bones.map(function(b){ for(var i = 0; i < sk.bones.length; i++) if(sk.bones[i].name === b.name) return i; return 0; });
+    for(var i = 0; i < n; i++){ var px = g.attributes.position.getX(i), py = g.attributes.position.getY(i), pz = g.attributes.position.getZ(i), qx = g.attributes.normal.getX(i), qy = g.attributes.normal.getY(i), qz = g.attributes.normal.getZ(i), rc = null;
+      if(rules){ var bi = 0, bw = -1; for(var k0 = 0; k0 < 4; k0++){ var w0 = comp(g.attributes.skinWeight, i, k0); if(w0 > bw){ bw = w0; bi = comp(g.attributes.skinIndex, i, k0); } }
+        vv.set(px, py, pz).applyMatrix4(bindW); nn.set(qx, qy, qz).applyMatrix3(nm).normalize();
+        rc = rules({ part: p.name, mat: p.material.name, bone: p.skeleton.bones[bi] ? p.skeleton.bones[bi].name : '', p: vv, n: nn, bones: boneW, unit: unit });
+        if(rc && rc.push){ var an = sN[key2(px, py, pz)] || nn; px += an.x * rc.push / unit; py += an.y * rc.push / unit; pz += an.z * rc.push / unit; }
+        if(rc && rc.shift){ px += rc.shift.x / unit; py += rc.shift.y / unit; pz += rc.shift.z / unit; }
+        if(rc && rc.pos){ var lp = rc.pos.clone().applyMatrix4(ibw); px = lp.x; py = lp.y; pz = lp.z; } }
+      attrs.position.push(px, py, pz); attrs.normal.push(qx, qy, qz);
+      for(var k = 0; k < 4; k++){ attrs.skinIndex.push(map[comp(g.attributes.skinIndex, i, k)] || 0); attrs.skinWeight.push(comp(g.attributes.skinWeight, i, k)); }
+      var r = col.r, gg = col.g, b = col.b; if(vc){ r *= vc.getX(i); gg *= vc.getY(i); b *= vc.getZ(i); } if(rc && rc.c){ r = rc.c.r; gg = rc.c.g; b = rc.c.b; } attrs.color.push(r, gg, b); }
+    if(g.index) for(var j = 0; j < g.index.count; j++) idx.push(g.index.getX(j) + off); else for(var j2 = 0; j2 < n; j2++) idx.push(j2 + off);
+    off += n; });
+  var geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(attrs.position, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(attrs.normal, 3));
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(attrs.skinIndex, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(attrs.skinWeight, 4)); geo.setAttribute('color', new THREE.Float32BufferAttribute(attrs.color, 3)); geo.setIndex(idx);
+  var mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.0, skinning: true });
+  var m = new THREE.SkinnedMesh(geo, mat); m.name = 'merged'; m.frustumCulled = false; parts[0].parent.add(m); m.bind(sk, parts[0].bindMatrix);
+  parts.forEach(function(p){ p.parent.remove(p); }); return root; }
+function linC(h){ return new THREE.Color(h).convertSRGBToLinear(); }
+var GUNMAN = { jacket: linC('#733829'), rig: linC('#1F2522'), beanie: linC('#1C1C1C'), trousers: linC('#22252A'), boots: linC('#17181b'), beard: linC('#3a2c22'), skin: linC('#b98468'), hair: linC('#1e1712') };
+var ARM = /^(Shoulder|UpperArm|LowerArm)/, LEG = /^(UpperLeg|LowerLeg|Hips)/, TORSO = /^(Abdomen|Torso|Chest|Body|Root)$/;
+var rulesGunman = function(v){ var P = GUNMAN, B = v.bones;
+  var hy = B.Head.y, brow = hy + 0.15 / v.unit;
+  if(v.part === 'Casual2_Head_5') return v.p.y > brow ? { c: P.beanie, push: 0.004 } : { c: P.hair, push: -0.008 };
+  if((v.part === 'Casual2_Head_1' || v.part === 'Casual2_Head_2') && v.p.y > brow) return { c: P.beanie, push: 0.016 };
+  if(v.part === 'Casual2_Legs') return { c: P.trousers }; if(/Feet/.test(v.part)) return { c: P.boots };
+  if(v.part === 'Casual2_Body_1' || (v.mat === 'Skin' && (ARM.test(v.bone) || TORSO.test(v.bone)) && v.part === 'Casual2_Body_2')){
+    return { c: P.jacket, push: ARM.test(v.bone) ? 0.012 : 0.016 }; }
+  if(v.part === 'Casual2_Body_2' && LEG.test(v.bone)) return { c: P.trousers };
+  if(v.part === 'Casual2_Head_1'){ var low = v.p.y < hy + 0.035 / v.unit, front2 = v.n.z > 0.1; if(low && front2) return { c: P.skin.clone().lerp(P.beard, 0.55) }; return { c: P.skin }; }
+  if(v.mat === 'Skin') return { c: P.skin };
+  return null; };
+function addRim(m, k){ m.onBeforeCompile = function(sh){ sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n float frO = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0); reflectedLight.directDiffuse += vec3(0.42, 0.48, 0.56) * pow(frO, 3.0) * ' + k.toFixed(2) + ';'); };
+  m.customProgramCacheKey = function(){ return 'opusRim' + k; }; m.needsUpdate = true; }
+function splitClip(c, lowerRe, low, name){ var x = c.clone(); x.name = name; x.tracks = x.tracks.filter(function(t){ var b = t.name.split('.')[0]; return low ? lowerRe.test(b) : !lowerRe.test(b); }); return x; }
+// ---- OPUS Ex1+ : Ex1 improved — the spec gunman reskin, one merged mesh, rim, gun-carry upper body (his leaders.js, verbatim but for slot/label)
+function buildEx1Plus(gunman, clips){
+  var fig = THREE.SkeletonUtils.clone(gunman.scene);
+  fig.traverse(function(o){ if(o.isMesh){ o.material = o.material.clone(); } });
+  mergeSkinned(fig, rulesGunman);
+  fig.traverse(function(o){ if(o.isMesh){ o.castShadow = true; o.frustumCulled = false; if(o.material && o.material.isMeshStandardMaterial){ if(o.name === 'merged') o.material.roughness = 0.78; addRim(o.material, 0.55); } } });
+  var LOW = /^(Root|Body|Hips|UpperLeg|LowerLeg|Foot|PT)/;
+  var legs = splitClip(clips.Walk, LOW, true, 'LegsWalk'), up = splitClip(clips.Idle_Gun || clips.Idle_Gun_Pointing, LOW, false, 'UpCarry');
+  var m = makeMover(fig, 1.81, legs, 1.30, 'E1+', true, 12); m.mixer.clipAction(up).play();
+}
+// ---- generic FK foot-locked mocap retarget (his leaders.js, verbatim)
+var CMU2VALID = { Hips: 'Hips', LeftUpLeg: 'LeftUpLeg', LeftLeg: 'LeftLeg', LeftFoot: 'LeftFoot', RightUpLeg: 'RightUpLeg', RightLeg: 'RightLeg', RightFoot: 'RightFoot' };
+function retargetFK(text, rigSrc, MAP){ var res = new THREE.BVHLoader().parse(text), sk = res.skeleton, root = sk.bones[0], holder = new THREE.SkinnedMesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial()); holder.add(root); holder.bind(sk);
+  var mx = new THREE.AnimationMixer(holder); mx.clipAction(res.clip).play(); var S = {}; sk.bones.forEach(function(b){ S[b.name] = b; });
+  var fps = 1 / (res.clip.tracks[0].times[1] - res.clip.tracks[0].times[0]), N = Math.floor(res.clip.duration * fps);
+  function sample(t){ mx.setTime(t); holder.updateMatrixWorld(true); var o = {}; Object.keys(MAP).forEach(function(n){ o[n] = S[n].getWorldQuaternion(new QT()); });
+    o.hip = S.Hips.getWorldPosition(new V3()); o.lf = S.LeftFoot.getWorldPosition(new V3()); o.rf = S.RightFoot.getWorldPosition(new V3()); o.lh = S.LeftUpLeg.getWorldPosition(new V3()); o.rh = S.RightUpLeg.getWorldPosition(new V3()); return o; }
+  var rest = sample(0), legSrc = S.LeftLeg.position.length() + S.LeftFoot.position.length();
+  var rig = THREE.SkeletonUtils.clone(rigSrc), rb = {}, ord = []; rig.traverse(function(o){ if(o.isBone){ rb[o.name] = o; ord.push(o); } }); rig.updateMatrixWorld(true);
+  var restP = {}, restQ = {}, tRestW = {}; ord.forEach(function(b){ restP[b.name] = b.position.clone(); restQ[b.name] = b.quaternion.clone(); tRestW[b.name] = b.getWorldQuaternion(new QT()); });
+  var W = function(n){ return rb[n].getWorldPosition(new V3()); }, lenA = { L: W('LeftUpLeg').distanceTo(W('LeftLeg')), R: W('RightUpLeg').distanceTo(W('RightLeg')) }, lenB = { L: W('LeftLeg').distanceTo(W('LeftFoot')), R: W('RightLeg').distanceTo(W('RightFoot')) };
+  var scale = (lenA.L + lenB.L) / legSrc, hipsRestW = W('Hips'), restFootY = W('LeftFoot').y;
+  var frames = []; for(var i = Math.floor(0.3 * fps); i < N; i++) frames.push(sample(i / fps));
+  var a0 = frames[0].hip, z0 = frames[frames.length - 1].hip, head = Math.atan2(z0.x - a0.x, z0.z - a0.z), unYaw = new QT().setFromAxisAngle(new V3(0, 1, 0), -head), fwd = new V3(Math.sin(head), 0, Math.cos(head));
+  var raw = frames.map(function(f){ return f.lf.clone().sub(f.hip).dot(fwd); }), Wn = Math.round(fps * 0.05), lead = raw.map(function(_, k){ var s0 = 0, n0 = 0; for(var j = k - Wn; j <= k + Wn; j++) if(j >= 0 && j < raw.length){ s0 += raw[j]; n0++; } return s0 / n0; });
+  var R = Math.round(fps * 0.35), peaks = []; for(var k = R; k < lead.length - R; k++){ var ok = true; for(var j = k - R; j <= k + R; j++) if(lead[j] > lead[k]){ ok = false; break; } if(ok && (!peaks.length || k - peaks[peaks.length - 1] > R)) peaks.push(k); }
+  var best = null; for(var p = 0; p + 1 < peaks.length; p++){ var A0 = frames[peaks[p]], B0 = frames[peaks[p + 1]], err = 0; Object.keys(MAP).forEach(function(n){ err += 1 - Math.abs(A0[n].dot(B0[n])); }); if(!best || err < best.err) best = { s: peaks[p], e: peaks[p + 1], err: err }; }
+  var cyc = frames.slice(best.s, best.e + 1), dur = (cyc.length - 1) / fps, dist = cyc[cyc.length - 1].hip.clone().sub(cyc[0].hip).dot(fwd), hipMean = 0; cyc.forEach(function(f){ hipMean += f.hip.y; }); hipMean /= cyc.length;
+  var latEnd = cyc[cyc.length - 1].hip.clone().sub(cyc[0].hip).applyQuaternion(unYaw).x;
+  function swing(b, c, d){ var q = new QT().setFromUnitVectors(c.clone().normalize(), d.clone().normalize()), w = b.getWorldQuaternion(new QT()).premultiply(q); b.parent.updateWorldMatrix(true, false); b.quaternion.copy(b.parent.getWorldQuaternion(new QT()).invert().multiply(w)); b.updateMatrixWorld(true); }
+  var srcOf = {}; Object.keys(MAP).forEach(function(s0){ srcOf[MAP[s0]] = s0; });
+  var ground = 0, footMin = Infinity, step = Math.max(1, Math.round(fps / 30)), out = null;
+  for(var pass = 0; pass < 2; pass++){ var times = [], qT = {}, hp = []; Object.keys(srcOf).forEach(function(n){ qT[n] = []; });
+    for(var c = 0; c < cyc.length; c += step){ var f = cyc[c]; times.push(c / fps); ord.forEach(function(b){ b.position.copy(restP[b.name]); b.quaternion.copy(restQ[b.name]); }); rig.updateMatrixWorld(true);
+      var off = f.hip.clone().sub(cyc[0].hip).applyQuaternion(unYaw), hw = hipsRestW.clone().add(new V3((off.x - latEnd * c / (cyc.length - 1)) * scale, (f.hip.y - hipMean) * scale - ground, 0));
+      rb.Hips.parent.updateWorldMatrix(true, false); rb.Hips.position.copy(rb.Hips.parent.worldToLocal(hw)); rb.Hips.updateMatrixWorld(true);
+      ord.forEach(function(b){ var s0 = srcOf[b.name]; if(!s0) return; var w = f[s0].clone().multiply(rest[s0].clone().invert()).premultiply(unYaw).multiply(tRestW[b.name]);
+        b.parent.updateWorldMatrix(true, false); b.quaternion.copy(b.parent.getWorldQuaternion(new QT()).invert().multiply(w)); b.updateMatrixWorld(true); });
+      [['L', 'Left', 'lf', 'lh'], ['R', 'Right', 'rf', 'rh']].forEach(function(sd){ var th = rb[sd[1] + 'UpLeg'], sh = rb[sd[1] + 'Leg'], ft = rb[sd[1] + 'Foot'];
+        var H = th.getWorldPosition(new V3()), A = H.clone().add(f[sd[2]].clone().sub(f[sd[3]]).applyQuaternion(unYaw).multiplyScalar(scale)), K0 = sh.getWorldPosition(new V3()), a = lenA[sd[0]], bl = lenB[sd[0]];
+        var dv = A.clone().sub(H), d = Math.min(dv.length(), (a + bl) * 0.999), u = dv.normalize(); A = H.clone().addScaledVector(u, d);
+        var x = (a * a - bl * bl + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, a * a - x * x)), pole = K0.clone().sub(H); pole.addScaledVector(u, -pole.dot(u)); if(pole.lengthSq() < 1e-10) pole.set(0, 0, 1); pole.normalize();
+        var K = H.clone().addScaledVector(u, x).addScaledVector(pole, hh); swing(th, K0.clone().sub(H), K.clone().sub(H)); swing(sh, ft.getWorldPosition(new V3()).sub(K), A.clone().sub(K)); footMin = Math.min(footMin, ft.getWorldPosition(new V3()).y);
+        var fw = f[sd[1] + 'Foot'].clone().multiply(rest[sd[1] + 'Foot'].clone().invert()).premultiply(unYaw).multiply(tRestW[sd[1] + 'Foot']); ft.parent.updateWorldMatrix(true, false); ft.quaternion.copy(ft.parent.getWorldQuaternion(new QT()).invert().multiply(fw)); ft.updateMatrixWorld(true); });
+      Object.keys(qT).forEach(function(n){ var q = rb[n].quaternion; qT[n].push(q.x, q.y, q.z, q.w); }); var hpp = rb.Hips.position; hp.push(hpp.x, hpp.y, hpp.z); }
+    if(pass === 0){ ground = footMin - restFootY; footMin = Infinity; continue; }
+    var tracks = [new THREE.VectorKeyframeTrack('Hips.position', times, hp)]; Object.keys(qT).forEach(function(n){ tracks.push(new THREE.QuaternionKeyframeTrack(n + '.quaternion', times, qT[n])); });
+    out = new THREE.AnimationClip('CMUWalk', times[times.length - 1], tracks); out.userData = { speedModelPerSec: dist * scale / dur, legModel: lenA.L + lenB.L, cycle: +dur.toFixed(3), loopErr: +best.err.toFixed(4), ground: ground }; }
+  return out; }
+// ---- OPUS N2+ : N2 improved — Neon's body + dressing kept; legs = CMU mocap foot-locked onto his rig; upper body = UAL Pistol_Idle
+//      (his leaders.js, verbatim but for the BVH path and slot/label)
+function OPUS_N2P(mode, gltf){ fetch(OPUS_BVH_URL).then(function(r){ return r.text(); }).then(function(text){
+    var rigSrc = THREE.SkeletonUtils.clone(gltf.scene), walk = retargetFK(text, rigSrc, CMU2VALID), clips = clipLookup(gltf.animations);
+    var LOWV = /^(Hips|LeftUpLeg|LeftLeg|LeftFoot|LeftToe|RightUpLeg|RightLeg|RightFoot|RightToe)/;
+    var up = splitClip(clips.Pistol_Idle_Loop, LOWV, false, 'UpReady');
+    var hT = walk.tracks.filter(function(t){ return t.name === 'Hips.quaternion'; })[0], iT = clips.Pistol_Idle_Loop.tracks.filter(function(t){ return /(^|\.)Hips\.quaternion$|^Hips\.quaternion/.test(t.name); })[0], sT = up.tracks.filter(function(t){ return /^Spine\.quaternion$/.test(t.name); })[0];
+    if(hT && iT && sT){ var mean = new THREE.Vector4(), q0 = new QT(hT.values[0], hT.values[1], hT.values[2], hT.values[3]); for(var i = 0; i < hT.values.length; i += 4){ var q = new QT(hT.values[i], hT.values[i + 1], hT.values[i + 2], hT.values[i + 3]); if(q.dot(q0) < 0){ q.x = -q.x; q.y = -q.y; q.z = -q.z; q.w = -q.w; } mean.x += q.x; mean.y += q.y; mean.z += q.z; mean.w += q.w; }
+      var mq = new QT(mean.x, mean.y, mean.z, mean.w).normalize(), iq = new QT(iT.values[0], iT.values[1], iT.values[2], iT.values[3]), corr = mq.clone().invert().multiply(iq); sT.values = sT.values.slice();
+      for(var j = 0; j < sT.values.length; j += 4){ var sq = corr.clone().multiply(new QT(sT.values[j], sT.values[j + 1], sT.values[j + 2], sT.values[j + 3])); sT.values[j] = sq.x; sT.values[j + 1] = sq.y; sT.values[j + 2] = sq.z; sT.values[j + 3] = sq.w; }
+      window.__N2P_corrDeg = +(2 * Math.acos(Math.min(1, Math.abs(corr.w))) * 57.3).toFixed(1); }
+    var fig = THREE.SkeletonUtils.clone(gltf.scene); fig.traverse(function(o){ if(o.isMesh){ o.material = Array.isArray(o.material) ? o.material.map(function(m){ return m.clone(); }) : o.material.clone(); } });
+    prepNeonMaterials(fig); fig.traverse(function(o){ if(o.isMesh){ [].concat(o.material).forEach(function(m){ if(m && m.isMeshStandardMaterial) addRim(m, 0.45); }); } });
+    var sc = 1.80 / mode.fixedH, norm = new THREE.Group(); fig.scale.setScalar(sc); fig.position.y = -mode.z0 * sc; norm.add(fig);
+    var m = makeMover(norm, 1.80, walk, 1, 'N2+', false, 11); m.group.updateMatrixWorld(true);
+    var Bw = function(n){ var o = null; fig.traverse(function(x){ if(!o && x.isBone && x.name === n) o = x; }); return o.getWorldPosition(new V3()); };
+    var legWorld = Bw('LeftUpLeg').distanceTo(Bw('LeftLeg')) + Bw('LeftLeg').distanceTo(Bw('LeftFoot')), authored = walk.userData.speedModelPerSec * legWorld / walk.userData.legModel;
+    m.mixer._actions.forEach(function(ac){ if(ac.getClip() === walk) ac.timeScale = PATH_SPEED / authored; }); m.mixer.clipAction(up).play(); window.__N2P = { authored_mps: +authored.toFixed(3), meta: walk.userData };
+    oneDone(); }).catch(function(e){ window.__WALKOFF_ERRORS.push('opus n2p: ' + e); failed.push('n2p'); oneDone(); }); }
+
+// ---- OPUS Ex1..Ex5 : his shooter-entry "best five" VALID designs (adapted from his opus-valid.js;
+//      per-design factory instead of his one-design-per-page globals; engine/greybox hooks dropped —
+//      the figures walk this plaza's loop and aim at the follow camera, as in his showcase)
+var OPUS_VALID_DESIGNS = [
+  { name: 'Beanie bomber', body: 'g-Black_M_3_Casual.glb', h: 1.82, jacket: '#733829', pants: '#22252A', shoes: '#141517', hat: '#1C1C1C', rig: '#1F2522', bulk: 0.018 },
+  { name: 'Hooded runner', body: 'g-White_M_2_Casual.glb', h: 1.80, jacket: '#2B2F36', pants: '#3A3F33', shoes: '#18191b', hood: true, bulk: 0.016 },
+  { name: 'Field-jacket veteran', body: 'g-MENA_M_3_Casual.glb', h: 1.81, jacket: '#3D4434', pants: '#1E2024', shoes: '#2a2119', rig: '#1F2522', bulk: 0.02 },
+  { name: 'Leather-jacket enforcer', body: 'g-Black_M_2_Casual.glb', h: 1.84, jacket: '#1B1A1C', pants: '#283041', shoes: '#121212', bulk: 0.014, gloss: true },
+  { name: 'Windbreaker lookout', body: 'g-Hispanic_M_2_Casual.glb', h: 1.78, jacket: '#1F2B44', pants: '#2E3033', shoes: '#151618', hat: '#202226', bulk: 0.012 } ];
+function ovBoneOf(root, n){ var b = null; root.traverse(function(o){ if(!b && o.isBone && o.name === n) b = o; }); return b; }
+function ovCloneSkinned(src){ var c = src.clone(true), by = {}; c.traverse(function(o){ if(o.isBone) by[o.name] = o; });
+  c.traverse(function(o){ if(o.isSkinnedMesh){ var sk = o.skeleton; o.bind(new THREE.Skeleton(sk.bones.map(function(b){ return by[b.name]; }), sk.boneInverses.map(function(m){ return m.clone(); })), o.bindMatrix.clone()); o.material = o.material.clone(); } });
+  return c; }
+var OV_REG = { jacket: 0, pants: 1, shoes: 2, hat: 3 };
+function ovPrepBase(baseScene, D){ var s = baseScene; s.updateMatrixWorld(true); var body = null; s.traverse(function(o){ if(o.isSkinnedMesh && /HighRes/.test(o.name)) body = o; });
+  var g = body.geometry, sk = body.skeleton, n = g.attributes.position.count, reg = new Float32Array(n * 4), v = new V3();
+  var bp = {}; sk.bones.forEach(function(b){ bp[b.name] = b.getWorldPosition(new V3()); });
+  var foot = Math.min(bp.LeftToeBase ? bp.LeftToeBase.y : bp.LeftFoot.y, bp.LeftFoot.y), crown = bp.HeadEnd ? bp.HeadEnd.y : bp.Head.y + 0.1 * (bp.Head.y - foot);
+  var rest = { bp: bp, height: crown - foot, foot: foot };
+  var neckY = bp.Neck.y, hipY = bp.Hips.y, headY = bp.Head.y;
+  for(var i = 0; i < n; i++){ var bi = 0, bw = -1; for(var k = 0; k < 4; k++){ var w = comp(g.attributes.skinWeight, i, k); if(w > bw){ bw = w; bi = comp(g.attributes.skinIndex, i, k); } }
+    var nm = sk.bones[bi] ? sk.bones[bi].name : ''; body.boneTransform(i, v).applyMatrix4(body.matrixWorld); var r = -1;
+    if(/Spine|Shoulder|Arm$|ForeArm/.test(nm)) r = OV_REG.jacket;
+    else if(nm === 'Hips') r = v.y > hipY + 0.06 * rest.height ? OV_REG.jacket : OV_REG.pants;
+    else if(/UpLeg|Leg$/.test(nm)) r = OV_REG.pants; else if(/Foot|Toe/.test(nm)) r = OV_REG.shoes;
+    else if(nm === 'Neck' && D.hood) r = OV_REG.jacket;
+    else if(/Head/.test(nm) && (D.hat || D.hood) && v.y > headY + 0.075 * rest.height * (D.hood ? 0.8 : 1)) r = OV_REG.hat;
+    if(r >= 0) reg[i * 4 + r] = 1; }
+  var regionAttr = new THREE.BufferAttribute(reg, 4), lumRef = [0.3, 0.3, 0.3, 0.3];
+  var map = body.material.map, img = map && map.image; if(img){ var cv = document.createElement('canvas'); cv.width = 256; cv.height = 256; var cx = cv.getContext('2d'); cx.drawImage(img, 0, 0, 256, 256); var px = cx.getImageData(0, 0, 256, 256).data, sum = [0, 0, 0, 0], cnt = [0, 0, 0, 0], uv = g.attributes.uv;
+    for(var j = 0; j < n; j += 3){ for(var r2 = 0; r2 < 4; r2++){ if(!reg[j * 4 + r2]) continue; var x = Math.min(255, Math.max(0, Math.floor(comp(uv, j, 0) * 256))), y = Math.min(255, Math.max(0, Math.floor((map.flipY ? 1 - comp(uv, j, 1) : comp(uv, j, 1)) * 256))), o = (y * 256 + x) * 4;
+      var l = Math.pow((0.2126 * px[o] + 0.7152 * px[o + 1] + 0.0722 * px[o + 2]) / 255, 2.2); sum[r2] += l; cnt[r2]++; } }
+    for(var r3 = 0; r3 < 4; r3++) if(cnt[r3]) lumRef[r3] = Math.max(0.02, sum[r3] / cnt[r3]); }
+  return { body: body, regionAttr: regionAttr, lumRef: lumRef, rest: rest }; }
+function ovPrepClips(animations, hipsRest){ var clips = {};
+  animations.forEach(function(c){ var hp = null; c.tracks = c.tracks.filter(function(t){ if(t.name === 'Hips.position'){ hp = t; return true; } return /\.quaternion$/.test(t.name); });
+    if(hp){ var v = hp.values, n = v.length / 3, my = 0, lo = Infinity, hi = -Infinity; for(var i = 0; i < n; i++){ my += v[i * 3 + 1]; lo = Math.min(lo, v[i * 3 + 1]); hi = Math.max(hi, v[i * 3 + 1]); } my /= n;
+      var k = Math.abs(hipsRest.y) > 5 && (hi - lo) < 0.5 ? 100 : 1, x0 = v[0], z0 = v[2];
+      for(var j = 0; j < n; j++){ v[j * 3] = hipsRest.x + (v[j * 3] - x0) * k; v[j * 3 + 1] = hipsRest.y + (v[j * 3 + 1] - my) * k; v[j * 3 + 2] = hipsRest.z + (v[j * 3 + 2] - z0) * k * (/Death|Hit/.test(c.name) ? 1 : 0); } }
+    clips[c.name] = c; });
+  return clips; }
+function ovFigMat(mat, D, lumRef, gn){ var tgt = [D.jacket, D.pants, D.shoes, D.hat || D.jacket].map(function(h){ return h ? linC(h) : null; });
+  var U = { gJ: { value: tgt[0] || new THREE.Color(1, 1, 1) }, gP: { value: tgt[1] || new THREE.Color(1, 1, 1) }, gS: { value: tgt[2] || new THREE.Color(1, 1, 1) }, gH: { value: tgt[3] || new THREE.Color(1, 1, 1) },
+    gOn: { value: new THREE.Vector4(tgt[0] ? 1 : 0, tgt[1] ? 1 : 0, tgt[2] ? 1 : 0, (D.hat || D.hood) ? 1 : 0) }, lumRef: { value: new THREE.Vector4(lumRef[0], lumRef[1], lumRef[2], lumRef[3]) }, bulk: { value: D.bulk || 0 },
+    lampDir: { value: new V3(0, 1, 0) }, lampKey: { value: 0 }, lampAmb: { value: 0 }, lampBack: { value: 0 } };
+  mat.onBeforeCompile = function(sh){ Object.keys(U).forEach(function(k){ sh.uniforms[k] = U[k]; });
+    sh.vertexShader = 'attribute vec4 region; varying vec4 vRegion; uniform float bulk;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vRegion = region; transformed += objectNormal * bulk * (region.x + region.w * 0.6) * 100.0;');
+    sh.fragmentShader = 'varying vec4 vRegion; uniform vec3 gJ, gP, gS, gH; uniform vec4 gOn, lumRef; uniform vec3 lampDir; uniform float lampKey, lampAmb, lampBack;\n' + sh.fragmentShader
+      .replace('#include <map_fragment>', '#include <map_fragment>\n { float lu = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)); vec4 w = vRegion * gOn;' +
+        ' diffuseColor.rgb = mix(diffuseColor.rgb, gJ * clamp(pow(lu / lumRef.x, 0.55), 0.55, 1.35), w.x); diffuseColor.rgb = mix(diffuseColor.rgb, gP * clamp(pow(lu / lumRef.y, 0.55), 0.55, 1.35), w.y);' +
+        ' diffuseColor.rgb = mix(diffuseColor.rgb, gS * clamp(pow(lu / lumRef.z, 0.55), 0.55, 1.35), w.z); diffuseColor.rgb = mix(diffuseColor.rgb, gH * clamp(lu / max(lumRef.w, 0.05), 0.5, 1.4), w.w); }')
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n float lk = max(dot(normal, lampDir), 0.0); reflectedLight.directDiffuse += diffuseColor.rgb * lampKey * lk; reflectedLight.indirectDiffuse += diffuseColor.rgb * lampAmb;\n' +
+        ' float fr = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0); reflectedLight.directDiffuse += vec3(0.30, 0.34, 0.38) * pow(fr, 3.0) * (0.25 + lampBack) * (0.4 + lampKey);'); };
+  mat.customProgramCacheKey = function(){ return 'opusValidW' + gn; }; if(D.gloss){ mat.roughness = 0.55; } mat.userData.U = U; return mat; }
+var _ovLd = new V3(), _ovTc = new V3();
+function ovLampTerms(fig){ var U = fig.U; if(!U) return; var Ls = (window.HEPAINT && window.HEPAINT.lights) || [], p = fig.root.getWorldPosition(_ovTc.set(0, 0, 0)), indoor = !(window.HEPAINT && window.HEPAINT.indoor === false), sum = 0, dx = 0, dy = 0, dz = 0;
+  if(indoor) for(var i = 0; i < Ls.length; i++){ var l = Ls[i], ex = l.x - p.x, ez = l.z - p.z, ey = l.y - p.y; if(ey < 0 || ey > 4.5) continue; var d2 = ex * ex + ez * ez; if(d2 > 81) continue; var k = 1 / (1 + d2 / 4); sum += k; dx += ex * k; dy += ey * k; dz += ez * k; }
+  if(!indoor){ sum = 0.6; dx = -0.4; dy = 1; dz = 0.3; } _ovLd.set(dx, dy, dz); if(_ovLd.lengthSq() < 1e-6) _ovLd.set(0, 1, 0); _ovLd.normalize();
+  var back = Math.max(0, -_ovLd.dot(_ovTc.copy(camera.position).sub(p).setY(0).normalize())); _ovLd.transformDirection(camera.matrixWorldInverse);
+  U.lampDir.value.copy(_ovLd); U.lampKey.value = 0.5 * Math.min(1.4, sum); U.lampAmb.value = 0.16 + 0.1 * Math.min(1.4, sum); U.lampBack.value = back; }
+function ovPistol(){ var g = new THREE.Group(), m1 = new THREE.MeshStandardMaterial({ color: 0x151618, roughness: 0.45, metalness: 0.6 }), m2 = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.8 });
+  var box = function(w, h, d, m, x, y, z, rx){ var b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); if(rx) b.rotation.x = rx; g.add(b); return b; };
+  box(0.03, 0.032, 0.19, m1, 0, 0.026, 0.05); box(0.028, 0.11, 0.045, m2, 0, -0.03, -0.01, -0.28); box(0.026, 0.02, 0.07, m2, 0, 0.0, 0.04);
+  var geos = []; g.children.forEach(function(c){ c.updateMatrix(); var gg = c.geometry.clone().applyMatrix4(c.matrix).toNonIndexed(), col = c.material === m1 ? [0.009, 0.0095, 0.011] : [0.004, 0.004, 0.0045], cs = []; for(var i = 0; i < gg.attributes.position.count; i++) cs.push(col[0], col[1], col[2]); gg.setAttribute('color', new THREE.Float32BufferAttribute(cs, 3)); geos.push(gg); });
+  var pos = [], nor = [], cl = []; geos.forEach(function(gg){ pos.push.apply(pos, gg.attributes.position.array); nor.push.apply(nor, gg.attributes.normal.array); cl.push.apply(cl, gg.attributes.color.array); });
+  var mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); mg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); mg.setAttribute('color', new THREE.Float32BufferAttribute(cl, 3));
+  var one = new THREE.Group(); one.add(new THREE.Mesh(mg, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.55 }))); return one; }
+function ovSeatPistol(fig){ var m = fig.model, h = ovBoneOf(m, 'RightHand'), mid = ovBoneOf(m, 'RightHandMiddle1'), ix = ovBoneOf(m, 'RightHandIndex1'), pk = ovBoneOf(m, 'RightHandPinky1'); if(!h || !mid) return;
+  m.updateMatrixWorld(true); var H = h.getWorldPosition(new V3()), M = mid.getWorldPosition(new V3()), I = ix.getWorldPosition(new V3()), P = pk.getWorldPosition(new V3());
+  var fwd = M.clone().sub(H).normalize(), across = I.clone().sub(P).normalize(), palm = new V3().crossVectors(fwd, across).normalize();
+  var gp = ovPistol(), basis = new THREE.Matrix4().makeBasis(new V3().crossVectors(palm.clone().negate(), fwd).normalize(), palm.clone().negate(), fwd);
+  gp.quaternion.setFromRotationMatrix(basis); gp.position.copy(H.clone().lerp(M, 0.55).addScaledVector(palm, 0.035)); gp.updateMatrixWorld(true); h.attach(gp); fig.gun = gp; }
+var OV_LOWER = /^(Hips|LeftUpLeg|LeftLeg|LeftFoot|LeftToe|RightUpLeg|RightLeg|RightFoot|RightToe)/;
+function ovSub(c, low, name){ var x = c.clone(); x.name = name; x.tracks = x.tracks.filter(function(t){ var b = t.name.split('.')[0]; return low ? OV_LOWER.test(b) : !OV_LOWER.test(b); }); return x; }
+function ovFootPoints(baseScene, ctx){ var out = {}, b = ctx.body, g = b.geometry, sk = b.skeleton, v = new V3(); baseScene.updateMatrixWorld(true); sk.update();
+  ['Left', 'Right'].forEach(function(sd){ var ids = sk.bones.map(function(x, i){ return /Foot|Toe/.test(x.name) && x.name.indexOf(sd) === 0 ? i : -1; }).filter(function(i){ return i >= 0; }), pts = [];
+    for(var i = 0; i < g.attributes.position.count; i++){ var w = 0; for(var k = 0; k < 4; k++) if(ids.indexOf(comp(g.attributes.skinIndex, i, k)) >= 0) w += comp(g.attributes.skinWeight, i, k); if(w > 0.5){ pts.push(b.boneTransform(i, v.set(0, 0, 0)).applyMatrix4(b.matrixWorld).clone()); } }
+    var ymin = Infinity; pts.forEach(function(p){ ymin = Math.min(ymin, p.y); }); var sole = pts.filter(function(p){ return p.y < ymin + 0.03 * ctx.rest.height; });
+    var heel = sole.reduce(function(a, p){ return p.z < a.z ? p : a; }), toe = sole.reduce(function(a, p){ return p.z > a.z ? p : a; }), fb = ovBoneOf(baseScene, sd + 'Foot');
+    out[sd] = { heel: fb.worldToLocal(heel.clone()), toe: fb.worldToLocal(toe.clone()) }; });
+  return out; }
+function ovContactPace(baseScene, ctx, clips, D){ var m = ovCloneSkinned(baseScene), mx = new THREE.AnimationMixer(m), fp = ovFootPoints(baseScene, ctx), N = 240, H = [], clip = clips.Walk_Loop; mx.clipAction(clip).play();
+  ['Left', 'Right'].forEach(function(sd){ var b = ovBoneOf(m, sd + 'Foot'); ['heel', 'toe'].forEach(function(k){ H.push({ b: b, off: fp[sd][k], P: [] }); }); });
+  var k = D.h / ctx.rest.height; for(var i = 0; i <= N; i++){ mx.setTime(clip.duration * i / N); m.updateMatrixWorld(true); H.forEach(function(h){ h.P.push(h.b.localToWorld(h.off.clone()).multiplyScalar(k)); }); }
+  var vv = []; H.forEach(function(h){ var ymin = Infinity; h.P.forEach(function(p){ ymin = Math.min(ymin, p.y); }); for(var i = 1; i < h.P.length; i++) if(h.P[i].y < ymin + 0.01 && h.P[i - 1].y < ymin + 0.01) vv.push(-(h.P[i].z - h.P[i - 1].z) / (clip.duration / N)); });
+  vv.sort(function(a, b){ return a - b; }); return vv.length ? vv[vv.length >> 1] : 1.1; }
+function ovMakeFigure(baseScene, ctx, clips, D, gn){ var model = ovCloneSkinned(baseScene), root = new THREE.Group(); root.name = 'opusFig'; root.add(model); root.scale.setScalar(D.h / ctx.rest.height); model.position.y = -ctx.rest.foot;
+  var fig = { root: root, model: model, mixer: new THREE.AnimationMixer(model), actions: {}, layers: { low: null, up: null }, twist: 0, pace: 0 };
+  model.traverse(function(o){ if(o.isSkinnedMesh){ o.frustumCulled = false; if(/HighRes/.test(o.name)){ o.geometry = o.geometry.clone(); o.geometry.setAttribute('region', ctx.regionAttr); o.material = ovFigMat(o.material, D, ctx.lumRef, gn); fig.U = o.material.userData.U; } } });
+  var C = { LegsWalk: ovSub(clips.Walk_Loop, true, 'LegsWalk'), LegsIdle: ovSub(clips.Pistol_Idle_Loop, true, 'LegsIdle'), UpAim: ovSub(clips.Pistol_Aim_Neutral, false, 'UpAim'), UpFire: ovSub(clips.Pistol_Shoot, false, 'UpFire'),
+    UpCarry: ovSub(clips.Pistol_Idle_Loop, false, 'UpCarry'), Death: clips.Death01, Hit: clips.Hit_Chest };
+  Object.keys(C).forEach(function(n){ if(!C[n]) return; var a = fig.mixer.clipAction(C[n]); a.setLoop(/UpFire|Death|Hit/.test(n) ? THREE.LoopOnce : THREE.LoopRepeat, Infinity); a.clampWhenFinished = /UpFire|Death|Hit/.test(n); fig.actions[n] = a; });
+  fig.spine = ['Spine', 'Spine1', 'Spine2'].map(function(n){ return ovBoneOf(model, n); }); fig.armR = [ovBoneOf(model, 'RightArm'), ovBoneOf(model, 'RightHand')];
+  ovSeatPistol(fig); return fig; }
+function ovLay(f, slot, name, fade){ var cur = f.layers[slot]; if(cur === name) return; var a = f.actions[name]; if(!a) return; a.reset(); a.enabled = true; a.setEffectiveWeight(1); a.play(); if(cur && f.actions[cur]) a.crossFadeFrom(f.actions[cur], fade, false); f.layers[slot] = name; }
+function ovDrive(f, dt){   // his drive(), plaza edition: always moving at PATH_SPEED, aiming at the camera, never firing
+  ovLay(f, 'low', 'LegsWalk', 0.2); if(f.actions.LegsWalk) f.actions.LegsWalk.timeScale = PATH_SPEED / f.pace;
+  if(!(f.layers.up === 'UpFire' && f.actions.UpFire && f.actions.UpFire.isRunning())) ovLay(f, 'up', 'UpAim', 0.25);
+  f.mixer.update(dt);
+  f.model.updateMatrixWorld(true); var sh = f.armR[0].getWorldPosition(new V3()), ad = f.armR[1].getWorldPosition(new V3()).sub(sh); ad.y = 0;
+  if(ad.lengthSq() > 1e-8){ ad.normalize(); var to = camera.position.clone().sub(sh); to.y = 0;
+    if(to.lengthSq() > 1e-8){ to.normalize(); var want = Math.max(-1.4, Math.min(1.4, Math.atan2(ad.z * to.x - ad.x * to.z, ad.dot(to)))); f.twist += (want - f.twist) * Math.min(1, dt * 8); } }
+  if(Math.abs(f.twist) > 1e-3) f.spine.forEach(function(b){ if(b) b.rotateOnWorldAxis(new V3(0, 1, 0), f.twist / 3); });
+  ovLampTerms(f); }
+function makeOpusMover(fig, D, label, slot){
+  var wrap = new THREE.Group(); wrap.scale.setScalar(TARGET_H / D.h); wrap.add(fig.root);
+  addBlob(wrap);
+  var pl = new THREE.PointLight(0xffe2b8, 0.85, 7, 2); pl.position.set(0, 1.55, 0.3); wrap.add(pl);
+  var group = new THREE.Group(); group.add(wrap);
+  var tag = makeLabel(label, false); tag.position.y = TARGET_H + 0.52; group.add(tag);
+  scene.add(group);
+  var m = { group: group, mixer: { update: function(dt){ ovDrive(fig, dt); } }, s: slot * PATH.length / movers.length, yaw: 0, label: label };
+  movers[slot] = m; return m; }
+function buildOpusValid(D, gn, slot){
+  var loader = new THREE.GLTFLoader();
+  function load(f){ return new Promise(function(res, rej){ loader.load(OPUS_VALID_DIR + f, res, undefined, rej); }); }
+  Promise.all([load(D.body), load('ual-clips.glb')]).then(function(r){
+    var ctx = ovPrepBase(r[0].scene, D);
+    var clips = ovPrepClips(r[1].animations, ovBoneOf(r[0].scene, 'Hips').position.clone());
+    var fig = ovMakeFigure(r[0].scene, ctx, clips, D, gn);
+    fig.pace = ovContactPace(r[0].scene, ctx, clips, D);
+    window.__OPUS_VALID_PACE = window.__OPUS_VALID_PACE || {}; window.__OPUS_VALID_PACE['ex' + gn] = +fig.pace.toFixed(3);
+    makeOpusMover(fig, D, 'O' + gn, slot);
+    oneDone();
+  }).catch(function(e){ window.__WALKOFF_ERRORS.push('opus ex' + gn + ': ' + e); failed.push('opus-ex' + gn); oneDone(); }); }
+withLoaders(function(){ OPUS_VALID_DESIGNS.forEach(function(D, i){ buildOpusValid(D, i + 1, 6 + i); }); });   // deferred: the loader scripts may still be in flight when this block is parsed
 
 // ------------------------------------------------------------------ camera modes + UI
 var camMode = 'both';
