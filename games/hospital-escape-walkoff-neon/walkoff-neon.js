@@ -115,20 +115,28 @@ var PATH = (function(){
 })();
 
 // ------------------------------------------------------------------ labels
+// Ground markers (Nov 24, Cherie): a flat disc at each figure's feet, replacing the old
+// overhead billboard sprite. The sprite was the blow-up defect in her phone screenshots:
+// a fixed 0.62 m world-size THREE.Sprite with depthTest:false + renderOrder 999, so when
+// a walker passed close to the follow camera its disc (the "giant white ring") filled the
+// screen and drew over everything. A ground disc lies flat — natural depth testing and
+// perspective foreshortening — and tick() fades it out entirely when the camera closes in.
 function makeLabel(text, gold){
   var c = document.createElement('canvas'); c.width = c.height = 256;
   var x = c.getContext('2d');
   x.beginPath(); x.arc(128, 128, 112, 0, Math.PI * 2);
-  if(gold){ x.fillStyle = '#d9a92c'; x.fill(); }
-  else { x.fillStyle = 'rgba(8,10,14,0.88)'; x.fill(); }
+  if(gold){ x.fillStyle = 'rgba(217,169,44,0.94)'; x.fill(); }
+  else { x.fillStyle = 'rgba(8,10,14,0.85)'; x.fill(); }
   x.lineWidth = 11; x.strokeStyle = 'rgba(255,255,255,0.96)'; x.stroke();
   x.fillStyle = gold ? '#191408' : '#ffffff';
   x.font = '900 ' + (text.length > 1 ? 112 : 148) + 'px Arial'; x.textAlign = 'center'; x.textBaseline = 'middle';
   x.fillText(text, 128, 136);
   var tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
-  var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-  sp.scale.set(0.62, 0.62, 1); sp.renderOrder = 999;
-  return sp;
+  var m = new THREE.Mesh(new THREE.PlaneGeometry(1.02, 1.02),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: true }));
+  m.rotation.set(-Math.PI / 2, 0, Math.PI);   // flat on the ground; text upright from behind the figure (the default follow view)
+  m.renderOrder = 2; m.raycast = function(){};
+  return m;
 }
 
 // ------------------------------------------------------------------ asset loading helpers
@@ -357,11 +365,11 @@ function makeMover(fig, height, walkActionClip, authored, label, gold, slot){
   addBlob(wrap);
   var pl = new THREE.PointLight(0xffe2b8, 0.85, 7, 2); pl.position.set(0, 1.55, 0.3); wrap.add(pl);
   var group = new THREE.Group(); group.add(wrap);
-  var tag = makeLabel(label, gold); tag.position.y = TARGET_H + 0.52; group.add(tag);
+  var tag = makeLabel(label, gold); tag.position.y = 0.03; group.add(tag);
   scene.add(group);
   var mixer = new THREE.AnimationMixer(fig);
   var act = mixer.clipAction(walkActionClip); act.timeScale = PATH_SPEED / authored; act.play();
-  var m = { group: group, mixer: mixer, s: slot * PATH.length / movers.length, yaw: 0, label: label };
+  var m = { group: group, mixer: mixer, s: slot * PATH.length / movers.length, yaw: 0, label: label, tag: tag };
   movers[slot] = m; return m;
 }
 var pending = 1 + NEON_MODES.length + 5 + 2, failed = [];   // +5 OPUS VALID designs, +1 OPUS N2+ (oneDone inside OPUS_N2P), +1 OPUS Ex1+ (counted in the gunman parse callback)
@@ -656,9 +664,9 @@ function makeOpusMover(fig, D, label, slot){
   addBlob(wrap);
   var pl = new THREE.PointLight(0xffe2b8, 0.85, 7, 2); pl.position.set(0, 1.55, 0.3); wrap.add(pl);
   var group = new THREE.Group(); group.add(wrap);
-  var tag = makeLabel(label, false); tag.position.y = TARGET_H + 0.52; group.add(tag);
+  var tag = makeLabel(label, false); tag.position.y = 0.03; group.add(tag);
   scene.add(group);
-  var m = { group: group, mixer: { update: function(dt){ ovDrive(fig, dt); } }, s: slot * PATH.length / movers.length, yaw: 0, label: label };
+  var m = { group: group, mixer: { update: function(dt){ ovDrive(fig, dt); } }, s: slot * PATH.length / movers.length, yaw: 0, label: label, tag: tag };
   movers[slot] = m; return m; }
 function buildOpusValid(D, gn, slot){
   var loader = new THREE.GLTFLoader();
@@ -738,6 +746,15 @@ function tick(now){
     m.yaw += angDelta(m.yaw, targetYaw) * Math.min(1, dt * 7);
     m.group.rotation.y = m.yaw;
     m.mixer.update(dt);
+  }
+  // Ground-marker safety: fade a figure's foot disc out as the camera closes in, so a
+  // marker can never loom large in frame when the camera runs low/close past a walker.
+  for(var j = 0; j < movers.length; j++){ var mm = movers[j];
+    if(!mm || !mm.tag) continue;
+    var hdx = mm.group.position.x - camera.position.x, hdz = mm.group.position.z - camera.position.z;
+    var hd = Math.hypot(hdx, hdz);
+    var op = hd <= 1.1 ? 0 : (hd >= 2.1 ? 1 : (hd - 1.1) / 1.0);
+    mm.tag.material.opacity = op; mm.tag.visible = op > 0.02;
   }
   var dp, dl, fi = MODE_INDEX[camMode];
   if(camMode === 'both' || fi == null || !movers[fi]){ dp = new THREE.Vector3(10.5, 7.6, 10.5); dl = new THREE.Vector3(0, 0.9, 0); }
