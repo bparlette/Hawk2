@@ -85,3 +85,9 @@ After all three reports land:
 - **Batch pushes** — combine all pending file changes into the fewest possible push calls.
 - **Exact locations, always**: repo https://github.com/bparlette/Hawk2, branch `main`, tasking `games/hospital-escape/tasking/`, responses `games/hospital-escape/tasking/responses/`.
 - three.js: CDN or the one shared in-repo copy — never a per-game inlined copy.
+
+## 8. RESOURCES — TOOLS, LOGINS, AND THE FREE-ONLY RULE
+
+- **Tools: install what you need — don't ask first.** Any tool an entrant needs (converter, rigger, retargeting tool, CLI utility, library, …) may be downloaded and installed freely. Name everything you installed in your report (show-your-work, §4).
+- **Logins: don't stall — flag it and keep moving.** If a site or service needs a login/account to get an asset or a tool, do NOT stop work. Note exactly what's needed — the site and what it's for — in your report **and** in a line at the top of your response file, and Cherie will provide it. Continue with the lanes that don't need it meanwhile.
+- **Hard limit: NO PAID SOFTWARE.** Free tools, free tiers, open source, and free assets only — this is Cherie's standing free-only rule. If the best route appears to require a paid tool or a paid asset, flag it in your report with the price and the free alternative you used instead. Do not buy anything.
