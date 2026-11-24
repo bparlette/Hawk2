@@ -86,7 +86,12 @@ function lampTerms(fig){ var U = fig.U, Ls = (window.HEPAINT && HEPAINT.lights) 
 // ------------------------------------------------------------------ pistol: matte polymer frame + steel slide, seated in the rest-pose hand
 function pistol(){ var g = new THREE.Group(), m1 = new THREE.MeshStandardMaterial({ color: 0x151618, roughness: 0.45, metalness: 0.6 }), m2 = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.8 });
   var box = function(w, h, d, m, x, y, z, rx){ var b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); if(rx) b.rotation.x = rx; g.add(b); return b; };
-  box(0.03, 0.032, 0.19, m1, 0, 0.026, 0.05); box(0.028, 0.11, 0.045, m2, 0, -0.03, -0.01, -0.28); box(0.026, 0.02, 0.07, m2, 0, 0.0, 0.04); return g; }   // slide (barrel +Z), grip, trigger guard
+  box(0.03, 0.032, 0.19, m1, 0, 0.026, 0.05); box(0.028, 0.11, 0.045, m2, 0, -0.03, -0.01, -0.28); box(0.026, 0.02, 0.07, m2, 0, 0.0, 0.04);
+  // one draw call: bake the three parts into a single geometry with vertex colours (slide steel / polymer frame)
+  var geos = []; g.children.forEach(function(c){ c.updateMatrix(); var gg = c.geometry.clone().applyMatrix4(c.matrix).toNonIndexed(), col = c.material === m1 ? [0.009, 0.0095, 0.011] : [0.004, 0.004, 0.0045], cs = []; for(var i = 0; i < gg.attributes.position.count; i++) cs.push(col[0], col[1], col[2]); gg.setAttribute('color', new THREE.Float32BufferAttribute(cs, 3)); geos.push(gg); });
+  var pos = [], nor = [], cl = []; geos.forEach(function(gg){ pos.push.apply(pos, gg.attributes.position.array); nor.push.apply(nor, gg.attributes.normal.array); cl.push.apply(cl, gg.attributes.color.array); });
+  var mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); mg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); mg.setAttribute('color', new THREE.Float32BufferAttribute(cl, 3));
+  var one = new THREE.Group(); one.add(new THREE.Mesh(mg, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.55 }))); return one; }   // slide (barrel +Z), grip, trigger guard
 function seatPistol(fig){ var m = fig.model, h = boneOf(m, 'RightHand'), mid = boneOf(m, 'RightHandMiddle1'), ix = boneOf(m, 'RightHandIndex1'), pk = boneOf(m, 'RightHandPinky1'); if(!h || !mid) return;
   m.updateMatrixWorld(true); var H = h.getWorldPosition(new V()), M = mid.getWorldPosition(new V()), I = ix.getWorldPosition(new V()), P = pk.getWorldPosition(new V());
   var fwd = M.clone().sub(H).normalize(), across = I.clone().sub(P).normalize(), palm = new V().crossVectors(fwd, across).normalize();   // palm normal (rest T-pose: down)

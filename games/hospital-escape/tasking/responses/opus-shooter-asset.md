@@ -43,16 +43,17 @@ Every gunman walks with a **two-handed pistol aim and fires without breaking str
 - **v4:** pace measured at 0.38 m/s, so the legs played 3.7× fast. The 1 cm contact band was being applied in centimetre units. Now measured in metres: **1.20 m/s**.
 - **v5:** the recoloured jacket read orange-bright (black tee, low luminance reference). Fold detail compressed (`pow 0.55`, clamped).
 - **v6:** gunman 4's outfit had light shorts. Added dark jeans.
+- **v8 (after first push):** pistol's three parts baked into one vertex-coloured mesh: 7 → **5 draw calls** per figure.
 - **v7:** proxies and pistol were sized by the root's cm-to-m scale, giving 1.5 mm capsules: 2 kills in 45 s in-game. Now sized in world metres: **91–94% of visible body pixels hit**, 7 gunman kills in the same run.
 
 ## Measured (final)
 | # | Triangles | Calls per figure | Slide, strict median per contact (cm) | Pace (m/s) | Height |
 |---|---|---|---|---|---|
-| 1 | 7484 | 7 (body, 2 eyes, pistol ×3, floor shadow) | 0.2–3.5 | 1.20 (foot-contact) | 1.77 m (head joint) |
-| 2 | 7484 | 7 (body, 2 eyes, pistol ×3, floor shadow) | 0.5–1.5 | 1.20 (foot-contact) | 1.75 m (head joint) |
-| 3 | 7484 | 7 (body, 2 eyes, pistol ×3, floor shadow) | 0.1–1.3 | 1.20 (foot-contact) | 1.76 m (head joint) |
-| 4 | 7484 | 7 (body, 2 eyes, pistol ×3, floor shadow) | 0.2–1.7 | 1.20 (foot-contact) | 1.79 m (head joint) |
-| 5 | 7483 | 7 (body, 2 eyes, pistol ×3, floor shadow) | 0.2–1.0 | 1.20 (foot-contact) | 1.73 m (head joint) |
+| 1 | 7484 | 5 (body, 2 eyes, pistol, floor shadow) | 0.2–3.5 | 1.20 (foot-contact) | 1.77 m (head joint) |
+| 2 | 7484 | 5 (body, 2 eyes, pistol, floor shadow) | 0.5–1.5 | 1.20 (foot-contact) | 1.75 m (head joint) |
+| 3 | 7484 | 5 (body, 2 eyes, pistol, floor shadow) | 0.1–1.3 | 1.20 (foot-contact) | 1.76 m (head joint) |
+| 4 | 7484 | 5 (body, 2 eyes, pistol, floor shadow) | 0.2–1.7 | 1.20 (foot-contact) | 1.79 m (head joint) |
+| 5 | 7483 | 5 (body, 2 eyes, pistol, floor shadow) | 0.2–1.0 | 1.20 (foot-contact) | 1.73 m (head joint) |
 
 - **Hit agreement**, against the actual rendered silhouette at about 7 m (frame differencing):
   - gunman 1: **91.1%** of visible body pixels hit, 87.4% overall agreement;
