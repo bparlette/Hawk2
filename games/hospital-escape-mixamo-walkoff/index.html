@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hospital Escape — Mixamo Walk-Off</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1b1f26; font-family: Arial, Helvetica, sans-serif; }
+  #view { position: fixed; inset: 0; }
+  #view canvas { display: block; }
+  #hud { position: fixed; top: 0; left: 0; right: 0; z-index: 1100; padding: 10px 12px 6px; color: #f2f4f8;
+    background: linear-gradient(rgba(10,12,16,0.72), rgba(10,12,16,0)); pointer-events: none; }
+  #hud h1 { margin: 0; font-size: 17px; letter-spacing: 0.4px; }
+  #hud p { margin: 3px 0 0; font-size: 12px; color: #c8d2e0; }
+  #stat { margin-top: 2px; font-size: 12px; color: #ffd97a; min-height: 14px; }
+  #bar, #dirbar { position: fixed; left: 0; right: 0; z-index: 1100; display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; padding: 0 8px; }
+  #bar { bottom: 44px; }
+  #dirbar { bottom: 8px; }
+  #bar button, #dirbar button { pointer-events: auto; border: 1px solid rgba(255,255,255,0.35); background: rgba(16,20,28,0.82); color: #e8edf5;
+    font-size: 12.5px; font-weight: 700; padding: 6px 9px; border-radius: 999px; cursor: pointer; }
+  #bar button.on, #dirbar button.on { background: #d9a92c; color: #191408; border-color: #d9a92c; }
+  #load { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center;
+    color: #f2f4f8; background: rgba(15,18,24,0.88); font-size: 15px; letter-spacing: 0.3px; }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="hud">
+  <h1>MIXAMO WALK-OFF — all 15 looks, one motion</h1>
+  <p>Every figure walks AT you on Mixamo&rsquo;s Pistol Walk with the Firing&nbsp;A&nbsp;Gun recoil layer, paced to 1.30&nbsp;m/s by foot-contact measurement. Same clip, same treatment &mdash; only the body differs.</p>
+  <div id="stat">loading&hellip;</div>
+</div>
+<div id="bar">
+  <button data-mode="both" class="on">ALL</button>
+  <button data-mode="1">1</button>
+  <button data-mode="n1">N1</button>
+  <button data-mode="n2">N2</button>
+  <button data-mode="n3">N3</button>
+  <button data-mode="n4">N4</button>
+  <button data-mode="n5">N5</button>
+  <button data-mode="o1">Ex1</button>
+  <button data-mode="o2">Ex2</button>
+  <button data-mode="o3">Ex3</button>
+  <button data-mode="o4">Ex4</button>
+  <button data-mode="o5">Ex5</button>
+  <button data-mode="c1">C1</button>
+  <button data-mode="c2">C2</button>
+  <button data-mode="c3">C3</button>
+  <button data-mode="c4">C4</button>
+</div>
+<div id="dirbar">
+  <button data-dir="front">FRONT</button>
+  <button data-dir="side">SIDE</button>
+  <button data-dir="back">BACK</button>
+</div>
+<div id="load">assembling the line-up&hellip;</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script src="../hospital-escape-walkoff-neon/game/gunman-data-0.js"></script>
+<script src="../hospital-escape-walkoff-neon/game/gunman-data-1.js"></script>
+<script src="../hospital-escape-walkoff-neon/game/gunman-data-2.js"></script>
+<script src="../hospital-escape-walkoff-neon/game/gunman-data-3.js"></script>
+<script src="game/clips-quaternius.js"></script>
+<script src="game/clips-rigify.js"></script>
+<script src="mixamo-walkoff.js"></script>
+</body>
+</html>
