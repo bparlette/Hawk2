@@ -807,7 +807,9 @@ function buildC4(g){ var C = clipLookup(g.animations);
   makeCMover(fig, 1.77, 'C4', 16, function(dt){ cDriveCombat(fig, dt); }); }
 // ---- C2: his Ex2 v4 — the CMU retarget below is his O.retarget from ex-extra.js, extracted
 // verbatim (only the name and its two rig references changed); pace rule is his prep's v4 line
-function cRetarget(bvhText, rigScene, opt){ opt = opt || {}; var res = new THREE.BVHLoader().parse(bvhText), sk = res.skeleton, clip = res.clip, root = sk.bones[0];
+function cRetarget(bvhText, rigScene, opt){
+  var V = V3, Qt = QT;   // ex-extra.js module aliases, bound to this page's V3/QT
+ opt = opt || {}; var res = new THREE.BVHLoader().parse(bvhText), sk = res.skeleton, clip = res.clip, root = sk.bones[0];
   var holder = new THREE.SkinnedMesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial()); holder.add(root); holder.bind(sk);   // BVH tracks bind as .bones[Name]: they need a skinned mesh
   var mixer = new THREE.AnimationMixer(holder); mixer.clipAction(clip).play(); var src = {}; sk.bones.forEach(function(b){ src[b.name] = b; });
   var fps = 1 / (clip.tracks[0].times[1] - clip.tracks[0].times[0]), N = Math.floor(clip.duration * fps);
