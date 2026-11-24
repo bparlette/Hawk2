@@ -216,7 +216,7 @@ function prepGLBModel(gltf, roleName){
       ms.forEach(function(m){
         if(!m) return;
         if(m.map) m.map.encoding = THREE.sRGBEncoding;
-        if(m.name !== 'PistolMat') m.metalness = 0.0;
+        if(!m.name || m.name.indexOf('PistolMat') !== 0) m.metalness = 0.0;
       });
     }
   });
@@ -248,7 +248,11 @@ var lineUpGrp = new THREE.Group(); scene.add(lineUpGrp);
 var MODES = {
   gunman: {
     label: 'GUNMAN',
-    clips: ['Pistol_Walk', 'Pistol_Walk_Fire', 'Pistol_Walk_Fire_SG', 'Pistol_Aim', 'Pistol_Run_Aimed', 'Pistol_Run', 'Pistol_Strafe_L_Fire', 'Crouch_Walk_Aim', 'Cover_Fire', 'Cover_Peek', 'Shooting', 'Gunplay', 'Hit_React', 'Death_Front']
+    clips: ['Pistol_Walk', 'Pistol_Walk_Fire', 'Pistol_Walk_Fire_SG', 'Pistol_Idle_Alert', 'Cover_To_Shooting', 'Dying_Headshot_Knees', 'Pistol_Aim', 'Pistol_Run_Aimed', 'Pistol_Run', 'Pistol_Strafe_L_Fire', 'Crouch_Walk_Aim', 'Cover_Fire', 'Cover_Peek', 'Shooting', 'Gunplay', 'Hit_React', 'Death_Front']
+  },
+  n2: {
+    label: 'N2 VALID',
+    clips: ['Pistol_Idle_Alert', 'Cover_To_Shooting', 'Dying_Headshot_Knees', 'Pistol_Walk', 'Pistol_Walk_Fire', 'Pistol_Run_Aimed', 'Pistol_Aim', 'Cover_Fire']
   },
   duo: {
     label: 'MAYA+COLE',
@@ -260,7 +264,7 @@ var MODES = {
   },
   cole: {
     label: 'COLE SEAT',
-    clips: ['Sit_Aim_Fire', 'Sit_Aim_Pistol', 'Sit_Idle_Breath', 'Sit_Idle_Thighs', 'Sit_Disbelief', 'Sit_Dodge', 'Injured_Walk']
+    clips: ['Sit_Aim_Fire', 'Walking_Arm_Injury', 'Sit_Disbelief_Forward', 'Sit_Aim_Pistol', 'Sit_Idle_Breath', 'Sit_Idle_Thighs', 'Sit_Disbelief', 'Sit_Dodge', 'Injured_Walk']
   },
   cole_bed: {
     label: 'COLE BED',
@@ -282,7 +286,7 @@ var state = {
   speedOverride: Q.has('speed') ? parseFloat(Q.get('speed')) : null
 };
 
-var FIRE_CLIPS = new Set(['Pistol_Walk_Fire', 'Pistol_Walk_Fire_SG', 'Pistol_Strafe_L_Fire', 'Pistol_Run_Aimed_Fire', 'Shooting', 'Shooting_Gun', 'Gunplay', 'Cover_Fire', 'Sit_Aim_Fire']);
+var FIRE_CLIPS = new Set(['Pistol_Walk_Fire', 'Pistol_Walk_Fire_SG', 'Pistol_Strafe_L_Fire', 'Pistol_Run_Aimed_Fire', 'Shooting', 'Shooting_Gun', 'Gunplay', 'Cover_Fire', 'Cover_To_Shooting', 'Sit_Aim_Fire']);
 var COLE_ARMED_CLIPS = new Set(['Sit_Aim_Pistol', 'Sit_Aim_Fire', 'Sit_Lower_Pistol', 'Sit_Gun_Motion']);
 
 function playClip(actor, name, timeScale, timeSec){
@@ -298,7 +302,7 @@ function playClip(actor, name, timeScale, timeSec){
   actor.curAction = act;
   var scaledT = (timeSec || 0) * (timeScale || 1.0);
   var dur = c.duration || 1.0;
-  var wrapped = (name.indexOf('Death') >= 0 || name === 'Bed_Push_Start' || name === 'Bed_Push_Stop')
+  var wrapped = (name.indexOf('Death') >= 0 || name.indexOf('Dying') >= 0 || name === 'Bed_Push_Start' || name === 'Bed_Push_Stop')
     ? Math.min(dur - 0.001, Math.max(0, scaledT))
     : ((scaledT % dur) + dur) % dur;
   actor.mixer.setTime(wrapped);
@@ -307,6 +311,7 @@ function playClip(actor, name, timeScale, timeSec){
 
 var BARREL_TIPS = {
   gunman: { tip: new THREE.Vector3(0.0237, 0.1865, 0.0720), dir: new THREE.Vector3(-0.1506, 0.8818, 0.4469) },
+  n2:     { tip: new THREE.Vector3(0.0237, 0.1865, 0.0720), dir: new THREE.Vector3(-0.1506, 0.8818, 0.4469) },
   cole:   { tip: new THREE.Vector3(0.0150, 0.1594, 0.1089), dir: new THREE.Vector3(-0.2042, 0.7189, 0.6645) }
 };
 
@@ -338,20 +343,24 @@ function updateSceneAt(tSec){
   var followPos = new THREE.Vector3(0, 0.92, 0);
   var activePathSpeed = 0;
 
-  if(state.mode === 'gunman'){
+  if(state.mode === 'gunman' || state.mode === 'n2'){
+    var shooterKey = (state.mode === 'n2') ? 'n2' : 'gunman';
+    var shooter = ACTORS[shooterKey];
     gunTrack.visible = true;
-    gunTrack.add(g.root);
-    g.root.position.set(0, 0, 0);
-    g.root.rotation.set(0, 0, 0);
+    gunTrack.remove(g.root);
+    if(ACTORS.n2) gunTrack.remove(ACTORS.n2.root);
+    gunTrack.add(shooter.root);
+    shooter.root.position.set(0, 0, 0);
+    shooter.root.rotation.set(0, 0, 0);
 
-    var authored = getStanceSpeed('gunman', state.clip);
+    var authored = getStanceSpeed(shooterKey, state.clip);
     var pathSpeed = 0;
     if(state.speedOverride !== null && !isNaN(state.speedOverride)) pathSpeed = state.speedOverride;
     else if(state.clip.indexOf('Run') >= 0) pathSpeed = 3.20;
-    else if(authored > 0.25) pathSpeed = 1.30;
+    else if(authored > 0.45) pathSpeed = 1.30;
 
     var ts = (authored > 0.1 && pathSpeed > 0.05) ? (pathSpeed / authored) : 1.0;
-    playClip(g, state.clip, ts, tSec);
+    playClip(shooter, state.clip, ts, tSec);
 
     var zTravel = (state.clip.indexOf('Back') >= 0) ? -pathSpeed * tSec : (state.clip.indexOf('Strafe') >= 0 ? 0 : pathSpeed * tSec);
     var xTravel = (state.clip.indexOf('Strafe_L') >= 0) ? pathSpeed * tSec : (state.clip.indexOf('Strafe_R') >= 0 ? -pathSpeed * tSec : 0);
@@ -359,13 +368,18 @@ function updateSceneAt(tSec){
     zTravel = ((zTravel + 6) % 14) - 6;
     gunTrack.position.set(xTravel, 0, zTravel);
     activePathSpeed = pathSpeed;
-    followPos.set(xTravel, 0.96, zTravel);
+    followPos.set(xTravel, (state.clip.indexOf('Dying') >= 0) ? 0.62 : (state.clip.indexOf('Cover') >= 0 ? 0.82 : 0.96), zTravel);
 
     // Muzzle flash on firing clips during shot peak phase (update gunTrack first so world matrix matches zTravel!)
     gunTrack.updateMatrixWorld(true);
-    if(FIRE_CLIPS.has(state.clip)){
+    if(state.clip.indexOf('Dying') >= 0 && shooter.bones.Hips){
+      var hwD = new THREE.Vector3().setFromMatrixPosition(shooter.bones.Hips.matrixWorld);
+      followPos.set(hwD.x, Math.max(0.48, hwD.y - 0.04), hwD.z + 0.08);
+    }
+    var inFireWindow = (state.clip !== 'Cover_To_Shooting') || (tSec % 3.17 >= 0.85 && tSec % 3.17 <= 1.65);
+    if(FIRE_CLIPS.has(state.clip) && inFireWindow){
       var hz = (state.clip === 'Gunplay') ? 5.0 : 2.2;
-      placeMuzzleForActor(g, 'gunman', hz, tSec);
+      placeMuzzleForActor(shooter, shooterKey, hz, tSec);
     }
   }
   else if(state.mode === 'duo'){
@@ -431,24 +445,32 @@ function updateSceneAt(tSec){
     bedProp.wheels.forEach(function(w){ w.grp.rotation.x = (bSp * tSec) / w.r; });
 
     activePathSpeed = bSp;
-    followPos.set(0, 0.88, zB + 0.45);
+    followPos.set(0, 0.88, zB + 0.32);
   }
   else if(state.mode === 'cole'){
     coleSoloGrp.visible = true;
     coleSoloGrp.add(c.root);
     c.root.position.set(0, 0, 0);
-    var cc = state.clip || 'Sit_Aim_Pistol';
-    playClip(c, cc, 1.0, tSec);
+    var cc = state.clip || 'Sit_Aim_Fire';
     var showChair = (cc.indexOf('Sit_') >= 0 && cc.indexOf('Stand') < 0);
+    var cAuth = getStanceSpeed('cole', cc);
+    var cSp = (!showChair && cAuth > 0.45) ? (state.speedOverride !== null && !isNaN(state.speedOverride) ? state.speedOverride : 1.30) : 0;
+    var cTs = (cSp > 0.05 && cAuth > 0.1) ? (cSp / cAuth) : 1.0;
+    playClip(c, cc, cTs, tSec);
     if(showChair){
-      wcProp.group.visible = true; wcProp.blanket.visible = true;
+      wcProp.group.visible = true; wcProp.blanket.visible = (cc !== 'Sit_Disbelief_Forward');
       coleSoloGrp.add(wcProp.group);
       wcProp.group.position.set(0, 0, -0.05);
-      c.root.position.set(0, -0.02, 0.0);
+      c.root.position.set(0, (cc === 'Sit_Disbelief_Forward') ? -0.065 : -0.02, 0.0);
+      followPos.set(0, 0.78, 0.18);
+    } else {
+      var cZ = (cSp > 0.05) ? (((cSp * tSec + 5) % 12) - 5) : 0;
+      c.root.position.set(0, 0, cZ);
+      activePathSpeed = cSp;
+      followPos.set(0, 0.90, cZ);
     }
     var cp = c.meshes.find(function(ms){ return ms.name.indexOf('ColePistol') >= 0; });
     if(cp) cp.visible = COLE_ARMED_CLIPS.has(cc);
-    followPos.set(0, 0.78, 0.18);
   }
   else if(state.mode === 'cole_bed'){
     coleSoloGrp.visible = true;
@@ -486,8 +508,10 @@ function updateSceneAt(tSec){
 
   // Camera framing tailored per angle for 390x844 mobile viewport
   var isSide = (state.cam === 'side');
-  var dist = (state.mode === 'all') ? 5.15 : (state.mode === 'duo' || state.mode === 'maya_bed') ? (isSide ? 3.95 : 4.25) : (state.mode === 'cole' ? 3.40 : (isSide ? 3.25 : 2.95));
-  var lookZ = isSide ? (followPos.z + ((state.mode === 'duo' || state.mode === 'maya_bed') ? 0.30 : 0.14)) : followPos.z;
+  var isDying = (state.mode === 'gunman' || state.mode === 'n2') && (state.clip === 'Dying_Headshot_Knees');
+  var isWideGun = (state.mode === 'gunman' || state.mode === 'n2') && (state.clip === 'Cover_To_Shooting');
+  var dist = (state.mode === 'all') ? 5.15 : (state.mode === 'maya_bed') ? (isSide ? 4.35 : 4.25) : (state.mode === 'duo') ? (isSide ? 3.95 : 4.25) : (state.mode === 'cole' ? 3.40 : isDying ? 4.25 : isWideGun ? 3.75 : (isSide ? 3.25 : 2.95));
+  var lookZ = isSide ? (followPos.z + ((state.mode === 'duo') ? 0.30 : (state.mode === 'maya_bed') ? -0.05 : 0.14)) : ((state.clip === 'Cover_To_Shooting') ? followPos.z + 0.16 : followPos.z);
   var az = { '3q': 0.56, 'front': 0.0, 'side': Math.PI / 2, 'back': Math.PI - 0.12 }[state.cam] || 0.56;
   var elev = isSide ? 0.14 : 0.22;
   camera.position.set(
@@ -592,11 +616,12 @@ fetch('assets/cast-pass/cast-pass-manifest.json')
     return Promise.all([
       loadGLB('assets/cast-pass/gunman-mixamo.glb', 'gunman'),
       loadGLB('assets/cast-pass/maya-mixamo.glb', 'maya'),
-      loadGLB('assets/cast-pass/cole-mixamo.glb', 'cole')
+      loadGLB('assets/cast-pass/cole-mixamo.glb', 'cole'),
+      loadGLB('assets/cast-pass/n2-mixamo.glb', 'n2')
     ]);
   })
   .then(function(list){
-    ACTORS.gunman = list[0]; ACTORS.maya = list[1]; ACTORS.cole = list[2];
+    ACTORS.gunman = list[0]; ACTORS.maya = list[1]; ACTORS.cole = list[2]; ACTORS.n2 = list[3];
     loadingEl.style.display = 'none';
     rebuildHUD();
     var st0 = updateSceneAt(state.t);

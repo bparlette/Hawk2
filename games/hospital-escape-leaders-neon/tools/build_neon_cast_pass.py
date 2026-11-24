@@ -57,6 +57,7 @@ def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument('--mixamo-dir', default='/tmp/neon_cast_pass/mixamo_fbx')
     ap.add_argument('--valid-dir', default='/tmp/neon_cast_pass/src')
+    ap.add_argument('--n2-glb', default='/Users/braidpairlette/.gemini/antigravity/scratch/Hawk2/games/hospital-escape-3d-sample-neon/assets/gunmen/valid-mocap.glb')
     ap.add_argument('--tex-dir', default='/tmp/neon_cast_pass/tex')
     ap.add_argument('--out-dir', default='/Users/braidpairlette/.gemini/antigravity/scratch/Hawk2/games/hospital-escape-leaders-neon/assets/cast-pass')
     return ap.parse_args(argv)
@@ -649,6 +650,10 @@ def apply_maya_handle_ik(arm_T, R_T0, basis_T0, act_T, handle_x=0.23, handle_y=-
                 ))
                 # Softly pull Z toward exact handle_z bar center
                 w_tgt.z = 0.75 * handle_z + 0.25 * w_tgt.z
+            elif handle_y is None:
+                # Align both wrists onto a straight rigid push bar at x=+-handle_x, z=handle_z using natural push reach Y
+                bar_y = 0.5 * (w_l_pre.y + w_r_pre.y)
+                w_tgt = mathutils.Vector((sx * handle_x, bar_y, handle_z))
             else:
                 w_tgt = mathutils.Vector((hips_p.x + sx * handle_x, hips_p.y + handle_y, handle_z))
 
@@ -686,8 +691,10 @@ def apply_maya_handle_ik(arm_T, R_T0, basis_T0, act_T, handle_x=0.23, handle_y=-
         w_r_post = (mw @ arm_T.pose.bones['RightHand'].matrix).translation
         post_zs.append(0.5 * (w_l_post.z + w_r_post.z))
         # Handle center for error reporting
-        err_l = (w_l_post - mathutils.Vector((hips_p.x + handle_x, w_l_post.y, handle_z))).length
-        err_r = (w_r_post - mathutils.Vector((hips_p.x - handle_x, w_r_post.y, handle_z))).length
+        tgt_y_chk = (0.5 * (w_l_pre.y + w_r_pre.y)) if handle_y is None else w_l_post.y
+        tgt_x_base = 0.0 if handle_y is None else hips_p.x
+        err_l = (w_l_post - mathutils.Vector((tgt_x_base + handle_x, tgt_y_chk, handle_z))).length
+        err_r = (w_r_post - mathutils.Vector((tgt_x_base - handle_x, tgt_y_chk, handle_z))).length
         gaps_mm.append(0.5 * (err_l + err_r) * 1000.0)
 
         for bn in ('LeftArm', 'LeftForeArm', 'RightArm', 'RightForeArm'):
@@ -1106,46 +1113,52 @@ def build_gunman(args):
         ('cover_stand', 'cover-idle-standing.fbx'), ('cover_crouch', 'cover-idle-crouched.fbx'),
         ('hit', 'hit-reaction.fbx'), ('hit_l', 'hit-reaction-left.fbx'),
         ('die_front', 'dying.fbx'), ('die_back', 'dying-backwards.fbx'),
+        ('die_headshot', 'dying-headshot-knees.fbx'),
+        ('cover_shoot', 'cover-to-shooting.fbx'),
+        ('idle_alert', 'pistol-idle-alert.fbx'),
         ('turn', 'turning.fbx'),
     ]:
         src_acts[key] = import_mixamo_action(args.mixamo_dir, fbx)
 
     # Core direct & foot-locked retargets
     specs = [
-        ('Pistol_Idle',      'idle',        False, False, False),
-        ('Pistol_Aim',       'aim',         False, False, False),
-        ('Pistol_Walk',      'walk',        True,  True,  False),
-        ('Pistol_Walk_Back', 'walk_bwd',    True,  True,  False),
-        ('Pistol_Strafe_L',  'strafe_l',    True,  True,  False),
-        ('Pistol_Strafe_R',  'strafe_r',    True,  True,  False),
-        ('Pistol_Walk_ArcL', 'arc_l',       True,  True,  False),
-        ('Pistol_Walk_ArcR', 'arc_r',       True,  True,  False),
-        ('Pistol_Run_Aimed', 'run_aim',     True,  True,  True),
-        ('Pistol_Run',       'run',         True,  True,  True),
-        ('Pistol_Kneel_Idle','kneel_idle',  False, False, False),
-        ('Shooting',         'shoot',       False, False, False),
-        ('Shooting_Gun',     'shoot_gun',   False, False, False),
-        ('Gunplay',          'gunplay',     False, False, False),
-        ('Cover_Fire',       'cover_fire',  False, False, False),
-        ('Cover_Peek',       'cover_peek',  False, False, False),
-        ('Cover_Idle_Stand', 'cover_stand', False, False, False),
-        ('Cover_Idle_Crouch','cover_crouch',False, False, False),
-        ('Hit_React',        'hit',         False, False, False),
-        ('Hit_React_L',      'hit_l',       False, False, False),
-        ('Death_Front',      'die_front',   False, False, False),
-        ('Death_Back',       'die_back',    False, False, False),
-        ('Turn_In_Place',    'turn',        False, False, False),
+        ('Pistol_Idle',          'idle',         False, False, False),
+        ('Pistol_Idle_Alert',    'idle_alert',   False, False, False),
+        ('Pistol_Aim',           'aim',          False, False, False),
+        ('Pistol_Walk',          'walk',         True,  True,  False),
+        ('Pistol_Walk_Back',     'walk_bwd',     True,  True,  False),
+        ('Pistol_Strafe_L',      'strafe_l',     True,  True,  False),
+        ('Pistol_Strafe_R',      'strafe_r',     True,  True,  False),
+        ('Pistol_Walk_ArcL',     'arc_l',        True,  True,  False),
+        ('Pistol_Walk_ArcR',     'arc_r',        True,  True,  False),
+        ('Pistol_Run_Aimed',     'run_aim',      True,  True,  True),
+        ('Pistol_Run',           'run',          True,  True,  True),
+        ('Pistol_Kneel_Idle',    'kneel_idle',   False, False, False),
+        ('Shooting',             'shoot',        False, False, False),
+        ('Shooting_Gun',         'shoot_gun',    False, False, False),
+        ('Gunplay',              'gunplay',      False, False, False),
+        ('Cover_Fire',           'cover_fire',   False, False, False),
+        ('Cover_To_Shooting',    'cover_shoot',  False, False, False),
+        ('Cover_Peek',           'cover_peek',   False, False, False),
+        ('Cover_Idle_Stand',     'cover_stand',  False, False, False),
+        ('Cover_Idle_Crouch',    'cover_crouch', False, False, False),
+        ('Hit_React',            'hit',          False, False, False),
+        ('Hit_React_L',          'hit_l',        False, False, False),
+        ('Death_Front',          'die_front',    False, False, False),
+        ('Death_Back',           'die_back',     False, False, False),
+        ('Dying_Headshot_Knees', 'die_headshot', False, False, False),
+        ('Turn_In_Place',        'turn',         False, False, False),
     ]
     for dst, sk, ip, fl, is_r in specs:
         a, m = retarget_clip(arm_y, R_S0, pos_S0, arm, R_T0, pos_T0, basis_T0, src_acts[sk], dst, sole, in_place=ip, foot_lock=fl, is_run=is_r)
         kept.append(a); metrics[dst] = m
 
-    # Additive Spine1+ recoil layers over locomotion (Neon spec: Shooting & Shooting_Gun slice)
+    # Authored 1.0x Spine1+ additive recoil layers over locomotion (Cherie ruling, Nov 24)
     for dst, base_k, fire_k, u0, u1, f_str, is_r in [
-        ('Pistol_Walk_Fire',      'walk',     'shoot',     1, 25, 1.35, False),
-        ('Pistol_Walk_Fire_SG',   'walk',     'shoot_gun', 15, 39, 0.85, False),
-        ('Pistol_Strafe_L_Fire',  'strafe_l', 'shoot',     1, 25, 1.35, False),
-        ('Pistol_Run_Aimed_Fire', 'run_aim',  'shoot',     1, 23, 1.35, True),
+        ('Pistol_Walk_Fire',      'walk',     'shoot',     1, 25, 1.0, False),
+        ('Pistol_Walk_Fire_SG',   'walk',     'shoot_gun', 15, 39, 1.0, False),
+        ('Pistol_Strafe_L_Fire',  'strafe_l', 'shoot',     1, 25, 1.0, False),
+        ('Pistol_Run_Aimed_Fire', 'run_aim',  'shoot',     1, 23, 1.0, True),
     ]:
         a, m = retarget_clip(
             arm_y, R_S0, pos_S0, arm, R_T0, pos_T0, basis_T0, src_acts[base_k], dst, sole,
@@ -1166,10 +1179,21 @@ def build_gunman(args):
     bpy.data.objects.remove(arm_y, do_unlink=True)
 
     # Attach sculpted pistol cleanly inside RightHand palm during Pistol_Aim frame 0 along forearm aim vector
-    pistol = build_pistol_mesh('GunmanPistol')
-    aim_act = [a for a in kept if a.name == 'Pistol_Aim'][0]
+    attach_seated_pistol(arm, body, kept, 'Pistol_Aim', 0, 'GunmanPistol')
+
+    curl_right_fingers(arm, kept)
+    out_glb = os.path.join(args.out_dir, 'gunman-mixamo.glb')
+    finalize_and_export(arm, kept, out_glb)
+    tris = len(body.data.polygons)
+    mats = len(body.data.materials)
+    return {'file': 'gunman-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': tris, 'mats': mats, 'clips': metrics}
+
+
+def attach_seated_pistol(arm, body, kept, clip_name='Pistol_Aim', frame_idx=0, mesh_name='CastPistol'):
+    pistol = build_pistol_mesh(mesh_name)
+    aim_act = [a for a in kept if a.name == clip_name][0]
     arm.animation_data.action = aim_act
-    bpy.context.scene.frame_set(0); bpy.context.view_layer.update()
+    bpy.context.scene.frame_set(int(frame_idx)); bpy.context.view_layer.update()
     rh_w = (arm.matrix_world @ arm.pose.bones['RightHand'].matrix).translation
     rm_w = (arm.matrix_world @ arm.pose.bones['RightHandMiddle1'].matrix).translation
     rf_w = (arm.matrix_world @ arm.pose.bones['RightForeArm'].matrix).translation
@@ -1179,14 +1203,145 @@ def build_gunman(args):
     pistol.rotation_mode = 'QUATERNION'
     pistol.rotation_quaternion = upright_barrel_quat(fwd_gun)
     bpy.context.view_layer.update()
-    skin_attach_exact(arm, body, pistol, 'RightHand', action_obj=aim_act, frame_idx=0)
+    skin_attach_exact(arm, body, pistol, 'RightHand', action_obj=aim_act, frame_idx=frame_idx)
 
+
+def setup_n2_rig(glb_path, target_height=1.80):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.context.scene.render.fps = 30
+    bpy.ops.import_scene.gltf(filepath=glb_path)
+    arm = bpy.data.objects['Reference']
+    body = bpy.data.objects['H_DDS_HighRes']
+
+    ico = bpy.data.objects.get('Icosphere')
+    if ico:
+        bpy.data.objects.remove(ico, do_unlink=True)
+    for a in list(bpy.data.actions):
+        bpy.data.actions.remove(a)
+    clear_pose(arm)
+
+    # Strip N2's unseated bind-pose PistolMat faces so a freshly RightHand-seated N2Pistol replaces it
+    pmat_idx = [i for i, m in enumerate(body.data.materials) if m and m.name == 'PistolMat']
+    if pmat_idx:
+        pi = pmat_idx[0]
+        bm = bmesh.new()
+        bm.from_mesh(body.data)
+        bm.faces.ensure_lookup_table()
+        del_faces = [f for f in bm.faces if f.material_index == pi]
+        if del_faces:
+            bmesh.ops.delete(bm, geom=del_faces, context='FACES')
+            loose_v = [v for v in bm.verts if not v.link_faces]
+            if loose_v:
+                bmesh.ops.delete(bm, geom=loose_v, context='VERTS')
+            bm.to_mesh(body.data)
+        bm.free()
+        old_pmat = body.data.materials[pi]
+        body.data.materials.pop(index=pi)
+        if old_pmat:
+            bpy.data.materials.remove(old_pmat)
+
+    # Scale cm-native N2 rig uniformly to target_height world meters with soles grounded at z=0
+    bpy.context.view_layer.update()
+    zs_raw = [v.co.z for v in body.data.vertices]
+    sc = target_height / (max(zs_raw) - min(zs_raw))
+    zmin_raw = min(zs_raw)
+    arm.scale = (sc, sc, sc)
+    arm.location = (0.0, 0.0, -zmin_raw * sc)
+    bpy.context.view_layer.update()
+    bpy.ops.object.select_all(action='DESELECT')
+    arm.select_set(True); body.select_set(True)
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.transform_apply(location=True, rotation=False, scale=True)
+    bpy.context.view_layer.update()
+
+    # Keep N2's native _Body & GearMat non-metallic & smooth-shaded
+    for mat in body.data.materials:
+        if mat and mat.use_nodes:
+            bsdf = mat.node_tree.nodes.get('Principled BSDF')
+            if bsdf:
+                bsdf.inputs['Metallic'].default_value = 0.0
+
+    dg = bpy.context.evaluated_depsgraph_get()
+    eval_b = body.evaluated_get(dg)
+    em = eval_b.to_mesh()
+    sole_info = {}
+    for side in ('Left', 'Right'):
+        fid = body.vertex_groups.find(f'{side}Foot')
+        tid = body.vertex_groups.find(f'{side}ToeBase')
+        fz = (arm.matrix_world @ arm.pose.bones[f'{side}Foot'].matrix).translation.z
+        tz = (arm.matrix_world @ arm.pose.bones[f'{side}ToeBase'].matrix).translation.z
+        f_vz = [(body.matrix_world @ v.co).z for v in em.vertices if any(g.group == fid and g.weight > 0.45 for g in v.groups)]
+        t_vz = [(body.matrix_world @ v.co).z for v in em.vertices if any(g.group == tid and g.weight > 0.45 for g in v.groups)]
+        sole_info[side] = {
+            'foot_off': max(0.02, fz - (min(f_vz) if f_vz else 0.0)),
+            'toe_off':  max(0.01, tz - (min(t_vz) if t_vz else 0.0)),
+        }
+    eval_b.to_mesh_clear()
+
+    R_T0, pos_T0, basis_T0 = record_rest_state(arm)
+    return arm, body, R_T0, pos_T0, basis_T0, sole_info
+
+
+def build_n2(args):
+    print('=== BUILDING N2 (valid-mocap.glb -> n2-mixamo.glb) ===')
+    arm, body, R_T0, pos_T0, basis_T0, sole = setup_n2_rig(args.n2_glb, 1.80)
+    restore_rest_state(arm, basis_T0)
+
+    arm_y, R_S0, pos_S0 = load_ybot_anchor(args.mixamo_dir)
+    kept, metrics = [], {}
+    src = {}
+    for key, fbx in [
+        ('idle',         'pistol-idle.fbx'),
+        ('idle_alert',   'pistol-idle-alert.fbx'),
+        ('aim',          'pistol-aim.fbx'),
+        ('walk',         'pistol-walk.fbx'),
+        ('run_aim',      'pistol-run-aimed.fbx'),
+        ('shoot',        'shooting.fbx'),
+        ('cover_fire',   'shooting-pistol.fbx'),
+        ('cover_shoot',  'cover-to-shooting.fbx'),
+        ('hit',          'hit-reaction.fbx'),
+        ('die_front',    'dying.fbx'),
+        ('die_back',     'dying-backwards.fbx'),
+        ('die_headshot', 'dying-headshot-knees.fbx'),
+    ]:
+        src[key] = import_mixamo_action(args.mixamo_dir, fbx)
+
+    for dst, sk, ip, fl, is_r in [
+        ('Pistol_Idle',          'idle',         False, False, False),
+        ('Pistol_Idle_Alert',    'idle_alert',   False, False, False),
+        ('Pistol_Aim',           'aim',          False, False, False),
+        ('Pistol_Walk',          'walk',         True,  True,  False),
+        ('Pistol_Run_Aimed',     'run_aim',      True,  True,  True),
+        ('Shooting',             'shoot',        False, False, False),
+        ('Cover_Fire',           'cover_fire',   False, False, False),
+        ('Cover_To_Shooting',    'cover_shoot',  False, False, False),
+        ('Hit_React',            'hit',          False, False, False),
+        ('Death_Front',          'die_front',    False, False, False),
+        ('Death_Back',           'die_back',     False, False, False),
+        ('Dying_Headshot_Knees', 'die_headshot', False, False, False),
+    ]:
+        a, m = retarget_clip(arm_y, R_S0, pos_S0, arm, R_T0, pos_T0, basis_T0, src[sk], dst, sole, in_place=ip, foot_lock=fl, is_run=is_r)
+        kept.append(a); metrics[dst] = m
+
+    # Authored 1.0x Spine1+ additive recoil layers over locomotion (Cherie ruling, Nov 24)
+    for dst, base_k, u0, u1, is_r in [
+        ('Pistol_Walk_Fire',      'walk',    1, 25, False),
+        ('Pistol_Run_Aimed_Fire', 'run_aim', 1, 23, True),
+    ]:
+        a, m = retarget_clip(
+            arm_y, R_S0, pos_S0, arm, R_T0, pos_T0, basis_T0, src[base_k], dst, sole,
+            in_place=True, foot_lock=True, is_run=is_r,
+            additive_fire=(src['shoot'], u0, u1), additive_strength=1.0
+        )
+        kept.append(a); metrics[dst] = m
+
+    bpy.data.objects.remove(arm_y, do_unlink=True)
+    attach_seated_pistol(arm, body, kept, 'Pistol_Aim', 0, 'N2Pistol')
     curl_right_fingers(arm, kept)
-    out_glb = os.path.join(args.out_dir, 'gunman-mixamo.glb')
+    out_glb = os.path.join(args.out_dir, 'n2-mixamo.glb')
     finalize_and_export(arm, kept, out_glb)
-    tris = len(body.data.polygons)
-    mats = len(body.data.materials)
-    return {'file': 'gunman-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': tris, 'mats': mats, 'clips': metrics}
+    return {'file': 'n2-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': len(body.data.polygons),
+            'mats': len(body.data.materials), 'clips': metrics}
 
 
 def build_maya(args):
@@ -1204,6 +1359,7 @@ def build_maya(args):
     kept, metrics, ik_stats = [], {}, {}
 
     src_wb = import_mixamo_action(args.mixamo_dir, 'wheelbarrow-walk.fbx')
+    src_pho = import_mixamo_action(args.mixamo_dir, 'pushing-heavy-object.fbx')
     src_ps = import_mixamo_action(args.mixamo_dir, 'push-start.fbx')
     src_pu = import_mixamo_action(args.mixamo_dir, 'pushing.fbx')
     src_px = import_mixamo_action(args.mixamo_dir, 'push-stop.fbx')
@@ -1214,10 +1370,10 @@ def build_maya(args):
     ik_wc = apply_maya_handle_ik(arm, R_T0, basis_T0, a_wc, handle_x=0.23, handle_y=-0.36, handle_z=0.985, grip_delta_z=0.125)
     kept.append(a_wc); metrics['Wheelchair_Push'] = m_wc; ik_stats['Wheelchair_Push'] = ik_wc
 
-    # Looping Bed Push extracted from push-start steady heavy push stride (f=45..135) + IK at bed bar height z=1.00m
-    a_bp, m_bp = retarget_clip(arm_y, R_S0, pos_S0, arm, R_T0, pos_T0, basis_T0, src_ps, 'Bed_Push_Loop', sole,
-                               in_place=True, foot_lock=True, frame_slice=(45, 135), loop_crossfade=10)
-    ik_bp = apply_maya_handle_ik(arm, R_T0, basis_T0, a_bp, handle_x=0.31, handle_y=-0.46, handle_z=1.00, grip_delta_z=None)
+    # Batch-2 real bed-push: Pushing A Heavy Object (replaces constructed Bed_Push_Loop slice) + bed bar IK (z=1.00m)
+    a_bp, m_bp = retarget_clip(arm_y, R_S0, pos_S0, arm, R_T0, pos_T0, basis_T0, src_pho, 'Bed_Push_Loop', sole,
+                               in_place=True, foot_lock=True, loop_crossfade=6)
+    ik_bp = apply_maya_handle_ik(arm, R_T0, basis_T0, a_bp, handle_x=0.31, handle_y=None, handle_z=1.00, grip_delta_z=None)
     kept.append(a_bp); metrics['Bed_Push_Loop'] = m_bp; ik_stats['Bed_Push_Loop'] = ik_bp
 
     a_ps, m_ps = retarget_clip(arm_y, R_S0, pos_S0, arm, R_T0, pos_T0, basis_T0, src_ps, 'Bed_Push_Start', sole, in_place=True, foot_lock=True)
@@ -1259,10 +1415,12 @@ def build_cole(args):
         ('sit_rub', 'sitting-rubbing-arm.fbx'),
         ('sit_dodge', 'sitting-dodges.fbx'),
         ('sit_disbelief', 'sitting-disbelief.fbx'),
+        ('sit_dis_fwd', 'sitting-disbelief-forward.fbx'),
         ('lay_breath', 'laying-breathless.fbx'),
         ('lay_sleep', 'laying-sleeping.fbx'),
         ('lay_moan', 'laying-moaning.fbx'),
         ('inj_walk', 'injured-walking.fbx'),
+        ('walk_arm_inj', 'walking-arm-injury.fbx'),
         ('sit_to_stand', 'sit-to-stand.fbx'),
         ('stand_to_sit', 'stand-to-sit.fbx'),
         ('shoot', 'shooting.fbx'),
@@ -1270,21 +1428,23 @@ def build_cole(args):
         src[k] = import_mixamo_action(args.mixamo_dir, fbx)
 
     for dst, sk, ip, fl in [
-        ('Sit_Idle_Breath', 'sit_breath',   False, False),
-        ('Sit_Idle_Thighs', 'sit_thighs',   False, False),
-        ('Sit_Idle_Still',  'sit_still',    False, False),
-        ('Sit_Aim_Pistol',  'sit_aim',      False, False),
-        ('Sit_Lower_Pistol','sit_lower',    False, False),
-        ('Sit_Gun_Motion',  'sit_motion',   False, False),
-        ('Sit_Rub_Arm',     'sit_rub',      False, False),
-        ('Sit_Dodge',       'sit_dodge',    False, False),
-        ('Sit_Disbelief',   'sit_disbelief',False, False),
-        ('Lay_Breathless',  'lay_breath',   False, False),
-        ('Lay_Sleeping',    'lay_sleep',    False, False),
-        ('Lay_Moaning',     'lay_moan',     False, False),
-        ('Injured_Walk',    'inj_walk',     True,  True),
-        ('Sit_To_Stand',    'sit_to_stand', False, False),
-        ('Stand_To_Sit',    'stand_to_sit', False, False),
+        ('Sit_Idle_Breath',       'sit_breath',   False, False),
+        ('Sit_Idle_Thighs',       'sit_thighs',   False, False),
+        ('Sit_Idle_Still',        'sit_still',    False, False),
+        ('Sit_Aim_Pistol',        'sit_aim',      False, False),
+        ('Sit_Lower_Pistol',      'sit_lower',    False, False),
+        ('Sit_Gun_Motion',        'sit_motion',   False, False),
+        ('Sit_Rub_Arm',           'sit_rub',      False, False),
+        ('Sit_Dodge',             'sit_dodge',    False, False),
+        ('Sit_Disbelief',         'sit_disbelief',False, False),
+        ('Sit_Disbelief_Forward', 'sit_dis_fwd',  False, False),
+        ('Lay_Breathless',        'lay_breath',   False, False),
+        ('Lay_Sleeping',          'lay_sleep',    False, False),
+        ('Lay_Moaning',           'lay_moan',     False, False),
+        ('Injured_Walk',          'inj_walk',     True,  True),
+        ('Walking_Arm_Injury',    'walk_arm_inj', True,  True),
+        ('Sit_To_Stand',          'sit_to_stand', False, False),
+        ('Stand_To_Sit',          'stand_to_sit', False, False),
     ]:
         a, m = retarget_clip(arm_y, R_S0, pos_S0, arm, R_T0, pos_T0, basis_T0, src[sk], dst, sole, in_place=ip, foot_lock=fl)
         kept.append(a); metrics[dst] = m
@@ -1296,10 +1456,10 @@ def build_cole(args):
     )
     kept.append(a_sf); metrics['Sit_Aim_Fire'] = m_sf
 
-    # Measure Cole's seated crown height (above ankle/seat-frame baseline) in Sit_Aim_Fire, Sit_Aim_Pistol & Sit_Idle_Breath
+    # Measure Cole's seated crown height (above ankle/seat-frame baseline)
     crown_stats = {}
     dg = bpy.context.evaluated_depsgraph_get()
-    for cname in ('Sit_Aim_Fire', 'Sit_Aim_Pistol', 'Sit_Idle_Breath'):
+    for cname in ('Sit_Aim_Fire', 'Sit_Aim_Pistol', 'Sit_Idle_Breath', 'Sit_Disbelief_Forward'):
         act_c = [a for a in kept if a.name.startswith(cname)][0]
         arm.animation_data.action = act_c
         bpy.context.scene.frame_set(10); bpy.context.view_layer.update()
@@ -1345,7 +1505,8 @@ def main():
     res_gun = build_gunman(args)
     res_maya = build_maya(args)
     res_cole = build_cole(args)
-    manifest = {'gunman': res_gun, 'maya': res_maya, 'cole': res_cole}
+    res_n2   = build_n2(args)
+    manifest = {'gunman': res_gun, 'maya': res_maya, 'cole': res_cole, 'n2': res_n2}
     mpath = os.path.join(args.out_dir, 'cast-pass-manifest.json')
     with open(mpath, 'w') as f:
         json.dump(manifest, f, indent=2)
