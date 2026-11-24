@@ -61,4 +61,9 @@ corrupts raw binary files. See README.md for decode instructions and the license
 | pistol-idle-alert.fbx | Ready Alert Two Hand Pistol Grip (product IDs c9cdb599-… / c9c6b74c-… — both truncated in Neon's source list, which listed this clip twice under two names; single tile in the catalog) | Gunman | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none | 576496 | `8a4cc510f0aa8dafa2a84191490f74dd4bc84609aa473adac59c0f78c5a5acf6` | pistol-idle-alert.fbx.gz.b64 |
 | sitting-disbelief-forward.fbx | Sitting In Disbelief With Head Forward (product ID c9cb93af-… — truncated in Neon's source list; mapped by position in the Sitting row) | Cole | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none | 671184 | `b2d92bbef1f49e968173f5deea4cdd25f03f8d8de9c15e84460893fa7a6fde75` | sitting-disbelief-forward.fbx.gz.b64 |
 
-Totals: 54 files (48 batch 1 + 6 batch 2, both downloaded 2026-11-24), complete set — nothing pending.
+| typing.fbx | Sitting At A Computer And Typing | Staff | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none | 1605424 | `a6e37cc86a0a27755b40977a831306712e1ce446b784323118c27fc709ae64f8` | typing.fbx.gz.b64 |
+| talking-on-phone.fbx | Female Standing Talking On Phone | Staff | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none | 3305952 | `75475ef6fdbfef14ed1efb9b34eb51d6f1bd762fb26e7ca12a7f92d5bb2650d9` | talking-on-phone.fbx.gz.b64 |
+| sitting-talking.fbx | Sitting And Talking To Another Person | Staff | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none | 3775136 | `b680eaac69a63ce70569f3caaeb7b62ffe957beb63c5df91d795c3e66957eb15` | sitting-talking.fbx.gz.b64 |
+| talking-seated.fbx | Male Talking While Seated | Staff | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none | 575840 | `49f9ca14d491164a8b03cf8051c37f5ebc84086dc5c469e274a1108ef89a3642` | talking-seated.fbx.gz.b64 |
+
+Totals: 58 files (48 batch 1 + 6 batch 2 + 4 staff-life, all downloaded 2026-11-24), complete set — nothing pending.
