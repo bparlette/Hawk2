@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Hospital Escape · Hallway Bake-Off — All Three Entrants</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #050708; color: #e2eef2; font-family: system-ui, -apple-system, sans-serif; }
+  body { display: flex; flex-direction: column; height: 100dvh; }
+  header { padding: 8px 10px 6px; background: #0a1218; border-bottom: 1px solid rgba(110,190,210,.25); }
+  h1 { font-size: 15px; letter-spacing: .04em; margin-bottom: 6px; }
+  h1 span { color: #7ee0f0; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+  .lbl { font-size: 11px; color: #8fb4c0; width: 52px; letter-spacing: .08em; }
+  button { flex: 1 1 0; min-height: 46px; padding: 8px 4px; border-radius: 9px; border: 1px solid rgba(110,190,210,.35);
+           background: rgba(8,16,22,.9); color: #cde6ee; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button.active { background: #1e6274; color: #fff; border-color: #7ee0f0; }
+  button:disabled { opacity: .35; cursor: default; }
+  #takename { font-size: 12.5px; color: #ffd98a; min-height: 16px; margin: 1px 0 3px 58px; }
+  #note { font-size: 11.5px; line-height: 1.45; color: #a9c6cf; margin-left: 58px; }
+  #note a { color: #7ee0f0; }
+  #framewrap { flex: 1; position: relative; background: #000; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+  #openrow { padding: 6px 10px; background: #0a1218; border-top: 1px solid rgba(110,190,210,.25); font-size: 12.5px; }
+  #openrow a { color: #7ee0f0; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>HOSPITAL ESCAPE · <span>HALLWAY BAKE-OFF</span></h1>
+  <div class="row"><span class="lbl">ENTRANT</span>
+    <button id="e-moth">MOTH</button>
+    <button id="e-neon">NEON</button>
+    <button id="e-opus">OPUS</button>
+  </div>
+  <div class="row"><span class="lbl">TAKE</span>
+    <button data-take="1">1</button>
+    <button data-take="2">2</button>
+    <button data-take="3">3</button>
+    <button data-take="4">4</button>
+    <button data-take="5">5</button>
+  </div>
+  <div id="takename"></div>
+  <div id="note"></div>
+</header>
+<div id="framewrap"><iframe id="stage" title="Hallway take viewer" allow="fullscreen"></iframe></div>
+<div id="openrow">Viewing: <span id="cur"></span> · <a id="openlink" href="#" target="_blank" rel="noopener">open this take full-page ↗</a></div>
+<script>
+  var BASE = {
+    moth: '../hospital-escape-hallway-moth/',
+    neon: '../hospital-escape-hallway-neon/',
+    opus: '../hospital-escape-hallway-opus/'
+  };
+  var NAMES = {
+    moth: ['Photoreal PBR', 'Baked Light', 'Painted Push', 'Kit-Bash Density', 'Cinematography'],
+    neon: ['CC0 PBR', 'Cycles Baked', 'Painted Push', 'Kit-Bash+Area', 'Cinema Mirror'],
+    opus: ['Photoreal PBR', 'Baked GI', 'Painted Push', 'Kit-Bash Density', 'Cinematography']
+  };
+  var NOTES = {
+    moth: 'Moth\u2019s page has no per-take web address, so the TAKE buttons above can\u2019t switch his takes from out here \u2014 use the <b>TAKE 1\u20135 row inside the frame</b>. His cameras (DOLLY / ENTRANCE / STATION / FAR END) are inside the frame too. Stage: the gauntlet, Corridor A\u2192B.',
+    neon: 'Neon\u2019s takes switch with the TAKE buttons above. Her viewpoints (VP1 / VP2 / VP3 / DOLLY) are the pill row <b>inside the frame</b>. Stage: West Wing B (the bed-push corridor) \u2014 a different stage from Moth\u2019s.',
+    opus: 'Opus built five separate take pages but <b>no entry page of his own</b> \u2014 his folder link on its own is a dead end (404), which is why this hub exists. The TAKE buttons above load each of his pages. His cameras live in a judging rig with <b>no on-page buttons</b>, so what you see is each page\u2019s default view. His finished entry is still owed.'
+  };
+  var entrant = 'moth', take = 1;
+  var frame = document.getElementById('stage');
+  var takeBtns = Array.prototype.slice.call(document.querySelectorAll('[data-take]'));
+
+  function urlFor(){
+    if(entrant === 'neon') return BASE.neon + '?take=' + take;
+    if(entrant === 'opus') return BASE.opus + 'take' + take + '/';
+    return BASE.moth;
+  }
+  function render(){
+    ['moth','neon','opus'].forEach(function(e){
+      document.getElementById('e-' + e).classList.toggle('active', e === entrant);
+    });
+    takeBtns.forEach(function(b){
+      var n = parseInt(b.getAttribute('data-take'), 10);
+      b.classList.toggle('active', n === take);
+      b.disabled = (entrant === 'moth');
+    });
+    document.getElementById('takename').textContent =
+      entrant.toUpperCase() + ' · TAKE ' + take + ' — ' + NAMES[entrant][take - 1];
+    document.getElementById('note').innerHTML = NOTES[entrant];
+    var u = urlFor();
+    if(frame.getAttribute('src') !== u) frame.setAttribute('src', u);
+    document.getElementById('cur').textContent = entrant.toUpperCase() + ' take ' + take;
+    document.getElementById('openlink').href = u;
+  }
+  ['moth','neon','opus'].forEach(function(e){
+    document.getElementById('e-' + e).onclick = function(){ entrant = e; render(); };
+  });
+  takeBtns.forEach(function(b){
+    b.onclick = function(){ take = parseInt(b.getAttribute('data-take'), 10); render(); };
+  });
+  render();
+</script>
+</body>
+</html>
