@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<base href="../hospital-escape-hallway-neon/">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Hospital Escape · WEST WING B + N2 — Neon Take 4 (Kit-Bash+Area)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: #050708; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; color: #e2eef2; }
+  body { display: flex; align-items: center; justify-content: center; }
+  #viewport { position: relative; width: 390px; height: 844px; max-width: 100vw; max-height: 100vh; overflow: hidden; background: #000; box-shadow: 0 12px 48px rgba(0,0,0,0.75); }
+  #c { width: 100%; height: 100%; display: block; }
+  #hud { position: absolute; left: 8px; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; z-index: 10; }
+  body.clean #hud { display: none !important; }
+  .row { display: flex; flex-wrap: wrap; gap: 4px; pointer-events: auto; }
+  #take-row { display: none; }   /* this copy is Take 4 only */
+  .pill { border: 1px solid rgba(110,190,210,0.35); background: rgba(8,16,22,0.78); color: #cde6ee; font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer; backdrop-filter: blur(6px); }
+  .pill.active { background: #1e6274; color: #fff; border-color: #7ee0f0; font-weight: 600; }
+  #meta { font-size: 10px; background: rgba(8,16,22,0.78); padding: 4px 7px; border-radius: 5px; border: 1px solid rgba(110,190,210,0.22); line-height: 1.35; }
+</style>
+</head>
+<body>
+<div id="viewport">
+  <canvas id="c" width="390" height="844"></canvas>
+  <div id="hud">
+    <div class="row" id="take-row"></div>
+    <div class="row" id="vp-row"></div>
+    <div id="meta">Loading WEST WING B + N2...</div>
+  </div>
+</div>
+<!-- N2 INTEGRATION (Nov 24): the scene files are Neon's ORIGINALS, served from their own
+     folder via the <base> above — corridor-data.js, take4-kitbash.js and assets/ are not
+     copied or modified. Only the rig is this folder's copy (two hook lines: __N2_FRAME
+     tick + ctx exposure), plus n2-figure.js. N2 patrols the corridor: walk-aim-fire. -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script>
+  (function(){
+    var q = new URLSearchParams(location.search);
+    var t = parseInt(q.get('take') || '4', 10) || 4;
+    if(q.get('clean') === '1') document.body.classList.add('clean');
+    window.__HALLWAY_QUERY = {
+      take: 4,
+      vp: q.get('vp') || 'vp1',
+      clean: q.get('clean') === '1',
+      time: q.has('t') ? parseFloat(q.get('t')) : null
+    };
+  })();
+</script>
+<script src="corridor-data.js"></script>
+<script src="take4-kitbash.js"></script>
+<script src="../hospital-escape-hallway-t4-n2/hallway-rig.js"></script>
+<script>
+  window.__N2_CONFIG = {
+    glbN2: '../hospital-escape-3d-sample-neon/assets/gunmen/valid-mocap.glb',
+    glbMx: '../hospital-escape-3d-sample-opus/mixamo/mx-gunman.glb',
+    x: 12.15, zA: -19.5, zB: -36.0,
+    parent: function(){ var r = window.__hallwayRig; return r && r.ctx ? r.ctx.scene : null; }
+  };
+  window.__N2_FRAME = function(dt){ if(window.__N2 && __N2.update) __N2.update(dt); };
+</script>
+<script src="../hospital-escape-hallway-t4-n2/n2-figure.js"></script>
+</body>
+</html>
