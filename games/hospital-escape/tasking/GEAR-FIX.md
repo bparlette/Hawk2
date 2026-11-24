@@ -89,3 +89,13 @@ grip, support hand forward on an angled foregrip under the handguard
   local testing, never in a shipped build — flag it if it is not clean).
 - Proof: 2x stills of both holds in the fire beats, before/after against
   the batch-2 grip shots, at 390x844.
+
+## Addendum 4 — second approved pattern (Cherie, Nov 24 16:06)
+
+Cherie sent a second reference with an "Or": a compact SMG/PDW (Grand
+Power Stribog pattern — short barrel, long curved magazine, support hand
+on the short handguard). File: `long-gun-reference-2.jpg.b64` beside this
+one. BOTH patterns are Cherie-approved. Fit decides: his clips hold the
+support hand close, so the compact SMG's hold spacing likely matches the
+measured hand positions better — build/seat whichever pattern fits the
+two holds without moving his hands, and say which you picked and why.
