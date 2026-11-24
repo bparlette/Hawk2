@@ -50,9 +50,9 @@ corrupts raw binary files. See README.md for decode instructions and the license
 | sit-to-stand.fbx | Sit To Stand | Cole | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none, In Place unchecked (root motion on) | 518176 | `526f38a6a7ca6436fcd43206fbb3700c6e66b8a9958a023f61b430221bc00e9c` | sit-to-stand.fbx.gz.b64 |
 | stand-to-sit.fbx | Stand To Sit | Cole | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none, In Place unchecked (root motion on) | 511984 | `d7caec521e918a0fed8c9895d92164a45d153e06c3fb2ab26ce30f48e58090ae` | stand-to-sit.fbx.gz.b64 |
 | pushing.fbx | Pushing An Object Forward | Maya | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none, In Place unchecked (root motion on) | 668112 | `be2c27f74d57a55c2826f8fda8edb7cf89729b25a8701ce75ffdc57c9c962bbc` | pushing.fbx.gz.b64 |
+| push-start.fbx | Start To Push A Heavy Object | Maya | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none | 647312 | `68f4ea6283174f96f9e66cf7077ac751035366d1d0ea02b6f8eba3a3ad1078b4` | push-start.fbx.gz.b64 |
 | push-stop.fbx | Stop Pushing A Heavy Object | Maya | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none | 527904 | `b1b4abf6d9118f9c0e66895916d80aa9a279966349ad13395621abe460b3f964` | push-stop.fbx.gz.b64 |
 | wheelbarrow-walk.fbx | Walking With A Full Wheelbarrow | Maya | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none, In Place unchecked (root motion on) | 339440 | `703cc3c893a3a9cac3502da62c204f1b315bf303fec124ef616b421c01339039` | wheelbarrow-walk.fbx.gz.b64 |
 | walking-feminine.fbx | Walking (Feminine Walk Forward) | Maya | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none, In Place unchecked (root motion on) | 370752 | `2af2e767d20fa9882af2eac82d0dd13beaca702fc68b6873eb1e4f5b4785ecca` | walking-feminine.fbx.gz.b64 |
-| push-start.fbx | Start To Push A Heavy Object | Maya | FBX Binary, 30 fps, Without Skin, Keyframe Reduction none | — | — | push-start.fbx.gz.b64 — **PENDING** (re-download in flight) |
 
-Totals: 47 files present, 1 pending (push-start.fbx).
+Totals: 48 files, complete set — nothing pending.
