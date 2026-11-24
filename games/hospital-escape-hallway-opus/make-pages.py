@@ -4,7 +4,7 @@ import os, re
 HERE = os.path.dirname(os.path.abspath(__file__)); GAMES = os.path.dirname(HERE)
 live = open(os.path.join(GAMES, 'hospital-escape', 'index.html')).read()
 TAKES = {1: 'Photoreal PBR', 2: 'Baked GI', 3: 'Painted push', 4: 'Kit-bash density', 5: 'Cinematography'}
-EXTRA = {2: '<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>\n', 5: '<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/objects/Reflector.js"></script>\n'}
+EXTRA = {4: '<script src="../hospital-escape-hallway-opus/take1.js"></script>\n', 5: '<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/objects/Reflector.js"></script>\n<script src="../hospital-escape-hallway-opus/take1.js"></script>\n'}
 for n, name in TAKES.items():
     page = live.replace('<head>', '<head><base href="../../hospital-escape/">', 1)
     page = re.sub(r'<title>[^<]*</title>', '<title>Hallway %s</title>' % name, page, count=1)
