@@ -17,8 +17,15 @@
    (VALID designs, cross-folder from games/hospital-escape-3d-sample-opus/valid/),
    slot 11 = his N2+ (CMU 35_02 foot-locked retarget parsed at load — withLoaders also
    pulls BVHLoader.js from the same pinned CDN; flagged, not hidden), slot 12 = his
-   Ex1+ spec reskin of gold 1. Thirteen walk the loop now; the finalists, their pacing
-   and the ORIG / IMPROVED toggle are unchanged. */
+   Ex1+ spec reskin of gold 1.
+   C RESTORATION (Nov 24, Cherie: "Also add the original C-technique five"): slots 13-16
+   restore Opus's ORIGINAL bake-off entries C1-C4, recovered from opus-cast.js + ex-extra.js
+   at commit 52cb2007 — the state before 93b1ca96 replaced them on his entry pages with the
+   VALID five above (the two module files were never deleted; byte-identical on main).
+   C1 = his Ex1 v6, C2 = his Ex2 v4 (CMU mocap on C), C3 = his Ex3 v2 (shape row),
+   C4 = his Ex4 v2 (combat locomotion). His Ex5 (the combination figure) is NOT restored:
+   Cherie's verdict — Ex5 stays out. Seventeen walk the loop now; the finalists, their
+   pacing and the ORIG / IMPROVED toggle are unchanged. */
 (function(){
 'use strict';
 window.__WALKOFF_ERRORS = [];
@@ -358,8 +365,8 @@ function neonImprove(fig, norm){
 }
 
 // ------------------------------------------------------------------ figures
-var movers = [null, null, null, null, null, null, null, null, null, null, null, null, null];   // 0 = Ex1 (gold '1'), 1-5 = Neon N1-N5, 6-10 = OPUS Ex1-Ex5, 11 = OPUS N2+, 12 = OPUS Ex1+
-var MODE_INDEX = { '1': 0, 'n1': 1, 'n2': 2, 'n3': 3, 'n4': 4, 'n5': 5, 'o1': 6, 'o2': 7, 'o3': 8, 'o4': 9, 'o5': 10, 'n2p': 11, 'e1p': 12 };
+var movers = [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null];   // 0 = Ex1 (gold '1'), 1-5 = Neon N1-N5, 6-10 = OPUS Ex1-Ex5, 11 = OPUS N2+, 12 = OPUS Ex1+, 13-16 = OPUS C1-C4 (restored originals)
+var MODE_INDEX = { '1': 0, 'n1': 1, 'n2': 2, 'n3': 3, 'n4': 4, 'n5': 5, 'o1': 6, 'o2': 7, 'o3': 8, 'o4': 9, 'o5': 10, 'n2p': 11, 'e1p': 12, 'c1': 13, 'c2': 14, 'c3': 15, 'c4': 16 };
 function makeMover(fig, height, walkActionClip, authored, label, gold, slot){
   var wrap = new THREE.Group(); wrap.scale.setScalar(TARGET_H / height); wrap.add(fig);
   addBlob(wrap);
@@ -372,7 +379,7 @@ function makeMover(fig, height, walkActionClip, authored, label, gold, slot){
   var m = { group: group, mixer: mixer, s: slot * PATH.length / movers.length, yaw: 0, label: label, tag: tag };
   movers[slot] = m; return m;
 }
-var pending = 1 + NEON_MODES.length + 5 + 2, failed = [];   // +5 OPUS VALID designs, +1 OPUS N2+ (oneDone inside OPUS_N2P), +1 OPUS Ex1+ (counted in the gunman parse callback)
+var pending = 1 + NEON_MODES.length + 5 + 2 + 4, failed = [];   // +5 OPUS VALID designs, +1 OPUS N2+ (oneDone inside OPUS_N2P), +1 OPUS Ex1+ (counted in the gunman parse callback), +4 OPUS C1-C4 (C1/C3/C4 in the gunman parse callback, C2 in its own async retarget)
 function oneDone(){
   if(--pending > 0) return;
   document.getElementById('load').style.display = 'none';
@@ -405,16 +412,24 @@ function buildNeon(mode, slot, gltf){
   if(mode.key === 'valid-mocap') OPUS_N2P(mode, gltf);   // OPUS N2+ reuses this loaded body; its own oneDone() accounts for slot 11
   oneDone();
 }
+var _gunmanResolve = null;
+var gunmanPromise = new Promise(function(res){ _gunmanResolve = res; });   // C2's retarget needs the parsed gunman; resolved in the parse callback below
 withLoaders(function(){
   if(!THREE.GLTFLoader || !THREE.SkeletonUtils){ window.__WALKOFF_ERRORS.push('GLTFLoader/SkeletonUtils unavailable'); return; }
   var loader = new THREE.GLTFLoader();
   chunkBytes('__GUNMAN_GZ_B64').then(function(buf){
-    if(!buf){ window.__WALKOFF_ERRORS.push('gunman chunks failed to decode'); failed.push('ex1'); failed.push('e1p'); oneDone(); oneDone(); return; }
-    loader.parse(buf, '', function(g){ buildEx1(g); oneDone();
+    if(!buf){ window.__WALKOFF_ERRORS.push('gunman chunks failed to decode'); failed.push('ex1'); failed.push('e1p'); failed.push('c1'); failed.push('c3'); failed.push('c4'); oneDone(); oneDone(); oneDone(); oneDone(); oneDone(); _gunmanResolve(null); return; }
+    loader.parse(buf, '', function(g){ _gunmanResolve(g); buildEx1(g); oneDone();
         try { buildEx1Plus(g, clipLookup(g.animations)); } catch(e){ window.__WALKOFF_ERRORS.push('opus e1p: ' + e); failed.push('e1p'); }
+        oneDone();
+        try { buildC1(g); } catch(e){ window.__WALKOFF_ERRORS.push('opus c1: ' + e); failed.push('c1'); }
+        oneDone();
+        try { buildC3(g); } catch(e){ window.__WALKOFF_ERRORS.push('opus c3: ' + e); failed.push('c3'); }
+        oneDone();
+        try { buildC4(g); } catch(e){ window.__WALKOFF_ERRORS.push('opus c4: ' + e); failed.push('c4'); }
         oneDone(); },
-      function(e){ window.__WALKOFF_ERRORS.push('gunman parse: ' + e); failed.push('ex1'); failed.push('e1p'); oneDone(); oneDone(); });
-  }).catch(function(e){ window.__WALKOFF_ERRORS.push('gunman load: ' + e); failed.push('ex1'); failed.push('e1p'); oneDone(); oneDone(); });
+      function(e){ window.__WALKOFF_ERRORS.push('gunman parse: ' + e); failed.push('ex1'); failed.push('e1p'); failed.push('c1'); failed.push('c3'); failed.push('c4'); oneDone(); oneDone(); oneDone(); oneDone(); oneDone(); _gunmanResolve(null); });
+  }).catch(function(e){ window.__WALKOFF_ERRORS.push('gunman load: ' + e); failed.push('ex1'); failed.push('e1p'); failed.push('c1'); failed.push('c3'); failed.push('c4'); oneDone(); oneDone(); oneDone(); oneDone(); oneDone(); _gunmanResolve(null); });
   NEON_MODES.forEach(function(mode, i){
     loader.load(NEON_BASE + mode.key + '.glb', function(g){ buildNeon(mode, i + 1, g); },
       undefined, function(err){ window.__WALKOFF_ERRORS.push(mode.key + ' load: ' + (err && err.message || err)); failed.push(mode.key); oneDone(); if(mode.key === 'valid-mocap'){ failed.push('n2p'); oneDone(); } });
@@ -693,6 +708,184 @@ function buildOpusValid(D, gn, slot){
     oneDone();
   }).catch(function(e){ window.__WALKOFF_ERRORS.push('opus ex' + gn + ': ' + e); failed.push('opus-ex' + gn); oneDone(); }); }
 withLoaders(function(){ OPUS_VALID_DESIGNS.forEach(function(D, i){ buildOpusValid(D, i + 1, 6 + i); }); });   // deferred: the loader scripts may still be in flight when this block is parsed
+
+
+// ================================================================== OPUS C RESTORATION (Nov 24)
+// Opus's ORIGINAL bake-off entries, recovered from games/hospital-escape-3d-sample-opus/
+// opus-cast.js + ex-extra.js at commit 52cb2007 — the last state before 93b1ca96 replaced
+// them on his entry pages with the VALID five (slots 6-10 above). The two files were never
+// deleted (byte-identical on main today); only his pages stopped loading them. The ports
+// follow the VALID port's pattern above: engine/greybox hooks dropped, the figures walk
+// this plaza's loop at PATH_SPEED, C4 aims at the follow camera. Final versions, per his
+// make-pages.py version table (Ex1 v6, Ex2 v4, Ex3 v2, Ex4 v2):
+//   slot 13  C1 = Ex1 v6 — BUILD.c { merge, lamp, rulesGunman }, full-body C Walk @ 1.30
+//   slot 14  C2 = Ex2 v4 — CMU 35_02 mocap rest-delta retarget onto C (foot-locked IK,
+//            sway 1), pace = retarget root speed x (1.77/1.81): his prep's own v4 choice
+//   slot 15  C3 = Ex3 v2 — BUILD.c + his shape row (stocky, 1.82 m), C Walk @ 1.30
+//   slot 16  C4 = Ex4 v2 — combat locomotion: C Walk legs + Idle_Gun_Pointing aim layer,
+//            spine twist via ovTwistBone (the fixed world-yaw of 03897b05; the original's
+//            rotateOnWorldAxis is the bug that fix removed — not reintroduced here)
+//   NOT restored: Ex5, the combination figure — Cherie's verdict: Ex5 stays out.
+//   Also omitted, deliberately: his addProxies() hit capsules — invisible raycast proxies
+//   for the game's combat; nothing visible. Everything you can see is restored.
+var OPUS_MOCAP_URL = '../hospital-escape-3d-sample-opus/mocap/35_02.bvh';
+var C_LOWER = /^(Root|Body|Hips|UpperLeg|LowerLeg|Foot|PT)/;
+function cCloneSkinned(src){ var c = src.clone(true), byName = {}; c.traverse(function(o){ if(o.isBone) byName[o.name] = o; });
+  c.traverse(function(o){ if(o.isSkinnedMesh){ var sk = o.skeleton, bones = sk.bones.map(function(b){ return byName[b.name]; });
+    o.bind(new THREE.Skeleton(bones, sk.boneInverses.map(function(m){ return m.clone(); })), o.bindMatrix.clone()); o.material = o.material.clone(); } });
+  return c; }
+// his O.rulesShape, verbatim but for the V3 alias: parametric re-proportioning layered over the colour rules
+function cRulesShape(P, colour){ colour = colour || rulesGunman; return function(v){ var rc = colour(v) || {}, B = v.bones, push = rc.push || 0, sh = null, x = v.p.x;
+  var torso = /^(Abdomen|Torso|Chest|Body|Hips)$/.test(v.bone), arm = /^(Shoulder|UpperArm)/.test(v.bone), skinPart = /Body|Legs/.test(v.part);
+  if(skinPart && torso && v.p.y > B.Hips.y){ push += P.girth || 0; if(P.belly && v.n.z > 0.3 && v.p.y < B.Chest.y) push += P.belly * v.n.z; }
+  if(skinPart && (arm || (v.bone === 'Chest' && Math.abs(x) > 0.12))){ push += P.shoulders || 0; var side = x > 0 ? 1 : -1; sh = new V3(side * (P.shoulderWidth || 0), 0, 0); }
+  if(skinPart && v.bone === 'Neck') push += P.neck || 0;
+  if(skinPart && /^LowerArm/.test(v.bone)) push += P.forearm || 0;
+  if(skinPart && /^UpperLeg/.test(v.bone)) push += P.thigh || 0;
+  rc.push = push; if(sh) rc.shift = sh; return rc; }; }
+// his lampMat / lampTerms, verbatim but for names + this page's camera (no HEPAINT here:
+// the lamp sum stays 0 and only the ambient term lands — same fallback the VALID figures get)
+function cLampMat(mat){ var U = { lampDir: { value: new V3(0, 1, 0) }, lampKey: { value: 0 }, lampAmb: { value: 0 }, lampBack: { value: 0 }, rimCol: { value: new THREE.Color(0.32, 0.36, 0.4) } };
+  mat.onBeforeCompile = function(sh){ Object.keys(U).forEach(function(k){ sh.uniforms[k] = U[k]; });
+    sh.fragmentShader = 'uniform vec3 lampDir; uniform float lampKey, lampAmb, lampBack; uniform vec3 rimCol;\n' + sh.fragmentShader.replace('#include <lights_fragment_end>',
+      '#include <lights_fragment_end>\n float lk = max(dot(normal, lampDir), 0.0); reflectedLight.directDiffuse += diffuseColor.rgb * lampKey * lk;\n' +
+      ' reflectedLight.indirectDiffuse += diffuseColor.rgb * lampAmb;\n float fr = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);\n' +
+      ' reflectedLight.directDiffuse += rimCol * pow(fr, 3.0) * (0.25 + lampBack) * (0.4 + lampKey);'); };
+  mat.customProgramCacheKey = function(){ return 'opusLampC'; }; mat.userData.lamp = U; return mat; }
+var _cLd = new V3(), _cTc = new V3();
+function cLampTerms(fig){ var U = fig.lampU; if(!U) return; var L = (window.HEPAINT && window.HEPAINT.lights) || [], p = fig.root.getWorldPosition(_cTc.set(0, 0, 0)), indoor = !(window.HEPAINT && window.HEPAINT.indoor === false);
+  var sum = 0, dx = 0, dy = 0, dz = 0; if(indoor) for(var i = 0; i < L.length; i++){ var l = L[i], ex = l.x - p.x, ez = l.z - p.z, ey = l.y - p.y; if(ey < 0 || ey > 4.5) continue; var d2 = ex * ex + ez * ez; if(d2 > 81) continue;
+    var k = 1 / (1 + d2 / 4.0); sum += k; dx += ex * k; dy += ey * k; dz += ez * k; }
+  if(!indoor){ sum = 0.6; dx = -0.4; dy = 1; dz = 0.3; }
+  _cLd.set(dx, dy, dz); if(_cLd.lengthSq() < 1e-6) _cLd.set(0, 1, 0); _cLd.normalize(); var back = Math.max(0, -_cLd.dot(_cTc.copy(camera.position).sub(p).setY(0).normalize()));
+  _cLd.transformDirection(camera.matrixWorldInverse); U.lampDir.value.copy(_cLd); U.lampKey.value = 0.55 * Math.min(1.4, sum); U.lampAmb.value = 0.18 + 0.12 * Math.min(1.4, sum); U.lampBack.value = back; }
+// his BUILD.c, verbatim but for the gunman source (the parsed chunks in game/, same asset his pages loaded)
+function cBuild(g, opt){ var model = cCloneSkinned(g.scene), wrap = new THREE.Group(); wrap.name = 'opusFig'; model.scale.setScalar((opt.height || 1.77) / 1.81); wrap.add(model);
+  var fig = { root: wrap, model: model, mixer: new THREE.AnimationMixer(model), actions: {}, lampU: null };
+  var clipMap = opt.clips || clipLookup(g.animations);
+  Object.keys(clipMap).forEach(function(n){ if(clipMap[n]) fig.actions[n] = fig.mixer.clipAction(clipMap[n]); });
+  if(opt.merge) mergeSkinned(model, opt.rules || null);
+  if(opt.lamp){ model.traverse(function(o){ if(o.isSkinnedMesh){ o.material = cLampMat(o.material.clone ? o.material.clone() : o.material); if(!fig.lampU) fig.lampU = o.material.userData.lamp; } }); }
+  model.traverse(function(o){ if(o.isMesh) o.frustumCulled = false; });
+  return fig; }
+function makeCMover(fig, height, label, slot, updateFn){
+  var wrap = new THREE.Group(); wrap.scale.setScalar(TARGET_H / height); wrap.add(fig.root);
+  addBlob(wrap);
+  var pl = new THREE.PointLight(0xffe2b8, 0.85, 7, 2); pl.position.set(0, 1.55, 0.3); wrap.add(pl);
+  var group = new THREE.Group(); group.add(wrap);
+  var tag = makeLabel(label, false); tag.position.y = 0.03; group.add(tag);
+  scene.add(group);
+  var m = { group: group, mixer: { update: updateFn }, s: slot * PATH.length / movers.length, yaw: 0, label: label, tag: tag };
+  movers[slot] = m; return m; }
+function cPlayWalk(fig, pace){ var a = fig.actions.Walk; if(a){ a.timeScale = PATH_SPEED / pace; a.play(); } }
+function buildC1(g){ var fig = cBuild(g, { merge: true, lamp: true, rules: rulesGunman }); cPlayWalk(fig, 1.30);
+  makeCMover(fig, 1.77, 'C1', 13, function(dt){ fig.mixer.update(dt); cLampTerms(fig); }); }
+function buildC3(g){ var fig = cBuild(g, { merge: true, lamp: true, height: 1.82, rules: cRulesShape({ girth: 0.032, belly: 0.025, shoulders: 0.03, shoulderWidth: 0.022, neck: 0.018, forearm: 0.008, thigh: 0.012 }) }); cPlayWalk(fig, 1.30);
+  makeCMover(fig, 1.82, 'C3', 15, function(dt){ fig.mixer.update(dt); cLampTerms(fig); }); }
+// ---- C4: his BUILD.combat with C legs (Ex4 v2), plaza drive: always walking, always aiming at the camera
+function cLay(fig, slot, name, fade){ var cur = fig.layers[slot]; if(cur === name) return; var a = fig.actions[name]; if(!a) return; a.reset(); a.enabled = true; a.setEffectiveWeight(1); a.play(); if(cur && fig.actions[cur]) a.crossFadeFrom(fig.actions[cur], fade, false); fig.layers[slot] = name; }
+function cDriveCombat(fig, dt){
+  cLay(fig, 'low', 'LegsWalk', 0.2); if(fig.actions.LegsWalk) fig.actions.LegsWalk.timeScale = PATH_SPEED / 1.30;
+  cLay(fig, 'up', 'UpAim', 0.25);
+  fig.mixer.update(dt);
+  fig.model.updateMatrixWorld(true);
+  var sh = fig.armR[0] ? fig.armR[0].getWorldPosition(new V3()) : null, wr = fig.armR[1] ? fig.armR[1].getWorldPosition(new V3()) : null;
+  if(sh && wr){ var ad = wr.sub(sh); ad.y = 0;
+    if(ad.lengthSq() > 1e-8){ ad.normalize(); var to = camera.position.clone().sub(sh); to.y = 0;
+      if(to.lengthSq() > 1e-8){ to.normalize(); var want = Math.max(-1.4, Math.min(1.4, Math.atan2(ad.z * to.x - ad.x * to.z, ad.dot(to)))); fig.twist += (want - fig.twist) * Math.min(1, dt * 8); } } }
+  if(Math.abs(fig.twist) > 1e-3) fig.spine.forEach(function(b){ if(b) ovTwistBone(b, fig.twist / 3); });
+  cLampTerms(fig); }
+function buildC4(g){ var C = clipLookup(g.animations);
+  var clips = { LegsWalk: splitClip(C.Walk, C_LOWER, true, 'LegsWalk'), LegsIdle: splitClip(C.Idle_Gun || C.Idle_Gun_Pointing, C_LOWER, true, 'LegsIdle'), UpAim: splitClip(C.Idle_Gun_Pointing, C_LOWER, false, 'UpAim'), UpFire: splitClip(C.Gun_Shoot, C_LOWER, false, 'UpFire'),
+    UpCarry: splitClip(C.Walk, C_LOWER, false, 'UpCarry') };
+  if(C.Death) clips.Death = C.Death; if(C.HitRecieve) clips.HitRecieve = C.HitRecieve;
+  var fig = cBuild(g, { merge: true, lamp: true, rules: rulesGunman, clips: clips });
+  fig.spine = ['Abdomen', 'Torso', 'Chest'].map(function(n){ return findBone(fig.model, n); });
+  fig.armR = [findBone(fig.model, 'UpperArmR'), findBone(fig.model, 'WristR')];
+  fig.twist = 0; fig.layers = { low: null, up: null };
+  ['LegsWalk', 'LegsIdle', 'UpAim', 'UpFire', 'UpCarry'].forEach(function(n){ var a = fig.actions[n]; if(a){ a.setLoop(n === 'UpFire' ? THREE.LoopOnce : THREE.LoopRepeat, Infinity); a.clampWhenFinished = n === 'UpFire'; } });
+  makeCMover(fig, 1.77, 'C4', 16, function(dt){ cDriveCombat(fig, dt); }); }
+// ---- C2: his Ex2 v4 — the CMU retarget below is his O.retarget from ex-extra.js, extracted
+// verbatim (only the name and its two rig references changed); pace rule is his prep's v4 line
+function cRetarget(bvhText, rigScene, opt){ opt = opt || {}; var res = new THREE.BVHLoader().parse(bvhText), sk = res.skeleton, clip = res.clip, root = sk.bones[0];
+  var holder = new THREE.SkinnedMesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial()); holder.add(root); holder.bind(sk);   // BVH tracks bind as .bones[Name]: they need a skinned mesh
+  var mixer = new THREE.AnimationMixer(holder); mixer.clipAction(clip).play(); var src = {}; sk.bones.forEach(function(b){ src[b.name] = b; });
+  var fps = 1 / (clip.tracks[0].times[1] - clip.tracks[0].times[0]), N = Math.floor(clip.duration * fps);
+  function sample(t){ mixer.setTime(t); holder.updateMatrixWorld(true); var o = {}; Object.keys(MAP).forEach(function(n){ var b = src[n]; if(b) o[n] = b.getWorldQuaternion(new Qt()); });
+    o.hip = src.Hips.getWorldPosition(new V()); o.lf = src.LeftFoot.getWorldPosition(new V()); o.rf = src.RightFoot.getWorldPosition(new V()); o.lh = src.LeftUpLeg.getWorldPosition(new V()); o.rh = src.RightUpLeg.getWorldPosition(new V()); return o; }
+  var rest = sample(0), legSrc = src.LeftLeg.position.length() + src.LeftFoot.position.length();
+  // target rest (model space): world quats of every bone at its rest local rotation
+  var T = rigScene, tb = {}, order = []; T.traverse(function(o){ if(o.isBone){ tb[o.name] = o; order.push(o); } }); T.updateMatrixWorld(true);
+  // rest rotations in MODEL space, including the armature node above the first bone (glTF exports often carry a rotation/scale there)
+  var tRestW = {}, tRestL = {}, armQ = new Qt(), armS = new V(); order.forEach(function(b){ tRestL[b.name] = b.quaternion.clone(); tRestW[b.name] = b.getWorldQuaternion(new Qt()); });
+  tb.Hips.parent.getWorldQuaternion(armQ); tb.Hips.parent.getWorldScale(armS);
+  var wp = function(n){ return tb[n].getWorldPosition(new V()); }, legTgt = wp('UpperLegL').distanceTo(wp('LowerLegL')) + wp('LowerLegL').distanceTo(wp('FootL')), scale = legTgt / legSrc;   // model metres per BVH unit
+  // frames of the whole take (skip the first 0.3 s: frame 0 is the calibration T-pose)
+  var frames = []; for(var i = Math.floor(0.3 * fps); i < N; i++) frames.push(sample(i / fps));
+  // heading = mean root travel direction; yaw-correct everything to face +Z
+  var a = frames[0].hip, z = frames[frames.length - 1].hip, head = Math.atan2(z.x - a.x, z.z - a.z), unYaw = new Qt().setFromAxisAngle(new V(0, 1, 0), -head);
+  // one gait cycle: consecutive peaks of (left foot - hips) along the heading (= left heel strike), the pair whose poses match best for a clean loop
+  var fwd = new V(Math.sin(head), 0, Math.cos(head)), raw = frames.map(function(f){ return f.lf.clone().sub(f.hip).dot(fwd); }), peaks = [], W = Math.round(fps * 0.05);
+  var lead = raw.map(function(_, k){ var s0 = 0, n0 = 0; for(var j = k - W; j <= k + W; j++) if(j >= 0 && j < raw.length){ s0 += raw[j]; n0++; } return s0 / n0; });   // smoothed (mocap jitter made false peaks)
+  var R = Math.round(fps * 0.35);   // a left heel strike is the max of the left foot's lead within +/-0.35 s (a walking cycle is ~0.9-1.3 s)
+  for(var k = R; k < lead.length - R; k++){ var mx0 = true; for(var j = k - R; j <= k + R; j++) if(lead[j] > lead[k]){ mx0 = false; break; } if(mx0 && (!peaks.length || k - peaks[peaks.length - 1] > R)) peaks.push(k); }
+  var best = null; for(var p = 0; p + 1 < peaks.length; p++){ var A0 = frames[peaks[p]], B0 = frames[peaks[p + 1]], err = 0; Object.keys(MAP).forEach(function(n){ err += 1 - Math.abs(A0[n].dot(B0[n])); });
+    if(!best || err < best.err) best = { s: peaks[p], e: peaks[p + 1], err: err }; }
+  if(!best) throw new Error('no gait cycle found');
+  var cyc = frames.slice(best.s, best.e + 1), dur = (cyc.length - 1) / fps, rootDist = cyc[cyc.length - 1].hip.clone().sub(cyc[0].hip).dot(fwd);
+  var hipMean = 0; cyc.forEach(function(f){ hipMean += f.hip.y; }); hipMean /= cyc.length;
+  // bake target tracks at 30 fps by POSING a working clone (C's rig is IK-baked: legs hang off Body, FEET ARE CHILDREN OF Root with keyed
+  // positions — so each foot is solved from the retargeted shin end and written in Root space; the pelvis motion goes on Body)
+  var rig = cCloneSkinned(T), rb = {}, rord = []; rig.traverse(function(o){ if(o.isBone){ rb[o.name] = o; rord.push(o); } }); rig.updateMatrixWorld(true);
+  var restP = {}, restQ = {}; rord.forEach(function(b){ restP[b.name] = b.position.clone(); restQ[b.name] = b.quaternion.clone(); });
+  var shinToFoot = {}; ['L', 'R'].forEach(function(sd){ shinToFoot[sd] = rb['LowerLeg' + sd].worldToLocal(rb['Foot' + sd].getWorldPosition(new V())); });
+  var bodyRestW = rb.Body.getWorldPosition(new V()), lenA = {}, lenB = {};
+  ['L', 'R'].forEach(function(sd){ var h = rb['UpperLeg' + sd].getWorldPosition(new V()), k = rb['LowerLeg' + sd].getWorldPosition(new V()), a0 = rb['Foot' + sd].getWorldPosition(new V()); lenA[sd] = h.distanceTo(k); lenB[sd] = k.distanceTo(a0); });
+  // rotate bone b (world) by the shortest arc taking direction c -> d, written back as a local rotation
+  function swing(b, c, d){ var q = new Qt().setFromUnitVectors(c.clone().normalize(), d.clone().normalize()), w = b.getWorldQuaternion(new Qt()).premultiply(q); b.parent.updateWorldMatrix(true, false); b.quaternion.copy(b.parent.getWorldQuaternion(new Qt()).invert().multiply(w)); b.updateMatrixWorld(true); }
+  var tgtFromSrc = {}; Object.keys(MAP).forEach(function(s0){ tgtFromSrc[MAP[s0]] = s0; }); tgtFromSrc.Body = 'Hips'; delete tgtFromSrc.Hips;   // pelvis -> Body
+  var restFootY = rb.FootL.getWorldPosition(new V()).y, ground = 0, footMin = Infinity;
+  for(var pass = 0; pass < 2; pass++){   // pass 0 measures the lowest stance ankle; pass 1 lowers the pelvis so the planted ankle sits at its rest height (no float)
+  var step = Math.max(1, Math.round(fps / 30)), times = [], qT = {}, pT = { Body: [], FootL: [], FootR: [] }; rord.forEach(function(b){ qT[b.name] = []; });
+  var keep = /^(Index|Middle|Pinky|Ring|Thumb|PT)/;
+  for(var c = 0; c < cyc.length; c += step){ var f = cyc[c], t = c / fps; times.push(t);
+    rord.forEach(function(b){ b.position.copy(restP[b.name]); b.quaternion.copy(restQ[b.name]); }); rig.updateMatrixWorld(true);
+    // pelvis bob + detrended lateral sway on Body (world offset -> Root space)
+    var off = f.hip.clone().sub(cyc[0].hip).applyQuaternion(unYaw), latTr = cyc[cyc.length - 1].hip.clone().sub(cyc[0].hip).applyQuaternion(unYaw).x * (c / (cyc.length - 1));
+    var bw = bodyRestW.clone().add(new V((off.x - latTr) * scale * (opt.sway == null ? 1 : opt.sway), (f.hip.y - hipMean) * scale - ground, 0)); rb.Body.position.copy(rb.Body.parent.worldToLocal(bw));
+    rord.forEach(function(b){ if(/^Foot[LR]$/.test(b.name)) return; var s0 = tgtFromSrc[b.name]; if(!s0 || !f[s0] || (opt.skip && opt.skip.test(b.name))){ b.updateMatrixWorld(true); return; }
+      var delta = f[s0].clone().multiply(rest[s0].clone().invert()).premultiply(unYaw), w = delta.multiply(tRestW[b.name]);
+      b.parent.updateWorldMatrix(true, false); var pw = b.parent.getWorldQuaternion(new Qt()); b.quaternion.copy(pw.invert().multiply(w)); b.updateMatrixWorld(true); });
+    ['L', 'R'].forEach(function(sd){ var fb = rb['Foot' + sd], s0 = sd === 'L' ? 'LeftFoot' : 'RightFoot', shin = rb['LowerLeg' + sd], thigh = rb['UpperLeg' + sd]; shin.updateMatrixWorld(true);
+      if(opt.footLock){   // FOOT LOCK: the ankle goes exactly where the mocap ankle was (relative to the pelvis, scaled); two-bone IK, knee toward the FK knee
+        var H = thigh.getWorldPosition(new V()), srcA = (sd === 'L' ? f.lf : f.rf).clone().sub(sd === 'L' ? f.lh : f.rh).applyQuaternion(unYaw).multiplyScalar(scale), A = H.clone().add(srcA);   /* hip JOINT -> ankle, leg-ratio scaled: always reachable */
+        var K0 = shin.getWorldPosition(new V()), a = lenA[sd], bL = lenB[sd], dv = A.clone().sub(H), d = Math.min(dv.length(), a + bL - 0.002), u = dv.normalize();
+        A = H.clone().addScaledVector(u, d); var x = (a * a - bL * bL + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, a * a - x * x)), pole = K0.clone().sub(H); pole.addScaledVector(u, -pole.dot(u));
+        if(pole.lengthSq() < 1e-8) pole.set(0, 0, 1); pole.normalize(); var K = H.clone().addScaledVector(u, x).addScaledVector(pole, hh);
+        swing(thigh, K0.clone().sub(H), K.clone().sub(H)); shin.updateMatrixWorld(true); var end = shin.localToWorld(shinToFoot[sd].clone()); swing(shin, end.clone().sub(K), A.clone().sub(K)); }
+      var wpos = shin.localToWorld(shinToFoot[sd].clone()); footMin = Math.min(footMin, wpos.y); fb.parent.updateWorldMatrix(true, false); fb.position.copy(fb.parent.worldToLocal(wpos));
+      var w = f[s0].clone().multiply(rest[s0].clone().invert()).premultiply(unYaw).multiply(tRestW[fb.name]), pw = fb.parent.getWorldQuaternion(new Qt()); fb.quaternion.copy(pw.invert().multiply(w)); });
+    rord.forEach(function(b){ var q = b.quaternion; qT[b.name].push(q.x, q.y, q.z, q.w); }); ['Body', 'FootL', 'FootR'].forEach(function(n){ var p0 = rb[n].position; pT[n].push(p0.x, p0.y, p0.z); }); }
+  if(pass === 0){ ground = footMin - restFootY; footMin = Infinity; } }
+  var tracks = []; ['Body', 'FootL', 'FootR'].forEach(function(n){ tracks.push(new THREE.VectorKeyframeTrack(n + '.position', times, pT[n])); });
+  rord.forEach(function(b){ if(keep.test(b.name)) return; tracks.push(new THREE.QuaternionKeyframeTrack(b.name + '.quaternion', times, qT[b.name])); });
+  var out = new THREE.AnimationClip('MocapWalk', times[times.length - 1], tracks);
+  out.userData = { fps: fps, cycleFrames: cyc.length, cycleSeconds: +dur.toFixed(3), rootSpeedSrc_mps: +(rootDist * scale / dur).toFixed(3), scale: scale, loopErr: +best.err.toFixed(4), groundDrop_m: +ground.toFixed(3) };
+  return out; };
+
+function buildC2(){
+  Promise.all([gunmanPromise, fetch(OPUS_MOCAP_URL).then(function(r){ if(!r.ok) throw new Error('mocap ' + r.status); return r.text(); })]).then(function(r){
+    var g = r[0]; if(!g) throw new Error('gunman unavailable');
+    var clip = cRetarget(r[1], g.scene, { sway: 1, footLock: true });
+    var pace = clip.userData.rootSpeedSrc_mps * (1.77 / 1.81);
+    window.__OPUS_C2 = { pace_mps: +pace.toFixed(3), meta: clip.userData };
+    var clips = clipLookup(g.animations); clips.Walk = clip;
+    var fig = cBuild(g, { merge: true, lamp: true, rules: rulesGunman, clips: clips });
+    cPlayWalk(fig, pace);
+    makeCMover(fig, 1.77, 'C2', 14, function(dt){ fig.mixer.update(dt); cLampTerms(fig); });
+    oneDone();
+  }).catch(function(e){ window.__WALKOFF_ERRORS.push('opus c2: ' + e); failed.push('c2'); oneDone(); }); }
+withLoaders(function(){ buildC2(); });   // deferred: BVHLoader comes from the same pinned CDN via withLoaders
 
 // ------------------------------------------------------------------ camera modes + UI
 var camMode = 'both';
