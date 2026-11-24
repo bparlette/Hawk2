@@ -1,0 +1,312 @@
+{
+ "legT": 86.56,
+ "report": {
+  "pistol-walk": {
+   "frames": 25,
+   "dur_s": 0.8,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 2.568,
+   "rootSpeed_model": 268.81,
+   "ground_cm": -1.95,
+   "stanceSamples": 24,
+   "stanceSpeed_model": 264.78,
+   "travelDir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "pistol-walk-backward": {
+   "frames": 32,
+   "dur_s": 1.033,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 1.412,
+   "rootSpeed_model": 147.79,
+   "ground_cm": -0.76,
+   "stanceSamples": 50,
+   "stanceSpeed_model": 145.69,
+   "travelDir": [
+    0,
+    0,
+    -1
+   ]
+  },
+  "pistol-strafe": {
+   "frames": 18,
+   "dur_s": 0.567,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 2.165,
+   "rootSpeed_model": 226.58,
+   "ground_cm": -3.37,
+   "stanceSamples": 17,
+   "stanceSpeed_model": 216.44,
+   "travelDir": [
+    1,
+    0,
+    0
+   ]
+  },
+  "pistol-strafe-mirrored": {
+   "frames": 18,
+   "dur_s": 0.567,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 2.165,
+   "rootSpeed_model": 226.58,
+   "ground_cm": -3.37,
+   "stanceSamples": 17,
+   "stanceSpeed_model": 216.42,
+   "travelDir": [
+    -1,
+    0,
+    0
+   ]
+  },
+  "pistol-walk-arc-right": {
+   "frames": 23,
+   "dur_s": 0.733,
+   "loopErr": 1.3846,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 2.501,
+   "rootSpeed_model": 261.81,
+   "ground_cm": -2.16,
+   "stanceSamples": 25,
+   "stanceSpeed_model": 256.06,
+   "travelDir": [
+    -0.21,
+    0,
+    0.98
+   ]
+  },
+  "pistol-walk-arc-left": {
+   "frames": 24,
+   "dur_s": 0.767,
+   "loopErr": 2.351,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 2.549,
+   "rootSpeed_model": 266.77,
+   "ground_cm": -2.45,
+   "stanceSamples": 20,
+   "stanceSpeed_model": 264.77,
+   "travelDir": [
+    0.24,
+    0,
+    0.97
+   ]
+  },
+  "pistol-run-aimed": {
+   "frames": 23,
+   "dur_s": 0.733,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 3.034,
+   "rootSpeed_model": 317.56,
+   "ground_cm": -3.63,
+   "stanceSamples": 8,
+   "stanceSpeed_model": 309.8,
+   "travelDir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "pistol-run": {
+   "frames": 16,
+   "dur_s": 0.5,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 4.774,
+   "rootSpeed_model": 499.73,
+   "ground_cm": -3.05,
+   "stanceSamples": 8,
+   "stanceSpeed_model": 499.47,
+   "travelDir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "pistol-idle": {
+   "frames": 250,
+   "dur_s": 8.3,
+   "loopErr": 0.0487,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 1.91
+  },
+  "pistol-aim": {
+   "frames": 214,
+   "dur_s": 7.1,
+   "loopErr": 13.5179,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.015,
+   "rootSpeed_model": 1.56,
+   "ground_cm": 0.38
+  },
+  "crouch-walk-forward": {
+   "frames": 35,
+   "dur_s": 1.133,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 1.698,
+   "rootSpeed_model": 177.7,
+   "ground_cm": -4.24,
+   "stanceSamples": 41,
+   "stanceSpeed_model": 172.38,
+   "travelDir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "pistol-kneeling-idle": {
+   "frames": 115,
+   "dur_s": 3.8,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": -0.65
+  },
+  "shooting": {
+   "frames": 36,
+   "dur_s": 1.167,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 1.75
+  },
+  "shooting-gun": {
+   "frames": 160,
+   "dur_s": 5.3,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 0.09
+  },
+  "shooting-pistol": {
+   "frames": 81,
+   "dur_s": 2.667,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 1.53
+  },
+  "gunplay": {
+   "frames": 7,
+   "dur_s": 0.2,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": -0.51
+  },
+  "femme-peek-around-corner": {
+   "frames": 74,
+   "dur_s": 2.433,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 1.3
+  },
+  "cover-idle-standing": {
+   "frames": 69,
+   "dur_s": 2.267,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": -0.26
+  },
+  "cover-idle-crouched": {
+   "frames": 78,
+   "dur_s": 2.567,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 0.2
+  },
+  "stand-cover-to-look": {
+   "frames": 83,
+   "dur_s": 2.733,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": -0.27
+  },
+  "hit-reaction": {
+   "frames": 83,
+   "dur_s": 2.733,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 0.22
+  },
+  "hit-reaction-left": {
+   "frames": 79,
+   "dur_s": 2.6,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 0.07
+  },
+  "dying": {
+   "frames": 133,
+   "dur_s": 4.4,
+   "loopErr": 18.8179,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.077,
+   "rootSpeed_model": 8.05,
+   "ground_cm": 0.2
+  },
+  "dying-backwards": {
+   "frames": 139,
+   "dur_s": 4.6,
+   "loopErr": 16.0508,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.2,
+   "rootSpeed_model": 20.89,
+   "ground_cm": -0.19
+  },
+  "turning": {
+   "frames": 111,
+   "dur_s": 3.667,
+   "loopErr": 3.1438,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.036,
+   "rootSpeed_model": 3.74,
+   "ground_cm": 0.16
+  },
+  "left-turn": {
+   "frames": 46,
+   "dur_s": 1.5,
+   "loopErr": 16.9577,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.158,
+   "rootSpeed_model": 16.49,
+   "ground_cm": 1.78
+  },
+  "right-turn": {
+   "frames": 55,
+   "dur_s": 1.8,
+   "loopErr": 21.9123,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.247,
+   "rootSpeed_model": 25.89,
+   "ground_cm": 1.78
+  }
+ },
+ "bytes": 3516160
+}

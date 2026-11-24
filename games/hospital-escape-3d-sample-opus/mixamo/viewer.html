@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Opus Mixamo Retarget</title>
+<style>:root{--bg:#1d2227;--fg:#e6e9ec}body{margin:0;background:var(--bg);color:var(--fg);font:13px system-ui,sans-serif;overflow:hidden}
+#ui{position:fixed;left:8px;right:8px;top:8px;display:flex;flex-wrap:wrap;gap:6px;z-index:2}select,button{font:inherit;background:#2c333a;color:var(--fg);border:1px solid #48525c;border-radius:6px;padding:6px}
+#info{position:fixed;left:8px;bottom:8px;right:8px;font-size:12px;opacity:.85}</style></head><body>
+<div id="ui"><select id="body"></select><select id="clip"></select><button id="pp">pause</button></div><div id="info"></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+/* Every Mixamo clip AFTER the offline retarget (retarget.js), played on the VALID bodies: what the game would play, not the Y Bot. */
+var BODIES = ['g-White_M_2_Casual', 'g-Black_M_2_Casual', 'g-Black_M_3_Casual', 'g-Hispanic_M_2_Casual', 'g-MENA_M_3_Casual'], FILES = ['mx-gunman.glb', 'mx-cole-maya.glb'];
+var R = new THREE.WebGLRenderer({ antialias: true }); R.setPixelRatio(Math.min(2, devicePixelRatio)); R.outputEncoding = THREE.sRGBEncoding; document.body.appendChild(R.domElement);
+var S = new THREE.Scene(); S.background = new THREE.Color(0x2a3036); S.add(new THREE.HemisphereLight(0xffffff, 0x3a3a3a, 1)); var dl = new THREE.DirectionalLight(0xffffff, 1.1); dl.position.set(2, 4, 3); S.add(dl); S.add(new THREE.GridHelper(8, 16, 0x777777, 0x444444));
+var cam = new THREE.PerspectiveCamera(35, 1, 0.1, 60), L = new THREE.GLTFLoader(), clips = [], cur = null, mixer = null, play = true, yaw = 0.7, clk = new THREE.Clock();
+function size(){ R.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); } addEventListener('resize', size); size();
+var bs = document.getElementById('body'), cs = document.getElementById('clip'); BODIES.forEach(function(b){ bs.add(new Option(b.slice(2), b)); });
+function load(u){ return new Promise(function(r, j){ L.load(u, r, undefined, j); }); }
+Promise.all(FILES.map(load)).then(function(r){ r.forEach(function(g){ clips = clips.concat(g.animations); }); clips.forEach(function(c, i){ cs.add(new Option(c.name + ' (' + c.duration.toFixed(1) + ' s)', i)); }); setBody(); });
+function setBody(){ load('../valid/' + bs.value + '.glb').then(function(g){ if(cur) S.remove(cur); cur = g.scene; cur.traverse(function(o){ if(o.isMesh) o.frustumCulled = false; }); S.add(cur);
+  cur.updateMatrixWorld(true); var bb = new THREE.Box3().setFromObject(cur), k = 1.8 / (bb.max.y - bb.min.y); cur.scale.setScalar(k); cur.position.y = -bb.min.y * k; mixer = new THREE.AnimationMixer(cur); setClip(); }); }
+function setClip(){ if(!mixer) return; mixer.stopAllAction(); var c = clips[+cs.value || 0]; mixer.clipAction(c).play(); document.getElementById('info').textContent = c.name + ' — retargeted onto the VALID rig (reference body White_M_2); drag to orbit'; }
+bs.onchange = setBody; cs.onchange = setClip; document.getElementById('pp').onclick = function(){ play = !play; this.textContent = play ? 'pause' : 'play'; };
+var dx = null; addEventListener('pointerdown', function(e){ if(e.target === R.domElement) dx = e.clientX; }); addEventListener('pointerup', function(){ dx = null; }); addEventListener('pointermove', function(e){ if(dx !== null){ yaw -= (e.clientX - dx) * 0.01; dx = e.clientX; } });
+(function loop(){ requestAnimationFrame(loop); var dt = clk.getDelta(); if(mixer && play) mixer.update(dt); cam.position.set(Math.sin(yaw) * 4.6, 1.4, Math.cos(yaw) * 4.6); cam.lookAt(0, 0.9, 0); R.render(S, cam); })();
+</script></body></html>

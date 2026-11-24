@@ -16,4 +16,10 @@ for n in range(1, 6):
     page = page.replace('</body>', extra + '</body>', 1)
     d = os.path.join(GAMES, 'hospital-escape-3d-sample-opus-%d' % n); os.makedirs(d, exist_ok=True)
     open(os.path.join(d, 'index.html'), 'w').write(page)
+# CAST PASS: one page, the Mixamo-driven gunmen (?g=1..5)
+page = live.replace('<head>', '<head><base href="../hospital-escape/">', 1)
+page = re.sub(r'<title>[^<]*</title>', '<title>Opus Cast Pass (Mixamo)</title>', page, count=1)
+page = page.replace('</body>', '<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>\n' +
+  '<script src="../hospital-escape-3d-sample-opus/opus-mixamo.js"></script>\n</body>', 1)
+d = os.path.join(GAMES, 'hospital-escape-3d-sample-opus-mixamo'); os.makedirs(d, exist_ok=True); open(os.path.join(d, 'index.html'), 'w').write(page)
 print('ok')

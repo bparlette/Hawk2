@@ -1,0 +1,214 @@
+{
+ "legT": 86.56,
+ "report": {
+  "sitting-idle-breathing": {
+   "frames": 130,
+   "dur_s": 4.3,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 1.28
+  },
+  "sitting-idle-thighs": {
+   "frames": 193,
+   "dur_s": 6.4,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": -0.01
+  },
+  "sitting-idle-still": {
+   "frames": 90,
+   "dur_s": 2.967,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": -0.01
+  },
+  "aim-pistol-seated": {
+   "frames": 164,
+   "dur_s": 5.433,
+   "loopErr": 11.0449,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.002,
+   "rootSpeed_model": 0.24,
+   "ground_cm": -1.83
+  },
+  "lower-pistol": {
+   "frames": 162,
+   "dur_s": 5.367,
+   "loopErr": 11.0449,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.002,
+   "rootSpeed_model": 0.23,
+   "ground_cm": -0.41
+  },
+  "sitting-gun-motion": {
+   "frames": 145,
+   "dur_s": 4.8,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0.01,
+   "ground_cm": -1.52
+  },
+  "sitting-rubbing-arm": {
+   "frames": 240,
+   "dur_s": 7.967,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": -1.52
+  },
+  "sitting-dodges": {
+   "frames": 268,
+   "dur_s": 8.9,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 3.16
+  },
+  "sitting-disbelief": {
+   "frames": 144,
+   "dur_s": 4.767,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": -0.01
+  },
+  "laying-breathless": {
+   "frames": 26,
+   "dur_s": 0.833,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 0
+  },
+  "laying-sleeping": {
+   "frames": 52,
+   "dur_s": 1.7,
+   "loopErr": 0.0001,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 0
+  },
+  "laying-moaning": {
+   "frames": 65,
+   "dur_s": 2.133,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0,
+   "rootSpeed_model": 0,
+   "ground_cm": 0
+  },
+  "injured-walking": {
+   "frames": 31,
+   "dur_s": 1,
+   "loopErr": 0.0021,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 1.713,
+   "rootSpeed_model": 179.31,
+   "ground_cm": -3.94,
+   "stanceSamples": 21,
+   "stanceSpeed_model": 177.75,
+   "travelDir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "sit-to-stand": {
+   "frames": 69,
+   "dur_s": 2.267,
+   "loopErr": 11.585,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.206,
+   "rootSpeed_model": 21.54,
+   "ground_cm": 1.28
+  },
+  "stand-to-sit": {
+   "frames": 68,
+   "dur_s": 2.233,
+   "loopErr": 9.7015,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.211,
+   "rootSpeed_model": 22.13,
+   "ground_cm": 0.47
+  },
+  "pushing": {
+   "frames": 120,
+   "dur_s": 3.967,
+   "loopErr": 12.2078,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.091,
+   "rootSpeed_model": 9.54,
+   "ground_cm": -7.56,
+   "stanceSamples": 31,
+   "stanceSpeed_model": 7.29,
+   "travelDir": [
+    -0.16,
+    0,
+    0.99
+   ]
+  },
+  "push-start": {
+   "frames": 143,
+   "dur_s": 4.733,
+   "loopErr": 22.2767,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.282,
+   "rootSpeed_model": 29.46,
+   "ground_cm": 0.65
+  },
+  "push-stop": {
+   "frames": 79,
+   "dur_s": 2.6,
+   "loopErr": 22.2766,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 0.292,
+   "rootSpeed_model": 30.56,
+   "ground_cm": -8.13
+  },
+  "wheelbarrow-walk": {
+   "frames": 30,
+   "dur_s": 0.967,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 1.612,
+   "rootSpeed_model": 168.72,
+   "ground_cm": -4.77,
+   "stanceSamples": 33,
+   "stanceSpeed_model": 165.4,
+   "travelDir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "walking-feminine": {
+   "frames": 30,
+   "dur_s": 0.967,
+   "loopErr": 0,
+   "scale": 104.67,
+   "rootSpeed_src_ms": 1.607,
+   "rootSpeed_model": 168.24,
+   "ground_cm": -1.33,
+   "stanceSamples": 38,
+   "stanceSpeed_model": 163.26,
+   "travelDir": [
+    0,
+    0,
+    1
+   ]
+  }
+ },
+ "bytes": 3552864
+}
