@@ -46,3 +46,11 @@ https://bparlette.github.io/Hawk2/games/hospital-escape-hallway-t4-n2/
   Cole's arm-injury walk + wheelchair slump approved, staff-life Mixamo
   clips (typing / phone / sitting-talking / talking-seated) are in
   games/hospital-escape/mixamo/ — 58 clips total in the repo.
+
+## 4. T4 implementation ruling (Cherie, Nov 24, 18:57 ET)
+
+FULL T4 look and feel, for the ENTIRE game. The material + dressing
+layer compromise proposed in Opus's integration response is rejected.
+Tasking: T4-FULL-PORT.md (Opus). Where T4's renderer conflicts with the
+game's, T4's look wins; the game's geometry, doors, and gameplay
+systems survive.
