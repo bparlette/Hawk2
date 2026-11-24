@@ -178,6 +178,170 @@ function clipLookup(clips){
   return out;
 }
 
+// ------------------------------------------------------------------ improvement pass (Nov 24)
+// One polish pass per finalist, behind an ORIG / IMPROVED toggle (default IMPROVED).
+// Gold 1: subtle torso/shoulder broadening in bind space (legs/feet untouched, so the
+// 1.30 m/s foot-contact pacing is unchanged) + cloth definition (fabric bump, cloth
+// roughness split) — his relight v2 stays exactly as shipped.
+// N1 / N2: dressing cleanup — GearMat leaves the crushed near-black for a readable
+// fabric charcoal, _Body gets the relight standard (roughness 0.90 + gentle lift), and
+// a bone-attached vest (front/back panels with trim, shoulder straps, waist straps)
+// integrates her boxy chest rig and the floating back plate into one garment.
+// N2's locomotion is NOT touched — no geometry or clip changes on either Neon figure.
+var IMPROVED = true;
+var impAppliers = {};   // slot -> function(on)
+function fabricTexture(rx, ry){
+  var c = document.createElement('canvas'); c.width = c.height = 256;
+  var x = c.getContext('2d');
+  x.fillStyle = '#808080'; x.fillRect(0, 0, 256, 256);
+  var img = x.getImageData(0, 0, 256, 256), d = img.data;
+  var seed = 1234567;
+  function rnd(){ seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+  for(var i = 0; i < 256 * 256; i++){
+    var px = i % 256, py = (i / 256) | 0;
+    var n = 128 + (rnd() - 0.5) * 52 + (px % 2 ? 7 : -7) + (py % 2 ? 4 : -4);
+    d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = Math.max(0, Math.min(255, n)); d[i * 4 + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  var t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry);
+  return t;
+}
+function ex1Improve(fig){
+  var geoRecs = [], matRecs = [], seen = {};
+  fig.traverse(function(o){
+    if(o.isSkinnedMesh && !/Head/.test(o.name || '')){
+      var pos = o.geometry.attributes.position;
+      var orig = pos.array.slice(), wide = orig.slice();
+      for(var i = 0; i < pos.count; i++){
+        var y = orig[i * 3 + 1];
+        var t = (y - 0.95) / 0.5; t = Math.max(0, Math.min(1, t)); t = t * t * (3 - 2 * t);
+        if(t > 0){ wide[i * 3] = orig[i * 3] * (1 + 0.05 * t); wide[i * 3 + 2] = orig[i * 3 + 2] * (1 + 0.035 * t); }
+      }
+      geoRecs.push({ attr: pos, orig: orig, wide: wide });
+    }
+    if(o.isMesh){ var ms = Array.isArray(o.material) ? o.material : [o.material];
+      ms.forEach(function(m){ if(m && !seen[m.uuid]){ seen[m.uuid] = 1;
+        matRecs.push({ m: m, name: m.name, roughness: m.roughness }); } }); }
+  });
+  var fabShirt = fabricTexture(5, 5), fabJeans = fabricTexture(7, 7);
+  return function(on){
+    geoRecs.forEach(function(r){ r.attr.array.set(on ? r.wide : r.orig); r.attr.needsUpdate = true; });
+    matRecs.forEach(function(r){ var m = r.m;
+      m.roughness = r.roughness; m.bumpMap = null;
+      if(on && r.name === 'LightBrown'){ m.roughness = 0.92; m.bumpMap = fabShirt; m.bumpScale = 0.25; }
+      if(on && r.name === 'LightBlue'){ m.roughness = 0.86; m.bumpMap = fabJeans; m.bumpScale = 0.25; }
+      m.needsUpdate = true; });
+  };
+}
+function findBone(fig, name){ var b = null; fig.traverse(function(o){ if(o.isBone && o.name === name) b = o; }); return b; }
+function buildVest(fig, norm, bodyMesh, gearMesh){
+  var spine2 = findBone(fig, 'Spine2'), spineB = findBone(fig, 'Spine'), neck = findBone(fig, 'Neck');
+  var hips = findBone(fig, 'Hips'), spine1 = findBone(fig, 'Spine1');
+  if(!spine2 || !spineB || !bodyMesh) return [];
+  norm.updateMatrixWorld(true);
+  function bw(b){ return b.getWorldPosition(new THREE.Vector3()); }
+  var pSpine2 = bw(spine2), pSpine = bw(spineB), pNeck = bw(neck);
+  var foot = findBone(fig, 'LeftFoot'), toe = findBone(fig, 'LeftToeBase');
+  var fwd = bw(toe).sub(bw(foot)); fwd.y = 0;
+  if(fwd.lengthSq() < 1e-6) fwd.set(0, 0, 1); fwd.normalize();
+  var up = new THREE.Vector3(0, 1, 0);
+  var right = new THREE.Vector3().crossVectors(up, fwd).normalize();
+  function boneSet(mesh, names){
+    var set = null;
+    if(mesh.skeleton){ set = {}; mesh.skeleton.bones.forEach(function(b, i){ if(names.indexOf(b.name) >= 0) set[i] = 1; }); }
+    return set;
+  }
+  function torsoW(mesh, set, i){
+    if(!set) return 1;
+    var si = mesh.geometry.attributes.skinIndex, sw = mesh.geometry.attributes.skinWeight, w = 0;
+    if(set[si.getX(i)]) w += sw.getX(i); if(set[si.getY(i)]) w += sw.getY(i);
+    if(set[si.getZ(i)]) w += sw.getZ(i); if(set[si.getW(i)]) w += sw.getW(i);
+    return w;
+  }
+  // Extents over TORSO-weighted verts only — the bind pose has arms out, and unfiltered
+  // verts would size the vest to the arm span instead of the chest.
+  function extents(mesh, yLo, yHi, origin, set){
+    var pos = mesh.geometry.attributes.position, v = new THREE.Vector3(), rel = new THREE.Vector3();
+    var dF = -1e9, dB = -1e9, half = 0;
+    for(var i = 0; i < pos.count; i++){ v.fromBufferAttribute(pos, i); mesh.localToWorld(v);
+      if(v.y < yLo || v.y > yHi) continue;
+      if(torsoW(mesh, set, i) < 0.5) continue;
+      rel.copy(v).sub(origin || pSpine2);
+      var df = rel.dot(fwd);
+      if(df > dF) dF = df; if(-df > dB) dB = -df;
+      var rr = Math.abs(rel.dot(right)); if(rr > half) half = rr; }
+    return { dF: dF, dB: dB, half: half };
+  }
+  function clamp(x, lo, hi){ return Math.max(lo, Math.min(hi, x)); }
+  var chestSet = boneSet(bodyMesh, ['Spine', 'Spine1', 'Spine2', 'Neck']);
+  var band = extents(bodyMesh, pSpine.y - 0.04, pNeck.y + 0.03, pSpine2, chestSet);
+  band.dF = clamp(band.dF, 0.06, 0.30); band.dB = clamp(band.dB, 0.06, 0.30); band.half = clamp(band.half, 0.13, 0.26);
+  var dBack = band.dB;
+  if(gearMesh){ var ge = extents(gearMesh, pSpine.y - 0.04, pNeck.y + 0.03, pSpine2, boneSet(gearMesh, ['Spine', 'Spine1', 'Spine2', 'Neck', 'Hips']));
+    if(ge.dB > dBack) dBack = clamp(ge.dB, 0.06, 0.32); }
+  var waist = band;
+  if(hips && spine1){ waist = extents(bodyMesh, bw(hips).y - 0.02, bw(spine1).y + 0.02, pSpine, boneSet(bodyMesh, ['Hips', 'Spine', 'Spine1']));
+    waist.dF = clamp(waist.dF, 0.06, 0.30); waist.dB = clamp(waist.dB, 0.06, 0.30); waist.half = clamp(waist.half, 0.12, 0.24); }
+  var strapX = band.half * 0.60, apexY = pNeck.y + 0.05;
+  (function(){ // refine shoulder apex from torso verts near the strap line
+    var set = boneSet(bodyMesh, ['Spine2', 'Neck', 'LeftShoulder', 'RightShoulder']);
+    var pos = bodyMesh.geometry.attributes.position, v = new THREE.Vector3(), rel = new THREE.Vector3();
+    for(var i = 0; i < pos.count; i++){ v.fromBufferAttribute(pos, i); bodyMesh.localToWorld(v);
+      if(v.y < pSpine2.y + 0.06 || v.y > apexY) continue;
+      if(torsoW(bodyMesh, set, i) < 0.5) continue;
+      rel.copy(v).sub(pSpine2);
+      if(Math.abs(Math.abs(rel.dot(right)) - strapX) < 0.04 && v.y > apexY - 0.06) apexY = Math.max(apexY - 0.06, Math.min(v.y + 0.004, pNeck.y + 0.055));
+    }
+  })();
+  var fab = fabricTexture(6, 6);
+  var vestMat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(0.078, 0.082, 0.072), roughness: 0.94, metalness: 0, bumpMap: fab, bumpScale: 0.12 });
+  var trimMat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(0.040, 0.042, 0.038), roughness: 0.92, metalness: 0 });
+  var basis = new THREE.Matrix4().makeBasis(right, up, fwd);
+  var quat = new THREE.Quaternion().setFromRotationMatrix(basis);
+  function panel(w, h, th, cx, cy, cz, mat, tilt){
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat);
+    m.position.set(cx, cy, cz); if(tilt) m.rotation.x = tilt; m.castShadow = true; return m; }
+  // chest group (rides Spine2) — plate-carrier sized panels centred on the sternum,
+  // sitting just off the body so her rig boxes stay proud of the front panel
+  var gC = new THREE.Group(); gC.position.copy(pSpine2); gC.quaternion.copy(quat);
+  var cy = 0.04, ph = 0.34, pw = Math.min(band.half * 2 * 0.88, 0.32);
+  gC.add(panel(pw + 0.02, ph + 0.02, 0.005, 0, cy, band.dF + 0.0025, trimMat, -0.05));
+  gC.add(panel(pw, ph, 0.012, 0, cy, band.dF + 0.011, vestMat, -0.05));
+  gC.add(panel(pw + 0.02, ph + 0.02, 0.005, 0, cy, -(dBack + 0.0025), trimMat, 0.05));
+  gC.add(panel(pw, ph, 0.012, 0, cy, -(dBack + 0.011), vestMat, 0.05));
+  var strapLen = band.dF + dBack + 0.034, strapZ = (band.dF - dBack) / 2;
+  [-1, 1].forEach(function(s){
+    gC.add(panel(0.058, 0.014, strapLen, s * strapX, apexY - pSpine2.y + 0.007, strapZ, trimMat)); });
+  norm.add(gC); norm.updateMatrixWorld(true); spine2.attach(gC);
+  // waist group (rides Spine)
+  var gW = new THREE.Group(); gW.position.copy(pSpine); gW.quaternion.copy(quat);
+  var wLen = waist.dF + waist.dB - 0.01, wZ = (waist.dF - waist.dB) / 2;
+  [-1, 1].forEach(function(s){
+    gW.add(panel(0.012, 0.055, wLen, s * (waist.half + 0.004), 0.01, wZ, trimMat)); });
+  norm.add(gW); norm.updateMatrixWorld(true); spineB.attach(gW);
+  return [gC, gW];
+}
+function neonImprove(fig, norm){
+  var matRecs = [], seen = {}, bodyMesh = null, gearMesh = null;
+  fig.traverse(function(o){ if(o.isMesh){ var ms = Array.isArray(o.material) ? o.material : [o.material];
+    if(ms[0] && ms[0].name === '_Body') bodyMesh = o;
+    if(ms[0] && ms[0].name === 'GearMat') gearMesh = o;
+    ms.forEach(function(m){ if(m && !seen[m.uuid]){ seen[m.uuid] = 1;
+      matRecs.push({ m: m, name: m.name, color: m.color ? m.color.clone() : null, roughness: m.roughness, metalness: m.metalness }); } }); } });
+  var vestParts = buildVest(fig, norm, bodyMesh, gearMesh);
+  var fabGear = fabricTexture(4, 4);
+  return function(on){
+    matRecs.forEach(function(r){ var m = r.m;
+      if(r.color) m.color.copy(r.color);
+      m.roughness = r.roughness; m.metalness = r.metalness; m.bumpMap = null;
+      if(on && r.name === '_Body'){ m.roughness = 0.90; if(r.color) m.color.copy(r.color).multiplyScalar(1.12); }
+      if(on && r.name === 'GearMat'){ m.color.setRGB(0.034, 0.036, 0.034); m.roughness = 0.94; m.bumpMap = fabGear; m.bumpScale = 0.15; }
+      m.needsUpdate = true; });
+    vestParts.forEach(function(g){ g.visible = on; });
+  };
+}
+
 // ------------------------------------------------------------------ figures
 var movers = [null, null, null, null, null, null];
 var MODE_INDEX = { '1': 0, 'n1': 1, 'n2': 2, 'n3': 3, 'n4': 4, 'n5': 5 };
@@ -206,6 +370,7 @@ function buildEx1(gunman){
   fig.traverse(function(o){ if(o.isMesh){ o.castShadow = true; o.frustumCulled = false;
     o.material = Array.isArray(o.material) ? o.material.map(function(m){ return m.clone(); }) : o.material.clone(); } });
   relight(fig);
+  impAppliers[0] = ex1Improve(fig); impAppliers[0](IMPROVED);
   makeMover(fig, 1.81, clips['Walk'], 1.30, '1', true, 0);   // C clips foot-contact authored 1.30 m/s
 }
 function buildNeon(mode, slot, gltf){
@@ -219,6 +384,8 @@ function buildNeon(mode, slot, gltf){
   var norm = new THREE.Group();
   fig.scale.setScalar(sc); fig.position.y = -mode.z0 * sc;
   norm.add(fig);
+  if(mode.key === 'valid-ual' || mode.key === 'valid-mocap'){
+    impAppliers[slot] = neonImprove(fig, norm); impAppliers[slot](IMPROVED); }
   makeMover(norm, 1.80, clip, mode.authored, mode.label, false, slot);
   oneDone();
 }
@@ -261,7 +428,20 @@ function setDir(d){
   camDir = d; paintButtons(); }
 buttons.forEach(function(b){ b.addEventListener('click', function(){ setMode(b.getAttribute('data-mode')); }); });
 dirButtons.forEach(function(b){ b.addEventListener('click', function(){ setDir(b.getAttribute('data-dir')); }); });
+// ORIG / IMPROVED toggle — applies to the three finalists only (slots 0, 1, 2)
+var impButtons = document.querySelectorAll('#modebar button');
+function paintImp(){
+  impButtons.forEach(function(b){ b.classList.toggle('on', (b.getAttribute('data-imp') === '1') === IMPROVED); });
+}
+function setImproved(on){
+  IMPROVED = !!on;
+  Object.keys(impAppliers).forEach(function(k){ impAppliers[k](IMPROVED); });
+  paintImp();
+}
+impButtons.forEach(function(b){ b.addEventListener('click', function(){ setImproved(b.getAttribute('data-imp') === '1'); }); });
+paintImp();
 window.__walkoff = { setMode: setMode, setDir: setDir, movers: movers, pathLength: PATH.length, camera: camera,
+  setImproved: setImproved, improved: function(){ return IMPROVED; },
   mode: function(){ return camMode; }, dir: function(){ return camDir; } };
 
 // ------------------------------------------------------------------ gesture blocks (house standard)
