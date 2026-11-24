@@ -37,3 +37,15 @@ the game integration consumes those files.
   flagged), plus idle and walk frames per body you touched.
 - Response: `games/hospital-escape/tasking/responses/neon-gear-fix.md` —
   SHOW YOUR WORK: the actual cause, the fix, method, tools, outputs.
+
+## Reference — the vest fix already exists (added 15:50)
+
+Cherie: "I thought you already fixed his vest" — she is right. The walk-off
+lineage N2 (IMPROVED variant, the one staged in the hallway pages) already
+carries a bone-attached vest that sits correctly. Your cast GLBs were rebuilt
+from the source `valid-mocap.glb`, so that fix never entered your pipeline —
+the floating vest in the batch-2 stills is the old defect resurfacing in a
+new file, not the earlier fix failing. Port the walk-off build's gear
+treatment as the reference standard rather than inventing a second fix;
+the hallway staging code (`games/hospital-escape-hallway-t4-n2/n2-figure.js`
+and the walk-off worlds) shows how the improved figure is assembled.
