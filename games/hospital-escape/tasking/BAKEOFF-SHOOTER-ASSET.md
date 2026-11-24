@@ -13,6 +13,8 @@
 
 Produce the best walking shooter character asset achievable for Hospital Escape.
 
+**This is a test of ONE character asset.** The test subject is the **plain-clothes gunman** — the character already built in samples C and CX. All five examples (§3) are five candidate builds of that same single character, differing by source and technique, so entries compare technique-for-technique on identical role, framing, and gauntlet context. The winning asset — or the winning combination of techniques — becomes the **template pipeline**, which is then **repeated for every other needed character (Maya, Cole, Hale, the teal-scrubs enemy) and asset**. It is NOT five different characters: do not spend effort art-directing five roles — depth on one character beats breadth across the cast.
+
 The quality bar is **GTA 6-level fidelity and polish, expressed in this game's style**: an on-rails hospital shooter where the camera rides behind/above the action and enemies are seen at **5–15 m on a phone screen**. Judge everything at that framing — what reads at phone size, at gameplay distance, in motion, wins.
 
 **Original characters only.** "GTA 6 quality" is a quality reference, NOT Rockstar IP. No GTA characters, no GTA clothing designs, no Rockstar assets of any kind. The cast stays the game's own: Cole Mercer, Maya Vance, Dr. Hale, the plain-clothes gunman, the teal-scrubs gunman (design specs in `games/hospital-escape/tasking/NEON-C-CAST-SPECS.md`).
@@ -34,10 +36,11 @@ Rules for sourced material:
 
 ## 3. THE DELIVERABLE — FIVE WALKING EXAMPLES PER ENTRANT
 
-Each entrant delivers **five distinct shooter character builds**, each shown **WALKING**.
+Each entrant delivers **five candidate builds of the one test character — the plain-clothes gunman** — each shown **WALKING**.
 
 - **Motion is the judging medium.** Each example is presented as a short capture/video of the character walking, or a live page where it walks — at gameplay framing and distance, readable at phone size. A still is not an entry.
-- **Variety is the point.** Five different sources and/or techniques — not five reskins of one rig. The bake-off compares techniques: rig source, walk-cycle source, material/lighting treatment, integration cost.
+- **Variety of source and technique is the point — applied to that one character.** Five different rigs/meshes, retargeting approaches, material/lighting treatments, or build methods for the same gunman — not five different characters, and not reskins of different roles. The bake-off compares techniques: rig source, walk-cycle source, material/lighting treatment, integration cost.
+- **Repeatability is a judging criterion.** The winning technique must be one that can be repeated per character and asset across the cast. A brilliant one-off that cannot be re-run for a differently-shaped character (Maya's proportions, Cole seated, Hale's coat) loses to a slightly plainer technique that can — the winner becomes the template pipeline for the whole cast (§1).
 - The walk must be honest: real locomotion at a stated speed, with your foot-slide handling visible (see report requirements). No turntable idles dressed up as walks.
 - Entries live in your own sample folders (e.g. `games/hospital-escape-3d-sample-<entrant>-<n>/`), never in the live game folder.
 
@@ -55,6 +58,7 @@ Per example, the report covers:
 - **License / provenance** — as in §2, including not-yet-shippable flags.
 - **Cost** — triangle count and draw calls per figure, measured in-engine where possible.
 - **Walk cycle** — source (mocap / keyframed / clip library / procedural), the clip's true authored speed if known, and **how foot-slide was handled** (pacing from measured stride, root-motion, clamp — state the numbers; note the C-sample lesson: the Quaternius manifest overstated its clip speeds 1.7×/2.4× and only a foot-bone stride probe caught it).
+- **Repeatability cost** — what repeating this example for a second, differently-shaped character would take, in time and effort: what carries over unchanged (rig, clips, shaders, tooling) and what has to be redone per character (mesh, weights, reskin, poses). This is a judging input, not a footnote (§3).
 - **What worked, what failed** — plainly, including dead ends.
 
 Standard: enough detail that another builder can **recreate each example from the report alone**.
@@ -64,7 +68,7 @@ Standard: enough detail that another builder can **recreate each example from th
 After all three reports land:
 
 1. Each entrant comments on the others' work — what they would steal, what they would not ship, and why.
-2. The outcome is **the best one, or the best combination of techniques** — e.g. one entry's rig + another's walk cycle + a third's material/lighting treatment.
+2. The outcome is **the best one, or the best combination of techniques** — e.g. one entry's rig + another's walk cycle + a third's material/lighting treatment. Judged on the walking examples **and** on repeatability (§3/§4): the winner becomes the template pipeline, then repeated for every needed character and asset against the per-character design specs (§6).
 3. **Cherie picks.** Nobody starts full-cast production until she does.
 
 ## 6. RELATION TO OPEN ITEMS
