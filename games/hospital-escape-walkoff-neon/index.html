@@ -18,12 +18,16 @@ html,body{margin:0;height:100%;background:#14181e;overflow:hidden;touch-action:n
 #dirbar{display:flex;justify-content:center;gap:8px}
 #dirbar button{pointer-events:auto;min-width:56px;height:58px;padding:0 15px;border-radius:32px;border:2px solid rgba(255,255,255,.55);background:rgba(16,20,26,.72);color:#fff;font:900 14px Arial;letter-spacing:.06em;touch-action:none;cursor:pointer}
 #dirbar button.on{background:#e8ecf1;color:#10141a;border-color:#fff}
+#modebar{display:flex;justify-content:center;gap:8px}
+#modebar button{pointer-events:auto;min-width:56px;height:44px;padding:0 15px;border-radius:26px;border:2px solid rgba(232,201,90,.65);background:rgba(16,20,26,.72);color:#e8c95a;font:900 13px Arial;letter-spacing:.06em;touch-action:none;cursor:pointer}
+#modebar button.on{background:#e8c95a;color:#10141a;border-color:#fff}
 #load{position:fixed;inset:0;z-index:1300;display:flex;align-items:center;justify-content:center;color:#dfe6ee;font:700 16px Arial;letter-spacing:.08em;background:#14181e;text-align:center;padding:24px}
 </style></head>
 <body>
 <div id="view"></div>
-<div id="hdr">Walk-off: 1 vs Neon 5<small><b>Gold 1 = our Ex1 · C rig (winner)</b><br>N1 VALID+UAL · N2 VALID+Mocap · N3 AI3D+UAL · N4 Sculpt-C · N5 UAL Dressed<br>FRONT · BACK · SIDE aim the follow camera — tapped while on ALL, they follow <b>gold 1</b> from that angle</small></div>
-<div id="ui"><div id="dirbar"><button data-dir="front">FRONT</button><button data-dir="back">BACK</button><button data-dir="side">SIDE</button></div>
+<div id="hdr">Walk-off: 1 vs Neon 5<small><b>Gold 1 = our Ex1 · C rig (winner)</b><br>N1 VALID+UAL · N2 VALID+Mocap · N3 AI3D+UAL · N4 Sculpt-C · N5 UAL Dressed<br>FRONT · BACK · SIDE aim the follow camera — tapped while on ALL, they follow <b>gold 1</b> from that angle<br><b>ORIG · IMPROVED</b> flips the polish pass on the finalists <b>1 · N1 · N2</b> (default IMPROVED)</small></div>
+<div id="ui"><div id="modebar"><button data-imp="0">ORIG</button><button data-imp="1" class="on">IMPROVED</button></div>
+<div id="dirbar"><button data-dir="front">FRONT</button><button data-dir="back">BACK</button><button data-dir="side">SIDE</button></div>
 <div id="bar"><button data-mode="both" class="on">ALL</button><button data-mode="1" class="gold">1</button><button data-mode="n1">N1</button><button data-mode="n2">N2</button><button data-mode="n3">N3</button><button data-mode="n4">N4</button><button data-mode="n5">N5</button></div></div>
 <div id="load">LOADING…</div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
