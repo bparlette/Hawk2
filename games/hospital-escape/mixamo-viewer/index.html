@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hospital Escape — Mixamo Clip Viewer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #0c0e12; color: #e8eaf0; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  header { padding: 10px 14px 6px; }
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: .2px; }
+  header p { font-size: 12px; color: #9aa3b2; margin-top: 2px; }
+  #stage { position: relative; height: 52vh; min-height: 320px; background: radial-gradient(ellipse at 50% 35%, #1a1f2a 0%, #0c0e12 75%); }
+  #stage canvas { display: block; touch-action: none; }
+  #loading { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+             font-size: 14px; color: #cdd5e1; background: rgba(10,12,16,.55); z-index: 5; text-align: center; padding: 0 20px; }
+  #info { padding: 8px 14px 2px; }
+  #clipTitle { font-size: 15px; font-weight: 600; }
+  #clipMeta { font-size: 12px; color: #9aa3b2; margin-top: 2px; }
+  #controls { position: sticky; bottom: 0; z-index: 1200; display: flex; gap: 10px; align-items: center;
+              padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: rgba(14,16,22,.96);
+              border-top: 1px solid #262c38; }
+  #playBtn { flex: 0 0 auto; min-width: 108px; padding: 12px 18px; font-size: 15px; font-weight: 700;
+             color: #0c0e12; background: #f5c542; border: 0; border-radius: 999px; cursor: pointer; }
+  #playBtn:active { filter: brightness(.9); }
+  #nowPlaying { font-size: 12px; color: #9aa3b2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  main { padding: 6px 14px 26px; }
+  .group { margin-top: 14px; }
+  .group h2 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #7f8ca3; margin-bottom: 8px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 7px; }
+  .pill { padding: 9px 13px; font-size: 13px; color: #dbe1ec; background: #1a1f2a; border: 1px solid #2c3444;
+          border-radius: 999px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .pill:active { background: #232a38; }
+  .pill.active { background: #f5c542; border-color: #f5c542; color: #0c0e12; font-weight: 700; }
+  .pill.busy { opacity: .55; }
+  footer { padding: 0 14px 20px; font-size: 11px; color: #5f6a7d; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hospital Escape — Mixamo Clips</h1>
+  <p>Y Bot performs every clip (retarget anchor — the shipping bodies are the VALID cast). Drag to orbit, pinch to zoom.</p>
+</header>
+
+<div id="stage">
+  <div id="loading">Loading…</div>
+</div>
+
+<div id="info">
+  <div id="clipTitle">Pick a clip below</div>
+  <div id="clipMeta">48 clips · FBX Binary · 30 fps · Keyframe Reduction none</div>
+</div>
+
+<main id="groups"></main>
+
+<footer>
+  Clips decoded in your browser from gzip+base64 text (the repo stores no raw binaries).
+  Root-motion clips travel as authored; the actor resets to origin each loop.
+  Source set: games/hospital-escape/mixamo/ · three.js r128 (pinned CDN).
+</footer>
+
+<div id="controls">
+  <button id="playBtn" type="button">❚❚ Pause</button>
+  <div id="nowPlaying">Nothing loaded yet</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var GROUPS = [
+    { name: 'Character', clips: [
+      { id: 'y-bot-tpose', title: 'Y Bot — T-Pose (With Skin)', meta: 'FBX Binary · 30 fps · With Skin · retarget anchor, static' }
+    ]},
+    { name: 'Gunman', clips: [
+      { id: 'pistol-walk', title: 'Pistol Walk', root: 1 },
+      { id: 'pistol-walk-backward', title: 'Pistol Walk Backward', root: 1 },
+      { id: 'pistol-strafe', title: 'Pistol Strafe', root: 1 },
+      { id: 'pistol-strafe-mirrored', title: 'Pistol Strafe (mirrored)', root: 1 },
+      { id: 'pistol-walk-arc-right', title: 'Walk Arc Right With An Aimed Pistol', root: 1 },
+      { id: 'pistol-walk-arc-left', title: 'Walk Arc Left With An Aimed Pistol', root: 1 },
+      { id: 'pistol-run-aimed', title: 'Running With Aimed Pistol', root: 1 },
+      { id: 'pistol-run', title: 'Running With A Pistol', root: 1 },
+      { id: 'pistol-idle', title: 'Pistol Idle' },
+      { id: 'pistol-aim', title: 'Pistol Aim' },
+      { id: 'crouch-walk-forward', title: 'Crouch Walk Forward', root: 1 },
+      { id: 'pistol-kneeling-idle', title: 'Pistol Kneeling Idle' },
+      { id: 'shooting', title: 'Firing A Gun' },
+      { id: 'shooting-gun', title: 'Shooting Handgun' },
+      { id: 'shooting-pistol', title: 'Shooting A Pistol From Behind Cover' },
+      { id: 'gunplay', title: 'Standing Shooting Rapid Fire' },
+      { id: 'femme-peek-around-corner', title: 'Female Peek Around Corner With Gun' },
+      { id: 'cover-idle-standing', title: 'Standing Cover Against Object' },
+      { id: 'cover-idle-crouched', title: 'Crouched For Cover Against Object' },
+      { id: 'stand-cover-to-look', title: 'Stand Cover To Looking Around A Corner' },
+      { id: 'hit-reaction', title: 'Hit Reaction While Holding A Pistol' },
+      { id: 'hit-reaction-left', title: 'Reaction To Getting Hit To The Left While Holding A Pistol' },
+      { id: 'dying', title: 'Dying With Front Impact To The Head And Fall On One Knee' },
+      { id: 'dying-backwards', title: 'Shot To The Chest Falling Backwards' },
+      { id: 'turning', title: 'Turning In Place' },
+      { id: 'left-turn', title: 'Turning Left With Rifle' },
+      { id: 'right-turn', title: 'Turning Right With Rifle' }
+    ]},
+    { name: 'Cole — seated / injured / bed', clips: [
+      { id: 'sitting-idle-breathing', title: 'Sitting With Breathing Idle' },
+      { id: 'sitting-idle-thighs', title: 'Sitting In Chair Hands Resting On Thighs' },
+      { id: 'sitting-idle-still', title: 'Sitting Still In A Chair' },
+      { id: 'aim-pistol-seated', title: 'Aim Pistol (seated)' },
+      { id: 'lower-pistol', title: 'Sitting Aiming A Pistol, Then Lowering' },
+      { id: 'sitting-gun-motion', title: 'Sitting Gun Motion' },
+      { id: 'sitting-rubbing-arm', title: 'Sitting Rubbing Arm' },
+      { id: 'sitting-dodges', title: 'Dodging While Sitting' },
+      { id: 'sitting-disbelief', title: 'Sitting In Disbelief With Head Back' },
+      { id: 'laying-breathless', title: 'Laying While Breathless Idle' },
+      { id: 'laying-sleeping', title: 'Laying Asleep On A Bed' },
+      { id: 'laying-moaning', title: 'Laying Squirming And Moaning' },
+      { id: 'injured-walking', title: 'Injured Walking', root: 1 },
+      { id: 'sit-to-stand', title: 'Sit To Stand', root: 1 },
+      { id: 'stand-to-sit', title: 'Stand To Sit', root: 1 }
+    ]},
+    { name: 'Maya — pushing', clips: [
+      { id: 'pushing', title: 'Pushing An Object Forward', root: 1 },
+      { id: 'push-start', title: 'Start To Push A Heavy Object' },
+      { id: 'push-stop', title: 'Stop Pushing A Heavy Object' },
+      { id: 'wheelbarrow-walk', title: 'Walking With A Full Wheelbarrow', root: 1 },
+      { id: 'walking-feminine', title: 'Walking (Feminine Walk Forward)', root: 1 }
+    ]}
+  ];
+
+  function metaFor(clip) {
+    if (clip.meta) return clip.meta;
+    return 'FBX Binary · 30 fps · Without Skin · Keyframe Reduction none · ' +
+           (clip.root ? 'root motion ON (In Place unchecked)' : 'no root travel');
+  }
+
+  // ---------- scene ----------
+  var stage = document.getElementById('stage');
+  var renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  stage.appendChild(renderer.domElement);
+
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0c0e12);
+  scene.fog = new THREE.Fog(0x0c0e12, 9, 20);
+
+  var camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera.position.set(1.7, 1.5, 2.6);
+
+  var controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0.9, 0);
+  controls.enableDamping = true;
+  controls.maxPolarAngle = Math.PI * 0.55;
+  controls.minDistance = 0.8;
+  controls.maxDistance = 10;
+
+  scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x1a1c22, 0.85));
+  var key = new THREE.DirectionalLight(0xffffff, 0.9);
+  key.position.set(2.5, 4, 2);
+  scene.add(key);
+  var rim = new THREE.DirectionalLight(0x88aaff, 0.35);
+  rim.position.set(-3, 2, -2.5);
+  scene.add(rim);
+
+  var grid = new THREE.GridHelper(12, 24, 0x3a4356, 0x232a38);
+  grid.position.y = 0.001;
+  scene.add(grid);
+  var originMark = new THREE.Mesh(
+    new THREE.RingGeometry(0.28, 0.34, 40),
+    new THREE.MeshBasicMaterial({ color: 0xf5c542, side: THREE.DoubleSide })
+  );
+  originMark.rotation.x = -Math.PI / 2;
+  originMark.position.y = 0.002;
+  scene.add(originMark);
+
+  function resize() {
+    var w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- clip loading ----------
+  var loader = new THREE.GLTFLoader();
+  var cache = {};          // id -> ArrayBuffer (decoded GLB)
+  var current = null;      // { root, mixer, action, clip }
+  var homePos = new THREE.Vector3();
+  var playing = true;
+  var loadSeq = 0;
+
+  var loadingEl = document.getElementById('loading');
+  var titleEl = document.getElementById('clipTitle');
+  var metaEl = document.getElementById('clipMeta');
+  var nowEl = document.getElementById('nowPlaying');
+  var playBtn = document.getElementById('playBtn');
+
+  function gunzip(buf) {
+    if (typeof DecompressionStream === 'undefined') {
+      return Promise.reject(new Error('This browser cannot gunzip in-page (DecompressionStream missing). Try a current Chrome/Safari.'));
+    }
+    var stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return new Response(stream).arrayBuffer();
+  }
+
+  function fetchGLB(id) {
+    if (cache[id]) return Promise.resolve(cache[id]);
+    return fetch(id + '.glb.gz.b64')
+      .then(function (r) { if (!r.ok) throw new Error('fetch failed: ' + r.status); return r.text(); })
+      .then(function (b64) {
+        var bin = atob(b64.replace(/\s+/g, ''));
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return gunzip(bytes.buffer);
+      })
+      .then(function (buf) { cache[id] = buf; return buf; });
+  }
+
+  function setActivePill(id) {
+    var pills = document.querySelectorAll('.pill');
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].classList.toggle('active', pills[i].getAttribute('data-id') === id);
+    }
+  }
+
+  function playClip(clip, pillEl) {
+    var seq = ++loadSeq;
+    setActivePill(clip.id);
+    titleEl.textContent = clip.title;
+    metaEl.textContent = metaFor(clip);
+    nowEl.textContent = 'Loading ' + clip.title + '…';
+    loadingEl.style.display = 'flex';
+    loadingEl.textContent = 'Decoding ' + clip.title + '…';
+    if (pillEl) pillEl.classList.add('busy');
+
+    fetchGLB(clip.id).then(function (buf) {
+      if (seq !== loadSeq) return null;
+      return new Promise(function (resolve, reject) {
+        loader.parse(buf, '', resolve, reject);
+      });
+    }).then(function (gltf) {
+      if (!gltf || seq !== loadSeq) return;
+      if (current) {
+        scene.remove(current.root);
+        if (current.mixer) current.mixer.stopAllAction();
+      }
+      var root = gltf.scene;
+      scene.add(root);
+      homePos.copy(root.position);
+      var mixer = null, action = null;
+      if (gltf.animations && gltf.animations.length) {
+        mixer = new THREE.AnimationMixer(root);
+        action = mixer.clipAction(gltf.animations[0]);
+        action.setLoop(THREE.LoopRepeat, Infinity);
+        action.play();
+        action.paused = !playing;
+        // Root motion is baked in the clip; at each loop wrap the pose returns
+        // to frame 0 — also restore the model root so it never accumulates drift.
+        mixer.addEventListener('loop', function () { root.position.copy(homePos); });
+      }
+      current = { root: root, mixer: mixer, action: action, clip: clip };
+      nowEl.textContent = (action ? 'Playing: ' : 'Showing: ') + clip.title;
+      loadingEl.style.display = 'none';
+      if (pillEl) pillEl.classList.remove('busy');
+    }).catch(function (err) {
+      if (seq !== loadSeq) return;
+      loadingEl.style.display = 'flex';
+      loadingEl.textContent = 'Could not load ' + clip.title + ' — ' + err.message;
+      nowEl.textContent = 'Load failed: ' + clip.title;
+      if (pillEl) pillEl.classList.remove('busy');
+    });
+  }
+
+  playBtn.addEventListener('click', function () {
+    playing = !playing;
+    if (current && current.action) current.action.paused = !playing;
+    playBtn.textContent = playing ? '❚❚ Pause' : '▶ Play';
+  });
+
+  // ---------- build the pill groups ----------
+  var groupsEl = document.getElementById('groups');
+  GROUPS.forEach(function (g) {
+    var wrap = document.createElement('section');
+    wrap.className = 'group';
+    var h = document.createElement('h2');
+    h.textContent = g.name;
+    wrap.appendChild(h);
+    var pills = document.createElement('div');
+    pills.className = 'pills';
+    g.clips.forEach(function (clip) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pill';
+      b.textContent = clip.title;
+      b.setAttribute('data-id', clip.id);
+      b.addEventListener('click', function () { playClip(clip, b); });
+      pills.appendChild(b);
+    });
+    wrap.appendChild(pills);
+    groupsEl.appendChild(wrap);
+  });
+
+  // ---------- render loop ----------
+  var clock = new THREE.Clock();
+  function tick() {
+    requestAnimationFrame(tick);
+    var dt = clock.getDelta();
+    if (current && current.mixer) current.mixer.update(dt);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  tick();
+
+  // Default: the anchor pose, so the page is never empty.
+  playClip(GROUPS[0].clips[0], null);
+})();
+</script>
+</body>
+</html>
