@@ -1,0 +1,587 @@
+{
+ "mxt-w1": {
+  "ex": 1,
+  "ver": 1,
+  "showcase": {
+   "from": [
+    0.4353288901159484,
+    -12,
+    -98.97144473867444
+   ],
+   "to": [
+    0.4742479570402981,
+    -12,
+    -94.1701027068848
+   ],
+   "len": 4.8014997656982175
+  },
+  "frames": 150,
+  "clipsSeen": [
+   "Walk+null",
+   "LegsIdle+UpAim"
+  ],
+  "slide": {
+   "heelLeft": {
+    "strict": {
+     "contacts": 2,
+     "median_cm": 0.9,
+     "max_cm": 0.9
+    }
+   },
+   "toeLeft": {
+    "strict": {
+     "contacts": 2,
+     "median_cm": 3.2,
+     "max_cm": 3.2
+    }
+   },
+   "heelRight": {
+    "strict": {
+     "contacts": 3,
+     "median_cm": 1.4,
+     "max_cm": 1.4
+    }
+   },
+   "toeRight": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   }
+  },
+  "cost": {
+   "calls": 5,
+   "tris": 7484
+  },
+  "frame": {
+   "calls": 67,
+   "tris": 22820
+  },
+  "figureHeight_m": 1.74,
+  "mocap": {
+   "source": "Mixamo (Cherie account), retargeted offline: mixamo/retarget.js"
+  },
+  "paces": {
+   "walk_ms": 2.633,
+   "run_ms": 3.305
+  },
+  "paceSamples": {
+   "pistol-walk": 172,
+   "pistol-run-aimed": 109
+  },
+  "kLeg": 0.9635
+ },
+ "mxt-w2": {
+  "ex": 2,
+  "ver": 1,
+  "showcase": {
+   "from": [
+    0.4353288901159484,
+    -12,
+    -98.97144473867444
+   ],
+   "to": [
+    0.4742479570402981,
+    -12,
+    -94.1701027068848
+   ],
+   "len": 4.8014997656982175
+  },
+  "frames": 150,
+  "clipsSeen": [
+   "Walk+null",
+   "LegsIdle+UpAim"
+  ],
+  "slide": {
+   "heelLeft": {
+    "strict": {
+     "contacts": 2,
+     "median_cm": 0.3,
+     "max_cm": 0.3
+    }
+   },
+   "toeLeft": {
+    "strict": {
+     "contacts": 2,
+     "median_cm": 1.4,
+     "max_cm": 1.4
+    }
+   },
+   "heelRight": {
+    "strict": {
+     "contacts": 3,
+     "median_cm": 1.3,
+     "max_cm": 1.3
+    }
+   },
+   "toeRight": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   }
+  },
+  "cost": {
+   "calls": 5,
+   "tris": 7484
+  },
+  "frame": {
+   "calls": 67,
+   "tris": 22820
+  },
+  "figureHeight_m": 1.71,
+  "mocap": {
+   "source": "Mixamo (Cherie account), retargeted offline: mixamo/retarget.js"
+  },
+  "paces": {
+   "walk_ms": 2.69,
+   "run_ms": 3.234
+  },
+  "paceSamples": {
+   "pistol-walk": 170,
+   "pistol-run-aimed": 132
+  },
+  "kLeg": 1
+ },
+ "mxt-w3": {
+  "ex": 3,
+  "ver": 1,
+  "showcase": {
+   "from": [
+    0.4353288901159484,
+    -12,
+    -98.97144473867444
+   ],
+   "to": [
+    0.4742479570402981,
+    -12,
+    -94.1701027068848
+   ],
+   "len": 4.8014997656982175
+  },
+  "frames": 150,
+  "clipsSeen": [
+   "Walk+null",
+   "LegsIdle+UpAim"
+  ],
+  "slide": {
+   "heelLeft": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   },
+   "toeLeft": {
+    "strict": {
+     "contacts": 2,
+     "median_cm": 2.4,
+     "max_cm": 2.4
+    }
+   },
+   "heelRight": {
+    "strict": {
+     "contacts": 3,
+     "median_cm": 1.2,
+     "max_cm": 1.2
+    }
+   },
+   "toeRight": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   }
+  },
+  "cost": {
+   "calls": 5,
+   "tris": 7484
+  },
+  "frame": {
+   "calls": 67,
+   "tris": 22820
+  },
+  "figureHeight_m": 1.72,
+  "mocap": {
+   "source": "Mixamo (Cherie account), retargeted offline: mixamo/retarget.js"
+  },
+  "paces": {
+   "walk_ms": 2.725,
+   "run_ms": 3.282
+  },
+  "paceSamples": {
+   "pistol-walk": 170,
+   "pistol-run-aimed": 129
+  },
+  "kLeg": 0.9981
+ },
+ "mxt-w4": {
+  "ex": 4,
+  "ver": 1,
+  "showcase": {
+   "from": [
+    0.4353288901159484,
+    -12,
+    -98.97144473867444
+   ],
+   "to": [
+    0.4742479570402981,
+    -12,
+    -94.1701027068848
+   ],
+   "len": 4.8014997656982175
+  },
+  "frames": 150,
+  "clipsSeen": [
+   "Walk+null",
+   "LegsIdle+UpAim"
+  ],
+  "slide": {
+   "heelLeft": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   },
+   "toeLeft": {
+    "strict": {
+     "contacts": 2,
+     "median_cm": 1,
+     "max_cm": 1
+    }
+   },
+   "heelRight": {
+    "strict": {
+     "contacts": 3,
+     "median_cm": 1.4,
+     "max_cm": 1.5
+    }
+   },
+   "toeRight": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   }
+  },
+  "cost": {
+   "calls": 5,
+   "tris": 7484
+  },
+  "frame": {
+   "calls": 67,
+   "tris": 22820
+  },
+  "figureHeight_m": 1.75,
+  "mocap": {
+   "source": "Mixamo (Cherie account), retargeted offline: mixamo/retarget.js"
+  },
+  "paces": {
+   "walk_ms": 2.81,
+   "run_ms": 3.339
+  },
+  "paceSamples": {
+   "pistol-walk": 168,
+   "pistol-run-aimed": 141
+  },
+  "kLeg": 1.0082
+ },
+ "mxt-w5": {
+  "ex": 5,
+  "ver": 1,
+  "showcase": {
+   "from": [
+    0.4353288901159484,
+    -12,
+    -98.97144473867444
+   ],
+   "to": [
+    0.4742479570402981,
+    -12,
+    -94.1701027068848
+   ],
+   "len": 4.8014997656982175
+  },
+  "frames": 150,
+  "clipsSeen": [
+   "Walk+null",
+   "LegsIdle+UpAim"
+  ],
+  "slide": {
+   "heelLeft": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   },
+   "toeLeft": {
+    "strict": {
+     "contacts": 2,
+     "median_cm": 1,
+     "max_cm": 1
+    }
+   },
+   "heelRight": {
+    "strict": {
+     "contacts": 3,
+     "median_cm": 2.3,
+     "max_cm": 2.4
+    }
+   },
+   "toeRight": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   }
+  },
+  "cost": {
+   "calls": 5,
+   "tris": 7483
+  },
+  "frame": {
+   "calls": 67,
+   "tris": 22819
+  },
+  "figureHeight_m": 1.69,
+  "mocap": {
+   "source": "Mixamo (Cherie account), retargeted offline: mixamo/retarget.js"
+  },
+  "paces": {
+   "walk_ms": 2.717,
+   "run_ms": 3.235
+  },
+  "paceSamples": {
+   "pistol-walk": 182,
+   "pistol-run-aimed": 144
+  },
+  "kLeg": 1.021
+ },
+ "mxt-r1": {
+  "ex": 1,
+  "ver": 1,
+  "showcase": {
+   "from": [
+    0.2864038891299175,
+    -12,
+    -103.46897976845256
+   ],
+   "to": [
+    0.513961290636573,
+    -12,
+    -92.9707600322773
+   ],
+   "len": 10.500685691896514
+  },
+  "frames": 90,
+  "clipsSeen": [
+   "Run+null"
+  ],
+  "slide": {
+   "heelLeft": {
+    "strict": {
+     "contacts": 4,
+     "median_cm": 1.8,
+     "max_cm": 1.9
+    }
+   },
+   "toeLeft": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   },
+   "heelRight": {
+    "strict": {
+     "contacts": 3,
+     "median_cm": 1.2,
+     "max_cm": 1.2
+    }
+   },
+   "toeRight": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   }
+  },
+  "cost": {
+   "calls": 5,
+   "tris": 7484
+  },
+  "frame": {
+   "calls": 67,
+   "tris": 22820
+  },
+  "figureHeight_m": 1.62,
+  "mocap": {
+   "source": "Mixamo (Cherie account), retargeted offline: mixamo/retarget.js"
+  },
+  "paces": {
+   "walk_ms": 2.633,
+   "run_ms": 3.305
+  },
+  "paceSamples": {
+   "pistol-walk": 172,
+   "pistol-run-aimed": 109
+  },
+  "kLeg": 0.9635
+ },
+ "mxt-r3": {
+  "ex": 3,
+  "ver": 1,
+  "showcase": {
+   "from": [
+    0.2864038891299175,
+    -12,
+    -103.46897976845256
+   ],
+   "to": [
+    0.513961290636573,
+    -12,
+    -92.9707600322773
+   ],
+   "len": 10.500685691896514
+  },
+  "frames": 90,
+  "clipsSeen": [
+   "Run+null"
+  ],
+  "slide": {
+   "heelLeft": {
+    "strict": {
+     "contacts": 4,
+     "median_cm": 1.8,
+     "max_cm": 1.8
+    }
+   },
+   "toeLeft": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   },
+   "heelRight": {
+    "strict": {
+     "contacts": 3,
+     "median_cm": 1.1,
+     "max_cm": 1.3
+    }
+   },
+   "toeRight": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   }
+  },
+  "cost": {
+   "calls": 5,
+   "tris": 7484
+  },
+  "frame": {
+   "calls": 67,
+   "tris": 22820
+  },
+  "figureHeight_m": 1.6,
+  "mocap": {
+   "source": "Mixamo (Cherie account), retargeted offline: mixamo/retarget.js"
+  },
+  "paces": {
+   "walk_ms": 2.725,
+   "run_ms": 3.282
+  },
+  "paceSamples": {
+   "pistol-walk": 170,
+   "pistol-run-aimed": 129
+  },
+  "kLeg": 0.9981
+ },
+ "mxw4": {
+  "ex": 1,
+  "ver": 1,
+  "showcase": {
+   "from": [
+    0.4353288901159484,
+    -12,
+    -98.97144473867444
+   ],
+   "to": [
+    0.4742479570402981,
+    -12,
+    -94.1701027068848
+   ],
+   "len": 4.8014997656982175
+  },
+  "frames": 240,
+  "clipsSeen": [
+   "Walk+null",
+   "LegsIdle+UpAim"
+  ],
+  "slide": {
+   "heelLeft": {
+    "strict": {
+     "contacts": 2,
+     "median_cm": 0.8,
+     "max_cm": 0.8
+    }
+   },
+   "toeLeft": {
+    "strict": {
+     "contacts": 2,
+     "median_cm": 3.2,
+     "max_cm": 3.2
+    }
+   },
+   "heelRight": {
+    "strict": {
+     "contacts": 3,
+     "median_cm": 1.3,
+     "max_cm": 1.4
+    }
+   },
+   "toeRight": {
+    "strict": {
+     "contacts": 0,
+     "median_cm": null,
+     "max_cm": null
+    }
+   }
+  },
+  "cost": {
+   "calls": 5,
+   "tris": 7484
+  },
+  "frame": {
+   "calls": 67,
+   "tris": 22820
+  },
+  "figureHeight_m": 1.73,
+  "mocap": {
+   "source": "Mixamo (Cherie account), retargeted offline: mixamo/retarget.js"
+  },
+  "paces": {
+   "walk_ms": 2.633,
+   "run_ms": 3.305
+  },
+  "paceSamples": {
+   "pistol-walk": 172,
+   "pistol-run-aimed": 109
+  },
+  "kLeg": 0.9635
+ },
+ "recoil": {
+  "note": "muzzle delta vs an identical no-fire run, 1/60 s steps, design 1"
+ }
+}
