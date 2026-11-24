@@ -2,8 +2,9 @@
 
 This folder holds the Mixamo animation set for the Hospital Escape cast pass:
 the Y Bot T-Pose (with skin — the retarget anchor / reference skeleton) plus
-47 animation clips for the Gunman, Cole, and Maya, downloaded 2026-11-24.
-The set is complete: 48 files, listed in MANIFEST.md.
+53 animation clips for the Gunman, Cole, and Maya, downloaded 2026-11-24
+(48 files in batch 1, 6 more in batch 2 the same day).
+The set is complete: 54 files, listed in MANIFEST.md.
 
 ## Why the files look like this
 
