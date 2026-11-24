@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><base href="../../hospital-escape/"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#0b0f14">
+<title>Hallway Painted push</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;font-family:"Helvetica Neue",Arial,sans-serif}
+#game{position:fixed;inset:0}#game canvas{display:block;width:100%;height:100%}
+.ov{position:fixed;inset:0;pointer-events:none}
+#vig{background:radial-gradient(ellipse at center,rgba(0,0,0,0) 42%,rgba(150,0,0,.92) 100%);opacity:0;z-index:1000}
+#wash{background:radial-gradient(ellipse at center,rgba(170,190,60,.25) 30%,rgba(120,150,30,.7) 100%);mix-blend-mode:multiply;opacity:0;z-index:1001}
+#flash{background:rgba(255,40,40,.0);z-index:1002;transition:background .14s}#flash.on{background:rgba(255,40,40,.45)}
+#ret{position:fixed;width:34px;height:34px;margin:-17px 0 0 -17px;border:2px solid rgba(255,255,255,.92);border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.4),inset 0 0 0 1px rgba(0,0,0,.3);pointer-events:none;z-index:1050;display:none}
+#ret:after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;background:#fff;border-radius:50%}
+#hm{position:fixed;width:28px;height:28px;margin:-14px 0 0 -14px;pointer-events:none;z-index:1051;opacity:0;color:#ff2a2a;font:900 30px/28px Arial;text-align:center;text-shadow:0 0 4px #000}
+#sub{position:fixed;left:18px;right:18px;bottom:calc(176px + env(safe-area-inset-bottom));text-align:center;color:#fff;font:600 17px/1.35 "Helvetica Neue",Arial;text-shadow:0 2px 3px #000,0 0 10px rgba(0,0,0,.9);z-index:1060;pointer-events:none}
+#sub b{color:#ffcf6a;font-weight:800;letter-spacing:.06em;margin-right:6px}
+#banner{position:fixed;left:0;right:0;top:34%;text-align:center;color:#fff;font:900 26px/1.2 "Helvetica Neue",Arial;letter-spacing:.08em;text-shadow:0 3px 6px #000;opacity:0;transform:scale(.96);transition:opacity .25s,transform .25s;z-index:1070;pointer-events:none}
+#banner.show{opacity:1;transform:scale(1)}#banner.title{font-size:22px;color:#f4efe4}#banner.penalty{color:#ff3b30;font-size:30px;background:rgba(0,0,0,.55);padding:10px 0}
+#pops .pop{position:fixed;transform:translate(-50%,-50%);color:#fff;font:900 18px Arial;text-shadow:0 2px 3px #000;pointer-events:none;z-index:1065;animation:rise .9s ease-out forwards}#pops .pop.quick{color:#ffd24a}
+@keyframes rise{to{transform:translate(-50%,-160%);opacity:0}}
+.btn{position:fixed;z-index:1100;border-radius:50%;display:none;align-items:center;justify-content:center;color:#fff;font:900 15px Arial;letter-spacing:.06em;touch-action:none;border:3px solid rgba(255,255,255,.85)}
+#fire{width:104px;height:104px;right:18px;bottom:calc(34px + env(safe-area-inset-bottom));background:radial-gradient(circle at 40% 35%,rgba(235,70,60,.9),rgba(150,20,20,.85));box-shadow:0 4px 14px rgba(0,0,0,.5);font-size:18px}
+#reload{width:66px;height:66px;right:134px;bottom:calc(30px + env(safe-area-inset-bottom));background:rgba(20,24,30,.65);font-size:12px}
+#stick{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:2px solid rgba(255,255,255,.55);background:rgba(0,0,0,.15);display:none;z-index:1100;pointer-events:none}
+#stick i{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(255,255,255,.6)}
+#full{position:fixed;left:14px;right:14px;top:calc(12px + env(safe-area-inset-top));display:none;justify-content:space-between;align-items:flex-start;color:#fff;font:800 14px Arial;text-shadow:0 1px 3px #000;z-index:1060;pointer-events:none}
+#hp{width:150px;height:10px;border:2px solid rgba(255,255,255,.85);border-radius:6px;overflow:hidden;margin-top:5px}#hpbar{height:100%;background:#f2f2ee;width:100%}
+#start,#card{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;padding:24px}
+#start{background:radial-gradient(ellipse at 50% 30%,#2b3a48,#0b0f14 70%)}
+#start h1{font:900 40px/1 "Helvetica Neue",Arial;letter-spacing:.04em;margin:0 0 10px}#start h2{font:700 15px Arial;letter-spacing:.3em;color:#ffcf6a;margin:0 0 26px}
+#start p{max-width:320px;color:#c9d2da;font:500 15px/1.45 Arial;margin:0 0 30px}
+#start button,#card button{font:900 17px Arial;letter-spacing:.1em;padding:16px 34px;border-radius:40px;border:0;background:#e2493e;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+#card{display:none;background:rgba(5,8,12,.82)}#card h3{font:900 26px Arial;margin:0 0 14px;letter-spacing:.06em}#card div{color:#d6dde2;font:500 16px/1.6 Arial;margin:0 0 26px}
+#ret,#fire,#reload,#full,#sub,#banner,#hm,#pops,#stick{display:none!important}</style></head>
+<body>
+<div id="game"></div>
+<div class="ov" id="vig"></div><div class="ov" id="wash"></div><div class="ov" id="flash"></div>
+<div id="ret"></div><div id="hm">✕</div><div id="pops"></div>
+<div id="full"><div>MAYA<div id="hp"><div id="hpbar"></div></div></div><div style="text-align:right"><span id="ammo">12</span><br><span id="score">0</span></div></div>
+<div id="sub"></div><div id="banner"></div>
+<div class="btn" id="reload">RELOAD</div><div class="btn" id="fire">FIRE</div><div id="stick"><i></i></div>
+<div id="start" style="display:none"><h1>HOSPITAL<br>ESCAPE</h1><h2>ST. MERCER MEMORIAL</h2><p>Cole can't walk. Maya is wheeling him out anyway.<br>Drag anywhere to aim · hold FIRE · red shots are the ones that hit.<br>Don't shoot the staff or the patients.</p><button id="startBtn">START</button></div>
+<div id="card"><h3 id="cardTitle"></h3><div id="cardBody"></div><button id="cardBtn">RETRY</button></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="engine/core.js"></script><script src="engine/rail.js"></script><script src="engine/combat.js"></script><script src="engine/chase.js"></script>
+<script src="engine/greybox.js"></script><script src="engine/director.js"></script>
+<script src="game/level1.js"></script><script src="game/art.js"></script><script src="game/painted-data.js"></script><script src="game/painted.js"></script><script src="game/world.js"></script><script src="game/post.js"></script><script src="game/main.js"></script>
+<script src="../hospital-escape-hallway-opus/take3.js"></script>
+<script src="../hospital-escape-hallway-opus/hall-core.js"></script>
+</body></html>
