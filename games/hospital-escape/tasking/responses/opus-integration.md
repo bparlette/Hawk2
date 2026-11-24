@@ -26,7 +26,7 @@
 |---|---|
 | Engine tests (`tools/run-tests.cjs`) | **24/24 passed**, 0 page errors |
 | Data validation (`engine/validate-data.mjs game/level1.js`) | **201 objects, 0 errors**, PASS |
-| Fairness audit (`tools/fairness-audit.cjs`, seeds 7/3/11, full runs + damage soaks) | **PASS: 378 damage events, 0 violations**, min visible 1.07 s, min height 47 px. Re-run after the last change: see the note at the end. |
+| Fairness audit (`tools/fairness-audit.cjs`, seeds 7/3/11, full runs + damage soaks) | **PASS: 378 damage events, 0 violations**, min visible 1.07 s, min height 47 px. **Re-run after the final change (the turn fix): identical, PASS, 378 / 0.** |
 | Full playthrough (`tools/cast-fullrun.cjs 7`) | Completes (233 s game time, not lost), **0 page errors** |
 | HUD | Unchanged. No HUD element added. |
 | Live page errors, every beat captured | 0 |
