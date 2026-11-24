@@ -1,5 +1,5 @@
 // APEX WAKE — Lofted PBR Supercharged Watercraft (Realistic Deep-V Hull, Handlebars, Live Dash & Jet Nozzle)
-import * as THREE from '../three.module.js';
+import * as THREE from 'three';
 
 // ================================================================
 // 1. PROCEDURAL MARINE TEXTURES (Gelcoat Livery, Carbon Fiber, EVA Deck, Live Dash)

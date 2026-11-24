@@ -1,5 +1,5 @@
 // APEX WAKE — Tropical Archipelago World: Islands, Swaying Palms, Anchored Yachts, Floating Ramps & Slalom Gates
-import * as THREE from '../three.module.js';
+import * as THREE from 'three';
 import { sampleWave } from './ocean.js';
 
 function mulberry32(a) {

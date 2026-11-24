@@ -1,6 +1,6 @@
 // APEX WAKE — Realistic Water Spray, Rooster Tail, Chine Carve Sheets & Camera Lens Droplets
 // Renders 1,400 dynamic spray/mist particles in 1 single draw call via custom Points ShaderMaterial.
-import * as THREE from '../three.module.js';
+import * as THREE from 'three';
 
 const MAX_PARTS = 1400;
 

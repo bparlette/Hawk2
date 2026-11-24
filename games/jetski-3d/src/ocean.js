@@ -1,5 +1,5 @@
 // APEX WAKE — Photorealistic Gerstner Ocean Shader, Shared CPU/GPU Wave Physics & Sky Atmosphere
-import * as THREE from '../three.module.js';
+import * as THREE from 'three';
 
 // ================================================================
 // 1. LIGHTING PRESETS (toggleable live)

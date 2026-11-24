@@ -136,6 +136,10 @@ Counts are exact renderer numbers; no phone frame-time claim (SwiftShader VM).
 
 ## Example 5 — hybrid: Man body × Entry C's clip library (`?fig=hybrid`)
 
+> **Withdrawn as a candidate (2026-11-23)** — see the correction in the Verdict section
+> below. The build description here stands as a record of what was made; the technique
+> is **not** the recommended template.
+
 - **Source/build:** Example 2's body driven by **Entry C's 8 gun clips** (the two packs use
   near-identical bone names), + code pistol, + relight v2, + C's adjudicated constants
   (the clips carry their speeds with them: 1.30/3.20). One clip library, many bodies —
@@ -162,7 +166,23 @@ Counts are exact renderer numbers; no phone frame-time claim (SwiftShader VM).
 
 ---
 
-## My ranking, and what I'd carry into the full cast
+## Verdict — CORRECTED 2026-11-23 (Cherie's walk-off ruling)
+
+> **Correction (2026-11-23):** After the head-to-head 1-vs-5 walk-off
+> (https://bparlette.github.io/Hawk2/games/hospital-escape-walkoff/), Cherie ruled:
+> **"1 wins by a mile not even close."** She is right. Side by side in one world,
+> Example 1 (C rig re-tuned) reads as a natural, well-proportioned, well-lit person,
+> while Example 5 (Man body × C clips retarget) reads gaunt and spindly, its materials
+> crushed near-black, with an awkward stride.
+>
+> **Example 1 wins this bake-off outright and is the cast template.** Example 5 is
+> **withdrawn as a candidate**: its body and materials are not at the standard. The
+> original ranking below crowned Example 5 on pipeline economics (draw calls,
+> repeatability cost) over the on-screen result — that weighting was my judging error.
+> A cheaper pipeline that looks worse is not a winner. The original ranking is
+> preserved verbatim below for the record; do not cite it.
+
+### Superseded original ranking — do not cite (preserved verbatim)
 
 1. **Example 5's technique** — one shared gun-clip library + per-character bodies +
    rotation-only retarget + contact-probe pacing + relight. It's the only entry that is
