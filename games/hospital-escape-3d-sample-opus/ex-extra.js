@@ -98,10 +98,40 @@ O.prep = function(base, done){ var needs = O.ex === 2 || O.ex === 5; if(!needs) 
 // ------------------------------------------------------------------ spec table = the iteration trail of each example
 O.SPEC = function(ex, ver){ var full = { kind: 'c', merge: true, lamp: true, proxies: true, rules: O.rulesGunman };
   if(ex === 2) return Object.assign({}, full, { kind: 'mocap' });
+  if(ex === 4) return Object.assign({}, full, { kind: 'combat', legs: 'c' });
+  if(ex === 5) return Object.assign({}, full, { kind: 'combat', legs: 'mocap', height: 1.82, rules: O.rulesShape({ girth: 0.032, belly: 0.025, shoulders: 0.03, shoulderWidth: 0.022, neck: 0.018, forearm: 0.008, thigh: 0.012 }) });
   // ex3 trail: v1 first shape row; v2 tuned against the spec (stocky 1.82 m, heavy bomber shoulders, thick neck — the beanie silhouette)
   if(ex === 3) return Object.assign({}, full, { height: 1.82, rules: O.rulesShape(ver <= 1 ? { girth: 0.05, shoulders: 0.05, shoulderWidth: 0.03, neck: 0.02 } :
     { girth: 0.032, belly: 0.025, shoulders: 0.03, shoulderWidth: 0.022, neck: 0.018, forearm: 0.008, thigh: 0.012 }) });
   return null; };
+O.mocapClip = function(){ return mocap.clip; }; O.mocapPace = function(){ return mocap.pace; };
 O.BUILD.mocap = function(opt){ var clips = Object.assign({}, O.base.clips, { Walk: mocap.clip }), f = O.BUILD.c(Object.assign({}, opt, { clips: clips }));
   f.pace = { Walk: mocap.pace, Run: O.PACE.Run }; return f; };
+})();
+// ------------------------------------------------------------------ EXAMPLE 4 (and 5): COMBAT LOCOMOTION — split the skeleton, layer clips
+(function(){ var O = window.__opus, V = THREE.Vector3, Qt = THREE.Quaternion;
+var LOWER = /^(Root|Body|Hips|UpperLeg|LowerLeg|Foot|PT)/;   // legs + pelvis + the IK-baked feet
+function sub(clip, keepLower, name){ var c = clip.clone(); c.name = name; c.tracks = c.tracks.filter(function(t){ var b = t.name.split('.')[0]; return keepLower ? LOWER.test(b) : !LOWER.test(b); }); return c; }
+O.BUILD.combat = function(opt){ var legsSrc = opt.legs === 'mocap' ? O.mocapClip() : O.base.clips.Walk, C = O.base.clips;
+  var clips = { LegsWalk: sub(legsSrc, true, 'LegsWalk'), LegsIdle: sub(C.Idle_Gun, true, 'LegsIdle'), UpAim: sub(C.Idle_Gun_Pointing, false, 'UpAim'), UpFire: sub(C.Gun_Shoot, false, 'UpFire'),
+    UpCarry: sub(legsSrc, false, 'UpCarry'), Death: C.Death, HitRecieve: C.HitRecieve };
+  var f = O.BUILD.c(Object.assign({}, opt, { clips: clips })); f.pace = { Walk: opt.legs === 'mocap' ? O.mocapPace() : O.PACE.Walk };
+  f.spine = ['Abdomen', 'Torso', 'Chest'].map(function(n){ return O.boneOf(f.model, n); }); f.armR = [O.boneOf(f.model, 'UpperArmR'), O.boneOf(f.model, 'WristR')]; f.twist = 0; f.layers = { low: null, up: null };
+  ['LegsWalk', 'LegsIdle', 'UpAim', 'UpFire', 'UpCarry'].forEach(function(n){ var a = f.actions[n]; a.setLoop(n === 'UpFire' ? THREE.LoopOnce : THREE.LoopRepeat, Infinity); a.clampWhenFinished = n === 'UpFire'; });
+  function lay(slot, name, fade){ var cur = f.layers[slot]; if(cur === name) return; var a = f.actions[name]; a.reset(); a.enabled = true; a.setEffectiveWeight(1); a.play(); if(cur) a.crossFadeFrom(f.actions[cur], fade, false); f.layers[slot] = name; }
+  f.drive = function(fig, dt, st){
+    if(st.dead){ if(fig.layers.low !== 'Death'){ fig.mixer.stopAllAction(); fig.layers = { low: 'Death', up: 'Death' }; O.play(fig, 'Death', 0.1, true); } fig.mixer.update(dt); O.lampTerms(fig); return; }
+    var moving = st.speed > 0.25; lay('low', moving ? 'LegsWalk' : 'LegsIdle', 0.2); if(moving) fig.actions.LegsWalk.timeScale = st.speed / fig.pace.Walk;
+    var aiming = st.aim || st.aimWalk; if(st.fire){ lay('up', 'UpFire', 0.05); } else if(fig.layers.up === 'UpFire' && fig.actions.UpFire.time < fig.actions.UpFire.getClip().duration * 0.95){ }
+    else lay('up', aiming ? 'UpAim' : (moving ? 'UpCarry' : 'UpAim'), 0.25);
+    if(fig.layers.up === 'UpCarry') fig.actions.UpCarry.timeScale = fig.actions.LegsWalk.timeScale;
+    fig.mixer.update(dt);
+    // spine twist toward the target (camera): yaw split over three spine bones, clamped +-60 deg, eased
+    if(st.cam && aiming){   // aim error measured on the GUN ARM as the clip posed it (C's pointing stance is bladed ~70 deg off the hips), then spent on the spine
+      fig.model.updateMatrixWorld(true); var sh = fig.armR[0].getWorldPosition(new V()), wr = fig.armR[1].getWorldPosition(new V()), ad = wr.sub(sh); ad.y = 0; ad.normalize(); var to = st.cam.clone().sub(sh); to.y = 0; to.normalize();
+      var want = Math.max(-1.4, Math.min(1.4, Math.atan2(ad.z * to.x - ad.x * to.z, ad.dot(to)))); fig.twist += (want - fig.twist) * Math.min(1, dt * 8); }
+    else fig.twist += (0 - fig.twist) * Math.min(1, dt * 6);
+    if(Math.abs(fig.twist) > 1e-3) fig.spine.forEach(function(b){ if(b) b.rotateOnWorldAxis(new V(0, 1, 0), fig.twist / 3); });
+    O.lampTerms(fig); };
+  return f; };
 })();

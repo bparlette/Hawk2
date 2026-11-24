@@ -1,0 +1,90 @@
+{
+ "ex": 2,
+ "ver": 4,
+ "showcase": {
+  "from": [
+   0.8195553926599071,
+   -12,
+   -103.9869078274373
+  ],
+  "to": [
+   0.8274980593791625,
+   -12,
+   -94.68207376583011
+  ],
+  "len": 9.304837451562497
+ },
+ "frames": 210,
+ "clipsSeen": [
+  "Walk",
+  "Idle_Gun_Pointing"
+ ],
+ "slide": {
+  "heelL": {
+   "strict": {
+    "contacts": 7,
+    "median_cm": 3.8,
+    "max_cm": 4.2
+   },
+   "contacts": 7,
+   "median_cm": 25.6,
+   "max_cm": 29.7
+  },
+  "toeL": {
+   "strict": {
+    "contacts": 1,
+    "median_cm": 1,
+    "max_cm": 1
+   },
+   "contacts": 6,
+   "median_cm": 5.2,
+   "max_cm": 7.2
+  },
+  "heelR": {
+   "strict": {
+    "contacts": 6,
+    "median_cm": 1.6,
+    "max_cm": 2
+   },
+   "contacts": 6,
+   "median_cm": 24.8,
+   "max_cm": 27.1
+  },
+  "toeR": {
+   "strict": {
+    "contacts": 1,
+    "median_cm": 1.6,
+    "max_cm": 1.6
+   },
+   "contacts": 7,
+   "median_cm": 5.3,
+   "max_cm": 6.4
+  }
+ },
+ "cost": {
+  "calls": 3,
+  "tris": 5814
+ },
+ "frame": {
+  "calls": 65,
+  "tris": 21150
+ },
+ "figureHeight_m": 1.64,
+ "mocap": {
+  "file": "35_02",
+  "meta": {
+   "fps": 120.0004765410274,
+   "cycleFrames": 137,
+   "cycleSeconds": 1.133,
+   "rootSpeedSrc_mps": 1.356,
+   "scale": 0.0615623227717233,
+   "loopErr": 0.0108,
+   "groundDrop_m": 0.028
+  },
+  "pace_mps": 1.326,
+  "contactEstimate_mps": 1.129,
+  "rootSpeedScaled_mps": 1.326,
+  "footLock": true
+ },
+ "errs": []
+}

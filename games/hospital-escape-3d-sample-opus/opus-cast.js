@@ -102,11 +102,19 @@ function lampTerms(fig){ var U = fig.lampU; if(!U) return; var L = (window.HEPAI
   _ld.transformDirection(cam.matrixWorldInverse); U.lampDir.value.copy(_ld); U.lampKey.value = 0.55 * Math.min(1.4, sum); U.lampAmb.value = 0.18 + 0.12 * Math.min(1.4, sum); U.lampBack.value = back; }
 
 // ------------------------------------------------------------------ HIT PROXIES: capsules parented to the 22 core bones; the skinned mesh never raycasts
-var PROX = [['Head', 0.11, 0.24, 0.08], ['Chest', 0.17, 0.32, 0.0], ['Abdomen', 0.15, 0.26, 0.0], ['Hips', 0.16, 0.2, 0.0], ['UpperArmL', 0.055, 0.3, 0.14], ['LowerArmL', 0.05, 0.28, 0.13], ['UpperArmR', 0.055, 0.3, 0.14], ['LowerArmR', 0.05, 0.28, 0.13],
-  ['UpperLegL', 0.08, 0.44, 0.22], ['LowerLegL', 0.065, 0.44, 0.22], ['UpperLegR', 0.08, 0.44, 0.22], ['LowerLegR', 0.065, 0.44, 0.22]];
-function addProxies(fig){ var pm = new THREE.MeshBasicMaterial({ visible: false }); fig.proxies = [];
-  PROX.forEach(function(d){ var b = boneOf(fig.model, d[0]); if(!b) return; var s = 1 / (fig.boneScale || 1), g = new THREE.CylinderGeometry(d[1] * s, d[1] * s, d[2] * s, 8);
-    var m = new THREE.Mesh(g, pm); m.position.y = d[3] * s; m.name = 'proxy'; b.add(m); fig.proxies.push(m); });
+// v1/v2: capsules along each bone's local Y (wrong: C's arm/spine bones don't run along Y -> 86-88% agreement);
+// v3: SEGMENT proxies between REST JOINT POSITIONS (bone -> child joint), built in the bone's own frame: orientation-agnostic
+var SEGS = [['Hips', 'Hips', 'Abdomen', 0.15, 0], ['Abdomen', 'Abdomen', 'Chest', 0.15, 0], ['Chest', 'Chest', 'Neck', 0.16, 0], ['Neck', 'Neck', 'Head', 0.06, 0], ['Head', 'Head', '@crown', 0.105, 0],
+  ['UpperArmL', 'UpperArmL', 'LowerArmL', 0.055, 0], ['LowerArmL', 'LowerArmL', 'WristL', 0.047, 0], ['WristL', 'WristL', 'Middle1L', 0.045, 0.5], ['UpperArmR', 'UpperArmR', 'LowerArmR', 0.055, 0], ['LowerArmR', 'LowerArmR', 'WristR', 0.047, 0], ['WristR', 'WristR', 'Middle1R', 0.055, 0.9],
+  ['ShoulderL', 'ShoulderL', 'UpperArmL', 0.06, 0], ['ShoulderR', 'ShoulderR', 'UpperArmR', 0.06, 0], ['UpperLegL', 'UpperLegL', 'LowerLegL', 0.08, 0], ['LowerLegL', 'LowerLegL', 'FootL', 0.062, 0], ['UpperLegR', 'UpperLegR', 'LowerLegR', 0.08, 0], ['LowerLegR', 'LowerLegR', 'FootR', 0.062, 0],
+  ['FootL', '@heelL', '@toeL', 0.05, 0], ['FootR', '@heelR', '@toeR', 0.05, 0]];
+function addProxies(fig){ var pm = new THREE.MeshBasicMaterial({ visible: false }); fig.proxies = []; var m = fig.model; m.updateMatrixWorld(true); var fp = O.footPoints ? O.footPoints() : null;
+  var W = function(n){ if(n === '@crown'){ var h = boneOf(m, 'Head').getWorldPosition(new V()); return h.add(new V(0, 0.24 * m.scale.y, 0.01)); }
+    if(n[0] === '@' && fp){ var sd = n.slice(-1), k = n.slice(1, -1), fb = boneOf(m, 'Foot' + sd); return fb.localToWorld(fp[sd][k].clone()); } var b = boneOf(m, n); return b ? b.getWorldPosition(new V()) : null; };
+  SEGS.forEach(function(d){ var b = boneOf(m, d[0]), a = W(d[1]), e = W(d[2]); if(!b || !a || !e) return; if(d[4]) e = a.clone().lerp(e, 1 + d[4]);   // hands reach past the knuckles (fingers + pistol)
+    var s = b.getWorldScale(new V()).x, r = d[3] * m.scale.y, L = a.distanceTo(e) + r, g = new THREE.CylinderGeometry(r / s, r / s, L / s, 8), mesh = new THREE.Mesh(g, pm);
+    var la = b.worldToLocal(a.clone()), le = b.worldToLocal(e.clone()); mesh.position.copy(la).add(le).multiplyScalar(0.5); mesh.quaternion.setFromUnitVectors(new V(0, 1, 0), le.clone().sub(la).normalize());
+    mesh.name = 'proxy'; b.add(mesh); fig.proxies.push(mesh); });
   fig.model.traverse(function(o){ if(o.isSkinnedMesh) o.raycast = function(){}; }); }
 
 // ------------------------------------------------------------------ clips + pacing (foot-contact adjudicated speeds for the C clips: Walk 1.30 / Run 3.20 m/s)
@@ -171,7 +179,8 @@ O.showcase = function(o){ o = Object.assign({ beat: 'gauntlet', d0: 14.5, l0: 1.
 // one fixed step of the showcase walk; samples both feet for the foot-contact slide meter
 O.walkStep = function(dt){ var W = O.walk, f = O.show; if(!W) return null; W.dt = dt; var moving = W.s < W.L; W.s = Math.min(W.L, W.s + W.o.speed * dt);
   f.root.position.lerpVectors(W.a, W.b, W.s / W.L); var aiming = W.o.aimFrom != null && W.s >= W.o.aimFrom;
-  drive(f, dt, { speed: moving ? W.o.speed : 0, aim: true, aimWalk: aiming, cam: cam.position });
+  W.t = (W.t || 0) + dt; var fire = W.o.fireEvery && W.s > W.o.fireFrom && (W.t % W.o.fireEvery) < 0.34; if(fire && !W.firing){ W.shots = (W.shots || 0) + 1; } W.firing = fire;
+  drive(f, dt, { speed: moving ? W.o.speed : 0, aim: W.o.aimAll != null ? W.o.aimAll : true, aimWalk: aiming, fire: fire, cam: cam.position });
   f.root.updateMatrixWorld(true); meterFeet(f, dt, moving); return { s: +W.s.toFixed(3), clip: f.cur }; };
 function meterFeet(f, dt, moving){ var W = O.walk; FP = FP || O.footPoints();
   if(!W.feet){ W.feet = {}; ['L', 'R'].forEach(function(sd){ var b = boneOf(f.model, 'Foot' + sd); if(b){ W.feet['heel' + sd] = { b: b, off: FP[sd].heel, min: 1e9 }; W.feet['toe' + sd] = { b: b, off: FP[sd].toe, min: 1e9 }; } }); }

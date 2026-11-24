@@ -6,7 +6,7 @@ import os, re
 HERE = os.path.dirname(os.path.abspath(__file__)); GAMES = os.path.dirname(HERE)
 live = open(os.path.join(GAMES, 'hospital-escape', 'index.html')).read()
 NAMES = {1: 'C, integration-grade', 2: 'CMU mocap walk on C', 3: 'Procedural skinned body', 4: 'Combat locomotion', 5: '3D-baked impostor'}
-VERS = {1: 6, 2: 4, 3: 2, 4: 2, 5: 2}
+VERS = {1: 6, 2: 4, 3: 2, 4: 2, 5: 1}
 for n in range(1, 6):
     page = live.replace('<head>', '<head><base href="../hospital-escape/">', 1)
     page = re.sub(r'<title>[^<]*</title>', '<title>Opus Gunman %d</title>' % n, page, count=1)

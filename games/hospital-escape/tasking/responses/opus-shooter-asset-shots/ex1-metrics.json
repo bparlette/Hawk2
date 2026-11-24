@@ -1,0 +1,75 @@
+{
+ "ex": 1,
+ "ver": 6,
+ "showcase": {
+  "from": [
+   0.8195553926599071,
+   -12,
+   -103.9869078274373
+  ],
+  "to": [
+   0.8274980593791625,
+   -12,
+   -94.68207376583011
+  ],
+  "len": 9.304837451562497
+ },
+ "frames": 210,
+ "clipsSeen": [
+  "Walk",
+  "Idle_Gun_Pointing"
+ ],
+ "slide": {
+  "heelL": {
+   "strict": {
+    "contacts": 6,
+    "median_cm": 2.1,
+    "max_cm": 2.1
+   },
+   "contacts": 6,
+   "median_cm": 2.1,
+   "max_cm": 2.6
+  },
+  "toeL": {
+   "strict": {
+    "contacts": 5,
+    "median_cm": 1.3,
+    "max_cm": 1.5
+   },
+   "contacts": 16,
+   "median_cm": 5,
+   "max_cm": 61.1
+  },
+  "heelR": {
+   "strict": {
+    "contacts": 5,
+    "median_cm": 2.4,
+    "max_cm": 2.5
+   },
+   "contacts": 5,
+   "median_cm": 2.6,
+   "max_cm": 2.6
+  },
+  "toeR": {
+   "strict": {
+    "contacts": 0,
+    "median_cm": null,
+    "max_cm": null
+   },
+   "contacts": 17,
+   "median_cm": 2,
+   "max_cm": 74
+  }
+ },
+ "cost": {
+  "calls": 3,
+  "tris": 5814
+ },
+ "frame": {
+  "calls": 65,
+  "tris": 21150
+ },
+ "figureHeight_m": 1.64,
+ "mocap": null,
+ "errs": []
+}
