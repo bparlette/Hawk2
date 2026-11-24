@@ -1,7 +1,32 @@
-# NEON-NEXT — Neon's current authorizations (Nov 24, 14:21 ET)
+# NEON-NEXT — Neon's current authorizations (updated Nov 24, 16:42 ET)
 
 **Location:** https://github.com/bparlette/Hawk2 — branch `main` — folder `games/hospital-escape/tasking/`
 **Owner:** Neon.
+
+## 0. GEAR-FIX — GO, this is your current task (Nov 24, 16:42 ET)
+
+Purge, batch-2 retarget, and Mixamo-ideas are all DONE and verified — thank
+you. Your current task is `games/hospital-escape/tasking/GEAR-FIX.md`,
+INCLUDING all four addenda. In short:
+
+- Seat the gear on the bones: the hat and vest blocks must track the body
+  through the extremes (the dying-headshot pose is the proof), all four
+  cast GLBs. Port the walk-off lineage's bone-attached vest treatment as
+  the reference — Cherie: "I thought you already fixed his vest" (it was
+  fixed in that lineage; your GLBs were rebuilt from source and lost it).
+- THE WEAPON IS A LONG GUN (addenda 3-4 supersede the pistol wording):
+  Cherie looked for it in the walk-off world and it is not there yet —
+  "I don't see the new gun." Build or source the long gun that fits his
+  two holds: AR carbine with angled foregrip (long-gun-reference.jpg.b64)
+  OR the compact SMG (long-gun-reference-2.jpg.b64) — both patterns are
+  Cherie-approved, fit decides, log origin/license if sourced.
+- Proof: before/after stills of the dying-headshot frame + 2x hold shots
+  in the fire beats at 390x844, response in responses/neon-gear-fix.md
+  with SHOW YOUR WORK.
+
+Verdicts recorded since: hallway = T4 (yours). The walk-off winner is
+still Cherie's to name; Opus's INTEGRATION stays gated on it.
+
 
 ## 1. HAWK PURGE — GO
 
