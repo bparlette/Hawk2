@@ -1,0 +1,65 @@
+{
+ "ex": 4,
+ "ver": 1,
+ "showcase": {
+  "from": [
+   0.8195553926599071,
+   -12,
+   -103.9869078274373
+  ],
+  "to": [
+   0.8274980593791625,
+   -12,
+   -94.68207376583011
+  ],
+  "len": 9.304837451562497
+ },
+ "frames": 210,
+ "clipsSeen": [
+  "LegsWalk+UpAim",
+  "LegsWalk+UpFire",
+  "LegsIdle+UpFire",
+  "LegsIdle+UpAim"
+ ],
+ "slide": {
+  "heelLeft": {
+   "strict": {
+    "contacts": 6,
+    "median_cm": 0.8,
+    "max_cm": 0.9
+   }
+  },
+  "toeLeft": {
+   "strict": {
+    "contacts": 5,
+    "median_cm": 1.1,
+    "max_cm": 1.8
+   }
+  },
+  "heelRight": {
+   "strict": {
+    "contacts": 5,
+    "median_cm": 1.7,
+    "max_cm": 1.8
+   }
+  },
+  "toeRight": {
+   "strict": {
+    "contacts": 5,
+    "median_cm": 0.2,
+    "max_cm": 0.4
+   }
+  }
+ },
+ "cost": {
+  "calls": 7,
+  "tris": 7484
+ },
+ "frame": {
+  "calls": 69,
+  "tris": 22820
+ },
+ "figureHeight_m": 1.79,
+ "mocap": null,
+ "errs": []
+}

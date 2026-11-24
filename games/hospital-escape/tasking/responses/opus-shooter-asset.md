@@ -1,4 +1,80 @@
-# Shooter-asset bake-off: OPUS's entry (one gunman, five techniques)
+# Shooter-asset bake-off: OPUS's entry — my best five gunmen
+
+> **Revised per Cherie ("I want your best 5, same lane is fine").** The five pages are now five **photoreal gunmen**, each the best I can make, all on one pipeline. My earlier five-lane technique study (stylised C body) is kept below as the **pipeline appendix**: every technique the five gunmen use was proven there first.
+>
+> **Logins:** none. **Paid software:** none. **Installed (free):** `bpy` 5.3 (Blender as a Python module, GPL) for offline mesh prep; `@gltf-transform/cli` 4 (MIT) to decode the meshopt-compressed source files.
+
+## The five
+
+| # | Gunman | Body (VALID, MIT) | Look | Page |
+|---|---|---|---|---|
+| 1 | **Beanie bomber** | Black_M_3 (dark cap) | rust bomber `#733829`, charcoal knit, dark trousers (Neon's spec gunman) | `games/hospital-escape-3d-sample-opus-1/` |
+| 2 | **Hooded runner** | White_M_2 | charcoal hoodie (hood up), olive cargo | `-opus-2/` |
+| 3 | **Field-jacket veteran** | MENA_M_3 (beard) | olive field jacket, black trousers, brown boots | `-opus-3/` |
+| 4 | **Leather-jacket enforcer** | Black_M_2 (shaved head) | black leather (lower roughness), dark jeans, 1.84 m | `-opus-4/` |
+| 5 | **Windbreaker lookout** | Hispanic_M_2 | navy windbreaker, watch cap, grey trousers | `-opus-5/` |
+
+Every gunman walks with a **two-handed pistol aim and fires without breaking stride**. In the real game, every plain gunman in the level is replaced by the page's design and driven by the engine (fire, hit, death).
+
+**Evidence:** `opus-shooter-asset-shots/` — `gN-*-walk.mp4` (390×844, 30 fps, 7 s), `gN-*-zoom.mp4` (2.5×), `gN-metrics.json`, `gunmen-sheet.png`. Same walk protocol as below: gauntlet hall, real rail camera, 14.5 → 5.2 m at a stated 1.4 m/s, firing every 1.6 s.
+
+## Build, step by step (repeatable per character)
+1. **Source body:** a VALID avatar (`cdn.jsdelivr.net/gh/c-frame/valid-avatars-glb@c539a28`, MIT, licence in `valid/VALID-LICENSE.txt`). 105 men and 105 women in 5 outfits each, all on **one 84-joint skeleton**.
+2. **Decode** (`gltf-transform copy`): the sources are meshopt-compressed.
+3. **Prep in Blender** (`valid/prep_valid_blender.py`): delete teeth and glands, clear facial shape keys, Decimate 0.16, re-attach the armature, export a float GLB with JPEG textures at 1024².
+   - Result: **7.5k triangles, about 450 KB per body**, from 58.7k triangles and 20 MB decoded.
+4. **Clips:** the CC0 Universal Animation Library (`J-Ponzo/gltf-universal-animation-library`), as Neon retargeted it to the VALID rig.
+   - I stripped it to a clips-only file (`valid/ual-clips.glb`, `clips-only.mjs`): Walk_Loop, Pistol_Aim_Neutral, Pistol_Shoot, Pistol_Idle_Loop, Hit_Chest and Death01.
+   - All VALID bodies share the joint names, so the clips drive any of the 210 bodies.
+5. **At load** (`opus-valid.js`), per design row:
+   - **Garment recolour in the shader** by body region (bone weights: torso/arms = jacket, legs = trousers, feet = shoes, crown = hat or hood). The fabric's own folds are kept, relative to each region's measured mean luminance.
+   - **Bulk:** the jacket stands off the body.
+   - **Pistol** seated in the rest-pose hand.
+   - **Lighting** from the 87 corridor lamps.
+   - **Hit and LOS proxies** between rest joints.
+   - **Layered locomotion:** walk legs plus aim/fire upper body, with the spine aimed from the measured gun arm.
+
+**New character = one design row** (body name, height, garment colours, extras): about 15 minutes. Maya, Hale (a Medical outfit exists in the library), the scrubs gunman (Medical outfit plus a teal recolour) and Cole (seated poses: the CMU retargeter in the appendix maps onto this skeleton's names almost 1:1) all start from the same library.
+
+## Iteration trail (the five, together)
+- **v1:** gltf-transform simplify of the quantized skinned mesh rendered as a huge distorted shell (three r128 doesn't de-normalise quantized skinned positions). Moved mesh prep to Blender.
+- **v2:** a 0.78 m figure. VALID's origin is the hips, so the feet were 1.1 m below the floor. Now stood on the measured soles.
+- **v3:** clip translation tracks imposed the clip author's body proportions, and the hip track came in metres on a centimetre rig. Now rotations only, with the hip bob re-based and unit-matched.
+- **v4:** pace measured at 0.38 m/s, so the legs played 3.7× fast. The 1 cm contact band was being applied in centimetre units. Now measured in metres: **1.20 m/s**.
+- **v5:** the recoloured jacket read orange-bright (black tee, low luminance reference). Fold detail compressed (`pow 0.55`, clamped).
+- **v6:** gunman 4's outfit had light shorts. Added dark jeans.
+- **v7:** proxies and pistol were sized by the root's cm-to-m scale, giving 1.5 mm capsules: 2 kills in 45 s in-game. Now sized in world metres: **91–94% of visible body pixels hit**, 7 gunman kills in the same run.
+
+## Measured (final)
+| # | Triangles | Calls per figure | Slide, strict median per contact (cm) | Pace (m/s) | Height |
+|---|---|---|---|---|---|
+| 1 | 7484 | 7 (body, 2 eyes, pistol ×3, floor shadow) | 0.2–3.5 | 1.20 (foot-contact) | 1.77 m (head joint) |
+| 2 | 7484 | 7 (body, 2 eyes, pistol ×3, floor shadow) | 0.5–1.5 | 1.20 (foot-contact) | 1.75 m (head joint) |
+| 3 | 7484 | 7 (body, 2 eyes, pistol ×3, floor shadow) | 0.1–1.3 | 1.20 (foot-contact) | 1.76 m (head joint) |
+| 4 | 7484 | 7 (body, 2 eyes, pistol ×3, floor shadow) | 0.2–1.7 | 1.20 (foot-contact) | 1.79 m (head joint) |
+| 5 | 7483 | 7 (body, 2 eyes, pistol ×3, floor shadow) | 0.2–1.0 | 1.20 (foot-contact) | 1.73 m (head joint) |
+
+- **Hit agreement**, against the actual rendered silhouette at about 7 m (frame differencing):
+  - gunman 1: **91.1%** of visible body pixels hit, 87.4% overall agreement;
+  - gunman 4: **93.5%** of visible body pixels hit, 88.0% overall agreement;
+  - **0.007 ms per ray**.
+- **In-game** (autopilot gauntlet, every page): 0 page errors. On gunman 1: 7 gunmen killed through the proxies, beat survived.
+- **Not GTA-6, honestly:** these are real scanned-proportion people with photo textures, decimated to 7.5k triangles for a phone. At 5–15 m they read as men in a room aiming at you. Up close the decimation and the stock UAL animation show.
+
+## Combine round (§5)
+- The **VALID + UAL + my runtime** stack is where Neon's and my work meet. Neon found the bodies and retargeted the clips. My runtime makes them game-ready with no per-character Blender beyond the scripted prep:
+  - region recolour;
+  - joint-segment proxies at 0.007 ms;
+  - walk-and-shoot layering;
+  - measured pacing.
+- From Moth: the foot-contact acceptance test (here as the stricter heel/toe version).
+
+---
+
+# Appendix — the five-lane pipeline study (stylised C body)
+
+> The lane pages below were replaced by the five gunmen above. The lane build is preserved at commit `52cb200` (`opus-cast.js`, `ex-extra.js` and its pages), and the evidence files are kept in `opus-shooter-asset-shots/ex*`.
+
 
 > **Logins:** none needed, none used. **Paid software:** none.
 > **Installed for this entry:** nothing that the shipped pages depend on. A `pip install bpy` was started and **not used**: every step below runs in the browser at load, with no Blender in the pipeline.
