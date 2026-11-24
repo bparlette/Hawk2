@@ -67,3 +67,25 @@ long-gun silhouette at phone size. Requirements added to this task:
   unmistakably as a PISTOL at 390x844: seated in a wrapped grip, short
   barrel visible past the hands. Prove it with 2x grip stills in the same
   poses as the batch-2 shots, before/after.
+
+## Addendum 3 — THE WEAPON IS A LONG GUN (Cherie, Nov 24 16:04-16:05)
+
+Supersedes Addendum 2. Cherie, on the 2x grip still: "You can easily see
+that's not the right gun for his hands. Needs to be a long gun with two
+holds even. Create the gun that fits his hands or find one" — then sent the
+reference: an AR-style carbine held two-handed, trigger hand on the pistol
+grip, support hand forward on an angled foregrip under the handguard
+(`long-gun-reference.jpg.b64` beside this file — base64, decode to view).
+
+- Build or source a long gun in that pattern (carbine, rail handguard,
+  angled foregrip, flip sights) and seat it by the TWO HOLDS: trigger hand
+  wrapped on the grip, support hand on the foregrip. The palm-flip seat
+  work from the hallway build still applies to the grip hand.
+- Applies to the gunman and N2 in the cast viewer + GLBs (idle-alert,
+  cover-to-shoot, walk/fire, dying). Maya and Cole keep their roles
+  unchanged (bed push / unarmed patient).
+- If you source a model instead of building one, log its origin + license
+  in your response (Cherie's rule: unclear-license assets are fine for
+  local testing, never in a shipped build — flag it if it is not clean).
+- Proof: 2x stills of both holds in the fire beats, before/after against
+  the batch-2 grip shots, at 390x844.
