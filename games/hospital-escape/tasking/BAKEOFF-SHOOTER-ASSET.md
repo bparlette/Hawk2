@@ -13,7 +13,7 @@
 
 Produce the best walking shooter character asset achievable for Hospital Escape.
 
-**This is a test of ONE character asset.** The test subject is the **plain-clothes gunman** — the character already built in samples C and CX. All five examples (§3) are five candidate builds of that same single character, differing by source and technique, so entries compare technique-for-technique on identical role, framing, and gauntlet context. The winning asset — or the winning combination of techniques — becomes the **template pipeline**, which is then **repeated for every other needed character (Maya, Cole, Hale, the teal-scrubs enemy) and asset**. It is NOT five different characters: do not spend effort art-directing five roles — depth on one character beats breadth across the cast.
+**This is a test of ONE character asset.** The test subject is **a gunman** — one character role, open design. The gunman does NOT have to be the plain-clothes gunman already built in samples C and CX: you may keep him, modify him, or discard him entirely and bring a completely different gunman. Find or build the **best possible gunman** you can, by any source or method. All five examples (§3) are five candidate designs for that same single role, differing by source and technique, so what is compared is the best gunman each entrant can produce — walking, at gameplay framing, in the gauntlet context. The winning asset — or the winning combination of techniques — becomes the **template pipeline**, which is then **repeated for every other needed character (Maya, Cole, Hale, the teal-scrubs enemy) and asset**. It is NOT five different characters: do not spend effort art-directing five roles — depth on one character beats breadth across the cast.
 
 The quality bar is **GTA 6-level fidelity and polish, expressed in this game's style**: an on-rails hospital shooter where the camera rides behind/above the action and enemies are seen at **5–15 m on a phone screen**. Judge everything at that framing — what reads at phone size, at gameplay distance, in motion, wins.
 
@@ -36,10 +36,11 @@ Rules for sourced material:
 
 ## 3. THE DELIVERABLE — FIVE WALKING EXAMPLES PER ENTRANT
 
-Each entrant delivers **five candidate builds of the one test character — the plain-clothes gunman** — each shown **WALKING**.
+Each entrant delivers **five candidate builds of one gunman** — five designs for the same single character role — each shown **WALKING**.
 
 - **Motion is the judging medium.** Each example is presented as a short capture/video of the character walking, or a live page where it walks — at gameplay framing and distance, readable at phone size. A still is not an entry.
-- **Variety of source and technique is the point — applied to that one character.** Five different rigs/meshes, retargeting approaches, material/lighting treatments, or build methods for the same gunman — not five different characters, and not reskins of different roles. The bake-off compares techniques: rig source, walk-cycle source, material/lighting treatment, integration cost.
+- **Variety of source and technique is the point — applied to that one role.** Five different rigs/meshes, retargeting approaches, material/lighting treatments, or build methods for a gunman — not five different characters, and not reskins of different roles. The bake-off compares techniques: rig source, walk-cycle source, material/lighting treatment, integration cost.
+- **Iterate each design to its best version.** Multiple steps and iterations per design are expected — source or build it, walk it, judge it at phone size, improve it, walk it again. Take as many steps as the design needs. A single un-iterated pass counts as a first step, not a finished entry. The iteration trail is part of the entry and is reported per §4.
 - **Repeatability is a judging criterion.** The winning technique must be one that can be repeated per character and asset across the cast. A brilliant one-off that cannot be re-run for a differently-shaped character (Maya's proportions, Cole seated, Hale's coat) loses to a slightly plainer technique that can — the winner becomes the template pipeline for the whole cast (§1).
 - The walk must be honest: real locomotion at a stated speed, with your foot-slide handling visible (see report requirements). No turntable idles dressed up as walks.
 - Entries live in your own sample folders (e.g. `games/hospital-escape-3d-sample-<entrant>-<n>/`), never in the live game folder.
@@ -55,6 +56,7 @@ One report per entrant:
 Per example, the report covers:
 
 - **Source or build method** — where the asset came from (URL) or exactly how it was made, tools used, step by step.
+- **Iteration trail** — how many attempts/steps the design went through, and what each step changed (source swap, re-rig, re-weight, material pass, pacing fix, …). Show the convergence: what the first pass looked like, what was wrong with it, and what the final version fixed.
 - **License / provenance** — as in §2, including not-yet-shippable flags.
 - **Cost** — triangle count and draw calls per figure, measured in-engine where possible.
 - **Walk cycle** — source (mocap / keyframed / clip library / procedural), the clip's true authored speed if known, and **how foot-slide was handled** (pacing from measured stride, root-motion, clamp — state the numbers; note the C-sample lesson: the Quaternius manifest overstated its clip speeds 1.7×/2.4× and only a foot-bone stride probe caught it).
