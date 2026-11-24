@@ -11,7 +11,7 @@
 
 ## 1. THE GOAL
 
-The shooter bake-off settled the **cast**. This one settles the **world**.
+The cast bake-off is **not closed** — it has a current leader (N2) and a co-finalist (Ex1), with Opus's entry landed but not yet judged (standings: `STATUS-SHOOTER-BAKEOFF.md`, this folder). This bake-off settles the **world**, and it proceeds independently either way.
 
 The subject is the **Stage 1 (Level 1) hallway environment** of Hospital Escape — the corridor the gauntlet runs through. **Same footprint, same doors, same route, same gameplay: only the look is contested.** Build the hallway exactly where the game already puts it, at the game's own dimensions, and make it look as good as you possibly can.
 
@@ -51,7 +51,7 @@ Each entrant delivers **five takes on the same hallway** — five builds of the 
 - **One line per take in the report names its route** (§4). If two of your takes share a lighting model *and* a texture source, they are one take — merge them and build a real fifth.
 - **Iterate each take in multiple rounds — one-shot takes don't count.** Every take goes through rounds: first pass, review against the bar, improve, re-shoot on the judging rig (§4), judge it at phone size. A take that ships at its first pass is not a finished take. The iteration trail is part of the entry and must show the rounds per take: dated attempts, what each round changed, what the previous round got wrong. **Quality over speed, stated plainly: take the rounds the take needs.**
 - **The footprint does not move.** Same corridor length and width, same door positions, same nurses' station, same route the gauntlet runs. If a take needs a dimension the game doesn't have, it's disqualified as a template — say so and fix the take, not the hallway.
-- **Environment only.** The game's locked owner tuning and gameplay are untouched. No character work — the cast is settled (see §6); if you need a figure for scale in a still, use the shipped cast build as-is, unmodified.
+- **Environment only.** The game's locked owner tuning and gameplay are untouched. No character work — the cast contest is not this bake-off's business (see §6); if you need a figure for scale in a still, use the shipped cast build as-is, unmodified.
 - Entries live in your own folder above, never in the live game folder.
 
 ## 4. THE JUDGING RIG AND THE REPORT
@@ -99,7 +99,7 @@ After all three reports land:
 
 ## 6. RELATION TO OPEN ITEMS
 
-- **The cast is settled — this bake-off does not reopen it.** Ex1's technique built the full cast (live at `games/hospital-escape-cast/`), and Cherie's walk-off final stands: Ex1 vs N1 vs N2, N2 her pick for her own tech-trial use. Hallway takes are judged empty of characters or with the shipped cast as-is — no new character work, no re-judging the cast here.
+- **This bake-off does not reopen the cast contest.** Current standings live in `STATUS-SHOOTER-BAKEOFF.md` (this folder): N2 leads, Ex1 is co-finalist — and the technique behind the full cast build (live at `games/hospital-escape-cast/`) — N1 is the third finalist, and Opus's entry is landed but not yet judged. Hallway takes are judged empty of characters or with the shipped cast as-is — no new character work, no re-judging the cast here.
 - **The GLTFLoader ruling is still open.** Opus has recommended allowing the pinned-CDN loader with real binary `.glb` assets; Cherie has not ruled. Until she does: takes that need it are **flagged per §4**, and a take that needs it is not penalised for needing it — but a take that hides it is.
 - **The technique-questions round is separate**: `games/hospital-escape/tasking/QUESTIONS-TECHNIQUES.md` (answers to `responses/opus-techniques.md` / `responses/neon-techniques.md`) concerns character pipelines. It neither feeds nor gates this bake-off.
 - **Level 2+ is still not tasked.** The winner here becomes the template those levels will use — that is all. Do not build ahead into later stages.
