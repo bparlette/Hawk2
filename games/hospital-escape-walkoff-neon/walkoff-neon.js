@@ -238,13 +238,31 @@ withLoaders(function(){
 
 // ------------------------------------------------------------------ camera modes + UI
 var camMode = 'both';
+var camDir = null;   // follow-camera direction: 'front' | 'back' | 'side'; null until chosen, ALL clears it
+// Camera offset angle vs the figure's heading: 0 = ahead of him (he walks TOWARD camera),
+// PI/2 = his left (tracking profile), PI = behind him (he walks AWAY). camAng is smoothed
+// toward the target on the shortest arc every frame, so direction switches swing the
+// camera around him instead of cutting or spinning.
+var DIR_ANG = { front: 0, side: Math.PI / 2, back: Math.PI };
+var camAng = Math.PI;
 var camPos = camera.position.clone(), camLook = new THREE.Vector3(0, 0.9, 0);
 var buttons = document.querySelectorAll('#bar button');
+var dirButtons = document.querySelectorAll('#dirbar button');
+function paintButtons(){
+  buttons.forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-mode') === camMode); });
+  dirButtons.forEach(function(b){ b.classList.toggle('on', camDir !== null && b.getAttribute('data-dir') === camDir); });
+}
 function setMode(m){ camMode = m;
-  buttons.forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-mode') === m); }); }
+  if(m === 'both') camDir = null;                    // ALL = wide shot; direction cleared
+  else if(camDir === null) camDir = 'back';          // plain figure tap defaults to the classic behind-follow
+  paintButtons(); }
+function setDir(d){
+  if(camMode === 'both') camMode = '1';              // a direction tapped on ALL follows gold 1 from that angle
+  camDir = d; paintButtons(); }
 buttons.forEach(function(b){ b.addEventListener('click', function(){ setMode(b.getAttribute('data-mode')); }); });
-window.__walkoff = { setMode: setMode, movers: movers, pathLength: PATH.length,
-  mode: function(){ return camMode; } };
+dirButtons.forEach(function(b){ b.addEventListener('click', function(){ setDir(b.getAttribute('data-dir')); }); });
+window.__walkoff = { setMode: setMode, setDir: setDir, movers: movers, pathLength: PATH.length, camera: camera,
+  mode: function(){ return camMode; }, dir: function(){ return camDir; } };
 
 // ------------------------------------------------------------------ gesture blocks (house standard)
 document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
@@ -274,8 +292,11 @@ function tick(now){
   if(camMode === 'both' || fi == null || !movers[fi]){ dp = new THREE.Vector3(10.5, 7.6, 10.5); dl = new THREE.Vector3(0, 0.9, 0); }
   else { var f = movers[fi];
     var fx = Math.sin(f.yaw), fz = Math.cos(f.yaw);
-    dp = new THREE.Vector3(f.group.position.x - fx * 5.0, 2.3, f.group.position.z - fz * 5.0);
-    dl = new THREE.Vector3(f.group.position.x + fx * 1.5, 1.25, f.group.position.z + fz * 1.5); }
+    camAng += angDelta(camAng, DIR_ANG[camDir || 'back']) * Math.min(1, dt * 3.2);
+    var ca = Math.cos(camAng), sa = Math.sin(camAng);
+    var ox = fx * ca + fz * sa, oz = fz * ca - fx * sa;   // offset dir = F*cos(camAng) + L*sin(camAng), L = his left = (fz, -fx)
+    dp = new THREE.Vector3(f.group.position.x + ox * 5.0, 2.3, f.group.position.z + oz * 5.0);
+    dl = new THREE.Vector3(f.group.position.x - ox * 1.5, 1.25, f.group.position.z - oz * 1.5); }
   var kp = Math.min(1, dt * 3.2), kl = Math.min(1, dt * 4.5);
   camPos.lerp(dp, kp); camLook.lerp(dl, kl);
   camera.position.copy(camPos); camera.lookAt(camLook);

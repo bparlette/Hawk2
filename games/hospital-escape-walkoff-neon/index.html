@@ -9,17 +9,22 @@ html,body{margin:0;height:100%;background:#14181e;overflow:hidden;touch-action:n
 #hdr{position:fixed;left:14px;top:calc(10px + env(safe-area-inset-top));z-index:1200;color:#fff;font:800 15px/1.2 "Helvetica Neue",Arial;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.8);pointer-events:none}
 #hdr small{display:block;font:600 10.5px/1.35 Arial;color:#b9c4cf;letter-spacing:.02em;margin-top:3px}
 #hdr small b{color:#e8c95a;font-weight:800}
-#bar{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom));z-index:1200;display:flex;justify-content:center;flex-wrap:wrap;gap:8px;padding:0 10px;pointer-events:none}
+#ui{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom));z-index:1200;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 10px;pointer-events:none}
+#bar{display:flex;justify-content:center;flex-wrap:wrap;gap:8px}
 #bar button{pointer-events:auto;min-width:56px;height:58px;padding:0 13px;border-radius:32px;border:2px solid rgba(255,255,255,.55);background:rgba(16,20,26,.72);color:#fff;font:900 16px Arial;letter-spacing:.04em;touch-action:none;cursor:pointer}
 #bar button.gold{border-color:#e8c95a;color:#e8c95a}
 #bar button.on{background:#e8ecf1;color:#10141a;border-color:#fff}
 #bar button.gold.on{background:#e8c95a;color:#10141a;border-color:#fff}
+#dirbar{display:flex;justify-content:center;gap:8px}
+#dirbar button{pointer-events:auto;min-width:56px;height:58px;padding:0 15px;border-radius:32px;border:2px solid rgba(255,255,255,.55);background:rgba(16,20,26,.72);color:#fff;font:900 14px Arial;letter-spacing:.06em;touch-action:none;cursor:pointer}
+#dirbar button.on{background:#e8ecf1;color:#10141a;border-color:#fff}
 #load{position:fixed;inset:0;z-index:1300;display:flex;align-items:center;justify-content:center;color:#dfe6ee;font:700 16px Arial;letter-spacing:.08em;background:#14181e;text-align:center;padding:24px}
 </style></head>
 <body>
 <div id="view"></div>
-<div id="hdr">Walk-off: 1 vs Neon 5<small><b>Gold 1 = our Ex1 · C rig (winner)</b><br>N1 VALID+UAL · N2 VALID+Mocap · N3 AI3D+UAL · N4 Sculpt-C · N5 UAL Dressed</small></div>
-<div id="bar"><button data-mode="both" class="on">ALL</button><button data-mode="1" class="gold">1</button><button data-mode="n1">N1</button><button data-mode="n2">N2</button><button data-mode="n3">N3</button><button data-mode="n4">N4</button><button data-mode="n5">N5</button></div>
+<div id="hdr">Walk-off: 1 vs Neon 5<small><b>Gold 1 = our Ex1 · C rig (winner)</b><br>N1 VALID+UAL · N2 VALID+Mocap · N3 AI3D+UAL · N4 Sculpt-C · N5 UAL Dressed<br>FRONT · BACK · SIDE aim the follow camera — tapped while on ALL, they follow <b>gold 1</b> from that angle</small></div>
+<div id="ui"><div id="dirbar"><button data-dir="front">FRONT</button><button data-dir="back">BACK</button><button data-dir="side">SIDE</button></div>
+<div id="bar"><button data-mode="both" class="on">ALL</button><button data-mode="1" class="gold">1</button><button data-mode="n1">N1</button><button data-mode="n2">N2</button><button data-mode="n3">N3</button><button data-mode="n4">N4</button><button data-mode="n5">N5</button></div></div>
 <div id="load">LOADING…</div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="game/gunman-data-0.js"></script><script src="game/gunman-data-1.js"></script><script src="game/gunman-data-2.js"></script><script src="game/gunman-data-3.js"></script>
