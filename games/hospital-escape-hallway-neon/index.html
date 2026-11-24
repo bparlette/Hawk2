@@ -34,12 +34,12 @@
     var t = parseInt(q.get('take') || '1', 10) || 1;
     if(q.get('clean') === '1') document.body.classList.add('clean');
     window.__HALLWAY_QUERY = {
-      take: Math.min(5, Math.max(1, t)),
+      take: Math.min(6, Math.max(1, t)),
       vp: q.get('vp') || 'vp1',
       clean: q.get('clean') === '1',
       time: q.has('t') ? parseFloat(q.get('t')) : null
     };
-    if(window.__HALLWAY_QUERY.take === 2 || window.__HALLWAY_QUERY.take === 4){
+    if(window.__HALLWAY_QUERY.take === 2 || window.__HALLWAY_QUERY.take === 4 || window.__HALLWAY_QUERY.take === 6){
       document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"><\/script>');
     }
   })();
@@ -50,6 +50,7 @@
 <script src="take3-painted.js"></script>
 <script src="take4-kitbash.js"></script>
 <script src="take5-cinema.js"></script>
+<script src="take6-combine.js"></script>
 <script src="hallway-rig.js"></script>
 </body>
 </html>

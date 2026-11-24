@@ -10,7 +10,8 @@
     2: { id: 2, name: 'Take 2 · Cycles Baked',  builder: window.BUILD_TAKE_2 },
     3: { id: 3, name: 'Take 3 · Painted Push',  builder: window.BUILD_TAKE_3 },
     4: { id: 4, name: 'Take 4 · Kit-Bash+Area', builder: window.BUILD_TAKE_4 },
-    5: { id: 5, name: 'Take 5 · Cinema Mirror', builder: window.BUILD_TAKE_5 }
+    5: { id: 5, name: 'Take 5 · Cinema Mirror', builder: window.BUILD_TAKE_5 },
+    6: { id: 6, name: 'Take 6 · Combine',       builder: window.BUILD_TAKE_6 }
   };
 
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
