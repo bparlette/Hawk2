@@ -1013,7 +1013,7 @@ function animate(now){
   } else if (mode === 'swim'){
     const t = hostTime;
     swimFoam.visible = swimDepth < 0.15;
-    swimmer.position.set(swimPos.x, WATER_Y - 0.16 - swimDepth + Math.sin(t*2.2)*0.045*(1 - dBlend), swimPos.z); // body axis IN the water (was +0.48, lying on top like a board — Cherie Nov 20)
+    swimmer.position.set(swimPos.x, WATER_Y - 0.22 - swimDepth + Math.sin(t*2.2)*0.045*(1 - dBlend), swimPos.z); // body axis IN the water (was +0.48, lying on top like a board — Cherie Nov 20)
     if (world.setSwimmerWake) world.setSwimmerWake(swimPos.x, swimPos.z, Math.abs(swimSpeed)); // Neon's wake/churn hook (a9fe0e5)
     swimmer.scale.setScalar(1.18);
     swimmer.rotation.order = 'XYZ';
@@ -1085,7 +1085,7 @@ function animate(now){
   }
   /* camera */
   const tgt = mode === 'swim'
-    ? { x: swimPos.x, z: swimPos.z, h: swimHeading, y: WATER_Y - 0.16 - swimDepth + 0.30 }
+    ? { x: swimPos.x, z: swimPos.z, h: swimHeading, y: WATER_Y - 0.22 - swimDepth + 0.30 }
     : mode === 'bail' && BS
     ? { x: BS.rider.x, z: BS.rider.z, h: BS.rider.yaw, y: BS.rider.y }
     : { x: S.x, z: S.z, h: S.heading, y: S.y + 0.65 };
