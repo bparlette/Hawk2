@@ -15,7 +15,9 @@
    he keeps his shipped materials and is lit by each hallway's own lights.
    Config: window.__N2_CONFIG = { glbN2, glbMx, x, zA, zB, parent(scene) }.
    API: window.__N2 = { ready, errors, fig, update(dt), poseAt(o), gunCentroid(),
-   stats() } — update(dt) runs the patrol loop (walk-aim-fire, turn at each end). */
+   stats() } — update(dt) runs the ADVANCE loop: spawn at the far end of the span,
+   walk AT the camera aiming and firing, fade at the near end, reset, repeat
+   (Cherie, Nov 24 14:15: "They are the shooter should be walking at the screen"). */
 (function(){
 'use strict';
 var CFG = window.__N2_CONFIG || {};
@@ -191,11 +193,14 @@ function contactPace(clip, figScene, bodyMesh, normT){
   v.sort(function(a, b){ return a - b; }); return v.length ? v[v.length >> 1] : 1.1;
 }
 
-// ------------------------------------------------ gun: Opus's seatPistol, ported verbatim from opus-mixamo.js.
-// WHY: N2's built-in PistolMat prop is weighted 100% to RightHand in BIND orientation —
-// it is not seated in the grip under his own aim clip or under Mixamo's (both probed:
-// hands open/offset, gun floating off the palm — Cherie's catch). Opus's fix computes
-// the grip from the hand's own anatomy in rest pose and attaches the gun there.
+// ------------------------------------------------ gun: Opus's seatPistol from opus-mixamo.js, plus ONE
+// anatomical correction for N2 (see seatPistol: his rest pose flips the palm normal,
+// so the verbatim port seated the gun through his hand — Cherie's Nov 24 re-audit).
+// WHY a replacement at all: N2's built-in PistolMat prop is weighted 100% to
+// RightHand in BIND orientation — it is not seated in the grip under his own aim
+// clip or under Mixamo's (both probed: hands open/offset, gun floating off the
+// palm — Cherie's original catch). Opus's fix computes the grip from the hand's
+// own anatomy in rest pose and attaches the gun there.
 function pistol(){ var g = new THREE.Group(), m1 = new THREE.MeshStandardMaterial({ color: 0x151618, roughness: 0.45, metalness: 0.6 }), m2 = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.8 });
   var box = function(w, h, d, m, x, y, z, rx){ var b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); if(rx) b.rotation.x = rx; g.add(b); return b; };
   box(0.03, 0.032, 0.19, m1, 0, 0.026, 0.05); box(0.028, 0.11, 0.045, m2, 0, -0.03, -0.01, -0.28); box(0.026, 0.02, 0.07, m2, 0, 0.0, 0.04);
@@ -207,6 +212,16 @@ function seatPistol(fig){ var m = fig.model, h = boneOf(m, 'RightHand'), mid = b
   var top = m; while(top.parent) top = top.parent; top.updateMatrixWorld(true);
   var H = h.getWorldPosition(new V3()), M = mid.getWorldPosition(new V3()), I = ix.getWorldPosition(new V3()), P = pk.getWorldPosition(new V3());
   var fwd = M.clone().sub(H).normalize(), across = I.clone().sub(P).normalize(), palm = new V3().crossVectors(fwd, across).normalize();
+  // N2 CORRECTION (Nov 24 — Cherie's re-audit: "It was fixed in Maximo other
+  // retargeted. Can you fix it for n2."): fwd x across is the palm normal ONLY when
+  // the body's rest pose puts the thumb on that side. On Opus's bodies it does, so
+  // the verbatim port seated his gunmen correctly. On N2's rest pose the cross
+  // product points out the BACK of the hand (measured dot(palm, thumb-H) = -0.030):
+  // the gun was seated through the hand — grip out the back, barrel across the
+  // backs of the fingers, the finger curl closing on air 0.14 m away in walk, fire
+  // and aim alike. Flip to the true palm (thumb side) before building the basis.
+  var th = boneOf(m, 'RightHandThumb1');
+  if(th && palm.dot(th.getWorldPosition(new V3()).sub(H)) < 0) palm.negate();
   var gp = pistol(), basis = new THREE.Matrix4().makeBasis(new V3().crossVectors(palm.clone().negate(), fwd).normalize(), palm.clone().negate(), fwd);
   gp.quaternion.setFromRotationMatrix(basis); gp.position.copy(H.clone().lerp(M, 0.55).addScaledVector(palm, 0.035)); gp.updateMatrixWorld(true); h.attach(gp); fig.gun = gp; }
 
@@ -255,39 +270,121 @@ function build(gN2, gMx, parent){
   seatPistol(f);
   fig = f; api.fig = f;
 
-  // patrol: walk A->B at the 1.30 law, turn, stand aim + 2 bursts, turn done by walk back
-  var zA = CFG.zA || 0, zB = CFG.zB || -10;
-  patrol = { mode: 'walk', z: zA, dir: Math.sign(zB - zA) || 1, yaw: 0, t: 0, fireClock: 0, fromYaw: 0, toYaw: 0 };
+  // ADVANCE loop (Cherie, Nov 24 14:15: "They are the shooter should be walking at
+  // the screen"): he is the enemy shooter, so he presents the way one does in the
+  // game — he spawns at the FAR end of the span (zB) and walks AT the camera (the
+  // player's viewpoint sits past zA in both hallways), aiming and firing as he
+  // comes, at the 1.30 m/s law. At the near end he fades out, resets to the far
+  // end, fades in, and advances again — no visible pop mid-corridor.
+  var zA = CFG.zA || 0, zB = CFG.zB || -10;   // zA = near (camera) end, zB = far end
+  var fadeMats = [];
+  group.traverse(function(o){ if(o.isMesh){ var ms = Array.isArray(o.material) ? o.material : [o.material];
+    ms.forEach(function(m){ if(m && fadeMats.indexOf(m) < 0) fadeMats.push(m); }); } });
+  var curFade = 1;
+  function setFade(v){ curFade = v; fadeMats.forEach(function(m){ m.opacity = v; m.transparent = v < 1; m.depthWrite = v >= 1; }); }
+
+  // CONTACT SHADOW (T4 only, CFG.blobShadow — Cherie, Nov 24 14:17: "keep the
+  // other parts same darkness but have a shadow as well. Obviously a little less
+  // obvious of a shadow when in the light."): a soft radial blob rides the floor
+  // under N2. It adds NO light and touches NO scene material, so the room's
+  // darkness is exactly as built. Its opacity is driven by the scene's OWN light
+  // sampled along his path at build time: every Spot/PointLight's r128
+  // attenuation (1/d^decay, distance-cutoff, spot cone + penumbra) is evaluated
+  // at (x, 1.0, z) across the span, normalized, and mapped dark stretch ->
+  // CFG.blobShadow.dark, lit pool -> CFG.blobShadow.light. In the warm Nurses'
+  // Station pool his REAL shadow already works (Take 4 runs shadow maps and his
+  // meshes castShadow), so the blob drops to a whisper there; in the dark
+  // stretches, where no shadow-casting light reaches, the blob is what grounds
+  // him. It also follows the advance loop's fade in/out.
+  var blobMat = null, blobProf = null;
+  function sampleLightProfile(scene, x, z0, z1){
+    var lights = [];
+    scene.traverse(function(o){ if(o.isSpotLight || o.isPointLight) lights.push(o); });
+    if(!lights.length) return null;
+    scene.updateMatrixWorld(true);
+    var pts = [], N = 64, i;
+    for(i = 0; i <= N; i++){
+      var z = z0 + (z1 - z0) * i / N, P = new V3(x, 1.0, z), sum = 0.30;   // 0.30 = hemisphere + area-panel base
+      lights.forEach(function(L){
+        var lp = L.getWorldPosition(new V3()), dv = P.clone().sub(lp), d = dv.length();
+        var att = 1 / Math.max(Math.pow(d, L.decay != null ? L.decay : 1), 0.01);
+        if(L.distance > 0){ var q = d / L.distance; att = q >= 1 ? 0 : att * Math.pow(1 - Math.pow(q, 4), 2); }
+        if(att > 0 && L.isSpotLight && L.target){
+          var dir = L.target.getWorldPosition(new V3()).sub(lp).normalize();
+          var cs = dv.normalize().dot(dir), ca = Math.cos(L.angle), cp = Math.cos(L.angle * (1 - (L.penumbra || 0)));
+          if(cs < ca) att = 0; else { var f = Math.min(1, Math.max(0, (cs - ca) / Math.max(cp - ca, 1e-4))); att *= f * f * (3 - 2 * f); }
+        }
+        sum += (L.intensity || 1) * att;
+      });
+      pts.push({ z: z, l: sum });
+    }
+    var mn = Infinity, mx = -Infinity;
+    pts.forEach(function(p){ mn = Math.min(mn, p.l); mx = Math.max(mx, p.l); });
+    pts.forEach(function(p){ p.n = mx > mn ? (p.l - mn) / (mx - mn) : 0; });
+    return pts;
+  }
+  function blobOpacityAt(z){
+    if(!blobProf) return CFG.blobShadow.dark;
+    var pts = blobProf, a = pts[0], b = pts[pts.length - 1], i;
+    if(z <= a.z) return CFG.blobShadow.dark + (CFG.blobShadow.light - CFG.blobShadow.dark) * a.n;
+    if(z >= b.z) return CFG.blobShadow.dark + (CFG.blobShadow.light - CFG.blobShadow.dark) * b.n;
+    for(i = 1; i < pts.length; i++){ if(z <= pts[i].z){ var p0 = pts[i - 1], p1 = pts[i], u = (z - p0.z) / Math.max(p1.z - p0.z, 1e-6);
+      var n = p0.n + (p1.n - p0.n) * u; return CFG.blobShadow.dark + (CFG.blobShadow.light - CFG.blobShadow.dark) * n; } }
+    return CFG.blobShadow.dark;
+  }
+  function blobApply(z){ if(blobMat) blobMat.opacity = blobOpacityAt(z) * curFade; }
+  if(CFG.blobShadow){
+    var bc = document.createElement('canvas'); bc.width = bc.height = 128;
+    var bx = bc.getContext('2d');
+    var grd = bx.createRadialGradient(64, 64, 4, 64, 64, 62);
+    grd.addColorStop(0, 'rgba(0,0,0,0.92)'); grd.addColorStop(0.55, 'rgba(0,0,0,0.55)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    bx.fillStyle = grd; bx.fillRect(0, 0, 128, 128);
+    blobMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bc), transparent: true, depthWrite: false, opacity: 0 });
+    var blobMesh = new THREE.Mesh(new THREE.CircleGeometry(CFG.blobShadow.size || 0.46, 24), blobMat);
+    blobMesh.rotation.x = -Math.PI / 2; blobMesh.position.y = 0.02; blobMesh.scale.set(1, 1.35, 1);
+    blobMesh.renderOrder = 3; blobMesh.frustumCulled = false;
+    group.add(blobMesh);
+    blobProf = sampleLightProfile(parent, CFG.x || 0, Math.min(zA, zB), Math.max(zA, zB));
+    api.blobInfo = function(){ if(!blobProf) return { profile: null };
+      var pk = blobProf[0], dk = blobProf[0], i;
+      for(i = 1; i < blobProf.length; i++){ if(blobProf[i].l > pk.l) pk = blobProf[i]; if(blobProf[i].l < dk.l) dk = blobProf[i]; }
+      return { samples: blobProf.length, darkZ: +dk.z.toFixed(2), darkOp: +blobOpacityAt(dk.z).toFixed(3),
+        poolZ: +pk.z.toFixed(2), poolLight: +pk.l.toFixed(3), poolOp: +blobOpacityAt(pk.z).toFixed(3) }; };
+  }
+  patrol = { mode: 'advance', z: zB, dir: Math.sign(zA - zB) || 1, yaw: 0, t: 0, fireClock: 0 };
   patrol.yaw = yawFor(patrol.dir); group.rotation.y = patrol.yaw;
+  group.position.z = patrol.z;
   function yawFor(d){ return Math.atan2(0, d); }   // facing along (0,0,d)
+  var FADE_T = 0.45;
   api.update = function(dt){
     if(!patrol || !fig) return;
     var P = patrol, speed = 1.30;
-    if(P.mode === 'walk'){
+    if(P.mode === 'advance'){
       P.z += P.dir * speed * dt;
       P.fireClock += dt;
       var fire = (P.fireClock % 1.7) < 0.34;
-      var done = P.dir > 0 ? P.z >= zB : P.z <= zB;
-      if(done){ P.z = zB; P.mode = 'turn'; P.t = 0; P.fromYaw = P.yaw; P.toYaw = yawFor(-P.dir); }
+      var done = P.dir > 0 ? P.z >= zA : P.z <= zA;
+      if(done){ P.z = zA; P.mode = 'fadeout'; P.t = 0; }
       group.position.z = P.z;
       drive(fig, dt, { speed: speed, aim: true, fire: fire });
-    } else if(P.mode === 'turn'){
-      P.t += dt; var u = Math.min(1, P.t / 0.7);
-      P.yaw = P.fromYaw + angDelta(P.fromYaw, P.toYaw) * u;
-      group.rotation.y = P.yaw;
-      if(u >= 1){ P.mode = 'stand'; P.t = 0; }
+    } else if(P.mode === 'fadeout'){   // at the camera: one last burst while he fades
+      P.t += dt; var u = Math.min(1, P.t / FADE_T);
+      setFade(1 - u);
+      if(u >= 1){ P.z = zB; group.position.z = P.z; P.mode = 'fadein'; P.t = 0; P.fireClock = 0; }
+      drive(fig, dt, { speed: 0, aim: true, fire: P.t < 0.34 });
+    } else { // fadein at the far end, then advance again
+      P.t += dt; var u2 = Math.min(1, P.t / FADE_T);
+      setFade(u2);
+      if(u2 >= 1){ setFade(1); P.mode = 'advance'; }
       drive(fig, dt, { speed: 0, aim: true, fire: false });
-    } else { // stand: aim + two bursts toward the way back
-      P.t += dt;
-      var fire2 = (P.t > 0.4 && P.t < 0.74) || (P.t > 1.6 && P.t < 1.94);
-      if(P.t >= 2.8){ P.dir = -P.dir; P.mode = 'walk'; P.fireClock = 0; }
-      drive(fig, dt, { speed: 0, aim: true, fire: fire2 });
     }
+    blobApply(P.z);
   };
   api.poseAt = function(o){
     patrol = null; api.update = function(){};
     group.position.set(CFG.x || 0, 0, o.z != null ? o.z : group.position.z);
     group.rotation.y = (o.yawDeg || 0) * Math.PI / 180;
+    blobApply(group.position.z);
     var f2 = fig; f2.mixer.stopAllAction(); f2.layers = { low: null, up: null };
     function on(name, t){ var a = f2.actions[name]; if(!a) return; a.enabled = true; a.setEffectiveWeight(1); a.time = t || 0; a.play(); }
     if(o.mode === 'walk'){ on('Walk', o.t || 0); f2.actions.Walk.timeScale = 1.30 / f2.paceWalk; }
@@ -303,7 +400,8 @@ function build(gN2, gMx, parent){
     var bb = new THREE.Box3().setFromObject(fig.gun), c = bb.getCenter(new V3());
     return { hand: [+hp.x.toFixed(3), +hp.y.toFixed(3), +hp.z.toFixed(3)], gun: [+c.x.toFixed(3), +c.y.toFixed(3), +c.z.toFixed(3)], dist: +hp.distanceTo(c).toFixed(3) };
   };
-  api.stats = function(){ return { paceWalk: +paceWalk.toFixed(3), walkTimeScale: +(1.30 / paceWalk).toFixed(3), kLeg: +kLeg.toFixed(4), clips: Object.keys(clips).length }; };
+  api.stats = function(){ return { paceWalk: +paceWalk.toFixed(3), walkTimeScale: +(1.30 / paceWalk).toFixed(3), kLeg: +kLeg.toFixed(4), clips: Object.keys(clips).length,
+    patrol: patrol ? { mode: patrol.mode, z: +patrol.z.toFixed(2) } : null }; };
   api.ready = true;
 }
 function angDelta(a, b){ var d = (b - a) % (Math.PI * 2); if(d > Math.PI) d -= Math.PI * 2; if(d < -Math.PI) d -= Math.PI * 2; return d; }

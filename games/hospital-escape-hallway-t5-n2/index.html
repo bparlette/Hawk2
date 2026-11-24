@@ -699,6 +699,7 @@ loop(0);
     glbN2: '../hospital-escape-3d-sample-neon/assets/gunmen/valid-mocap.glb',
     glbMx: '../hospital-escape-3d-sample-opus/mixamo/mx-gunman.glb',
     x: -0.2, zA: -1.5, zB: -20.5,
+    blobShadow: { dark: 0.52, light: 0.13, size: 0.46 },   // same contact-shadow treatment as T4: opacity sampled from this scene's own lights (n2-figure.js)
     parent: function(){ var M = window.__MOTH; if(!M) return null;
       if(!window.__cap || window.__cap.stats().take !== 4){ if(window.__cap) window.__cap.setTake(4); return null; }
       var t = M.takes(); return (t && t[4] && t[4].group) ? t[4].group : null; }
