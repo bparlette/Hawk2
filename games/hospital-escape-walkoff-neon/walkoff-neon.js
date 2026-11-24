@@ -730,6 +730,9 @@ withLoaders(function(){ OPUS_VALID_DESIGNS.forEach(function(D, i){ buildOpusVali
 //   for the game's combat; nothing visible. Everything you can see is restored.
 var OPUS_MOCAP_URL = '../hospital-escape-3d-sample-opus/mocap/35_02.bvh';
 var C_LOWER = /^(Root|Body|Hips|UpperLeg|LowerLeg|Foot|PT)/;
+var CMU2C = { Hips: 'Hips', LowerBack: 'Abdomen', Spine: 'Torso', Spine1: 'Chest', Neck: 'Neck', Head: 'Head',
+  LeftShoulder: 'ShoulderL', LeftArm: 'UpperArmL', LeftForeArm: 'LowerArmL', LeftHand: 'WristL', RightShoulder: 'ShoulderR', RightArm: 'UpperArmR', RightForeArm: 'LowerArmR', RightHand: 'WristR',
+  LeftUpLeg: 'UpperLegL', LeftLeg: 'LowerLegL', LeftFoot: 'FootL', RightUpLeg: 'UpperLegR', RightLeg: 'LowerLegR', RightFoot: 'FootR' };
 function cCloneSkinned(src){ var c = src.clone(true), byName = {}; c.traverse(function(o){ if(o.isBone) byName[o.name] = o; });
   c.traverse(function(o){ if(o.isSkinnedMesh){ var sk = o.skeleton, bones = sk.bones.map(function(b){ return byName[b.name]; });
     o.bind(new THREE.Skeleton(bones, sk.boneInverses.map(function(m){ return m.clone(); })), o.bindMatrix.clone()); o.material = o.material.clone(); } });
@@ -813,7 +816,7 @@ function cRetarget(bvhText, rigScene, opt){
   var holder = new THREE.SkinnedMesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial()); holder.add(root); holder.bind(sk);   // BVH tracks bind as .bones[Name]: they need a skinned mesh
   var mixer = new THREE.AnimationMixer(holder); mixer.clipAction(clip).play(); var src = {}; sk.bones.forEach(function(b){ src[b.name] = b; });
   var fps = 1 / (clip.tracks[0].times[1] - clip.tracks[0].times[0]), N = Math.floor(clip.duration * fps);
-  function sample(t){ mixer.setTime(t); holder.updateMatrixWorld(true); var o = {}; Object.keys(MAP).forEach(function(n){ var b = src[n]; if(b) o[n] = b.getWorldQuaternion(new Qt()); });
+  function sample(t){ mixer.setTime(t); holder.updateMatrixWorld(true); var o = {}; Object.keys(CMU2C).forEach(function(n){ var b = src[n]; if(b) o[n] = b.getWorldQuaternion(new Qt()); });
     o.hip = src.Hips.getWorldPosition(new V()); o.lf = src.LeftFoot.getWorldPosition(new V()); o.rf = src.RightFoot.getWorldPosition(new V()); o.lh = src.LeftUpLeg.getWorldPosition(new V()); o.rh = src.RightUpLeg.getWorldPosition(new V()); return o; }
   var rest = sample(0), legSrc = src.LeftLeg.position.length() + src.LeftFoot.position.length();
   // target rest (model space): world quats of every bone at its rest local rotation
@@ -831,7 +834,7 @@ function cRetarget(bvhText, rigScene, opt){
   var lead = raw.map(function(_, k){ var s0 = 0, n0 = 0; for(var j = k - W; j <= k + W; j++) if(j >= 0 && j < raw.length){ s0 += raw[j]; n0++; } return s0 / n0; });   // smoothed (mocap jitter made false peaks)
   var R = Math.round(fps * 0.35);   // a left heel strike is the max of the left foot's lead within +/-0.35 s (a walking cycle is ~0.9-1.3 s)
   for(var k = R; k < lead.length - R; k++){ var mx0 = true; for(var j = k - R; j <= k + R; j++) if(lead[j] > lead[k]){ mx0 = false; break; } if(mx0 && (!peaks.length || k - peaks[peaks.length - 1] > R)) peaks.push(k); }
-  var best = null; for(var p = 0; p + 1 < peaks.length; p++){ var A0 = frames[peaks[p]], B0 = frames[peaks[p + 1]], err = 0; Object.keys(MAP).forEach(function(n){ err += 1 - Math.abs(A0[n].dot(B0[n])); });
+  var best = null; for(var p = 0; p + 1 < peaks.length; p++){ var A0 = frames[peaks[p]], B0 = frames[peaks[p + 1]], err = 0; Object.keys(CMU2C).forEach(function(n){ err += 1 - Math.abs(A0[n].dot(B0[n])); });
     if(!best || err < best.err) best = { s: peaks[p], e: peaks[p + 1], err: err }; }
   if(!best) throw new Error('no gait cycle found');
   var cyc = frames.slice(best.s, best.e + 1), dur = (cyc.length - 1) / fps, rootDist = cyc[cyc.length - 1].hip.clone().sub(cyc[0].hip).dot(fwd);
@@ -845,7 +848,7 @@ function cRetarget(bvhText, rigScene, opt){
   ['L', 'R'].forEach(function(sd){ var h = rb['UpperLeg' + sd].getWorldPosition(new V()), k = rb['LowerLeg' + sd].getWorldPosition(new V()), a0 = rb['Foot' + sd].getWorldPosition(new V()); lenA[sd] = h.distanceTo(k); lenB[sd] = k.distanceTo(a0); });
   // rotate bone b (world) by the shortest arc taking direction c -> d, written back as a local rotation
   function swing(b, c, d){ var q = new Qt().setFromUnitVectors(c.clone().normalize(), d.clone().normalize()), w = b.getWorldQuaternion(new Qt()).premultiply(q); b.parent.updateWorldMatrix(true, false); b.quaternion.copy(b.parent.getWorldQuaternion(new Qt()).invert().multiply(w)); b.updateMatrixWorld(true); }
-  var tgtFromSrc = {}; Object.keys(MAP).forEach(function(s0){ tgtFromSrc[MAP[s0]] = s0; }); tgtFromSrc.Body = 'Hips'; delete tgtFromSrc.Hips;   // pelvis -> Body
+  var tgtFromSrc = {}; Object.keys(CMU2C).forEach(function(s0){ tgtFromSrc[CMU2C[s0]] = s0; }); tgtFromSrc.Body = 'Hips'; delete tgtFromSrc.Hips;   // pelvis -> Body
   var restFootY = rb.FootL.getWorldPosition(new V()).y, ground = 0, footMin = Infinity;
   for(var pass = 0; pass < 2; pass++){   // pass 0 measures the lowest stance ankle; pass 1 lowers the pelvis so the planted ankle sits at its rest height (no float)
   var step = Math.max(1, Math.round(fps / 30)), times = [], qT = {}, pT = { Body: [], FootL: [], FootR: [] }; rord.forEach(function(b){ qT[b.name] = []; });
