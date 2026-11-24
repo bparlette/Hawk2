@@ -42,14 +42,14 @@ Each entrant delivers **five takes on the same hallway** — five builds of the 
 - Neon → `games/hospital-escape-hallway-neon/`
 - Moth → `games/hospital-escape-hallway-moth/`
 
-- **Five genuinely different technical routes — not five colour grades of one scene.** The takes must differ in *technique*: lighting model, texture source, dressing method, post-processing. Suggested route space (you may substitute a route of your own — justify the substitution in the report):
+- **Five genuinely different technical routes — not five colour grades of one scene.** The takes must differ in *technique*: lighting model, texture source, dressing method, post-processing. **Choose your best five routes — even if they overlap with another entrant's, including Moth's. Overlap is expected and fine. Never pick a weaker route just to be different.** The route space below is a menu, not an assignment:
   1. **Photoreal CC0 PBR** — sourced PBR materials, dynamic relight, real-time lights and shadows.
   2. **Blender-baked lightmaps** — lighting and AO baked offline, the runtime just shows it.
   3. **Painted push** — the game's own art language driven as far as it goes: hand-painted textures, stylised light, no photoreal sourcing.
   4. **Maximum-density kit-bash** — CC0 props and dressing at full density: signage, wear decals, clutter, cables, carts — the corridor as a place, not a tube.
   5. **Cinematography** — reflections, fog, colour grade, wet floors, motivated practicals: the look carried by camera and atmosphere.
 - **One line per take in the report names its route** (§4). If two of your takes share a lighting model *and* a texture source, they are one take — merge them and build a real fifth.
-- **Iterate each take to its best version.** Multiple steps per take are expected — build it, shoot it on the judging rig (§4), judge it at phone size, improve it, shoot it again. The iteration trail is part of the entry: dated attempts, what each step changed, what the first pass got wrong. A single un-iterated pass counts as a first step, not a finished take.
+- **Iterate each take in multiple rounds — one-shot takes don't count.** Every take goes through rounds: first pass, review against the bar, improve, re-shoot on the judging rig (§4), judge it at phone size. A take that ships at its first pass is not a finished take. The iteration trail is part of the entry and must show the rounds per take: dated attempts, what each round changed, what the previous round got wrong. **Quality over speed, stated plainly: take the rounds the take needs.**
 - **The footprint does not move.** Same corridor length and width, same door positions, same nurses' station, same route the gauntlet runs. If a take needs a dimension the game doesn't have, it's disqualified as a template — say so and fix the take, not the hallway.
 - **Environment only.** The game's locked owner tuning and gameplay are untouched. No character work — the cast is settled (see §6); if you need a figure for scale in a still, use the shipped cast build as-is, unmodified.
 - Entries live in your own folder above, never in the live game folder.
@@ -81,7 +81,7 @@ Per take, the report covers:
 
 - **Route** — one line naming the technique (lighting model, texture source, dressing method, post).
 - **What was built** — geometry, materials, lights, dressing, post: step by step, tools used, enough detail that another builder can **recreate the take from the report alone**.
-- **Iteration trail** — dated attempts per take, what each step changed, what the first pass got wrong and what the final version fixed.
+- **Iteration trail** — the dated rounds per take (§3), what each round changed, what the first pass got wrong and what the final version fixed.
 - **Perf** — draw calls, triangles, and the phone-plausibility note from the rig above.
 - **License / provenance** — per §2, per external asset, including not-yet-shippable flags.
 - **Loader / module flags** — if the take needs **GLTFLoader** or any **post-processing module** beyond the game's current setup, say so explicitly, take by take. The loader ruling is still open — **flag it, don't hide it** (see §6).
