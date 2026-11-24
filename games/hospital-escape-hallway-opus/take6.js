@@ -4,11 +4,11 @@
    Every lit surface = albedo x Cycles lightmap (unlit material: the light IS the bake — true bounce, soft contact shadows, no ceiling blowout). */
 window.__HALL_TAKE = function(H){
   var V = H.V, Q = new URLSearchParams(location.search), R = Q.get('r6') || 'r4', BASE = '../hospital-escape-hallway-opus/combine/' + R + '/';
-  var z = H.zone, x0 = z.a[0], y = z.y;
+  var z = H.zone, x0 = z.a[0], y = z.y, meta0;
   H.root.visible = false;
   return Promise.all([ new Promise(function(res, rej){ new THREE.GLTFLoader().load(BASE + 'hall-baked.glb', res, undefined, rej); }),
     fetch(BASE + 'bake.json').then(function(r){ return r.json(); }),
-    new Promise(function(res){ new THREE.TextureLoader().load(BASE + 'lightmap.png', res); }) ]).then(function(a){
+    new Promise(function(res){ new THREE.TextureLoader().load(BASE + (meta0 = 'lightmap.jpg'), res, undefined, function(){ new THREE.TextureLoader().load(BASE + 'lightmap.png', res); }); }) ]).then(function(a){
     var gl = a[0], meta = a[1], lm = a[2]; lm.encoding = THREE.sRGBEncoding; lm.flipY = false;
     var tune = meta.tune || {}, gain = tune.gain || 1;
     gl.scene.updateMatrixWorld(true);
