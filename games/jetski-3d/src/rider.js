@@ -1,5 +1,5 @@
 // APEX WAKE — Anatomically Sculpted Realistic Rider with Wet PBR Skin, PFD Vest & 2-Bone Handlebar IK
-import * as THREE from '../three.module.js';
+import * as THREE from 'three';
 
 // Smooth organic limb segment via LatheGeometry (no boxy primitives)
 function makeOrganicLimb(len, rTop, rMid, rBot, segs = 14) {

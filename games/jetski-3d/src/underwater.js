@@ -1,6 +1,6 @@
 // APEX WAKE — Living Underwater World: Caustic Reef Seabed, Coral Gardens, Swaying Kelp,
 // Schooling Tropical Fish, Manta Rays, Sea Turtles, Volumetric Sunbeams, Bubbles & Reef Pearls.
-import * as THREE from '../three.module.js';
+import * as THREE from 'three';
 import { ISLANDS } from './world.js';
 
 function mulberry32(a) {
