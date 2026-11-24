@@ -1,0 +1,557 @@
+{
+ "bed": [
+  {
+   "seg": "bed_hall_push",
+   "mode": "RAIL_CHAIR",
+   "calls": 267,
+   "tris": 47713,
+   "enemies3d": 0,
+   "stats": {
+    "styles": {},
+    "deaths": {},
+    "hits": {}
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  },
+  {
+   "seg": "bed_hall_push",
+   "mode": "RAIL_CHAIR",
+   "calls": 180,
+   "tris": 146369,
+   "enemies3d": 3,
+   "stats": {
+    "styles": {
+     "kneel": 1,
+     "door": 1,
+     "stand": 1
+    },
+    "deaths": {
+     "head-knees": 1
+    },
+    "hits": {
+     "front/right": 3,
+     "head": 4
+    },
+    "mayaReact": {
+     "flinch": 0,
+     "duck": 1
+    }
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  }
+ ],
+ "bed_errs": [],
+ "bedP": [
+  {
+   "seg": "bed_hall_push",
+   "mode": "RAIL_CHAIR",
+   "calls": 242,
+   "tris": 28882,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  },
+  {
+   "seg": "bed_hall_push",
+   "mode": "RAIL_CHAIR",
+   "calls": 160,
+   "tris": 90986,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  }
+ ],
+ "bedP_errs": [],
+ "caf": [
+  {
+   "seg": "gauntlet_cafeteria",
+   "mode": "RAIL_CHAIR",
+   "calls": 82,
+   "tris": 70337,
+   "enemies3d": 3,
+   "stats": {
+    "styles": {
+     "kneel": 2,
+     "flank": 1
+    },
+    "deaths": {},
+    "hits": {}
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  }
+ ],
+ "caf_errs": [],
+ "cafP": [
+  {
+   "seg": "gauntlet_cafeteria",
+   "mode": "RAIL_CHAIR",
+   "calls": 67,
+   "tris": 7980,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  }
+ ],
+ "cafP_errs": [],
+ "elev": [
+  {
+   "seg": "elevator_ride",
+   "mode": "RAIL_CHAIR",
+   "calls": 132,
+   "tris": 50151,
+   "enemies3d": 2,
+   "stats": {
+    "styles": {
+     "stand": 2
+    },
+    "deaths": {
+     "chest-backwards": 1
+    },
+    "hits": {
+     "front/right": 7
+    },
+    "mayaReact": {
+     "flinch": 1,
+     "duck": 1
+    }
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  }
+ ],
+ "elev_errs": [],
+ "elevP": [
+  {
+   "seg": "elevator_ride",
+   "mode": "RAIL_CHAIR",
+   "calls": 106,
+   "tris": 15584,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  }
+ ],
+ "elevP_errs": [],
+ "ent": [
+  {
+   "seg": "entrance_holdout",
+   "mode": "HOLDOUT",
+   "calls": 202,
+   "tris": 182083,
+   "enemies3d": 6,
+   "stats": {
+    "styles": {
+     "rush": 3,
+     "kneel": 2,
+     "flank": 1
+    },
+    "deaths": {
+     "chest-backwards": 3
+    },
+    "hits": {
+     "front/right": 18
+    },
+    "mayaReact": {
+     "flinch": 3,
+     "duck": 1
+    }
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  }
+ ],
+ "ent_errs": [],
+ "entP": [
+  {
+   "seg": "entrance_holdout",
+   "mode": "HOLDOUT",
+   "calls": 193,
+   "tris": 38340,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  }
+ ],
+ "entP_errs": [],
+ "halls": [
+  {
+   "seg": "gauntlet_halls",
+   "mode": "RAIL_CHAIR",
+   "calls": 86,
+   "tris": 64177,
+   "enemies3d": 4,
+   "stats": {
+    "styles": {
+     "stand": 2,
+     "door": 1,
+     "rush": 1
+    },
+    "deaths": {},
+    "hits": {
+     "front/right": 2
+    },
+    "mayaReact": {
+     "flinch": 1,
+     "duck": 0
+    }
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  }
+ ],
+ "halls_errs": [],
+ "hallsP": [
+  {
+   "seg": "gauntlet_halls",
+   "mode": "RAIL_CHAIR",
+   "calls": 83,
+   "tris": 15272,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  }
+ ],
+ "hallsP_errs": [],
+ "transfer": [
+  {
+   "seg": "transfer_cut",
+   "mode": "CUTSCENE",
+   "calls": 155,
+   "tris": 26121,
+   "enemies3d": 0,
+   "stats": {
+    "styles": {},
+    "deaths": {},
+    "hits": {}
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  },
+  {
+   "seg": "transfer_chair_corridor",
+   "mode": "RAIL_CHAIR",
+   "calls": 74,
+   "tris": 33861,
+   "enemies3d": 2,
+   "stats": {
+    "styles": {
+     "kneel": 1,
+     "flank": 1
+    },
+    "deaths": {
+     "chest-backwards": 1
+    },
+    "hits": {
+     "front/right": 7,
+     "head": 2
+    }
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  }
+ ],
+ "transfer_errs": [],
+ "transferP": [
+  {
+   "seg": "transfer_cut",
+   "mode": "CUTSCENE",
+   "calls": 137,
+   "tris": 6136,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  },
+  {
+   "seg": "transfer_chair_corridor",
+   "mode": "RAIL_CHAIR",
+   "calls": 53,
+   "tris": 774,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  }
+ ],
+ "transferP_errs": [],
+ "visit": [
+  {
+   "seg": "visit_room",
+   "mode": "CUTSCENE",
+   "calls": 65,
+   "tris": 19191,
+   "enemies3d": 0,
+   "stats": {
+    "styles": {},
+    "deaths": {},
+    "hits": {}
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  }
+ ],
+ "visit_errs": [],
+ "visitP": [
+  {
+   "seg": "visit_room",
+   "mode": "CUTSCENE",
+   "calls": 39,
+   "tris": 324,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  }
+ ],
+ "visitP_errs": [],
+ "wait": [
+  {
+   "seg": "gauntlet_waiting_room",
+   "mode": "RAIL_CHAIR",
+   "calls": 188,
+   "tris": 154667,
+   "enemies3d": 3,
+   "stats": {
+    "styles": {
+     "stand": 2,
+     "rush": 1
+    },
+    "deaths": {},
+    "hits": {}
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  }
+ ],
+ "wait_errs": [],
+ "waitP": [
+  {
+   "seg": "gauntlet_waiting_room",
+   "mode": "RAIL_CHAIR",
+   "calls": 188,
+   "tris": 34266,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  }
+ ],
+ "waitP_errs": [],
+ "ward": [
+  {
+   "seg": "gauntlet_ward_on_foot",
+   "mode": "FREE_FOOT",
+   "calls": 103,
+   "tris": 40816,
+   "enemies3d": 2,
+   "stats": {
+    "styles": {
+     "kneel": 2
+    },
+    "deaths": {},
+    "hits": {}
+   },
+   "rooms": {
+    "wardBeds": {
+     "beds": 3,
+     "callsBefore": 78,
+     "callsAfter": 6
+    },
+    "patients:ward": {
+     "figures": 3,
+     "drawCalls": 1,
+     "tris": 20058,
+     "callsIfAnimated": 6
+    },
+    "patients:waiting": {
+     "figures": 12,
+     "drawCalls": 1,
+     "tris": 80220,
+     "callsIfAnimated": 24
+    }
+   }
+  }
+ ],
+ "ward_errs": [],
+ "wardP": [
+  {
+   "seg": "gauntlet_ward_on_foot",
+   "mode": "FREE_FOOT",
+   "calls": 98,
+   "tris": 4868,
+   "enemies3d": 0,
+   "stats": null,
+   "rooms": null
+  }
+ ],
+ "wardP_errs": []
+}

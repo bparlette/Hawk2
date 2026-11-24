@@ -3,7 +3,7 @@
    pursuer outcomes, train). Contract v1 / he-dbg-1 untouched; additions are listed in tasking/responses/opus-full.md. */
 (function(){
 'use strict';
-var A = window.HEART, W = window.HEWORLD, V = THREE.Vector3, Q = new URLSearchParams(location.search);
+var A = window.HEART, W = window.HEWORLD, V = THREE.Vector3, Q = new URLSearchParams(location.search), HC = window.HECAST || null;   /* INTEGRATION: the 3D cast (game/cast3d.js); null = painted cast */
 var $ = function(id){ return document.getElementById(id); };
 // ------------------------------------------------------------------ engine + world
 var game = HE.install(HE.createGame({ seed: +Q.get('seed') || 1 })), scene = game.scene, camera = game.camera, inp = game.input;
@@ -29,6 +29,7 @@ scene.add(sky);
 var cole = A.cast.cole(), maya = A.cast.maya(), hale = A.cast.hale(); [cole, maya, hale].forEach(function(p){ scene.add(p); });
 HE.bindActor('hero', cole); HE.bindActor('friend', maya);
 var bed = A.bed(), chair = A.wheelchair(), amb = A.ambulance(); scene.add(bed); scene.add(chair); scene.add(amb);
+window.__heProps = { bed: bed, chair: chair, amb: amb, cole: cole, maya: maya };   // verification readout (INTEGRATION)
 // the painted cast (OPUS-INTEGRATE-PAINTED): billboards from assets/painted; the procedural people stay as the fallback
 var PT = window.HEPAINT || null, PS = window.HEPAINTED_DATA ? HEPAINTED_DATA.scale : 341.6, paintLight = new THREE.PointLight(0xffa042, 0, 3.5, 2), paintLightT = 0; scene.add(paintLight);
 if(PT){ PT.lightAt = function(pos, col){ [flashLight, paintLight].forEach(function(L){ if(L.intensity <= 0) return; var k = L.intensity * Math.pow(Math.max(0, 1 - L.position.distanceTo(pos) / (L.distance * 1.6)), 2) * 0.22; col.r += 1.0 * k; col.g += 0.6 * k; col.b += 0.28 * k; }); }; }   // warm muzzle spill on the painted cast
@@ -189,7 +190,9 @@ function present(dt){ tAnim += dt; if(PT) PT.time = tAnim; patientStep(dt); var 
   else if(m === 'CUTSCENE'){ stageCutscene(seg); }
   // enemies: pose by behaviour state (corner-pop lean / duck, advance, aim tell, dead)
   paintCast(dt, st, m, seg);
-  game.combat.enemies.forEach(function(e){ var p = gb.actors[e.role]; if(!p) return; if(p.userData.pk && PT.use(p, true)){ paintEnemy(e, p, dt); return; } if(p.userData.dead){ p.userData.deadT += dt; A.pose(p, 'dead', 0); p.position.y = e.pos.y; return; }
+  game.combat.enemies.forEach(function(e){ var p = gb.actors[e.role]; if(!p) return;
+    if(HC && (p.userData.c3 || (!p.userData.dead && HC.attachEnemy(p, p.userData.kind)))){ HC.stepEnemy(e, p, dt, game); return; }   // INTEGRATION: the N2 cast on Mixamo clips
+    if(p.userData.pk && PT.use(p, true)){ paintEnemy(e, p, dt); return; } if(p.userData.dead){ p.userData.deadT += dt; A.pose(p, 'dead', 0); p.position.y = e.pos.y; return; }
     var moving = (e.behavior === 'cover' && e.cover && e.pos.distanceTo(e.cover) > 0.05) || (e.behavior === 'rush' && e.pos.distanceTo(game.playerPos().setY(e.pos.y)) > 3.6);
     if(moving) A.pose(p, e.behavior === 'rush' ? 'aimWalk' : 'run', tAnim + e.t); else if(e.behavior === 'cover' && !e.exposed) A.pose(p, 'peek', tAnim, { side: 1 }); else A.pose(p, e.behavior === 'cover' ? 'lean' : 'aim', tAnim, { side: e.hideDir ? -Math.sign(e.hideDir.x || e.hideDir.z || 1) : 1 });
     if(e.exposed || moving){ var tgt = game.heroTarget(); aimArm(p, 'R', tgt.clone().sub(p.position.clone().setY(p.position.y + 1.35)).normalize()); }
@@ -214,11 +217,25 @@ function gripSolve(veh, barLocal, f, mir){ veh.updateMatrixWorld(true); var B = 
   var hand = (f.bottom + 1 - f.grip[1]) / PS, hc = C.y - fl, hb = B.y - fl, k = HE.clamp((hc - hand) / Math.max(0.05, hc - hb), 0.3, 0.98);
   var H = C.clone().lerp(B, k), dx = (f.grip[0] - f.feet) / PS * mir, yaw = Math.atan2(C.x - H.x, C.z - H.z);
   maya.position.set(H.x - Math.cos(yaw) * dx, fl, H.z + Math.sin(yaw) * dx); }
-function paintCast(dt, st, m, seg){ if(!PT || !PT.ready){ return; } var r = game.rail;
+var mayaFireQ = false, mayaNearQ = null;
+function mayaNear(d){ if(!HC || !d.from || !d.to) return; var a = new V().fromArray(d.from), b = new V().fromArray(d.to), p = maya.position.clone(); p.y += 1.2; var ab = b.clone().sub(a), t = HE.clamp(p.clone().sub(a).dot(ab) / Math.max(1e-6, ab.lengthSq()), 0, 1);
+  if(a.clone().addScaledVector(ab, t).distanceTo(p) < 1.6) mayaNearQ = { red: !!d.red }; }   // a round passing within 1.6 m of Maya
+function castFriends(dt, st, m, seg){ var r = game.rail; if(!HC || !HC.ready) return { maya: false, cole: false }; HC.roomVis(seg);
+  if(PT && maya.userData.painted) PT.use(maya, false);
+  var sm = HC.stepMaya({ maya: maya, mode: m, seg: seg, vehicle: st.vehicle, speed: r.path ? r.speed() : 0, fireT: mayaFireT, fireQ: mayaFireQ, nearShot: mayaNearQ, aimAt: mayaFireT > 0 ? mayaTarget : null, dt: dt }); mayaFireQ = false; mayaNearQ = null;
+  var pose = null, yaw = 0, dz = 0, dy = 0;   /* where the painted Cole used to appear: in the bed (visit + the bed push's opening), in the chair (cutscenes, parked on foot) */
+  if((m === 'CUTSCENE' && seg === 'visit_room') || (m === 'RAIL_CHAIR' && st.vehicle === 'bed' && estK > 0)){ pose = 'bed'; cole.position.copy(bed.position); cole.rotation.copy(bed.rotation); dy = HC.bedDy || 0; dz = HC.bedDz || 0; yaw = HC.bedYaw || 0; bed.visible = true; }
+  else if(m === 'CUTSCENE' && (seg === 'transfer_cut' || seg === 'steal_cut')){ pose = 'chair'; cole.position.copy(chair.position); cole.rotation.copy(chair.rotation); chair.visible = true; dz = HC.chairDz || 0; dy = HC.chairDy || 0; }
+  else if((m === 'RAIL_CHAIR' && st.vehicle !== 'bed') || m === 'HOLDOUT'){ pose = 'chair'; cole.position.copy(chair.position); cole.rotation.copy(chair.rotation); chair.visible = true; dz = HC.chairDz || 0; dy = HC.chairDy || 0; }   // his own chair views: the camera rides behind him
+  else if(m === 'FREE_FOOT' && cole.position.distanceTo(camera.position) > 3.0){ pose = 'chair'; cole.position.copy(chair.position); cole.rotation.copy(chair.rotation); chair.visible = true; dz = HC.chairDz || 0; dy = HC.chairDy || 0; }
+  var sc = false; if(pose){ if(PT && cole.userData.painted) PT.use(cole, false); cole.scale.setScalar(1); cole.visible = true; sc = HC.stepCole({ cole: cole, pose: pose, yaw: yaw, dz: dz, dy: dy, dt: dt }); } else HC.stepCole({ cole: cole, pose: null, dt: dt });
+  return { maya: sm, cole: sc }; }
+function paintCast(dt, st, m, seg){ var own = castFriends(dt, st, m, seg); if(!PT || !PT.ready){ return; } var r = game.rail;
   // Dr. Hale (the opening only): objecting -> hands up once Maya's gun is out (her line)
   if(st.beat !== 'visit') haleUp = false; if(hale.visible){ PT.use(hale, true); if(st.subtitle && st.subtitle.speaker === 'FRIEND') haleUp = true; PT.show(hale, haleUp ? 'dr-hale-hands-up' : 'dr-hale-objecting', 1, camera); }
   // Maya
-  if((m === 'RAIL_CHAIR') && r.path){ PT.use(maya, true); var veh = st.vehicle === 'bed' ? bed : chair, sp = r.speed();
+  if(own.maya){ }   // INTEGRATION: the 3D Maya (cast3d.js) owns this view
+  else if((m === 'RAIL_CHAIR') && r.path){ PT.use(maya, true); var veh = st.vehicle === 'bed' ? bed : chair, sp = r.speed();
     if(mayaFireT > 0){ var fa = PT.frames['maya-aim-side'], dir = screenX(mayaTarget) > screenX(maya.position) ? 1 : -1; PT.show(maya, 'maya-aim-side', dir * fa.face, camera); }
     else { pushPh = sp > 0.05 ? pushPh + sp * dt / 0.36 : Math.round(pushPh / 2) * 2; var nm = 'maya-push-0' + (1 + (Math.floor(pushPh) % 4)), f = PT.frames[nm]; gripSolve(veh, BAR[st.vehicle === 'bed' ? 'bed' : 'chair'], f, 1); PT.show(maya, nm, 1, camera); } }
   else if(m === 'HOLDOUT'){ PT.use(maya, true); var ne = game.combat.live()[0], fc = PT.frames['maya-crouch-chair'], dr = ne ? (screenX(ne.pos) > screenX(maya.position) ? 1 : -1) : -1; PT.show(maya, 'maya-crouch-chair', dr * fc.face, camera); }
@@ -226,8 +243,9 @@ function paintCast(dt, st, m, seg){ if(!PT || !PT.ready){ return; } var r = game
   else if(m === 'CUTSCENE' && seg === 'transfer_cut'){ PT.use(maya, true); PT.show(maya, 'maya-crouch-chair', 1, camera); }
   else PT.use(maya, false);
   // Cole: the painted patient where the camera sees HIM (cutscenes + the ambulance establishing shot); his own eyes otherwise
-  cole.scale.setScalar(1);
-  if(m === 'CUTSCENE' && seg === 'visit_room'){ PT.use(cole, true); bed.visible = false; cole.position.copy(bed.position).addScaledVector(fwdOf(game.path('bed_hall'), game.path('bed_hall').lead), 1.0); cole.position.y = bed.position.y; PT.show(cole, 'cole-bed-foot', 1, camera, 1, 'box'); }
+  if(!own.cole) cole.scale.setScalar(1);
+  if(own.cole){ }   // INTEGRATION: the 3D Cole owns this view
+  else if(m === 'CUTSCENE' && seg === 'visit_room'){ PT.use(cole, true); bed.visible = false; cole.position.copy(bed.position).addScaledVector(fwdOf(game.path('bed_hall'), game.path('bed_hall').lead), 1.0); cole.position.y = bed.position.y; PT.show(cole, 'cole-bed-foot', 1, camera, 1, 'box'); }
   else if(m === 'CUTSCENE' && (seg === 'transfer_cut' || seg === 'steal_cut')){ PT.use(cole, true); chair.visible = false; cole.position.copy(chair.position); PT.show(cole, 'cole-wheelchair-front3q', 1, camera, 1, 'box'); }
   else if(m === 'AMBULANCE' && estK > 0){ PT.use(cole, true); cole.userData.reflect = false;   /* the bay floor is ribbed steel, not wet linoleum */ amb.updateMatrixWorld(true); cole.position.copy(amb.localToWorld(new V(0.05, 0.81, -1.7))); cole.scale.setScalar(0.62);   /* seated on the bay floor: head ~1.0 m above it (the painting's figure is drawn at standing scale, like the chair Cole Moth scaled 0.73) */ PT.show(cole, 'cole-ambulance-braced', 1, camera, 1, 'box'); }
   else if(m === 'FREE_FOOT'){ PT.use(cole, true); chair.visible = false; cole.position.copy(chair.position); var dc = cole.position.distanceTo(camera.position); cole.userData.opac = HE.clamp((dc - 3.0) / 1.5, 0, 1);   // parked: the painted patient in his chair, faded out while he is right beside Maya's camera
@@ -240,7 +258,7 @@ function paintCast(dt, st, m, seg){ if(!PT || !PT.ready){ return; } var r = game
   // no painted back view exists -> he is hidden there (method b). The bed / chair / ambulance bay still frame the view; his shots leave
   // from an off-screen gun point at the lower right of HIS view (fgMuzzle).
   coleGunFG = (m === 'RAIL_CHAIR' && st.vehicle !== 'bed') || m === 'HOLDOUT' || m === 'AMBULANCE';   // in the chair / bay play views his shots still leave from the off-screen gun point, painted occupant or not (the painting carries no muzzle)
-  coleHidden = (m === 'RAIL_CHAIR' || m === 'HOLDOUT' || m === 'AMBULANCE') && !cole.userData.painted; cole.visible = !coleHidden; }
+  coleHidden = (m === 'RAIL_CHAIR' || m === 'HOLDOUT' || m === 'AMBULANCE') && !cole.userData.painted && !own.cole; cole.visible = !coleHidden; }
 var coleHidden = false, coleGunFG = false;
 function fgMuzzle(out){ var q = camera.quaternion; return out.copy(camera.position).add(new V(0.2, -0.3, -0.62).applyQuaternion(q)); }
 // an enemy as its painted frames: peek / aim / fire / flinch / down, mirrored to face the screen centre (the camera side)
@@ -375,15 +393,18 @@ function updateVisibleZone(st){ var Z = game.visibleZone || (game.visibleZone = 
 // ------------------------------------------------------------------ engine events -> FX / HUD
 var logIdx = 0;
 function processEvents(){ var L = game._log; for(; logIdx < L.length; logIdx++){ var e = L[logIdx], d = e.data;
+  if(e.type === 'shot' && HC) HC.onShot(d.point);
   if(e.type === 'shot'){ var gunner = game.mode === 'FREE_FOOT' ? maya : cole, mz = (gunner === cole && (coleHidden || coleGunFG)) ? fgMuzzle(new V()) : (A.muzzleWorld(gunner, new V()) || camera.position.clone()); muzzle(mz, d.weapon === 'machine_pistol'); sfx.shot(d.weapon === 'machine_pistol');
     var end = d.point ? new V().fromArray(d.point) : mz.clone().addScaledVector(aimRay(), 40); tracer(mz, end, 0xffe2a0, 0.06, 0.03); if(d.point){ sparks(end, d.hit ? 3 : 6); } }
-  else if(e.type === 'partnerShot'){ var en = game.combat.byRole(d.role); if(en){ mayaTarget.copy(en.pos).setY(en.pos.y + 1.3); } mayaFireT = 0.45; var mm = A.muzzleWorld(maya, new V()); if(mm){ muzzle(mm); tracer(mm, new V().fromArray(d.to), 0xffd080, 0.07, 0.03); } sfx.shot(false); }
-  else if(e.type === 'enemyShot'){ var src = gb.actors[d.role];
+  else if(e.type === 'partnerShot'){ var en = game.combat.byRole(d.role); if(en){ mayaTarget.copy(en.pos).setY(en.pos.y + 1.3); } mayaFireT = 0.45; mayaFireQ = true; var mm = (HC && HC.mayaMuzzle(new V())) || A.muzzleWorld(maya, new V()); if(mm){ muzzle(mm); tracer(mm, new V().fromArray(d.to), 0xffd080, 0.07, 0.03); } sfx.shot(false); }
+  else if(e.type === 'enemyShot' && gb.actors[d.role] && gb.actors[d.role].userData.c3){ var s3 = gb.actors[d.role]; HC.onFire(s3); var m3 = HC.muzzle(s3, new V()); addFlight(Object.assign({}, d, { from: m3.toArray() })); muzzle(m3, true); sprite(TX.flash, m3, 0.9, 0.06); sfx.enemy(d.red); mayaNear(d); }   // INTEGRATION: the round leaves the seated pistol's barrel
+  else if(e.type === 'enemyShot'){ var src = gb.actors[d.role]; mayaNear(d);
     var en3 = game.combat.byRole(d.role), fl = null, br = null; if(src && src.userData.painted && en3 && !src.userData.dead){ src.userData.fireT = 0.14; src.userData.flinchT = 0; paintEnemy(en3, src, 0);   // fire frame NOW, so the flash anchors on it
       fl = PT.muzzle(src, new V(), true); br = PT.muzzle(src, new V(), false); }
     if(fl && br){ paintLight.position.copy(fl); paintLight.intensity = 3.2; paintLightT = 0.07;   // 70 ms warm spill (MANIFEST §5)
       sprite(TX.flash, fl, 0.55, 0.06); addFlight(Object.assign({}, d, { from: br.toArray() })); sfx.enemy(d.red); }                            // the telegraph leaves the painted barrel
     else { addFlight(d); var mz2 = src ? (A.muzzleWorld(src, new V()) || new V().fromArray(d.from)) : new V().fromArray(d.from); muzzle(mz2, true); sprite(TX.flash, mz2, 1.3, 0.07); sfx.enemy(d.red); } }
+  else if(e.type === 'hit' && HC && gb.actors[d.role] && gb.actors[d.role].userData.c3){ HC.onHit(gb.actors[d.role], d.by === 'partner'); }
   else if(e.type === 'hit'){ var ho = gb.actors[d.role]; if(ho && d.hp > 0) ho.userData.flinchT = 0.24 + (ho.userData.fireT || 0); }   /* a hit mid-shot flinches right after the fire frame */
   else if(e.type === 'heroHit'){ patientHit(d.n || 5); }
   else if(e.type === 'shotLand'){ var p = new V().fromArray(d.at); sparks(p, d.hit ? 4 : 7); sfx.impact(); if(d.hit){ sprite(TX.red, p, 0.9, 0.18); sfx.hurt(); } }

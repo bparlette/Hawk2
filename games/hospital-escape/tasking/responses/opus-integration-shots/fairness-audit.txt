@@ -1,0 +1,40 @@
+seed 7 full autopilot run (won true)       damage events  13  violations 0  damaging shots 13  visual-only shots 28  min visible-for 1.62 s  min height 83 px
+seed 7 soak bed_push#0                     damage events   6  violations 0  damaging shots 6  visual-only shots 22  min visible-for 1.75 s  min height 183 px
+seed 7 soak transfer#1                     damage events   7  violations 0  damaging shots 7  visual-only shots 12  min visible-for 1.88 s  min height 118 px
+seed 7 soak elevator#0                     damage events  11  violations 0  damaging shots 12  visual-only shots 35  min visible-for 1.83 s  min height 106 px
+seed 7 soak gauntlet#0                     damage events  20  violations 0  damaging shots 20  visual-only shots 51  min visible-for 1.97 s  min height 97 px
+seed 7 soak gauntlet#1                     damage events  13  violations 0  damaging shots 13  visual-only shots 37  min visible-for 3.93 s  min height 195 px
+seed 7 soak gauntlet#3                     damage events  15  violations 0  damaging shots 15  visual-only shots 35  min visible-for 1.97 s  min height 123 px
+seed 7 soak entrance#0                     damage events  13  violations 0  damaging shots 13  visual-only shots 40  min visible-for 1.85 s  min height 116 px
+seed 7 soak steal#1                        damage events  13  violations 0  damaging shots 13  visual-only shots 44  min visible-for 1.62 s  min height 47 px
+seed 7 soak chase#0                        damage events   6  violations 0  damaging shots 6  visual-only shots 12  min visible-for 3.68 s  min height 93 px
+seed 7 soak train_finale#0                 damage events  15  violations 0  damaging shots 15  visual-only shots 45  min visible-for 2.02 s  min height 72 px
+CONTROL (contract OFF) soak gauntlet#1     damage events  17  violations 17  damaging shots 17  visual-only shots 42  min visible-for -  min height -
+{"label":"seed 7 page errors","pageErrors":0}
+seed 3 full autopilot run (won true)       damage events  12  violations 0  damaging shots 12  visual-only shots 28  min visible-for 1.62 s  min height 87 px
+seed 3 soak bed_push#0                     damage events   6  violations 0  damaging shots 6  visual-only shots 23  min visible-for 5.23 s  min height 161 px
+seed 3 soak transfer#1                     damage events  10  violations 0  damaging shots 10  visual-only shots 29  min visible-for 4.37 s  min height 127 px
+seed 3 soak elevator#0                     damage events   9  violations 0  damaging shots 9  visual-only shots 41  min visible-for 1.62 s  min height 107 px
+seed 3 soak gauntlet#0                     damage events  18  violations 0  damaging shots 18  visual-only shots 55  min visible-for 3.98 s  min height 179 px
+seed 3 soak gauntlet#1                     damage events  10  violations 0  damaging shots 10  visual-only shots 34  min visible-for 1.93 s  min height 148 px
+seed 3 soak gauntlet#3                     damage events  15  violations 0  damaging shots 15  visual-only shots 35  min visible-for 1.67 s  min height 119 px
+seed 3 soak entrance#0                     damage events   9  violations 0  damaging shots 10  visual-only shots 44  min visible-for 5.57 s  min height 231 px
+seed 3 soak steal#1                        damage events  10  violations 0  damaging shots 10  visual-only shots 46  min visible-for 8.47 s  min height 157 px
+seed 3 soak chase#0                        damage events   5  violations 0  damaging shots 5  visual-only shots 13  min visible-for 3.95 s  min height 93 px
+seed 3 soak train_finale#0                 damage events  19  violations 0  damaging shots 19  visual-only shots 39  min visible-for 4.28 s  min height 76 px
+{"label":"seed 3 page errors","pageErrors":0}
+seed 11 full autopilot run (won true)      damage events  12  violations 0  damaging shots 12  visual-only shots 30  min visible-for 1.6 s  min height 99 px
+seed 11 soak bed_push#0                    damage events   9  violations 0  damaging shots 9  visual-only shots 30  min visible-for 1.6 s  min height 103 px
+seed 11 soak transfer#1                    damage events   7  violations 0  damaging shots 7  visual-only shots 30  min visible-for 2.03 s  min height 128 px
+seed 11 soak elevator#0                    damage events   7  violations 0  damaging shots 7  visual-only shots 28  min visible-for 5.6 s  min height 176 px
+seed 11 soak gauntlet#0                    damage events  15  violations 0  damaging shots 15  visual-only shots 53  min visible-for 4 s  min height 126 px
+seed 11 soak gauntlet#1                    damage events  15  violations 0  damaging shots 15  visual-only shots 36  min visible-for 1.07 s  min height 145 px
+seed 11 soak gauntlet#3                    damage events   9  violations 0  damaging shots 9  visual-only shots 41  min visible-for 1.7 s  min height 123 px
+seed 11 soak entrance#0                    damage events  14  violations 0  damaging shots 14  visual-only shots 46  min visible-for 7.37 s  min height 172 px
+seed 11 soak steal#1                       damage events  12  violations 0  damaging shots 12  visual-only shots 44  min visible-for 1.98 s  min height 50 px
+seed 11 soak chase#0                       damage events   4  violations 0  damaging shots 4  visual-only shots 14  min visible-for 1.6 s  min height 66 px
+seed 11 soak train_finale#0                damage events  19  violations 0  damaging shots 19  visual-only shots 41  min visible-for 1.67 s  min height 76 px
+{"label":"seed 11 page errors","pageErrors":0}
+TOTAL {"runs":33,"damage":378,"violations":0,"visualOnly":1141,"damagingShots":380,"minVisT":1.07,"minPx":47,"examples":[]}
+FAIRNESS AUDIT: PASS
+FAIRDONE
