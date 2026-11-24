@@ -30,3 +30,11 @@ the zombie set exists (42 results) and is earmarked for Dead Hall.
 - Recoil stays at authored 1.0x (Nov 24).
 - Mixamo-on-N2 is proven: N2 is your VALID rig family; Opus's pistol set
   drives him (natural 2.671 m/s, 0.487x at the 1.30 law).
+
+## 4. BATCH2-RETARGET — reassigned to you (Nov 24, 14:26 ET)
+
+See `games/hospital-escape/tasking/BATCH2-RETARGET.md` — the six batch-2
+clips retargeted onto your cast. It was Opus's; Cherie reserved his remaining
+capacity for the game integration (his one task — he will be integrating YOUR
+cast), and this work is your pipeline. Lane order: purge and this are both
+yours; sequence them as you see fit and say so in your responses.
