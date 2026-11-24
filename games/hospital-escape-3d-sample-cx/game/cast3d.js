@@ -154,11 +154,19 @@ function tick(now){ requestAnimationFrame(tick);
     if(p.userData.dead || (e && !e.alive)){ if(!inst.dead){ inst.dead = true; play(inst, 'Death', 0.1); } }
     else if(inst.flinchT > 0) play(inst, 'HitRecieve', 0.05);
     else if(inst.fireT > 0) play(inst, 'Gun_Shoot', 0.05);
-    else if(sp > 0.3){ var run = sp > 1.5; play(inst, run ? 'Run' : 'Walk', 0.2);
-      var ts = clamp(sp / (run ? 1.24 : 0.64), 0.5, 2.6);            // MEASURED authored speeds (CX stride
-      inst.actions[inst.cur].timeScale = ts;                         // probe: Walk stride 0.858 m / 1.333 s = 0.64 m/s,
-                                                                     // Run 0.983 m / 0.792 s = 1.24 m/s — the asset
-                                                                     // manifest's 1.1 / 3.0 m/s overstates both ~1.7-2.4x)
+    else if(sp > 0.3){ var run = sp > 2.04; play(inst, run ? 'Run' : 'Walk', 0.2);
+      var ts = clamp(sp / (run ? 3.2 : 1.30), 0.5, 2.6);            // CORRECTED authored speeds — foot-contact
+      inst.actions[inst.cur].timeScale = ts;                         // adjudication 2026-11-24 (stance-phase foot speed
+                                                                     // measured on the GLB): Walk 1.30 m/s, Run 3.2 m/s.
+                                                                     // CX's original 0.64 / 1.24 came from stride / cycle
+                                                                     // time, which assumes stance fills the whole cycle;
+                                                                     // it fills only ~51% (Walk) / ~40% (Run), so that
+                                                                     // method halves the true speed and the pacing drove
+                                                                     // the feet at ~2x ground speed during contact.
+                                                                     // Walk<->Run switch at 2.04 m/s = geometric mean of
+                                                                     // the two authored speeds (sqrt(1.30 x 3.2)): at the
+                                                                     // crossover both clips are stretched by the same
+                                                                     // factor (1.57x), neither favoured.
       if(window.__CXPACE.length < 6000 && (inst.paceN++ % 5) === 0)
         window.__CXPACE.push({ sp: +sp.toFixed(3), clip: inst.cur, ts: +ts.toFixed(3) }); }
     else if(e && (e.aiming > 0 || e.exposed)) play(inst, 'Idle_Gun_Pointing', 0.2);
