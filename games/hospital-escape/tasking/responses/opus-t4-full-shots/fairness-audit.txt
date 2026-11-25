@@ -37,4 +37,3 @@ seed 11 soak train_finale#0                damage events  19  violations 0  dama
 {"label":"seed 11 page errors","pageErrors":0}
 TOTAL {"runs":33,"damage":378,"violations":0,"visualOnly":1141,"damagingShots":380,"minVisT":1.07,"minPx":47,"examples":[]}
 FAIRNESS AUDIT: PASS
-FAIRDONE

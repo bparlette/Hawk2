@@ -20,7 +20,7 @@
 | Data validation (`engine/validate-data.mjs game/level1.js`) | **201 objects, 0 errors** |
 | Fairness audit (seeds 7/3/11, full runs + damage soaks) | **PASS: 378 damage events, 0 violations**, min visible 1.07 s, min 47 px |
 | Full autopilot playthrough (`tools/cast-fullrun.cjs 7`) | completes, 233.2 s, not lost, **0 page errors** |
-| Real-input runs | 0 page errors. The gauntlet run reached the cafeteria (191 shots, score 110); the bed run reached the transfer corridor. |
+| Real-input runs | 0 page errors. The gauntlet run reached the cafeteria (195 shots, score 210); the bed run reached the transfer corridor. |
 | 3D cast, pacing law, recoil 1.0×, HUD | unchanged |
 
 ## What T4 is, and where each piece went
