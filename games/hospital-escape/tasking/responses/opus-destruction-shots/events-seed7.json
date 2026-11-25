@@ -1,0 +1,648 @@
+[
+ {
+  "frame": 16,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w1_0",
+   "role": "gunman:chase_w1_0",
+   "kind": "gunmanSpawn"
+  }
+ },
+ {
+  "frame": 48,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w1_0",
+   "role": "pursuer:chase_w1_0",
+   "kind": "fire",
+   "comp": "engine",
+   "v": 29
+  }
+ },
+ {
+  "frame": 48,
+  "type": "kill",
+  "d": {
+   "role": "gunman:chase_w1_0",
+   "kind": "gunman",
+   "points": 0,
+   "by": "crash"
+  }
+ },
+ {
+  "frame": 107,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_1",
+   "role": "gunman:chase_w2_1",
+   "kind": "gunmanSpawn"
+  }
+ },
+ {
+  "frame": 146,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_1",
+   "role": "pursuer:chase_w2_1",
+   "kind": "veer",
+   "comp": "engine",
+   "v": 30,
+   "chainTarget": "chase_w2_0"
+  }
+ },
+ {
+  "frame": 146,
+  "type": "kill",
+  "d": {
+   "role": "gunman:chase_w2_1",
+   "kind": "gunman",
+   "points": 0,
+   "by": "crash"
+  }
+ },
+ {
+  "frame": 148,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_1",
+   "role": "pursuer:chase_w2_1",
+   "kind": "chain",
+   "to": "chase_w2_0",
+   "close": 7.9
+  }
+ },
+ {
+  "frame": 148,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "rollover",
+   "comp": "driver",
+   "v": 29,
+   "rolls": 3,
+   "victim": true
+  }
+ },
+ {
+  "frame": 154,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 1
+  }
+ },
+ {
+  "frame": 155,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 2
+  }
+ },
+ {
+  "frame": 156,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 3
+  }
+ },
+ {
+  "frame": 157,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 4
+  }
+ },
+ {
+  "frame": 158,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 5
+  }
+ },
+ {
+  "frame": 160,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 6
+  }
+ },
+ {
+  "frame": 161,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 7
+  }
+ },
+ {
+  "frame": 162,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 8
+  }
+ },
+ {
+  "frame": 163,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 9
+  }
+ },
+ {
+  "frame": 165,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 10
+  }
+ },
+ {
+  "frame": 167,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 11
+  }
+ },
+ {
+  "frame": 169,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 12
+  }
+ },
+ {
+  "frame": 171,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w2_0",
+   "role": "pursuer:chase_w2_0",
+   "kind": "slam",
+   "n": 13
+  }
+ },
+ {
+  "frame": 239,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w3_0",
+   "role": "pursuer:chase_w3_0",
+   "kind": "blowout",
+   "comp": "engine",
+   "v": 30
+  }
+ },
+ {
+  "frame": 269,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w3_1",
+   "role": "pursuer:chase_w3_1",
+   "kind": "rollover",
+   "comp": "engine",
+   "v": 30,
+   "rolls": 2
+  }
+ },
+ {
+  "frame": 275,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w3_1",
+   "role": "pursuer:chase_w3_1",
+   "kind": "slam",
+   "n": 1
+  }
+ },
+ {
+  "frame": 276,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w3_1",
+   "role": "pursuer:chase_w3_1",
+   "kind": "slam",
+   "n": 2
+  }
+ },
+ {
+  "frame": 277,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w3_1",
+   "role": "pursuer:chase_w3_1",
+   "kind": "slam",
+   "n": 3
+  }
+ },
+ {
+  "frame": 278,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w3_1",
+   "role": "pursuer:chase_w3_1",
+   "kind": "slam",
+   "n": 4
+  }
+ },
+ {
+  "frame": 279,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w3_1",
+   "role": "pursuer:chase_w3_1",
+   "kind": "slam",
+   "n": 5
+  }
+ },
+ {
+  "frame": 281,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w3_1",
+   "role": "pursuer:chase_w3_1",
+   "kind": "slam",
+   "n": 6
+  }
+ },
+ {
+  "frame": 283,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w3_1",
+   "role": "pursuer:chase_w3_1",
+   "kind": "slam",
+   "n": 7
+  }
+ },
+ {
+  "frame": 285,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w3_1",
+   "role": "pursuer:chase_w3_1",
+   "kind": "slam",
+   "n": 8
+  }
+ },
+ {
+  "frame": 317,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w4_0",
+   "role": "gunman:chase_w4_0",
+   "kind": "gunmanSpawn"
+  }
+ },
+ {
+  "frame": 317,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w4_1",
+   "role": "gunman:chase_w4_1",
+   "kind": "gunmanSpawn"
+  }
+ },
+ {
+  "frame": 349,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w4_0",
+   "role": "pursuer:chase_w4_0",
+   "kind": "fire",
+   "comp": "engine",
+   "v": 30
+  }
+ },
+ {
+  "frame": 349,
+  "type": "kill",
+  "d": {
+   "role": "gunman:chase_w4_0",
+   "kind": "gunman",
+   "points": 0,
+   "by": "crash"
+  }
+ },
+ {
+  "frame": 363,
+  "type": "destruction",
+  "d": {
+   "id": "chase_w4_1",
+   "role": "pursuer:chase_w4_1",
+   "kind": "veer",
+   "comp": "engine",
+   "v": 30
+  }
+ },
+ {
+  "frame": 363,
+  "type": "kill",
+  "d": {
+   "role": "gunman:chase_w4_1",
+   "kind": "gunman",
+   "points": 0,
+   "by": "crash"
+  }
+ },
+ {
+  "frame": 494,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_0",
+   "role": "gunman:fin_w1_0",
+   "kind": "gunmanSpawn"
+  }
+ },
+ {
+  "frame": 519,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_0",
+   "role": "pursuer:fin_w1_0",
+   "kind": "rollover",
+   "comp": "tire",
+   "v": 30,
+   "rolls": 2
+  }
+ },
+ {
+  "frame": 519,
+  "type": "kill",
+  "d": {
+   "role": "gunman:fin_w1_0",
+   "kind": "gunman",
+   "points": 0,
+   "by": "crash"
+  }
+ },
+ {
+  "frame": 525,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_0",
+   "role": "pursuer:fin_w1_0",
+   "kind": "slam",
+   "n": 1
+  }
+ },
+ {
+  "frame": 526,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_0",
+   "role": "pursuer:fin_w1_0",
+   "kind": "slam",
+   "n": 2
+  }
+ },
+ {
+  "frame": 527,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_0",
+   "role": "pursuer:fin_w1_0",
+   "kind": "slam",
+   "n": 3
+  }
+ },
+ {
+  "frame": 529,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_0",
+   "role": "pursuer:fin_w1_0",
+   "kind": "slam",
+   "n": 4
+  }
+ },
+ {
+  "frame": 530,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_0",
+   "role": "pursuer:fin_w1_0",
+   "kind": "slam",
+   "n": 5
+  }
+ },
+ {
+  "frame": 531,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_0",
+   "role": "pursuer:fin_w1_0",
+   "kind": "slam",
+   "n": 6
+  }
+ },
+ {
+  "frame": 533,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_0",
+   "role": "pursuer:fin_w1_0",
+   "kind": "slam",
+   "n": 7
+  }
+ },
+ {
+  "frame": 535,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_0",
+   "role": "pursuer:fin_w1_0",
+   "kind": "slam",
+   "n": 8
+  }
+ },
+ {
+  "frame": 543,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w1_1",
+   "role": "pursuer:fin_w1_1",
+   "kind": "blowout",
+   "comp": "tire",
+   "v": 30
+  }
+ },
+ {
+  "frame": 639,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_0",
+   "role": "pursuer:fin_w2_0",
+   "kind": "veer",
+   "comp": "tire",
+   "v": 30,
+   "chainTarget": "fin_w2_1"
+  }
+ },
+ {
+  "frame": 643,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_0",
+   "role": "pursuer:fin_w2_0",
+   "kind": "chain",
+   "to": "fin_w2_1",
+   "close": 7
+  }
+ },
+ {
+  "frame": 643,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "rollover",
+   "comp": "driver",
+   "v": 30,
+   "rolls": 3,
+   "victim": true
+  }
+ },
+ {
+  "frame": 649,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 1
+  }
+ },
+ {
+  "frame": 651,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 2
+  }
+ },
+ {
+  "frame": 652,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 3
+  }
+ },
+ {
+  "frame": 653,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 4
+  }
+ },
+ {
+  "frame": 654,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 5
+  }
+ },
+ {
+  "frame": 656,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 6
+  }
+ },
+ {
+  "frame": 657,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 7
+  }
+ },
+ {
+  "frame": 659,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 8
+  }
+ },
+ {
+  "frame": 661,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 9
+  }
+ },
+ {
+  "frame": 663,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 10
+  }
+ },
+ {
+  "frame": 666,
+  "type": "destruction",
+  "d": {
+   "id": "fin_w2_1",
+   "role": "pursuer:fin_w2_1",
+   "kind": "slam",
+   "n": 11
+  }
+ }
+]

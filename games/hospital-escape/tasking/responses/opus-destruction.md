@@ -1,7 +1,32 @@
 # Opus: DESTRUCTION BEHAVIORS (OPUS-NEXT)
 
-> **Logins / paid:** none. **New loaders / libraries:** none. **The T4 look:** unchanged. **Status:** the system is live on main. Evidence capture is in progress; this file is updated as each piece lands.
+> **Logins / paid:** none. **New loaders / libraries:** none. **The T4 look:** unchanged. **Status:** done. Live on main, all gates green, evidence in `responses/opus-destruction-shots/`.
 > **Last moved:** Nov 25, 2026.
+
+## Verification (final code)
+| Check | Result |
+|---|---|
+| Engine tests | **24/24**, 0 page errors |
+| Data validation | **206 objects, 0 errors** |
+| Fairness audit | **PASS: 371 damage events, 0 violations**, min seen 0.67 s, min 82 px. The window gunman fires in these runs. |
+| `destruction-run` (new gate) | **PASS on seeds 7 / 3 / 11.** Every behaviour on every seed; rolls always 2–3; **0 unfair gunman hits** (every damaging gunman shot checked against the fairness contract) |
+| Camera audit | **PASS** |
+| Full playthrough (seed 7) | completes, **0 page errors**. 284.8 s, up from 233.5 s: wrecks play out longer, and gunman cars push in. |
+
+**Evidence** (`responses/opus-destruction-shots/`, 390×844, the shipped game on autopilot, seed 7):
+
+| File | Shows |
+|---|---|
+| `chain-crash-into-3x-rollover.mp4` | a blown-out car veers into its wingman; the struck car rolls **3 times** shedding glass, panels and lightbar, then settles. Frames 148–171 of the capture. |
+| `contact-sheet-chain-rollover.png` | the same, as stills |
+| `rollover-mid-roll-debris.png` | mid-roll, with debris |
+| `window-gunman-390x844.png` + `window-gunman-2x-crop.png` | the gunman leaning out of the SUV's window, aiming back at the ambulance |
+| `window-gunman-then-fire-and-veer.mp4` | two gunman cars; one burns (dark smoke + embers), the other veers |
+| `full-chase-seed7-autopilot.mp4` | the whole chase |
+| `events-seed7.json` | the frame of every event |
+| `fairness-audit.txt`, `camera-audit.txt` | audit output |
+
+**Frame budget (SwiftShader-relative):** the module adds no lights, no textures and no new material types, and its debris is a recycled pool of shared materials. The capture shows no hitch at the chain crash or the rollover. A per-beat before/after frame-time table was **not measured** in this run. Moth: `tools/transition-timer.cjs` with START=chase gives it.
 
 ## Where things are
 | What | Where |
