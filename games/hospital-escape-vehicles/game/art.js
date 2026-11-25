@@ -73,7 +73,27 @@ A.makeTextures = function(){ var T = A.tex;
     for(var x = 0; x <= w; x += 36){ g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); } for(var y = 0; y <= h; y += 32){ g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); } });
   T.beam = cv(32, 256, function(g, w, h){ var gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#000000'); gr.addColorStop(0.55, '#6a5c38'); gr.addColorStop(0.85, '#cbb27a'); gr.addColorStop(1, '#fff3cf'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
   T.patrolSide = cv(512, 128, function(g, w, h){ g.fillStyle = '#f4f4f2'; g.fillRect(0, 0, w, h); g.fillStyle = '#1d3f8a'; g.fillRect(0, 54, w, 26); g.fillStyle = '#f4f4f2'; g.font = 'bold 22px Arial,sans-serif'; g.fillText('CITY PATROL', 170, 74); g.fillStyle = '#111'; g.fillRect(0, 100, w, 28); });
-  T.chargerSide = cv(512, 128, function(g, w, h){ g.fillStyle = '#eceff2'; g.fillRect(0, 0, w, h); g.fillStyle = '#16233e'; g.fillRect(0, 48, w, 14); g.fillStyle = '#b8282b'; g.fillRect(0, 64, w, 6); g.fillStyle = '#16233e'; g.font = 'bold 20px Arial,sans-serif'; g.fillText('HIGHWAY UNIT', 160, 96); });
+  // --- VEHICLE SAMPLE (Moth): Charger Pursuit livery, drawn from the 2015 demonstrator refs in
+  // tasking/refs/vehicles/chase-car (black nose + tail, white door sweep, shield, PURSUIT / 911, flag).
+  // Canvas maps a 4.3 m x 0.77 m side skin: canvas left = vehicle front (z +2.05), canvas top = beltline (y 1.07).
+  // Wheel arches are cut with destination-out (the skin material runs alphaTest) so the steelies sit in real wells.
+  function drawChargerSide(g, w, h){ g.fillStyle = '#0b0c0e'; g.fillRect(0, 0, w, h);
+    var grd = g.createLinearGradient(0, 0, 0, h); grd.addColorStop(0, 'rgba(255,255,255,.10)'); grd.addColorStop(0.5, 'rgba(255,255,255,0)'); grd.addColorStop(1, 'rgba(0,0,0,.35)'); g.fillStyle = grd; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#eef0ee'; g.beginPath(); g.moveTo(302, 0); g.lineTo(w, 0); g.lineTo(w, h); g.lineTo(352, h); g.quadraticCurveTo(288, h * 0.52, 302, 0); g.fill();   // white door sweep
+    g.fillStyle = '#0b0c0e'; g.fillRect(0, 168, w, 24);                                                                                                                  // black rocker / lower rear
+    g.fillStyle = 'rgba(0,0,0,.35)'; [278, 497, 718].forEach(function(x){ g.fillRect(x, 10, 3, 158); });                                                                  // door seams
+    g.fillStyle = '#14161a'; g.fillRect(452, 24, 32, 7); g.fillRect(680, 24, 32, 7);                                                                                    // handles
+    // US flag on the front fender (u: z 1.32..1.10)
+    g.fillStyle = '#b22234'; g.fillRect(148, 60, 40, 22); g.fillStyle = '#fff'; for(var s = 0; s < 3; s++) g.fillRect(148, 65 + s * 7, 40, 3); g.fillStyle = '#3c3b6e'; g.fillRect(148, 60, 17, 12);
+    // shield on the front door (centre z 0.44 -> x 383)
+    g.save(); g.translate(383, 98); g.beginPath(); g.moveTo(0, -46); g.lineTo(34, -34); g.lineTo(34, 6); g.quadraticCurveTo(34, 34, 0, 50); g.quadraticCurveTo(-34, 34, -34, 6); g.lineTo(-34, -34); g.closePath();
+    g.fillStyle = '#16233e'; g.fill(); g.lineWidth = 4; g.strokeStyle = '#c8ccd2'; g.stroke();
+    g.fillStyle = '#e8b730'; g.beginPath(); g.arc(0, -16, 7, 0, 7); g.fill(); g.fillStyle = '#f2f3f5'; g.font = 'bold 17px Arial,sans-serif'; g.textAlign = 'center'; g.fillText('LAW', 0, 12); g.font = 'bold 8px Arial,sans-serif'; g.fillText('ENFORCEMENT', 0, 26); g.restore();
+    g.fillStyle = '#101216'; g.textAlign = 'left'; g.font = 'italic bold 21px Arial,sans-serif'; g.fillText('C H A R G E R', 528, 50);
+    g.font = 'italic bold 57px Arial,sans-serif'; g.fillText('PURSUIT', 522, 104);
+    g.font = 'italic bold 45px Arial,sans-serif'; g.fillText('911', 636, 162);
+    g.globalCompositeOperation = 'destination-out'; [[125, 177], [851, 177]].forEach(function(c){ g.beginPath(); g.ellipse(c[0], c[1], 102, 107, 0, 0, 7); g.fill(); }); g.globalCompositeOperation = 'source-over'; }
+  T.chargerSide = cv(1024, 192, function(g, w, h){ drawChargerSide(g, w, h); });
   T.train = cv(512, 128, function(g, w, h){ g.fillStyle = '#2b4c7e'; g.fillRect(0, 0, w, h); g.fillStyle = '#e1b23c'; g.fillRect(0, 84, w, 12); g.fillStyle = '#1b2f50'; g.fillRect(0, 104, w, 24);
     for(var x = 20; x < w; x += 46){ g.fillStyle = '#cfdbe6'; g.fillRect(x, 22, 30, 34); g.fillStyle = 'rgba(30,40,60,.5)'; g.fillRect(x, 40, 30, 16); } });
   T.boxcar = cv(512, 128, function(g, w, h){ g.fillStyle = '#7b3b24'; g.fillRect(0, 0, w, h); for(var x = 0; x < w; x += 16){ g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(x, 0, 3, h); } g.fillStyle = '#e8d9b0'; g.font = 'bold 26px Arial,sans-serif'; g.fillText('MIDLAND FREIGHT', 120, 70); });
@@ -269,9 +289,9 @@ A.wheelchair = function(){ var g = new THREE.Group(), steel = A.mat(0x9aa0a6, { 
   A.box(0.4, 0.02, 0.14, steel, 0, 0.14, 0.38, g);                                                                                     // footplate
   g.userData.grip = new V(0, 1.05, -0.34); return g; };
 // zones: tire (front wheels), driver (windshield), engine (hood) — the engine's chase raycast resolves by these
-A.car = function(kind){ var g = new THREE.Group(), suv = kind === 'suv', L = suv ? 4.9 : 4.8, W = suv ? 2.0 : 1.88, H = suv ? 1.0 : 0.72, base = suv ? 0.45 : 0.38;
+A.car = function(kind){ if(kind === 'charger') return A.chargerCar(); var g = new THREE.Group(), suv = kind === 'suv', L = suv ? 4.9 : 4.8, W = suv ? 2.0 : 1.88, H = suv ? 1.0 : 0.72, base = suv ? 0.45 : 0.38;
   var paint = kind === 'suv' ? A.mat(0x0e0f11, { metalness: 0.6, roughness: 0.35 }) : A.mat(0xf0f1ef, { metalness: 0.3, roughness: 0.45 });
-  var sideTex = kind === 'patrol' ? A.tex.patrolSide : kind === 'charger' ? A.tex.chargerSide : null;
+  var sideTex = kind === 'patrol' ? A.tex.patrolSide : null;
   var sideMat = sideTex ? new THREE.MeshStandardMaterial({ map: sideTex, roughness: 0.45, metalness: 0.2 }) : paint;
   var body = A.box(W, H, L, [sideMat, sideMat, paint, paint, paint, paint], 0, base + H / 2, 0, g); body.material = [sideMat, sideMat, paint, paint, paint, paint];
   var glass = A.mat(0x1b2733, { metalness: 0.6, roughness: 0.15 }), cabH = suv ? 0.75 : 0.55, cabL = suv ? 2.9 : 2.1, cabZ = suv ? -0.45 : -0.25;
@@ -282,7 +302,6 @@ A.car = function(kind){ var g = new THREE.Group(), suv = kind === 'suv', L = suv
   var hood = A.box(W - 0.1, 0.05, 1.1, kind === 'suv' ? A.mat(0x16181b, { metalness: 0.6, roughness: 0.3 }) : paint, 0, base + H + 0.03, L / 2 - 0.62, g); hood.userData.zone = 'engine';
   A.box(W - 0.3, 0.22, 0.05, A.mat(0x151515), 0, base + H * 0.55, L / 2 + 0.01, g);                                                  // grille
   [-1, 1].forEach(function(sx){ A.box(0.34, 0.12, 0.04, A.mat(0xfff4d6, { emissive: 0xfff2c8, emissiveIntensity: 1.2 }), sx * (W / 2 - 0.3), base + H * 0.68, L / 2 + 0.02, g); });
-  if(kind === 'charger'){ var pb = A.mat(0x111111, { metalness: 0.4 }); A.box(1.5, 0.08, 0.08, pb, 0, base + 0.35, L / 2 + 0.28, g); A.box(1.5, 0.08, 0.08, pb, 0, base + 0.65, L / 2 + 0.28, g); [-0.6, 0.6].forEach(function(x){ A.box(0.08, 0.5, 0.08, pb, x, base + 0.5, L / 2 + 0.28, g); }); }
   if(kind !== 'suv'){ var bar = new THREE.Group(); bar.position.set(0, base + H + cabH + 0.06, cabZ); g.add(bar); var red = A.mat(0xff2020, { emissive: 0xff0000, emissiveIntensity: 2 }), blue = A.mat(0x2050ff, { emissive: 0x1040ff, emissiveIntensity: 2 });
     A.box(0.55, 0.1, 0.22, red, -0.3, 0, 0, bar); A.box(0.55, 0.1, 0.22, blue, 0.3, 0, 0, bar); g.userData.lightbar = bar; }
   var tm = A.mat(0x121212, { roughness: 0.8 }), rimM = A.mat(0x9a9a9a, { metalness: 0.7 });
@@ -290,6 +309,81 @@ A.car = function(kind){ var g = new THREE.Group(), suv = kind === 'suv', L = suv
     var t = A.cyl(0.36, 0.36, 0.26, tm, 0, 0, 0, w, 16); t.rotation.z = Math.PI / 2; var r = A.cyl(0.2, 0.2, 0.27, rimM, 0, 0, 0, w, 10); r.rotation.z = Math.PI / 2; if(c[1] > 0){ t.userData.zone = 'tire'; r.userData.zone = 'tire'; } });
   var sh = new THREE.Mesh(new THREE.PlaneGeometry(W + 0.4, L + 0.5), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.35, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.02; g.add(sh);
   g.userData.kind = kind; return g; };
+// the hero chase car — VEHICLE SAMPLE (Moth): a 2015 Dodge Charger Pursuit modelled from the refs in
+// tasking/refs/vehicles/chase-car (LA Times side profile, front/rear 3/4 press shots, dimensions sheet).
+// Real dimensions: L 5.08, W 1.90, H 1.48, wheelbase 3.05, wheel r 0.36. Data-row style like the ambulance:
+// extruded side profiles for the body + greenhouse, canvas livery skins, and the FULL destruction vehicle
+// interface (opus-destruction.md): userData.kind / dims / wheels / glass / lightbar / anchors + zone meshes
+// ('engine' hood as a DIRECT child so the rig scan finds it, 'driver' windshield, 'tire' front wheels).
+// Local frame: +z forward, origin on the road under the car's centre.
+A.chargerCar = function(){ var g = new THREE.Group();
+  var paint = A.mat(0x0a0b0d, { metalness: 0.5, roughness: 0.38 }), dark = A.mat(0x141518, { roughness: 0.6, metalness: 0.3 }),
+      chrome = A.mat(0xd8dce0, { metalness: 0.85, roughness: 0.3 }), steel = A.mat(0x0b0b0d, { metalness: 0.35, roughness: 0.55 }),
+      tyreM = A.mat(0x0d0d0d, { roughness: 0.95 }), glassM = A.mat(0x11161c, { metalness: 0.0, roughness: 0.85 }),
+      glassSide = new THREE.MeshStandardMaterial({ color: 0x141e28, metalness: 0.7, roughness: 0.12, side: THREE.DoubleSide }),
+      wsM = A.mat(0x2e4256, { metalness: 0.1, roughness: 0.6, transparent: true, opacity: 0.95 }),
+      headLens = A.mat(0xfff4d6, { emissive: 0xfff2c8, emissiveIntensity: 1.2 }), tailRed = A.mat(0xb01a1e, { emissive: 0x8f0000, emissiveIntensity: 1.15 }),
+      amberLens = A.mat(0xff9a1e, { emissive: 0xff8c00, emissiveIntensity: 1.0 }),
+      redBar = A.mat(0xff2020, { emissive: 0xff0000, emissiveIntensity: 2 }), blueBar = A.mat(0x2050ff, { emissive: 0x1040ff, emissiveIntensity: 2 }),
+      whiteBar = A.mat(0xe8f0ff, { emissive: 0xbcd2ff, emissiveIntensity: 1.4 }),
+      sideMatA = new THREE.MeshStandardMaterial({ map: A.tex.chargerSide, roughness: 0.42, metalness: 0.15, transparent: true, alphaTest: 0.5 }),
+      sideMatB = new THREE.MeshStandardMaterial({ map: A.tex.chargerSide, roughness: 0.42, metalness: 0.15, transparent: true, alphaTest: 0.5 });
+  // extruded side profile: pts are [carZ, y]; extrusion centred across the width
+  function prof(pts, wdt, mat){ var sh = new THREE.Shape(); pts.forEach(function(p, i){ i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1]); }); sh.closePath();
+    var geo = new THREE.ExtrudeGeometry(sh, { depth: wdt, bevelEnabled: false }); geo.rotateY(-Math.PI / 2); geo.translate(wdt / 2, 0, 0);
+    var m = new THREE.Mesh(geo, mat); g.add(m); return m; }
+  // ---- body: long hood, flat beltline, short deck (profile from the side ref + dimensions sheet)
+  prof([[2.54, 0.32], [2.54, 0.80], [2.32, 0.93], [1.55, 1.00], [1.05, 1.04], [0.60, 1.07], [-1.55, 1.07], [-2.05, 1.11], [-2.50, 1.07], [-2.54, 0.60], [-2.54, 0.32], [-2.30, 0.17], [2.30, 0.17]], 1.80, paint);
+  // ---- greenhouse: raked windshield, near-flat roof, fastback rear glass line
+  prof([[0.98, 1.03], [0.32, 1.455], [-0.82, 1.445], [-1.98, 1.06], [-1.98, 1.01], [0.98, 1.01]], 1.64, paint);
+  A.box(0.05, 0.07, 0.18, paint, 0, 1.485, -0.92, g);                                                                                     // roof antenna fin
+  // ---- livery skins (white door sweep, shield, PURSUIT / 911, flag; wheel arches cut out of the canvas)
+  [-1, 1].forEach(function(sx){ var sk = new THREE.Mesh(new THREE.PlaneGeometry(4.3, 0.77), sx > 0 ? sideMatA : sideMatB);
+    sk.rotation.y = sx * Math.PI / 2; sk.position.set(sx * 0.906, 0.685, -0.10); g.add(sk); });
+  // ---- glass: windshield (the 'driver' zone), rear glass, and the four side panes (userData.glass)
+  var ws = A.box(1.60, 0.78, 0.04, wsM, 0, 1.255, 0.625, g); ws.rotation.x = -1.005; ws.userData.zone = 'driver';
+  var rg = A.box(1.60, 1.26, 0.04, glassM, 0, 1.25, -1.41, g); rg.rotation.x = 1.245;
+  function pane(side, pts){ var sh = new THREE.Shape(); pts.forEach(function(p, i){ var sx = -side * p[0]; i ? sh.lineTo(sx, p[1]) : sh.moveTo(sx, p[1]); }); sh.closePath();
+    var m = new THREE.Mesh(new THREE.ShapeGeometry(sh), glassSide); m.rotation.y = side * Math.PI / 2; m.position.x = side * 0.83; g.add(m); return m; }
+  var glass = [pane(1, [[0.88, 1.09], [0.45, 1.395], [0.08, 1.395], [0.03, 1.09]]), pane(1, [[-0.03, 1.09], [-0.08, 1.395], [-0.78, 1.385], [-1.28, 1.09]]),
+               pane(-1, [[0.88, 1.09], [0.45, 1.395], [0.08, 1.395], [0.03, 1.09]]), pane(-1, [[-0.03, 1.09], [-0.08, 1.395], [-0.78, 1.385], [-1.28, 1.09]])];
+  // ---- hood: its own mesh (the 'engine' zone; buckles on frontal impact) following the hood slope
+  var hood = A.box(1.76, 0.045, 1.34, paint, 0, 1.02, 1.66, g); hood.rotation.x = 0.085; hood.userData.zone = 'engine';
+  // ---- front fascia: crosshair grille, LED headlights, intake, signals
+  A.box(1.52, 0.17, 0.06, dark, 0, 0.70, 2.53, g); A.box(1.52, 0.028, 0.02, chrome, 0, 0.70, 2.565, g); A.box(0.03, 0.17, 0.02, chrome, 0, 0.70, 2.565, g);
+  [-1, 1].forEach(function(sx){ A.box(0.54, 0.075, 0.05, headLens, sx * 0.60, 0.82, 2.52, g); A.box(0.10, 0.05, 0.04, amberLens, sx * 0.86, 0.60, 2.50, g);
+    A.box(0.05, 0.09, 0.14, paint, sx * 0.97, 1.13, 0.66, g); });                                                                          // mirrors
+  A.box(1.25, 0.13, 0.05, dark, 0, 0.40, 2.53, g);
+  // ---- rear fascia: full-width racetrack taillight (red frame around a dark centre), plate, exhausts, deck lip
+  A.box(1.78, 0.20, 0.05, dark, 0, 0.93, -2.53, g); A.box(1.74, 0.10, 0.03, tailRed, 0, 0.93, -2.565, g); A.box(1.05, 0.055, 0.02, dark, 0, 0.93, -2.578, g);
+  A.box(0.34, 0.17, 0.02, A.mat(0xd8d8d2), 0, 0.64, -2.545, g); A.box(1.86, 0.16, 0.06, paint, 0, 0.36, -2.50, g); A.box(1.66, 0.045, 0.16, paint, 0, 1.095, -2.40, g);
+  [-1, 1].forEach(function(sx){ A.cyl(0.045, 0.045, 0.10, steel, sx * 0.63, 0.27, -2.55, g).rotation.x = Math.PI / 2; });
+  // ---- A-pillar spotlight (driver side, per the refs)
+  A.cyl(0.018, 0.018, 0.16, dark, -0.88, 1.17, 0.80, g).rotation.z = 0.6; var spot = A.sph(0.055, dark, -0.94, 1.23, 0.80, g); A.cyl(0.042, 0.042, 0.02, headLens, -0.94, 1.23, 0.855, g).rotation.x = Math.PI / 2;
+  // ---- lightbar: slim full-width LED bar; the group holds ONLY lens segments (main.js strobes the children,
+  //      destruction knocks the whole group off on a rollover)
+  A.box(1.34, 0.05, 0.26, dark, 0, 1.475, 0.22, g);
+  var bar = new THREE.Group(); bar.position.set(0, 1.515, 0.22); g.add(bar);
+  [blueBar, blueBar, whiteBar, redBar, redBar, whiteBar].forEach(function(m2, i){ A.box(0.20, 0.055, 0.22, m2, -0.55 + i * 0.22, 0, 0, bar); });
+  // ---- driver (gunman crew, dark kit) in the drive pose, as in A.car
+  var driver = A.person({ height: 1.75, top: 0x23262b, bottom: 0x1d1f24, hairStyle: 'cap', capCol: 0x14161a }); A.pose(driver, 'drive', 0); driver.scale.setScalar(0.92); driver.position.set(-0.42, 0.30, 0.10); g.add(driver);
+  // ---- wheels: black steelies with chrome dog-dish caps; front pair carries the 'tire' zone
+  var wheels = [];
+  [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(function(c){ var w = new THREE.Group(); w.position.set(c[0] * 0.83, 0.36, c[1] * 1.525); g.add(w);
+    var t = A.cyl(0.36, 0.36, 0.25, tyreM, 0, 0, 0, w, 20); t.rotation.z = Math.PI / 2;
+    var r = A.cyl(0.215, 0.215, 0.26, steel, 0, 0, 0, w, 14); r.rotation.z = Math.PI / 2;
+    var cap = A.cyl(0.085, 0.085, 0.27, chrome, 0, 0, 0, w, 10); cap.rotation.z = Math.PI / 2;
+    if(c[1] > 0){ t.userData.zone = 'tire'; r.userData.zone = 'tire'; }
+    wheels.push({ g: w, front: c[1] > 0, side: c[0] }); });
+  var sh = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 5.6), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.35, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.02; g.add(sh);
+  // ---- the destruction vehicle interface (opus-destruction.md)
+  g.userData.kind = 'charger';
+  g.userData.dims = { L: 5.08, W: 1.90, H: 0.78, base: 0.30, cabH: 0.40, cabZ: -0.15 };
+  g.userData.wheels = wheels;
+  g.userData.glass = glass;
+  g.userData.lightbar = bar;
+  g.userData.anchors = { hood: new V(0, 1.09, 1.85), window: { L: new V(-0.90, 1.09, 0.30), R: new V(0.90, 1.09, 0.30) } };
+  return g; };
 function flipTex(t){ var c = t.clone(); c.wrapS = THREE.RepeatWrapping; c.repeat.x = -1; c.needsUpdate = true; return c; }   // door skins sample their canvas slice reversed (hinge-group UVs)
 // the ambulance — VEHICLE SAMPLE (Moth): a Ford E-Series Type III modelled from the 360° refs in
 // tasking/refs/vehicles/ambulance (Braun E-450 front 3/4, E-350 side, GEV rear, two rear-cabin interiors,

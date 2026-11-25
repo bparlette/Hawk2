@@ -37,6 +37,7 @@ HE.Combat = function(game){
     c.shotsFired++; if(!h || h.info.bystander){ c.streak = 0; } else { c.shotsHit++; c.streak++; }
     if(!h) return; if(h.info.bystander){ game.bystanders.hit(h.info.role); return; } game.log('hitmarker', { x: aim.x, y: aim.y });
     if(h.info.component) game.chase.hitComponent(h.info.role, h.info.component, dmg);
+    else if(h.info.gunman && game.destruction) game.destruction.hitGunman(h.info.role, dmg);   // the window gunman (game/destruction.js)
     else c.hitEnemy(h.info.role, dmg); };
   // ---- enemies ----
   c.clearEnemies = function(){ c.enemies.forEach(function(e){ game.greybox.removeActor(e.role); if(e.coverBox) game.greybox.removeObject(e.coverBox); }); c.enemies = []; c.shots = []; };
