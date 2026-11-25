@@ -16,6 +16,8 @@ function resize(){ renderer.setSize(innerWidth, innerHeight); camera.aspect = in
 var worldRoot = W.build(scene, HE.DATA);
 var post = window.HEPOST ? HEPOST.create(renderer, scene, camera) : null; window.__post = post; window.__renderer = renderer;
 scene.traverse(function(o){ if(o.material && o.material.map === A.tex.lightPanel){ o.material.color.setRGB(3.2, 3.3, 3.5); } });   // HDR ceiling panels -> bloom
+var T4 = window.HET4 && HET4.on ? HET4 : null;   /* T4-FULL-PORT: Neon's Take 4 look over the whole game (game/t4look.js); ?t4=0 = the previous look */
+if(T4){ T4.apply({ renderer: renderer, scene: scene, root: worldRoot, A: A }); if(post) post.u.t4.value = 1; }
 var sky = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 12), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, uniforms: {},
   vertexShader: 'varying vec3 vp; void main(){ vp = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   uniforms: { time: { value: 0 }, flash: { value: 0 } },
@@ -151,7 +153,8 @@ var BEAT_TITLES = { visit: '1 · ROOM 412', bed_push: '2 · THE BED', transfer: 
 var outdoor = false, tAnim = 0, lastBeat = null, coleAim = new V(0, 0, -1), mayaFireT = 0, mayaTarget = new V(), bedParked = null, chairParked = null, ambParked = null;
 // night hospital (dim, cold ambient; the ceiling panels and pools carry the light) / storm dusk outside
 function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(PT){ PT.env.setRGB(on ? 0.79 : 1.0, on ? 0.83 : 1.0, on ? 0.92 : 1.0); PT.indoor = !on; }   /* painted cast graded to the room */ if(on){ scene.fog = new THREE.Fog(0x2b3440, 35, 300); hemi.color.set(0x8799b0); hemi.groundColor.set(0x1d1a19); hemi.intensity = 0.47; sun.color.set(0xb6bcd0); sun.intensity = 0.50; sun.position.set(-60, 50, 40); sky.visible = true; }
-  else { scene.fog = new THREE.Fog(0x1c2328, 14, 60); hemi.color.set(0xb9c9d6); hemi.groundColor.set(0x3a342e); hemi.intensity = 0.48; sun.color.set(0xdfe8ff); sun.intensity = 0.18; sun.position.set(20, 40, 10); sky.visible = false; } }
+  else { scene.fog = new THREE.Fog(0x1c2328, 14, 60); hemi.color.set(0xb9c9d6); hemi.groundColor.set(0x3a342e); hemi.intensity = 0.48; sun.color.set(0xdfe8ff); sun.intensity = 0.18; sun.position.set(20, 40, 10); sky.visible = false; }
+  if(T4){ T4.fog(scene, on); if(!on) T4.indoorLights(hemi, sun); } }   // T4: FogExp2 mood + T4's hemisphere indoors
 // BEAUTY PASS B1: per-area indoor fog (was one binary 14/60). [color, near, far] — far is set per area so the
 // longest scripted shot there stays <= ~40% fogged (probe-dist.cjs, seeds 3+7: halls max 24.5 m, elevator
 // doors 15.7 m, cafeteria 18.4 m, holdout 16.1 m). Outdoor keeps the setOutdoor fog. Painted cast follows via
@@ -159,13 +162,13 @@ function setOutdoor(on){ if(on === outdoor) return; outdoor = on; if(PT){ PT.env
 var AREA_FOG = { visit_room: [0x1c2328, 10, 44], bed_hall_push: [0x1c2328, 11, 50], transfer_cut: [0x1c2328, 11, 50], transfer_chair_corridor: [0x1c2328, 11, 50],
   elevator_ride: [0x1a2126, 5, 30], elevator_doors_ground: [0x1a2126, 5, 30], gauntlet_halls: [0x1c2328, 11, 50], gauntlet_cafeteria: [0x1c2328, 12, 55],
   gauntlet_ward_on_foot: [0x1c2328, 8, 34], gauntlet_waiting_room: [0x1c2328, 10, 44], entrance_holdout: [0x1c2328, 12, 58] };
-function areaFog(seg, pathT){ if(outdoor || !scene.fog) return; var a = AREA_FOG[seg], c, n, f;
+function areaFog(seg, pathT){ if(T4 || outdoor || !scene.fog) return; var a = AREA_FOG[seg], c, n, f;
   if(seg === 'entrance_exit_push'){ var t = Math.max(0, Math.min(1, pathT || 0)); c = 0x1c2328; n = 12 + 12 * t; f = 58 + 82 * t; }   // lobby fog eases toward the street values on the way out
   else if(a){ c = a[0]; n = a[1]; f = a[2]; } else return;
   if(scene.fog.color.getHex() !== c) scene.fog.color.setHex(c); scene.fog.near = n; scene.fog.far = f; }
 setOutdoor(true); setOutdoor(false);
 function placeOnPath(o, path, s, off){ var p = path.pointAtS(s), t = fwdOf(path, s); o.position.copy(p); if(off) o.position.add(off); yawTo(o, t); return t; }
-function present(dt){ tAnim += dt; if(PT) PT.time = tAnim; patientStep(dt); var st = game.state(), r = game.rail, m = st.mode, seg = st.segment || '';
+function present(dt){ tAnim += dt; if(PT) PT.time = tAnim; patientStep(dt); if(T4) T4.step(camera, !outdoor, game.state().segment); var st = game.state(), r = game.rail, m = st.mode, seg = st.segment || '';
   if((estK > 0 || estWas) && r.path && (m === 'RAIL_CHAIR' || m === 'AMBULANCE')) r.place(0, false); estWas = estK > 0;   // the offset lands on this very frame (a clean cut)
   if(st.beat !== lastBeat){ lastBeat = st.beat; if(started) showBanner(BEAT_TITLES[st.beat] || st.beat, 'title', 2200); }
   setOutdoor(st.beat === 'steal' && seg !== 'steal_cut' || st.beat === 'chase' || st.beat === 'train_finale' || seg === 'steal_cut');

@@ -105,6 +105,7 @@ C.make = function(k){ var model = cloneSkinned(base[k].scene), root = new THREE.
   model.traverse(function(o){ if(o.isMesh){ o.frustumCulled = false; o.raycast = function(){}; if(o.material){ o.material = o.material.clone(); o.material.envMapIntensity = 0.6; } } });
   var hand = model.getObjectByName('RightHand'), gun = pistolMesh(); gun.matrixAutoUpdate = false; gun.matrix.copy(seat[k]); gun.raycast = function(){}; hand.add(gun); f.gun = gun;
   var bl = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 0.62), new THREE.MeshBasicMaterial({ map: BLOB_TEX, transparent: true, depthWrite: false, opacity: 0.4 })); bl.rotation.x = -Math.PI / 2; bl.position.y = 0.015; bl.renderOrder = 1; bl.raycast = function(){}; root.add(bl); f.blob = bl;
+  if(window.HET4 && HET4.on) HET4.dressFigure(root);   /* T4-FULL: the area term + real shadows on the cast */
   addCapsules(f); C.figs.push(f); return f; };
 C.action = function(f, clip, opt){ if(!clip) return null; var a = f.acts[clip.name + (opt && opt.tag || '')]; if(a) return a; a = f.mixer.clipAction(clip); if(opt && opt.additive) a.blendMode = THREE.AdditiveAnimationBlendMode;
   if(opt && opt.once){ a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = !!opt.clamp; } f.acts[clip.name + (opt && opt.tag || '')] = a; return a; };
@@ -229,7 +230,8 @@ function mergeParts(parts){ var n = 0; parts.forEach(function(p){ n += p.pos.len
 C.buildPatients = function(scene, rooms){ if(!C.patientsReady) return null; var out = [];
   rooms.forEach(function(R){ var parts = [], k = R.body || 'pa'; R.spots.forEach(function(s){ var w = new THREE.Matrix4().compose(s.pos.clone().setY(s.pos.y + (s.dy || 0)), new Qt().setFromAxisAngle(UPV, s.yaw || 0), new V(1, 1, 1)); bakePose(k, mxClip(k, s.clip), s.frac, w).forEach(function(p){ parts.push(p); }); });
     if(!parts.length) return; var map = parts[0].map, g = mergeParts(parts), mat = new THREE.MeshStandardMaterial({ map: map, roughness: 0.8, color: 0xd8e4ea });
-    var mesh = new THREE.Mesh(g, mat); mesh.name = 'patients:' + R.name; mesh.userData.figures = R.spots.length; mesh.raycast = function(){}; scene.add(mesh); out.push(mesh); });
+    if(window.HET4 && HET4.on) HET4.withArea(mat);
+    var mesh = new THREE.Mesh(g, mat); mesh.name = 'patients:' + R.name; mesh.receiveShadow = true; mesh.userData.figures = R.spots.length; mesh.raycast = function(){}; scene.add(mesh); out.push(mesh); });
   C.patients = out; return out; };
 
 /* the rooms (INTEGRATION item 4): WARD 2 · RECOVERY gets four occupied beds along its north wall (clear of Maya's on-foot route),
