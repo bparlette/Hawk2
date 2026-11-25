@@ -1,0 +1,32 @@
+{
+ "gunman": {
+  "top": 15,
+  "bottom": 62
+ },
+ "maya": {
+  "top": 15,
+  "bottom": 62
+ },
+ "nurse": {
+  "top": 13,
+  "bottom": 62
+ },
+ "hale": {
+  "top": 15,
+  "bottom": 62
+ },
+ "cole": {
+  "top": 13,
+  "bottom": 62
+ },
+ "cole-chair": {
+  "top": 15,
+  "bottom": 63
+ },
+ "cole-bed": {
+  "top": 13,
+  "bottom": 62,
+  "left": 17,
+  "right": 47
+ }
+}
