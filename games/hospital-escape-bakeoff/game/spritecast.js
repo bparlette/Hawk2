@@ -7,13 +7,15 @@
    per-tick) so hit registration / muzzle maths stay exactly as shipped. */
 (function(){
 'use strict';
-var Q = new URLSearchParams(location.search); if(Q.get('look') !== 'snes') return;
+var Q = new URLSearchParams(location.search); if(Q.get('look') !== 'snes' && Q.get('look') !== 'snescel') return;
 var DIR = 'assets/sprites/', ROWS = { up: 0, left: 1, down: 2, right: 3 };
 var sheets = {}, meta = null, ready = false;
 var loader = new THREE.TextureLoader();
 ['gunman', 'maya', 'nurse', 'hale', 'cole', 'cole-chair', 'cole-bed'].forEach(function(n){
   var t = loader.load((window.__SPRITE_URLS && window.__SPRITE_URLS[n]) || (DIR + n + '.png'));
-  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; sheets[n] = t; });
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+  t.encoding = THREE.sRGBEncoding;   /* round 3: every other texture system in the game sets this (art.js, painted.js, t4look.js) — without it the post composite's linear->sRGB lift washed the sprites out (the dark gunman tint rendered pale pink in-game, which is what made round-1/2 gunmen read beige on screen despite the dark sheet) */
+  sheets[n] = t; });
 fetch(DIR + 'sprites.json').then(function(r){ return r.json(); }).then(function(j){ meta = j; ready = true; }).catch(function(){});
 
 function makePlane(sheetName, w, h){
@@ -39,8 +41,8 @@ var actors = [];   // {g, role, mesh, last:Vector3, chairMesh, bedMesh}
 function track(g, role, roleName){ if(!g || g.userData.__sprite) return; g.userData.__sprite = true;
   var e = { g: g, role: role, roleName: roleName, last: g.position.clone(), deadF: 0 };
   if(role === 'cole'){ e.chair = makePlane('cole-chair', 1.15, 1.15); e.bed = makePlane('cole-bed', 2.0, 2.0);
-    e.mesh = makePlane('cole', 2.15, 2.15); scene().add(e.chair, e.bed, e.mesh); }
-  else { var h = role === 'maya' ? 2.0 : role === 'nurse' ? 2.05 : 2.15; e.mesh = makePlane(role, h, h); scene().add(e.mesh); }
+    e.mesh = makePlane('cole', 1.92, 1.92); scene().add(e.chair, e.bed, e.mesh); }   /* round 2: Cole/Maya billboards shrunk ~11% — at rail distance (~1 m) the round-1 planes filled the frame and their chibi heads read as giant cropped domes */
+  else { var h = role === 'maya' ? 1.8 : role === 'nurse' ? 2.05 : 2.15; e.mesh = makePlane(role, h, h); scene().add(e.mesh); }
   actors.push(e); }
 function scene(){ return window.__game.game.scene; }
 
@@ -53,7 +55,7 @@ setInterval(function(){
   actors.forEach(function(e){ var g = e.g, u = g.userData;
     if(u.bb) u.bb.visible = false;                                   // hide the painted billboard, keep its maths alive
     var moved = g.position.distanceTo(e.last) > 0.004; e.last.copy(g.position);
-    var row = rowFor(g, cam), t = Math.floor(now / 100);             // 10 fps sprite clock (SNES step)
+    var row = rowFor(g, cam), t = Math.floor(now / 66);              // ~15 fps sprite clock (round 2: smoother than the 10 fps step)
     if(e.role === 'cole'){
       var seg = st.segment || '', bedMode = st.vehicle === 'bed' || seg === 'visit_room' || seg === 'bed_hall_push';
       var chairMode = !bedMode && st.mode !== 'AMBULANCE' && (st.segment || '').indexOf('gauntlet') !== 0;   // gauntlet = Cole seated on the bed -> sit-frame billboard (the mesh branch below)

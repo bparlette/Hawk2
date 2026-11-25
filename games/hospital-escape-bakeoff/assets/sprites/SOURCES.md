@@ -32,10 +32,26 @@ Dr. Hale = male + balding + white buttoned shirt · Cole = male + plain hair +
 pale longsleeve; Cole in chair = wheelchair composite; Cole in bed = the hurt
 sheet's final (fully-down) frame, lying.
 
+Round-2 additions (2026-11-25):
+- **Firearm (gunman shoot frames): ORIGINAL pixel art drawn for this sample**
+  (programmatic pixel drawing in `sprites-src/composite.py`, `arm_gunman()` —
+  gunmetal tones sampled to sit inside the LPC palette; composited into every
+  shoot cell, anchored on each frame's hand pixels). Not LPC art; no third
+  party license applies. It exists because the LPC corpus has no firearm
+  (ranged weapons there are bow / crossbow / slingshot).
+- Gunman tint completed: in round 1 only the shirt was tinted and the cream
+  LPC pants/shoes left him reading beige; round 2 tints pants (dark slate)
+  and shoes as well, so he reads dark/hostile as intended.
+
+Round-3 additions (2026-11-25, SNES lane):
+- Firearm readability pass (same original pixel art, `arm_gunman()` in
+  `sprites-src/composite.py`): the round-2 front (down-row) pistol was a 5 px
+  dark nub at the waist that vanished against the dark shirt. Round 3 redraws
+  it as a full muzzle face — bright gunmetal block with a dark bore, two-hand
+  grip below — so a gunman facing the player visibly points a gun at them.
+  Side-profile pistols lengthened (12→14 px) with a front-sight nub.
+
 Known gaps (flagged, not hidden):
-- **No firearm sprite exists in the LPC corpus** (ranged weapons are bow /
-  crossbow / slingshot). Gunmen use the LPC *shoot* pose frames unarmed —
-  arms extended in the aim pose, no weapon drawn.
 - Cole's bed sprite is the hurt (knocked-down) frame reused as a lying
   patient — closest fit in the corpus; there is no dedicated in-bed sheet.
 - LPC layers are copyleft (CC-BY-SA / GPL). This page is a look sample;

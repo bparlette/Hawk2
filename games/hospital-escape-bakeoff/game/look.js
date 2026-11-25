@@ -18,8 +18,9 @@ var MODES = {
   n64:  { post: 3, pr: 0.75, stepHz: 0,  fogMul: 2.3,  fogCol: 0x35302a, lightMul: 1.12, bg: null,     snap: false },
   web:  { post: 4, pr: 1.35, stepHz: 0,  fogMul: 0.25, fogCol: 0xbfe3ff, lightMul: 1.35, bg: 0x9fd4ff, snap: false },
   cel:  { post: 5, pr: 1.15, stepHz: 0,  fogMul: 0.40, fogCol: 0xcfe4ef, lightMul: 1.32, bg: 0xa8c8dd, snap: false },
-  /* round 2: celnative = cel look with the heavy 3D stripped (see below).
-     (snescel — sprite cast inside this cel environment — lands with the sprite-lane merge.) */
+  /* round 2: snescel = SNES sprite cast inside the cel environment (cel post chain, no palette crush / scanlines);
+     celnative = cel look with the heavy 3D stripped (see below) */
+  snescel:   { post: 5, pr: 1.15, stepHz: 0, fogMul: 0.40, fogCol: 0xcfe4ef, lightMul: 1.32, bg: 0xa8c8dd, snap: false },
   celnative: { post: 6, pr: 1.15, stepHz: 0, fogMul: 0.40, fogCol: 0xcfe4ef, lightMul: 1.05, bg: 0xa8c8dd, snap: false }
 };
 var M = MODES[name] || MODES.t4;
