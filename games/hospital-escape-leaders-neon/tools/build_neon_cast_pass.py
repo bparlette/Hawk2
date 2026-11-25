@@ -260,6 +260,129 @@ def setup_valid_rig(glb_path, target_height, col_tex, rough_tex, nm_tex, decimat
     return arm, body, R_T0, pos_T0, basis_T0, sole_info
 
 
+def collect_body_skin_refs(arm_obj, base_mesh):
+    """Build rest-pose BVHTree and KDTree strictly from _Body faces/vertices for clean weight transfer."""
+    if not arm_obj.animation_data:
+        arm_obj.animation_data_create()
+    prev_act = arm_obj.animation_data.action
+    arm_obj.animation_data.action = None
+    for pb in arm_obj.pose.bones:
+        pb.location = (0.0, 0.0, 0.0)
+        pb.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+        pb.scale = (1.0, 1.0, 1.0)
+    bpy.context.view_layer.update()
+
+    mw = base_mesh.matrix_world
+    me = base_mesh.data
+    vg_names = [g.name for g in base_mesh.vertex_groups]
+    body_mat_idx = next((i for i, m in enumerate(me.materials) if m and m.name == '_Body'), 0)
+
+    bm = bmesh.new()
+    vmap = {}
+    body_v_list = []
+    for p in me.polygons:
+        if p.material_index != body_mat_idx:
+            continue
+        for vi in p.vertices:
+            if vi not in vmap:
+                wp = mw @ me.vertices[vi].co
+                vmap[vi] = bm.verts.new(wp)
+                wdict = {vg_names[g.group]: g.weight for g in me.vertices[vi].groups if g.weight > 1e-4}
+                body_v_list.append((wp, wdict))
+        try:
+            bm.faces.new([vmap[vi] for vi in p.vertices])
+        except ValueError:
+            pass
+    bm.normal_update()
+    bvh = BVHTree.FromBMesh(bm)
+    bm.free()
+
+    kd = mathutils.kdtree.KDTree(len(body_v_list))
+    for i, (wp, _) in enumerate(body_v_list):
+        kd.insert(wp, i)
+    kd.balance()
+
+    arm_obj.animation_data.action = prev_act
+    bpy.context.view_layer.update()
+    return bvh, kd, body_v_list
+
+
+def transfer_surface_weights(arm_obj, base_mesh, part_mesh, allowed_bones, fallback_bone,
+                             separate_mesh=False, k_nearest=6, project_surface=True,
+                             strict_upper_z=None, strict_bone='Head', body_refs=None):
+    """Project each part vertex onto _Body surface and transfer normalized weights restricted to allowed_bones."""
+    if not arm_obj.animation_data:
+        arm_obj.animation_data_create()
+    prev_act = arm_obj.animation_data.action
+    arm_obj.animation_data.action = None
+    bpy.context.view_layer.update()
+
+    if body_refs is None:
+        bvh, kd, body_v_list = collect_body_skin_refs(arm_obj, base_mesh)
+    else:
+        bvh, kd, body_v_list = body_refs
+
+    # Bake part_mesh object transform into rest-space vertices
+    W_to_rest = base_mesh.matrix_world.inverted() @ part_mesh.matrix_world
+    mw_b = base_mesh.matrix_world
+    for v in part_mesh.data.vertices:
+        v.co = W_to_rest @ v.co
+    part_mesh.rotation_mode = 'XYZ'
+    part_mesh.location = (0.0, 0.0, 0.0)
+    part_mesh.rotation_euler = (0.0, 0.0, 0.0)
+    part_mesh.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+    part_mesh.scale = (1.0, 1.0, 1.0)
+
+    # Ensure vertex groups exist on part_mesh
+    vgs = {}
+    def get_vg(bn):
+        if bn not in vgs:
+            vgs[bn] = part_mesh.vertex_groups.get(bn) or part_mesh.vertex_groups.new(name=bn)
+        return vgs[bn]
+
+    for v in part_mesh.data.vertices:
+        wp = mw_b @ v.co
+        if strict_upper_z is not None and wp.z >= strict_upper_z:
+            get_vg(strict_bone).add([v.index], 1.0, 'REPLACE')
+            continue
+        q_pt = wp
+        if project_surface:
+            loc, _, _, _ = bvh.find_nearest(wp)
+            if loc is not None:
+                q_pt = loc
+        accum = {}
+        for (_, idx, dist) in kd.find_n(q_pt, k_nearest):
+            inv_d = 1.0 / ((dist + 0.005) ** 2)
+            for bn, bw in body_v_list[idx][1].items():
+                if bn in allowed_bones:
+                    accum[bn] = accum.get(bn, 0.0) + bw * inv_d
+        tot = sum(accum.values())
+        if tot < 1e-4:
+            get_vg(fallback_bone).add([v.index], 1.0, 'REPLACE')
+        else:
+            # Keep top 4 influences normalized
+            top = sorted(accum.items(), key=lambda x: -x[1])[:4]
+            top_sum = sum(w for _, w in top)
+            for bn, bw in top:
+                w_norm = bw / top_sum
+                if w_norm > 1e-3:
+                    get_vg(bn).add([v.index], w_norm, 'REPLACE')
+
+    if separate_mesh:
+        part_mesh.parent = arm_obj
+        mod = part_mesh.modifiers.new('Armature', 'ARMATURE')
+        mod.object = arm_obj
+    else:
+        bpy.ops.object.select_all(action='DESELECT')
+        part_mesh.select_set(True)
+        base_mesh.select_set(True)
+        bpy.context.view_layer.objects.active = base_mesh
+        bpy.ops.object.join()
+
+    arm_obj.animation_data.action = prev_act
+    bpy.context.view_layer.update()
+
+
 def skin_attach_exact(arm_obj, base_mesh, part_mesh, bone_name, action_obj=None, frame_idx=0, separate_mesh=False):
     if not arm_obj.animation_data:
         arm_obj.animation_data_create()
@@ -721,137 +844,279 @@ def apply_maya_handle_ik(arm_T, R_T0, basis_T0, act_T, handle_x=0.23, handle_y=-
 # ------------------------------------------------------------------
 # Fitted Silicone/Cloth/Weapon Prop Builders (from leaders-neon v2)
 # ------------------------------------------------------------------
-def build_fitted_beanie(arm, body_obj, bone_name='Head', head_z_thresh=1.59, name='GunmanBeanie', mat=None):
-    dg = bpy.context.evaluated_depsgraph_get()
-    eb = body_obj.evaluated_get(dg); em = eb.to_mesh(); mw = body_obj.matrix_world
-    bm_h = bmesh.new(); vmap = {}; pts = []
-    for v in em.vertices:
-        wp = mw @ v.co
-        if wp.z > head_z_thresh:
-            pts.append(wp); vmap[v.index] = bm_h.verts.new(wp)
-    for p in em.polygons:
-        if all(vi in vmap for vi in p.vertices):
-            try: bm_h.faces.new([vmap[vi] for vi in p.vertices])
-            except ValueError: pass
-    eb.to_mesh_clear(); bm_h.normal_update(); bvh = BVHTree.FromBMesh(bm_h)
+def build_fitted_beanie(arm, body_obj, bone_name='Head', head_z_thresh=1.58, name='GunmanBeanie', mat=None,
+                        rim_thick=0.0115, dome_thick=0.0080, brow_drop=0.080, nape_drop=0.044, side_drop=0.020,
+                        body_refs=None):
+    """Build a skull-hugging cap/helmet strictly from upper-cranium _Body bounds and transfer Head/Neck weights."""
+    me = body_obj.data
+    mw = body_obj.matrix_world
+    body_mat_idx = next((i for i, m in enumerate(me.materials) if m and m.name == '_Body'), 0)
 
-    xs = [p.x for p in pts]; ys = [p.y for p in pts]; zs = [p.z for p in pts]
-    cx, cy = 0.5*(min(xs)+max(xs)), 0.5*(min(ys)+max(ys)) + 0.012
-    z_top, z_bot = max(zs), min(zs); z_brow = z_top - 0.33*(z_top - z_bot)
-    bm = bmesh.new(); n_u, n_v = 36, 18; rings = []
+    bm_h = bmesh.new()
+    vmap = {}
+    pts = []
+    for p in me.polygons:
+        if p.material_index != body_mat_idx:
+            continue
+        p_wps = [mw @ me.vertices[vi].co for vi in p.vertices]
+        if all(wp.z > head_z_thresh for wp in p_wps):
+            for vi, wp in zip(p.vertices, p_wps):
+                if vi not in vmap:
+                    pts.append(wp)
+                    vmap[vi] = bm_h.verts.new(wp)
+            try:
+                bm_h.faces.new([vmap[vi] for vi in p.vertices])
+            except ValueError:
+                pass
+    bm_h.normal_update()
+    bvh = BVHTree.FromBMesh(bm_h)
+
+    z_top = max(p.z for p in pts)
+    dome_pts = [p for p in pts if p.z >= z_top - 0.105]
+    cx = 0.5 * (min(p.x for p in dome_pts) + max(p.x for p in dome_pts))
+    cy = 0.5 * (min(p.y for p in dome_pts) + max(p.y for p in dome_pts))
+    z_brow = z_top - brow_drop
+
+    bm = bmesh.new()
+    n_u, n_v = 36, 18
+    rings = []
     for iv in range(n_v):
-        t = iv/(n_v-1); ang_v = t*(math.pi*0.5); z_ang, r_lat = math.sin(ang_v), math.cos(ang_v); ring = []
+        t = iv / (n_v - 1)
+        ang_v = t * (math.pi * 0.5)
+        z_ang, r_lat = math.sin(ang_v), math.cos(ang_v)
+        ring = []
         for iu in range(n_u):
-            az = (iu/n_u)*math.pi*2.0; dx, dy = math.cos(az)*r_lat, math.sin(az)*r_lat
+            az = (iu / n_u) * math.pi * 2.0
+            dx, dy = math.cos(az) * r_lat, math.sin(az) * r_lat
             back_w, side_w = max(0.0, math.sin(az)), abs(math.cos(az))
-            base_z = z_brow - 0.070*(back_w**1.2) - 0.032*side_w
-            ray_z = base_z + z_ang*0.145
-            orig = mathutils.Vector((cx + dx*0.26, cy + dy*0.26, ray_z))
+            base_z = z_brow - nape_drop * (back_w ** 1.2) - side_drop * side_w
+            ray_z = min(z_top + 0.01, base_z + z_ang * 0.125)
+            orig = mathutils.Vector((cx + dx * 0.24, cy + dy * 0.24, ray_z))
             if t > 0.96:
-                orig = mathutils.Vector((cx, cy, z_top + 0.12)); rdir = mathutils.Vector((0, 0, -1))
+                orig = mathutils.Vector((cx, cy, z_top + 0.12))
+                rdir = mathutils.Vector((0.0, 0.0, -1.0))
             else:
-                tgt_z = ray_z - 0.004 if iv <= 5 else (z_brow + 0.045)
+                tgt_z = min(ray_z, z_brow + 0.035) if iv > 4 else ray_z
                 rdir = (mathutils.Vector((cx, cy, tgt_z)) - orig).normalized()
-            loc, nrm, _, _ = bvh.ray_cast(orig, rdir, 0.45)
-            if loc is None: loc, nrm, _, _ = bvh.find_nearest(orig)
+            loc, nrm, _, _ = bvh.ray_cast(orig, rdir, 0.42)
             if loc is None:
-                loc = mathutils.Vector((cx + dx*0.095, cy + dy*0.105, base_z + z_ang*0.12))
+                loc, nrm, _, _ = bvh.find_nearest(mathutils.Vector((cx + dx * 0.095, cy + dy * 0.105, ray_z)))
+            if loc is None:
+                loc = mathutils.Vector((cx + dx * 0.092, cy + dy * 0.102, base_z + z_ang * 0.105))
                 nrm = mathutils.Vector((dx, dy, max(0.15, z_ang))).normalized()
-            cuff = 0.014 if iv <= 2 else (0.011 if iv <= 4 else 0.0095)
-            pos = loc + nrm*cuff
-            if iv == 0: pos.z -= 0.004
+            else:
+                rad_xy = mathutils.Vector((loc.x - cx, loc.y - cy, 0.0))
+                if rad_xy.length > 0.118:
+                    rad_xy.normalize()
+                    loc.x = cx + rad_xy.x * 0.112
+                    loc.y = cy + rad_xy.y * 0.112
+                out_dir = mathutils.Vector((loc.x - cx, loc.y - cy, max(0.0, loc.z - z_brow))).normalized()
+                if nrm.dot(out_dir) < 0.1:
+                    nrm = out_dir
+            cuff = rim_thick if iv <= 2 else (0.5 * (rim_thick + dome_thick) if iv <= 4 else dome_thick)
+            pos = loc + nrm * cuff
             ring.append(bm.verts.new(pos))
         rings.append(ring)
-    for iv in range(n_v-1):
+    for iv in range(n_v - 1):
         for iu in range(n_u):
-            iu2 = (iu+1)%n_u
-            bm.faces.new((rings[iv][iu], rings[iv][iu2], rings[iv+1][iu2], rings[iv+1][iu]))
-    apex = bm.verts.new((cx, cy, z_top + 0.009))
+            iu2 = (iu + 1) % n_u
+            bm.faces.new((rings[iv][iu], rings[iv][iu2], rings[iv + 1][iu2], rings[iv + 1][iu]))
+    apex = bm.verts.new((cx, cy, z_top + dome_thick + 0.001))
     for iu in range(n_u):
-        bm.faces.new((rings[-1][iu], rings[-1][(iu+1)%n_u], apex))
-    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free(); bm_h.free()
-    for p in me.polygons: p.use_smooth = True
-    obj = bpy.data.objects.new(name, me); bpy.context.collection.objects.link(obj)
-    if mat: obj.data.materials.append(mat)
-    skin_attach_exact(arm, body_obj, obj, bone_name, action_obj=None)
+        bm.faces.new((rings[-1][iu], rings[-1][(iu + 1) % n_u], apex))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me_out = bpy.data.meshes.new(name)
+    bm.to_mesh(me_out)
+    bm.free()
+    bm_h.free()
+    for p in me_out.polygons:
+        p.use_smooth = True
+    obj = bpy.data.objects.new(name, me_out)
+    bpy.context.collection.objects.link(obj)
+    if mat:
+        obj.data.materials.append(mat)
+    transfer_surface_weights(
+        arm, body_obj, obj,
+        allowed_bones={'Head', 'Neck'}, fallback_bone=bone_name,
+        project_surface=True, strict_upper_z=z_brow + 0.012, strict_bone=bone_name,
+        body_refs=body_refs,
+    )
 
 
-def build_fitted_rig(arm, body_obj, bone_name='Spine2', z_lo=1.18, z_hi=1.50, name='GunmanRig', mat=None):
-    dg = bpy.context.evaluated_depsgraph_get()
-    eb = body_obj.evaluated_get(dg); em = eb.to_mesh(); mw = body_obj.matrix_world
-    bm_t = bmesh.new(); vmap = {}
-    for v in em.vertices:
-        wp = mw @ v.co
-        if (z_lo-0.10) < wp.z < (z_hi+0.14) and abs(wp.x) < 0.24:
-            vmap[v.index] = bm_t.verts.new(wp)
-    for p in em.polygons:
-        if all(vi in vmap for vi in p.vertices):
-            try: bm_t.faces.new([vmap[vi] for vi in p.vertices])
-            except ValueError: pass
-    eb.to_mesh_clear(); bm_t.normal_update(); bvh = BVHTree.FromBMesh(bm_t)
-    def snap_pt(px, py, pz, off=0.006):
-        rdir = mathutils.Vector((0.0, 1.0 if py < 0 else -1.0, 0.0))
-        orig = mathutils.Vector((px, -0.35 if py < 0 else 0.35, pz))
-        loc, nrm, _, _ = bvh.ray_cast(orig, rdir, 0.6)
-        if loc is None: loc, nrm, _, _ = bvh.find_nearest(mathutils.Vector((px, py, pz)))
-        if loc is None: return mathutils.Vector((px, py, pz))
-        if nrm.y * rdir.y > 0: nrm = -nrm
-        return loc + nrm*off
+def build_fitted_rig(arm, body_obj, bone_name='Spine2', z_lo=1.18, z_hi=1.50, name='GunmanRig',
+                     mat=None, trim_mat=None, body_refs=None):
+    """Build a body-contoured ballistic plate carrier (front/back plates, trim, shoulder & waist straps)
+    and transfer torso/clavicle weights with surface projection so plates flex smoothly with the body."""
+    me = body_obj.data
+    mw = body_obj.matrix_world
+    vg_names = [g.name for g in body_obj.vertex_groups]
+    head_neck_bad = set()
+    for vi, v in enumerate(me.vertices):
+        hw = sum(g.weight for g in v.groups if g.group < len(vg_names) and vg_names[g.group] in ('Head', 'Neck'))
+        if hw > 0.20:
+            head_neck_bad.add(vi)
+    body_mat_idx = next((i for i, m in enumerate(me.materials) if m and m.name == '_Body'), 0)
+
+    bm_t = bmesh.new()
+    vmap = {}
+    torso_pts = []
+    for p in me.polygons:
+        if p.material_index != body_mat_idx:
+            continue
+        if any(vi in head_neck_bad for vi in p.vertices):
+            continue
+        p_wps = [mw @ me.vertices[vi].co for vi in p.vertices]
+        if any((z_lo - 0.14) < wp.z < (z_hi + 0.03) and abs(wp.x) < 0.26 for wp in p_wps):
+            for vi, wp in zip(p.vertices, p_wps):
+                if vi not in vmap:
+                    torso_pts.append(wp)
+                    vmap[vi] = bm_t.verts.new(wp)
+            try:
+                bm_t.faces.new([vmap[vi] for vi in p.vertices])
+            except ValueError:
+                pass
+    bm_t.normal_update()
+    bvh = BVHTree.FromBMesh(bm_t)
+
+    chest_pts = [p for p in torso_pts if z_lo + 0.05 <= p.z <= z_hi]
+    tor_cy = 0.5 * (min(p.y for p in chest_pts) + max(p.y for p in chest_pts)) if chest_pts else -0.02
+
+    def snap_pt(px, py, pz, off=0.004):
+        rdir = mathutils.Vector((0.0, 1.0 if py < tor_cy else -1.0, 0.0))
+        orig = mathutils.Vector((px, tor_cy - 0.38 if py < tor_cy else tor_cy + 0.38, pz))
+        loc, nrm, _, _ = bvh.ray_cast(orig, rdir, 0.65)
+        if loc is None:
+            loc, nrm, _, _ = bvh.find_nearest(mathutils.Vector((px, py, pz)))
+        if loc is None:
+            return mathutils.Vector((px, py, pz))
+        if nrm.dot(-rdir) < 0:
+            nrm = -nrm
+        return loc + nrm * off
+
+    def snap_side(px_sign, py, pz, off=0.003):
+        rdir = mathutils.Vector((-px_sign, 0.0, 0.0))
+        orig = mathutils.Vector((px_sign * 0.34, py, pz))
+        loc, nrm, _, _ = bvh.ray_cast(orig, rdir, 0.45)
+        if loc is None:
+            loc, nrm, _, _ = bvh.find_nearest(mathutils.Vector((px_sign * 0.14, py, pz)))
+        if loc is None:
+            return mathutils.Vector((px_sign * 0.14, py, pz))
+        if nrm.x * px_sign < 0:
+            nrm = -nrm
+        return loc + nrm * off
+
     bm = bmesh.new()
-    def make_patch(xs_g, zs_g, y_sign, thick=0.016, off=0.005):
-        nu, nv = len(xs_g), len(zs_g); gf, gb = [], []
+    trim_idx = 1 if trim_mat is not None else 0
+    def make_patch(xs_g, zs_g, y_sign, thick=0.016, off=0.005, mat_idx=0):
+        nu, nv = len(xs_g), len(zs_g)
+        gf, gb = [], []
         for pz in zs_g:
             rf, rb = [], []
             for px in xs_g:
-                sf = snap_pt(px, y_sign*0.18, pz, off=off)
-                sb = sf + mathutils.Vector((0, y_sign*thick, 0))
-                rf.append(bm.verts.new(sb)); rb.append(bm.verts.new(sf))
-            gf.append(rf); gb.append(rb)
-        for j in range(nv-1):
-            for i in range(nu-1):
-                bm.faces.new((gf[j][i], gf[j][i+1], gf[j+1][i+1], gf[j+1][i]))
-                bm.faces.new((gb[j][i], gb[j+1][i], gb[j+1][i+1], gb[j][i+1]))
-        for i in range(nu-1):
-            bm.faces.new((gb[0][i], gf[0][i], gf[0][i+1], gb[0][i+1]))
-            bm.faces.new((gb[-1][i], gb[-1][i+1], gf[-1][i+1], gf[-1][i]))
-        for j in range(nv-1):
-            bm.faces.new((gb[j][0], gb[j+1][0], gf[j+1][0], gf[j][0]))
-            bm.faces.new((gb[j][-1], gf[j][-1], gf[j+1][-1], gb[j+1][-1]))
-    make_patch([-0.105+i*0.035 for i in range(7)], [1.21+j*0.035 for j in range(6)], -1.0, thick=0.016, off=0.005)
-    make_patch([-0.095, -0.045, 0.0, 0.045, 0.095], [1.23, 1.29, 1.35, 1.40], 1.0, thick=0.014, off=0.005)
-    for sx in (-0.088, -0.068, 0.068, 0.088):
-        pts_arc = []
-        for s_t in (0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0):
-            ang = math.pi * s_t
-            ray_p = mathutils.Vector((sx, -0.22*math.cos(ang), 1.42 + 0.22*math.sin(ang)))
-            loc, nrm, _, _ = bvh.ray_cast(ray_p, (mathutils.Vector((sx, 0.0, 1.38)) - ray_p).normalized(), 0.4)
-            if loc is None: loc, nrm, _, _ = bvh.find_nearest(ray_p)
-            pts_arc.append(loc + (nrm if nrm else mathutils.Vector((0,0,1)))*0.008)
-        if not pts_arc: continue
-        # extruded band
+                sf = snap_pt(px, y_sign * 0.18, pz, off=off)
+                sb = sf + mathutils.Vector((0.0, y_sign * thick, 0.0))
+                rf.append(bm.verts.new(sb))
+                rb.append(bm.verts.new(sf))
+            gf.append(rf)
+            gb.append(rb)
+        def add_f(vs):
+            f = bm.faces.new(vs)
+            f.material_index = mat_idx
+        for j in range(nv - 1):
+            for i in range(nu - 1):
+                add_f((gf[j][i], gf[j][i + 1], gf[j + 1][i + 1], gf[j + 1][i]))
+                add_f((gb[j][i], gb[j + 1][i], gb[j + 1][i + 1], gb[j][i + 1]))
+        for i in range(nu - 1):
+            add_f((gb[0][i], gf[0][i], gf[0][i + 1], gb[0][i + 1]))
+            add_f((gb[-1][i], gb[-1][i + 1], gf[-1][i + 1], gf[-1][i]))
+        for j in range(nv - 1):
+            add_f((gb[j][0], gb[j + 1][0], gf[j + 1][0], gf[j][0]))
+            add_f((gb[j][-1], gf[j][-1], gf[j + 1][-1], gb[j + 1][-1]))
+
+    make_patch([-0.102 + i * 0.034 for i in range(7)], [z_lo + 0.04 + j * 0.038 for j in range(7)], -1.0, thick=0.015, off=0.006, mat_idx=0)
+    make_patch([-0.096 + i * 0.032 for i in range(7)], [z_lo + 0.05 + j * 0.037 for j in range(6)],  1.0, thick=0.014, off=0.006, mat_idx=0)
+    make_patch([-0.118 + i * 0.0393 for i in range(7)], [z_lo + 0.025 + j * 0.042 for j in range(7)], -1.0, thick=0.005, off=0.003, mat_idx=trim_idx)
+    make_patch([-0.112 + i * 0.0373 for i in range(7)], [z_lo + 0.035 + j * 0.040 for j in range(6)],  1.0, thick=0.005, off=0.003, mat_idx=trim_idx)
     for side in (-1.0, 1.0):
         c_pts = []
-        for s_t in (0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0):
+        sx = side * 0.102
+        for k_s in range(11):
+            s_t = k_s / 10.0
             ang = math.pi * s_t
-            ray_p = mathutils.Vector((side*0.075, -0.22*math.cos(ang), 1.42 + 0.22*math.sin(ang)))
-            loc, nrm, _, _ = bvh.ray_cast(ray_p, (mathutils.Vector((side*0.075, 0.0, 1.38)) - ray_p).normalized(), 0.4)
-            if loc is None: loc, nrm, _, _ = bvh.find_nearest(ray_p)
-            n = nrm if nrm else mathutils.Vector((0, 0, 1))
-            c_pts.append((loc + n*0.007, n))
-        w = 0.022; ring_b = []
+            ray_p = mathutils.Vector((sx, tor_cy - 0.17 * math.cos(ang), z_hi - 0.05 + 0.13 * math.sin(ang)))
+            tgt_p = mathutils.Vector((sx, tor_cy, z_hi - 0.12))
+            loc, nrm, _, _ = bvh.ray_cast(ray_p, (tgt_p - ray_p).normalized(), 0.45)
+            if loc is None:
+                loc, nrm, _, _ = bvh.find_nearest(ray_p)
+            if loc is not None and loc.z > z_hi - 0.005:
+                loc.z = z_hi - 0.005
+            n = nrm if nrm else mathutils.Vector((0.0, 0.0, 1.0))
+            if n.dot(ray_p - tgt_p) < 0:
+                n = -n
+            c_pts.append((loc + n * 0.0035, n))
+        w = 0.018
+        ring_b = []
         for p, n in c_pts:
-            ring_b.append((bm.verts.new(p - mathutils.Vector((w,0,0))), bm.verts.new(p + mathutils.Vector((w,0,0))),
-                           bm.verts.new(p - mathutils.Vector((w,0,0)) + n*0.009), bm.verts.new(p + mathutils.Vector((w,0,0)) + n*0.009)))
-        for j in range(len(ring_b)-1):
-            a, b = ring_b[j], ring_b[j+1]
-            bm.faces.new((a[2], a[3], b[3], b[2]))
-            bm.faces.new((a[0], b[0], b[1], a[1]))
-            bm.faces.new((a[0], a[2], b[2], b[0]))
-            bm.faces.new((a[1], b[1], b[3], a[3]))
-    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free(); bm_t.free()
-    obj = bpy.data.objects.new(name, me); bpy.context.collection.objects.link(obj)
-    if mat: obj.data.materials.append(mat)
-    skin_attach_exact(arm, body_obj, obj, bone_name, action_obj=None)
+            ring_b.append((
+                bm.verts.new(p - mathutils.Vector((w, 0.0, 0.0))),
+                bm.verts.new(p + mathutils.Vector((w, 0.0, 0.0))),
+                bm.verts.new(p - mathutils.Vector((w, 0.0, 0.0)) + n * 0.007),
+                bm.verts.new(p + mathutils.Vector((w, 0.0, 0.0)) + n * 0.007),
+            ))
+        for j in range(len(ring_b) - 1):
+            a, b = ring_b[j], ring_b[j + 1]
+            for fvs in ((a[2], a[3], b[3], b[2]), (a[0], b[0], b[1], a[1]), (a[0], a[2], b[2], b[0]), (a[1], b[1], b[3], a[3])):
+                f = bm.faces.new(fvs)
+                f.material_index = trim_idx
+        for fvs in ((ring_b[0][0], ring_b[0][1], ring_b[0][3], ring_b[0][2]), (ring_b[-1][0], ring_b[-1][2], ring_b[-1][3], ring_b[-1][1])):
+            f = bm.faces.new(fvs)
+            f.material_index = trim_idx
+
+    ys_cum = [tor_cy - 0.105 + k * 0.035 for k in range(7)]
+    zs_cum = [z_lo + 0.04, z_lo + 0.095]
+    for sgn in (-1.0, 1.0):
+        grid_f, grid_b = [], []
+        for pz in zs_cum:
+            row_f, row_b = [], []
+            for py in ys_cum:
+                sf = snap_side(sgn, py, pz, off=0.003)
+                sb = sf + mathutils.Vector((sgn * 0.008, 0.0, 0.0))
+                row_f.append(bm.verts.new(sb))
+                row_b.append(bm.verts.new(sf))
+            grid_f.append(row_f)
+            grid_b.append(row_b)
+        for i in range(len(ys_cum) - 1):
+            for fvs in (
+                (grid_f[0][i], grid_f[0][i + 1], grid_f[1][i + 1], grid_f[1][i]),
+                (grid_b[0][i], grid_b[1][i], grid_b[1][i + 1], grid_b[0][i + 1]),
+                (grid_b[0][i], grid_f[0][i], grid_f[0][i + 1], grid_b[0][i + 1]),
+                (grid_b[1][i], grid_b[1][i + 1], grid_f[1][i + 1], grid_f[1][i]),
+            ):
+                f = bm.faces.new(fvs)
+                f.material_index = trim_idx
+        for fvs in (
+            (grid_b[0][0], grid_b[1][0], grid_f[1][0], grid_f[0][0]),
+            (grid_b[0][-1], grid_f[0][-1], grid_f[1][-1], grid_b[1][-1]),
+        ):
+            f = bm.faces.new(fvs)
+            f.material_index = trim_idx
+
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me_out = bpy.data.meshes.new(name)
+    bm.to_mesh(me_out)
+    bm.free()
+    bm_t.free()
+    obj = bpy.data.objects.new(name, me_out)
+    bpy.context.collection.objects.link(obj)
+    if mat:
+        obj.data.materials.append(mat)
+    if trim_mat:
+        obj.data.materials.append(trim_mat)
+    transfer_surface_weights(
+        arm, body_obj, obj,
+        allowed_bones={'Spine', 'Spine1', 'Spine2', 'LeftShoulder', 'RightShoulder'}, fallback_bone=bone_name,
+        project_surface=True, body_refs=body_refs,
+    )
 
 
 def upright_barrel_quat(fwd_vec):
@@ -871,16 +1136,87 @@ def upright_barrel_quat(fwd_vec):
 
 def build_pistol_mesh(name='CastPistol'):
     bm = bmesh.new()
-    def add_box(cx, cy, cz, sx, sy, sz):
-        bmesh.ops.create_cube(bm, size=1.0, matrix=mathutils.Matrix.Translation((cx, cy, cz)) @ mathutils.Matrix.Diagonal((sx, sy, sz, 1.0)))
-    add_box(0.0,  0.010, -0.025, 0.024, 0.042, 0.085) # grip
-    add_box(0.0, -0.058,  0.028, 0.026, 0.168, 0.032) # slide & barrel (-Y forward)
-    add_box(0.0, -0.036,  0.008, 0.022, 0.115, 0.016) # frame rail
-    add_box(0.0, -0.008, -0.004, 0.008, 0.028, 0.024) # trigger guard
+    def add_box(cx, cy, cz, sx, sy, sz, rx=0.0):
+        m = mathutils.Matrix.Translation((cx, cy, cz)) @ mathutils.Matrix.Rotation(rx, 4, 'X') @ mathutils.Matrix.Diagonal((sx, sy, sz, 1.0))
+        bmesh.ops.create_cube(bm, size=1.0, matrix=m)
+    # Canonical weapon frame: +X right, +Y forward barrel, +Z up, grip center at (0, 0, 0)
+    add_box(0.0, -0.006, -0.012, 0.026, 0.042, 0.088, rx=-0.24)  # raked grip
+    add_box(0.0,  0.062,  0.050, 0.028, 0.168, 0.032)             # slide + barrel (+Y forward)
+    add_box(0.0,  0.042,  0.028, 0.024, 0.118, 0.018)             # frame + dustcover
+    add_box(0.0,  0.032,  0.012, 0.009, 0.028, 0.022)             # trigger guard
     me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
     obj = bpy.data.objects.new(name, me); bpy.context.collection.objects.link(obj)
     obj.data.materials.append(make_mat('PistolMat', (0.045, 0.048, 0.055, 1.0), rough=0.28, metal=0.82))
     return obj
+
+
+def build_stribog_smg(name='CastLongGun'):
+    """Procedurally authored Grand Power Stribog-pattern compact SMG/PDW (long-gun-reference-2.jpg.b64).
+    Origin (0,0,0) = rear pistol grip center inside RightHand palm; +X = right, +Y = barrel forward, +Z = up."""
+    bm = bmesh.new()
+    # mat slots: 0=LongGunMat (upper receiver/barrel), 1=LongGunPolymerMat (lower/grip/rail/sights/foregrip), 2=LongGunMagMat (smoked curved mag)
+    def add_box(cx, cy, cz, sx, sy, sz, rx=0.0, ry=0.0, rz=0.0, mat_idx=0):
+        rot = mathutils.Euler((rx, ry, rz), 'XYZ').to_matrix().to_4x4()
+        mat = mathutils.Matrix.Translation((cx, cy, cz)) @ rot @ mathutils.Matrix.Diagonal((sx, sy, sz, 1.0))
+        res = bmesh.ops.create_cube(bm, size=1.0, matrix=mat)
+        vert_set = set(res['verts'])
+        for f in bm.faces:
+            if all(v in vert_set for v in f.verts):
+                f.material_index = mat_idx
+
+    def add_cyl(cx, cy, cz, r, length, axis='Y', segs=16, mat_idx=0):
+        rot = mathutils.Matrix.Rotation(math.pi * 0.5, 4, 'X') if axis == 'Y' else mathutils.Matrix.Identity(4)
+        mat = mathutils.Matrix.Translation((cx, cy, cz)) @ rot
+        res = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=segs, radius1=r, radius2=r, depth=length, matrix=mat)
+        vert_set = set(res['verts'])
+        for f in bm.faces:
+            if all(v in vert_set for v in f.verts):
+                f.material_index = mat_idx
+
+    # 1. Pistol grip (raked ~16 deg rear at base, palm wrap centered at origin) + beavertail backstrap
+    add_box(0.0, -0.004, -0.012, 0.029, 0.044, 0.100, rx=-0.28, mat_idx=1)
+    add_box(0.0, -0.013, -0.060, 0.032, 0.048, 0.014, rx=-0.28, mat_idx=1)  # grip floorplate flare
+    # 2. Trigger guard + curved trigger + polymer lower receiver (seated lower onto thumb web)
+    add_box(0.0,  0.044,  0.034, 0.034, 0.168, 0.026, mat_idx=1)  # lower receiver block
+    add_box(0.0,  0.038, -0.004, 0.014, 0.054, 0.007, mat_idx=1)  # bottom trigger guard loop
+    add_box(0.0,  0.064,  0.010, 0.014, 0.008, 0.028, mat_idx=1)  # front trigger guard post
+    add_box(0.0,  0.038,  0.014, 0.006, 0.007, 0.022, rx=0.18, mat_idx=0)  # flat match trigger
+    # 3. Flared magwell + curved smoked 30-round stick magazine (forward at +0.09..+0.15 m)
+    add_box(0.0,  0.106,  0.014, 0.036, 0.050, 0.040, rx=0.14, mat_idx=1)  # magwell collar
+    # 3 segments giving natural gentle forward curve matching Grand Power Stribog photo
+    add_box(0.0,  0.110, -0.026, 0.024, 0.038, 0.048, rx=0.16, mat_idx=2)
+    add_box(0.0,  0.120, -0.068, 0.024, 0.038, 0.048, rx=0.24, mat_idx=2)
+    add_box(0.0,  0.133, -0.106, 0.024, 0.038, 0.040, rx=0.30, mat_idx=2)
+    add_box(0.0,  0.142, -0.128, 0.029, 0.044, 0.014, rx=0.30, mat_idx=1)  # magazine bumper pad
+    # 4. Monolithic Stribog extruded anodized upper receiver + ventilated handguard (+0.046..+0.114 m Z)
+    add_box(0.0,  0.102,  0.080, 0.042, 0.342, 0.066, mat_idx=0)  # main receiver body (-0.069..+0.273 m)
+    # Side bevel ribs / cooling vent framing along front handguard (+0.14..+0.265 m)
+    add_box(0.0,  0.205,  0.106, 0.045, 0.132, 0.014, mat_idx=0)  # upper handguard brow rib
+    add_box(0.0,  0.205,  0.054, 0.045, 0.132, 0.014, mat_idx=0)  # lower handguard brow rib
+    add_box(0.0, -0.071,  0.072, 0.040, 0.012, 0.084, mat_idx=1)  # rear Picatinny backplate + sling loop cap
+    # Charging handle jutting cleanly from left front slot (-X left)
+    add_box(-0.030, 0.215, 0.095, 0.026, 0.012, 0.012, mat_idx=1)
+    # 5. Top Picatinny rail + flip-up iron sights
+    add_box(0.0,  0.102,  0.117, 0.022, 0.336, 0.009, mat_idx=1)
+    for k in range(14):
+        yy = -0.055 + k * 0.024
+        add_box(0.0, yy, 0.123, 0.024, 0.011, 0.005, mat_idx=1)
+    # Rear + front flip-up backup sights
+    add_box(0.0, -0.046,  0.137, 0.024, 0.020, 0.026, mat_idx=1)
+    add_box(0.0,  0.252,  0.137, 0.022, 0.018, 0.026, mat_idx=1)
+    # 6. Lower Picatinny handguard rail + compact angled foregrip/handstop (+0.165..+0.255 m)
+    add_box(0.0,  0.205,  0.042, 0.024, 0.115, 0.010, mat_idx=1)
+    add_box(0.0,  0.210,  0.026, 0.030, 0.084, 0.024, rx=0.20, mat_idx=1)  # angled handstop wedge
+    # 7. Exposed barrel + threaded muzzle compensator (+0.273..+0.336 m)
+    add_cyl(0.0,  0.296,  0.082, 0.0105, 0.048, axis='Y', mat_idx=0)
+    add_cyl(0.0,  0.326,  0.082, 0.0135, 0.024, axis='Y', mat_idx=0)  # fluted thread protector / comp
+
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    obj = bpy.data.objects.new(name, me); bpy.context.collection.objects.link(obj)
+    obj.data.materials.append(make_mat('LongGunMat',        (0.036, 0.040, 0.046, 1.0), rough=0.46, metal=0.58))
+    obj.data.materials.append(make_mat('LongGunPolymerMat', (0.015, 0.017, 0.020, 1.0), rough=0.78, metal=0.05))
+    obj.data.materials.append(make_mat('LongGunMagMat',     (0.088, 0.076, 0.066, 1.0), rough=0.24, metal=0.08))
+    return obj, mathutils.Vector((0.0, 0.340, 0.082)), mathutils.Vector((0.0, 1.0, 0.0))
 
 
 def attach_maya_silhouette(arm, body, head_z_top, torso_z_lo=0.86, torso_z_hi=1.45):
@@ -969,7 +1305,11 @@ def attach_maya_silhouette(arm, body, head_z_top, torso_z_lo=0.86, torso_z_hi=1.
     me_s = bpy.data.meshes.new('MayaStrap'); bm_s.to_mesh(me_s); bm_s.free(); bm_t.free()
     obj_s = bpy.data.objects.new('MayaStrap', me_s); bpy.context.collection.objects.link(obj_s)
     obj_s.data.materials.append(strap_mat)
-    skin_attach_exact(arm, body, obj_s, 'Spine1', action_obj=None)
+    transfer_surface_weights(
+        arm, body, obj_s,
+        allowed_bones={'Hips', 'Spine', 'Spine1', 'Spine2'}, fallback_bone='Spine1',
+        project_surface=True,
+    )
 
 
 def build_cole_gauze(arm, body, head_z_top):
@@ -1090,10 +1430,14 @@ def build_gunman(args):
         os.path.join(args.tex_dir, 'gunman_nm.jpg'),
     )
     restore_rest_state(arm, basis_T0)
-    gear_mat = make_mat('GunmanGearMat', (0.015, 0.016, 0.019, 1.0), rough=0.88, metal=0.0)
-    beanie_mat = make_mat('GunmanBeanieMat', (0.022, 0.024, 0.029, 1.0), rough=0.92, metal=0.0)
-    build_fitted_beanie(arm, body, 'Head', head_z_thresh=1.58, name='GunmanBeanie', mat=beanie_mat)
-    build_fitted_rig(arm, body, 'Spine2', z_lo=1.16, z_hi=1.49, name='GunmanRig', mat=gear_mat)
+    body_refs = collect_body_skin_refs(arm, body)
+    gear_mat = make_mat('GunmanGearMat', (0.022, 0.024, 0.026, 1.0), rough=0.90, metal=0.0)
+    gear_trim = make_mat('GunmanGearTrimMat', (0.012, 0.013, 0.015, 1.0), rough=0.92, metal=0.0)
+    beanie_mat = make_mat('GunmanBeanieMat', (0.024, 0.026, 0.030, 1.0), rough=0.92, metal=0.0)
+    build_fitted_beanie(arm, body, 'Head', head_z_thresh=1.58, name='GunmanBeanie', mat=beanie_mat,
+                        rim_thick=0.011, dome_thick=0.0075, brow_drop=0.080, body_refs=body_refs)
+    build_fitted_rig(arm, body, 'Spine2', z_lo=1.16, z_hi=1.49, name='GunmanRig',
+                     mat=gear_mat, trim_mat=gear_trim, body_refs=body_refs)
 
     arm_y, R_S0, pos_S0 = load_ybot_anchor(args.mixamo_dir)
     kept, metrics = [], {}
@@ -1178,32 +1522,96 @@ def build_gunman(args):
     # Delete anchor Y Bot before attaching weapon & export
     bpy.data.objects.remove(arm_y, do_unlink=True)
 
-    # Attach sculpted pistol cleanly inside RightHand palm during Pistol_Aim frame 0 along forearm aim vector
-    attach_seated_pistol(arm, body, kept, 'Pistol_Aim', 0, 'GunmanPistol')
+    restore_rest_state(arm, basis_T0)
+    muzzle_info = attach_seated_long_gun(arm, body, mesh_name='GunmanLongGun', separate_mesh=True)
 
     curl_right_fingers(arm, kept)
     out_glb = os.path.join(args.out_dir, 'gunman-mixamo.glb')
     finalize_and_export(arm, kept, out_glb)
-    tris = len(body.data.polygons)
-    mats = len(body.data.materials)
-    return {'file': 'gunman-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': tris, 'mats': mats, 'clips': metrics}
+    tris = sum(len(o.data.polygons) for o in bpy.data.objects if o.type == 'MESH')
+    mats = len({m for o in bpy.data.objects if o.type == 'MESH' for m in o.data.materials if m})
+    return {'file': 'gunman-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': tris, 'mats': mats,
+            'weapon_pattern': 'Grand Power Stribog compact SMG/PDW (procedural, project-owned)',
+            'weapon_muzzle': muzzle_info, 'clips': metrics}
 
 
-def attach_seated_pistol(arm, body, kept, clip_name='Pistol_Aim', frame_idx=0, mesh_name='CastPistol'):
-    pistol = build_pistol_mesh(mesh_name)
-    aim_act = [a for a in kept if a.name == clip_name][0]
-    arm.animation_data.action = aim_act
-    bpy.context.scene.frame_set(int(frame_idx)); bpy.context.view_layer.update()
-    rh_w = (arm.matrix_world @ arm.pose.bones['RightHand'].matrix).translation
-    rm_w = (arm.matrix_world @ arm.pose.bones['RightHandMiddle1'].matrix).translation
-    rf_w = (arm.matrix_world @ arm.pose.bones['RightForeArm'].matrix).translation
-    fwd_gun = (rh_w - rf_w).normalized()
-    palm = 0.45 * rh_w + 0.55 * rm_w
-    pistol.location = palm + fwd_gun * 0.012 + mathutils.Vector((0.0, 0.0, 0.004))
-    pistol.rotation_mode = 'QUATERNION'
-    pistol.rotation_quaternion = upright_barrel_quat(fwd_gun)
+def seat_weapon_right_hand(arm, weapon_obj, muzzle_local, dir_local, action_obj=None, frame_idx=0, palm_bias=0.23, up_bias=0.26, palm_offset=0.030):
+    """Seat a canonical (+X right, +Y barrel forward, +Z up, grip=0) weapon in RightHand using
+    n2-figure.js's thumb-side palm-flip test on the hand anatomy, and return RightHand-local muzzle."""
+    if not arm.animation_data:
+        arm.animation_data_create()
+    prev_act = arm.animation_data.action
+    arm.animation_data.action = action_obj
+    if action_obj is not None:
+        bpy.context.scene.frame_set(int(frame_idx))
     bpy.context.view_layer.update()
-    skin_attach_exact(arm, body, pistol, 'RightHand', action_obj=aim_act, frame_idx=frame_idx)
+
+    mw = arm.matrix_world
+    rh = (mw @ arm.pose.bones['RightHand'].matrix).translation.copy()
+    rm = (mw @ arm.pose.bones['RightHandMiddle1'].matrix).translation.copy()
+    ri = (mw @ arm.pose.bones['RightHandIndex1'].matrix).translation.copy()
+    rp = (mw @ arm.pose.bones['RightHandPinky1'].matrix).translation.copy()
+    rt = (mw @ arm.pose.bones['RightHandThumb1'].matrix).translation.copy()
+
+    fwd_h = (rm - rh).normalized()
+    across = (ri - rp).normalized()
+    palm = fwd_h.cross(across).normalized()
+    if palm.dot(rt - rh) < 0.0:
+        palm.negate()
+
+    gun_fwd = (up_bias * across + 0.94 * fwd_h + palm_bias * palm).normalized()
+    gun_right = gun_fwd.cross(across).normalized()
+    gun_up = gun_right.cross(gun_fwd).normalized()
+
+    rot_mat = mathutils.Matrix((
+        (gun_right.x, gun_fwd.x, gun_up.x),
+        (gun_right.y, gun_fwd.y, gun_up.y),
+        (gun_right.z, gun_fwd.z, gun_up.z),
+    ))
+    grip_pos = rh.lerp(rm, 0.55) + palm * palm_offset
+
+    weapon_obj.location = grip_pos
+    weapon_obj.rotation_mode = 'QUATERNION'
+    weapon_obj.rotation_quaternion = rot_mat.to_quaternion()
+    bpy.context.view_layer.update()
+
+    # Exact RightHand-local muzzle coordinates (preserved through glTF export because bone-local coords keep Blender armature axis)
+    rh_inv = (mw @ arm.pose.bones['RightHand'].matrix).inverted()
+    muzzle_w = weapon_obj.matrix_world @ muzzle_local
+    dir_w = (weapon_obj.matrix_world.to_3x3() @ dir_local).normalized()
+    tip_loc = rh_inv @ muzzle_w
+    dir_loc = (rh_inv.to_3x3() @ dir_w).normalized()
+
+    arm.animation_data.action = prev_act
+    bpy.context.view_layer.update()
+    return {
+        'tip': [round(float(tip_loc.x), 4), round(float(tip_loc.y), 4), round(float(tip_loc.z), 4)],
+        'dir': [round(float(dir_loc.x), 4), round(float(dir_loc.y), 4), round(float(dir_loc.z), 4)],
+    }
+
+
+def attach_seated_long_gun(arm, body, mesh_name='CastLongGun', separate_mesh=True):
+    smg_obj, muzzle_local, dir_local = build_stribog_smg(mesh_name)
+    muzzle_info = seat_weapon_right_hand(
+        arm, smg_obj, muzzle_local, dir_local,
+        action_obj=None, frame_idx=0,
+        palm_bias=0.38, up_bias=-0.16, palm_offset=0.028,
+    )
+    skin_attach_exact(arm, body, smg_obj, 'RightHand', action_obj=None, separate_mesh=separate_mesh)
+    return muzzle_info
+
+
+def attach_seated_pistol(arm, body, kept, clip_name='Pistol_Aim', frame_idx=0, mesh_name='CastPistol', separate_mesh=False):
+    pistol_obj = build_pistol_mesh(mesh_name)
+    aim_act = [a for a in kept if a.name == clip_name][0]
+    muzzle_info = seat_weapon_right_hand(
+        arm, pistol_obj,
+        mathutils.Vector((0.0, 0.148, 0.050)), mathutils.Vector((0.0, 1.0, 0.0)),
+        action_obj=aim_act, frame_idx=frame_idx,
+        palm_bias=0.14, up_bias=0.16, palm_offset=0.028,
+    )
+    skin_attach_exact(arm, body, pistol_obj, 'RightHand', action_obj=aim_act, frame_idx=frame_idx, separate_mesh=separate_mesh)
+    return muzzle_info
 
 
 def setup_n2_rig(glb_path, target_height=1.80):
@@ -1220,14 +1628,14 @@ def setup_n2_rig(glb_path, target_height=1.80):
         bpy.data.actions.remove(a)
     clear_pose(arm)
 
-    # Strip N2's unseated bind-pose PistolMat faces so a freshly RightHand-seated N2Pistol replaces it
-    pmat_idx = [i for i, m in enumerate(body.data.materials) if m and m.name == 'PistolMat']
-    if pmat_idx:
-        pi = pmat_idx[0]
+    # Strip N2's unseated bind-pose PistolMat AND misplaced native GearMat faces, keeping N2's _Body untouched!
+    strip_mats = [i for i, m in enumerate(body.data.materials) if m and m.name in ('PistolMat', 'GearMat')]
+    if strip_mats:
         bm = bmesh.new()
         bm.from_mesh(body.data)
         bm.faces.ensure_lookup_table()
-        del_faces = [f for f in bm.faces if f.material_index == pi]
+        strip_set = set(strip_mats)
+        del_faces = [f for f in bm.faces if f.material_index in strip_set]
         if del_faces:
             bmesh.ops.delete(bm, geom=del_faces, context='FACES')
             loose_v = [v for v in bm.verts if not v.link_faces]
@@ -1235,10 +1643,11 @@ def setup_n2_rig(glb_path, target_height=1.80):
                 bmesh.ops.delete(bm, geom=loose_v, context='VERTS')
             bm.to_mesh(body.data)
         bm.free()
-        old_pmat = body.data.materials[pi]
-        body.data.materials.pop(index=pi)
-        if old_pmat:
-            bpy.data.materials.remove(old_pmat)
+        for pi in sorted(strip_mats, reverse=True):
+            old_m = body.data.materials[pi]
+            body.data.materials.pop(index=pi)
+            if old_m:
+                bpy.data.materials.remove(old_m)
 
     # Scale cm-native N2 rig uniformly to target_height world meters with soles grounded at z=0
     bpy.context.view_layer.update()
@@ -1286,6 +1695,16 @@ def build_n2(args):
     print('=== BUILDING N2 (valid-mocap.glb -> n2-mixamo.glb) ===')
     arm, body, R_T0, pos_T0, basis_T0, sole = setup_n2_rig(args.n2_glb, 1.80)
     restore_rest_state(arm, basis_T0)
+    body_refs = collect_body_skin_refs(arm, body)
+    # Port n2-figure.js IMPROVED vest & fitted tactical cap onto N2's untouched _Body
+    n2_helmet_mat = make_mat('GearMat', (0.034, 0.036, 0.034, 1.0), rough=0.94, metal=0.0)
+    n2_vest_mat   = make_mat('GearMatVest', (0.078, 0.082, 0.072, 1.0), rough=0.94, metal=0.0)
+    n2_trim_mat   = make_mat('GearTrimMat', (0.038, 0.040, 0.036, 1.0), rough=0.92, metal=0.0)
+    build_fitted_beanie(arm, body, 'Head', head_z_thresh=1.56, name='N2Helmet', mat=n2_helmet_mat,
+                        rim_thick=0.012, dome_thick=0.009, brow_drop=0.079, nape_drop=0.042, side_drop=0.020,
+                        body_refs=body_refs)
+    build_fitted_rig(arm, body, 'Spine2', z_lo=1.14, z_hi=1.47, name='N2Vest',
+                     mat=n2_vest_mat, trim_mat=n2_trim_mat, body_refs=body_refs)
 
     arm_y, R_S0, pos_S0 = load_ybot_anchor(args.mixamo_dir)
     kept, metrics = [], {}
@@ -1336,12 +1755,16 @@ def build_n2(args):
         kept.append(a); metrics[dst] = m
 
     bpy.data.objects.remove(arm_y, do_unlink=True)
-    attach_seated_pistol(arm, body, kept, 'Pistol_Aim', 0, 'N2Pistol')
+    restore_rest_state(arm, basis_T0)
+    muzzle_info = attach_seated_long_gun(arm, body, mesh_name='N2LongGun', separate_mesh=True)
     curl_right_fingers(arm, kept)
     out_glb = os.path.join(args.out_dir, 'n2-mixamo.glb')
     finalize_and_export(arm, kept, out_glb)
-    return {'file': 'n2-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': len(body.data.polygons),
-            'mats': len(body.data.materials), 'clips': metrics}
+    tris = sum(len(o.data.polygons) for o in bpy.data.objects if o.type == 'MESH')
+    mats = len({m for o in bpy.data.objects if o.type == 'MESH' for m in o.data.materials if m})
+    return {'file': 'n2-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': tris, 'mats': mats,
+            'weapon_pattern': 'Grand Power Stribog compact SMG/PDW (procedural, project-owned)',
+            'weapon_muzzle': muzzle_info, 'clips': metrics}
 
 
 def build_maya(args):
@@ -1386,8 +1809,10 @@ def build_maya(args):
     bpy.data.objects.remove(arm_y, do_unlink=True)
     out_glb = os.path.join(args.out_dir, 'maya-mixamo.glb')
     finalize_and_export(arm, kept, out_glb)
-    return {'file': 'maya-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': len(body.data.polygons),
-            'mats': len(body.data.materials), 'clips': metrics, 'ik': ik_stats}
+    tris = sum(len(o.data.polygons) for o in bpy.data.objects if o.type == 'MESH')
+    mats = len({m for o in bpy.data.objects if o.type == 'MESH' for m in o.data.materials if m})
+    return {'file': 'maya-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': tris,
+            'mats': mats, 'clips': metrics, 'ik': ik_stats}
 
 
 def build_cole(args):
@@ -1477,26 +1902,15 @@ def build_cole(args):
     bpy.data.objects.remove(arm_y, do_unlink=True)
 
     # Separate skinned pistol on RightHand bound cleanly at upright two-handed Sit_Aim_Fire frame 0
-    cole_gun = build_pistol_mesh('ColePistol')
-    aim_c = [a for a in kept if a.name == 'Sit_Aim_Fire'][0]
-    arm.animation_data.action = aim_c
-    bpy.context.scene.frame_set(0); bpy.context.view_layer.update()
-    rh_c = (arm.matrix_world @ arm.pose.bones['RightHand'].matrix).translation
-    rm_c = (arm.matrix_world @ arm.pose.bones['RightHandMiddle1'].matrix).translation
-    rf_w = (arm.matrix_world @ arm.pose.bones['RightForeArm'].matrix).translation
-    fwd_aim = (rh_c - rf_w).normalized()
-    palm_c = 0.45 * rh_c + 0.55 * rm_c
-    cole_gun.location = palm_c + fwd_aim * 0.012 + mathutils.Vector((0.0, 0.0, 0.004))
-    cole_gun.rotation_mode = 'QUATERNION'
-    cole_gun.rotation_quaternion = upright_barrel_quat(fwd_aim)
-    bpy.context.view_layer.update()
-    skin_attach_exact(arm, body, cole_gun, 'RightHand', action_obj=aim_c, frame_idx=0, separate_mesh=True)
+    muzzle_info = attach_seated_pistol(arm, body, kept, 'Sit_Aim_Fire', 0, mesh_name='ColePistol', separate_mesh=True)
     curl_right_fingers(arm, [a for a in kept if a.name in ('Sit_Aim_Fire', 'Sit_Aim_Pistol', 'Sit_Lower_Pistol', 'Sit_Gun_Motion')])
 
     out_glb = os.path.join(args.out_dir, 'cole-mixamo.glb')
     finalize_and_export(arm, kept, out_glb)
-    return {'file': 'cole-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': len(body.data.polygons),
-            'mats': len(body.data.materials), 'clips': metrics, 'seated_crown': crown_stats}
+    tris = sum(len(o.data.polygons) for o in bpy.data.objects if o.type == 'MESH')
+    mats = len({m for o in bpy.data.objects if o.type == 'MESH' for m in o.data.materials if m})
+    return {'file': 'cole-mixamo.glb', 'bytes': os.path.getsize(out_glb), 'tris': tris,
+            'mats': mats, 'weapon_muzzle': muzzle_info, 'clips': metrics, 'seated_crown': crown_stats}
 
 
 def main():

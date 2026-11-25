@@ -216,7 +216,7 @@ function prepGLBModel(gltf, roleName){
       ms.forEach(function(m){
         if(!m) return;
         if(m.map) m.map.encoding = THREE.sRGBEncoding;
-        if(!m.name || m.name.indexOf('PistolMat') !== 0) m.metalness = 0.0;
+        if(!m.name || (m.name.indexOf('PistolMat') !== 0 && m.name.indexOf('LongGun') !== 0)) m.metalness = 0.0;
       });
     }
   });
@@ -317,7 +317,8 @@ var BARREL_TIPS = {
 
 function placeMuzzleForActor(actor, roleKey, hz, tSec){
   var rh = actor.bones.RightHand;
-  var spec = BARREL_TIPS[roleKey];
+  var wm = MANIFEST && MANIFEST[roleKey] && MANIFEST[roleKey].weapon_muzzle;
+  var spec = wm ? { tip: new THREE.Vector3().fromArray(wm.tip), dir: new THREE.Vector3().fromArray(wm.dir) } : BARREL_TIPS[roleKey];
   if(!rh || !spec) return;
   var phase = (tSec * hz) % 1.0;
   if(phase >= 0.18) return;
@@ -507,20 +508,38 @@ function updateSceneAt(tSec){
   scene.updateMatrixWorld(true);
 
   // Camera framing tailored per angle for 390x844 mobile viewport
-  var isSide = (state.cam === 'side');
-  var isDying = (state.mode === 'gunman' || state.mode === 'n2') && (state.clip === 'Dying_Headshot_Knees');
-  var isWideGun = (state.mode === 'gunman' || state.mode === 'n2') && (state.clip === 'Cover_To_Shooting');
-  var dist = (state.mode === 'all') ? 5.15 : (state.mode === 'maya_bed') ? (isSide ? 4.35 : 4.25) : (state.mode === 'duo') ? (isSide ? 3.95 : 4.25) : (state.mode === 'cole' ? 3.40 : isDying ? 4.25 : isWideGun ? 3.75 : (isSide ? 3.25 : 2.95));
-  var lookZ = isSide ? (followPos.z + ((state.mode === 'duo') ? 0.30 : (state.mode === 'maya_bed') ? -0.05 : 0.14)) : ((state.clip === 'Cover_To_Shooting') ? followPos.z + 0.16 : followPos.z);
-  var az = { '3q': 0.56, 'front': 0.0, 'side': Math.PI / 2, 'back': Math.PI - 0.12 }[state.cam] || 0.56;
-  var elev = isSide ? 0.14 : 0.22;
-  camera.position.set(
-    followPos.x + Math.sin(az) * dist,
-    followPos.y + Math.sin(elev) * dist + 0.16,
-    lookZ + Math.cos(az) * dist
-  );
-  camera.lookAt(followPos.x, followPos.y - 0.04, lookZ);
-  camera.updateMatrixWorld(true);
+  var isGrip2x = (state.cam === 'grip2x' || state.cam === 'grip2x_l');
+  if(isGrip2x){
+    var gActor = (state.mode === 'n2') ? ACTORS.n2 : (state.mode === 'cole') ? ACTORS.cole : ACTORS.gunman;
+    var rhPos = (gActor && gActor.bones.RightHand) ? new THREE.Vector3().setFromMatrixPosition(gActor.bones.RightHand.matrixWorld) : followPos.clone();
+    var lhPos = (gActor && gActor.bones.LeftHand) ? new THREE.Vector3().setFromMatrixPosition(gActor.bones.LeftHand.matrixWorld) : rhPos.clone();
+    var gripMid = rhPos.clone().add(lhPos).multiplyScalar(0.5);
+    var gDist = 1.12;
+    var gAz = (state.cam === 'grip2x_l') ? -0.92 : 0.78;
+    var gElev = 0.16;
+    camera.position.set(
+      gripMid.x + Math.sin(gAz) * gDist,
+      gripMid.y + Math.sin(gElev) * gDist,
+      gripMid.z + Math.cos(gAz) * gDist
+    );
+    camera.lookAt(gripMid.x, gripMid.y, gripMid.z);
+    camera.updateMatrixWorld(true);
+  } else {
+    var isSide = (state.cam === 'side');
+    var isDying = (state.mode === 'gunman' || state.mode === 'n2') && (state.clip === 'Dying_Headshot_Knees');
+    var isWideGun = (state.mode === 'gunman' || state.mode === 'n2') && (state.clip === 'Cover_To_Shooting');
+    var dist = (state.mode === 'all') ? 5.15 : (state.mode === 'maya_bed') ? (isSide ? 4.35 : 4.25) : (state.mode === 'duo') ? (isSide ? 3.95 : 4.25) : (state.mode === 'cole' ? 3.40 : isDying ? 4.25 : isWideGun ? 3.75 : (isSide ? 3.25 : 2.95));
+    var lookZ = isSide ? (followPos.z + ((state.mode === 'duo') ? 0.30 : (state.mode === 'maya_bed') ? -0.05 : 0.14)) : ((state.clip === 'Cover_To_Shooting') ? followPos.z + 0.16 : followPos.z);
+    var az = { '3q': 0.56, 'front': 0.0, 'side': Math.PI / 2, 'back': Math.PI - 0.12 }[state.cam] || 0.56;
+    var elev = isSide ? 0.14 : 0.22;
+    camera.position.set(
+      followPos.x + Math.sin(az) * dist,
+      followPos.y + Math.sin(elev) * dist + 0.16,
+      lookZ + Math.cos(az) * dist
+    );
+    camera.lookAt(followPos.x, followPos.y - 0.04, lookZ);
+    camera.updateMatrixWorld(true);
+  }
 
   renderer.info.reset();
   renderer.render(scene, camera);
@@ -585,7 +604,7 @@ function rebuildHUD(){
     b.onclick = function(){ state.clip = cl; state.paused = false; rebuildHUD(); };
     cr.appendChild(b);
   });
-  ['3q', 'front', 'side', 'back'].forEach(function(ang){
+  ['3q', 'front', 'side', 'back', 'grip2x', 'grip2x_l'].forEach(function(ang){
     var b = document.createElement('button');
     b.className = 'pill' + (state.cam === ang ? ' active' : '');
     b.textContent = ang.toUpperCase();

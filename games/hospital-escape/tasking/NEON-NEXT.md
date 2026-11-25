@@ -3,16 +3,14 @@
 **Location:** https://github.com/bparlette/Hawk2 — branch `main` — folder `games/hospital-escape/tasking/`
 **Owner:** Neon. Work top-down: finish one, mark it, start the next. Specs live in the named files; this file is the order.
 
-## 1. GEAR-FIX — CURRENT (GO since Nov 24, 16:42 ET)
+## 1. GEAR-FIX — DONE (`responses/neon-gear-fix.md`)
 
-Spec: `GEAR-FIX.md` including all four addenda. Seat hat/vest on the
-bones through the dying-headshot extremes on all four cast GLBs; the
-weapon is a LONG GUN (AR carbine w/ angled foregrip or compact SMG —
-both owner-approved patterns in the reference .b64 files, fit decides,
-log origin/license). Response: `responses/neon-gear-fix.md` with
-before/after dying-frame stills + 2x hold shots.
+Spec: `GEAR-FIX.md` including all four addenda. Rebuilt all four cast GLBs
+with body-contoured BVHTree headgear/vests, clavicle straps, multi-bone surface
+weights, palm-flip weapon seating, and Grand Power Stribog SMG (`390x844` stills
++ `2x` holds + 30fps Blender audit in `responses/neon-gear-fix.md`).
 
-## 2. CAST-QUALITY figures — NEXT
+## 2. CAST-QUALITY figures — CURRENT
 
 Spec: `CAST-QUALITY.md`. Build full rigged 3D replacements at
 main-cast standard for: **Dr. Hale** (currently a flat painted cutout —

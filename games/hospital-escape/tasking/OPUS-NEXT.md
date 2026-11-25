@@ -41,7 +41,26 @@ Spec: `CAST-QUALITY.md`. Two parts:
 Response: `responses/opus-cast-quality.md`; guardrails green;
 patient-eyes system untouched.
 
-## 4. Long-gun integration — WHEN GEAR-FIX LANDS
+## 4. VEHICLE-QUALITY — cars to Scaggsville standard (owner, Nov 24, 20:36 ET)
+
+Replace the game's CARS with vehicles of **Scaggsville 3D quality**.
+Correction (owner, Nov 24, 20:38 ET): the AMBULANCE model itself is
+fine — her complaint about it was the camera framing (covered in
+CAMERA-FIX), not the vehicle. Leave the ambulance as it is. The
+chase/traffic cars are the ones that read as slabs next to the cast. Standard: the shared vehicle work from
+Scaggsville 3D / Fleet Drive — the gamepress shared vehicle module
+(`gpvehicles.js`, fleet cars as data rows; quality floor = Neon's
+Bunny Hop cars). The owner has cleared the WHOLE Scaggsville fleet as replacements
+(Nov 24, 20:37 ET): draw chase/traffic cars from the entire shared
+fleet as needed. ALSO (owner, Nov 24, 20:38 ET): you may try
+redoing the game's existing cars better — improving the current
+models is welcome — but the Scaggsville cars must DEFINITELY be
+included either way; redoing alone does not satisfy this item.
+Response: fold into a short
+`responses/opus-vehicles.md` with 390x844 stills of the chase and any
+other beat where cars were replaced.
+
+## 5. Long-gun integration — WHEN GEAR-FIX LANDS
 
 When Neon's GEAR-FIX response lands, integrate the long gun on the
 gunman + N2 in the live game (replacing the pistol in the fire beats),
