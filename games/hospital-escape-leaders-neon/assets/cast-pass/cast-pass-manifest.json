@@ -1,9 +1,22 @@
 {
   "gunman": {
     "file": "gunman-mixamo.glb",
-    "bytes": 4288528,
-    "tris": 9774,
-    "mats": 4,
+    "bytes": 4406660,
+    "tris": 10320,
+    "mats": 7,
+    "weapon_pattern": "Grand Power Stribog compact SMG/PDW (procedural, project-owned)",
+    "weapon_muzzle": {
+      "tip": [
+        0.0779,
+        0.3688,
+        0.1528
+      ],
+      "dir": [
+        -0.032,
+        0.9284,
+        0.3701
+      ]
+    },
     "clips": {
       "Pistol_Idle": {
         "clip": "Pistol_Idle",
@@ -439,8 +452,20 @@
   "cole": {
     "file": "cole-mixamo.glb",
     "bytes": 3228548,
-    "tris": 8994,
-    "mats": 3,
+    "tris": 9018,
+    "mats": 4,
+    "weapon_muzzle": {
+      "tip": [
+        0.0976,
+        0.176,
+        0.0446
+      ],
+      "dir": [
+        0.2903,
+        0.9479,
+        0.131
+      ]
+    },
     "clips": {
       "Sit_Idle_Breath": {
         "clip": "Sit_Idle_Breath",
@@ -666,9 +691,22 @@
   },
   "n2": {
     "file": "n2-mixamo.glb",
-    "bytes": 1947332,
-    "tris": 7274,
-    "mats": 3,
+    "bytes": 2115804,
+    "tris": 8204,
+    "mats": 7,
+    "weapon_pattern": "Grand Power Stribog compact SMG/PDW (procedural, project-owned)",
+    "weapon_muzzle": {
+      "tip": [
+        0.0779,
+        0.3687,
+        0.1528
+      ],
+      "dir": [
+        -0.032,
+        0.9284,
+        0.3701
+      ]
+    },
     "clips": {
       "Pistol_Idle": {
         "clip": "Pistol_Idle",
@@ -678,8 +716,8 @@
         "authored_stance_mps": 0.0,
         "stance_samples": 0,
         "stance_slide_mm": 0.0,
-        "min_foot_z_mm": 15.37,
-        "median_min_foot_z_mm": 19.72
+        "min_foot_z_mm": 15.57,
+        "median_min_foot_z_mm": 19.98
       },
       "Pistol_Idle_Alert": {
         "clip": "Pistol_Idle_Alert",
@@ -689,28 +727,28 @@
         "authored_stance_mps": 0.0,
         "stance_samples": 0,
         "stance_slide_mm": 0.0,
-        "min_foot_z_mm": 3.55,
-        "median_min_foot_z_mm": 3.63
+        "min_foot_z_mm": 3.59,
+        "median_min_foot_z_mm": 3.68
       },
       "Pistol_Aim": {
         "clip": "Pistol_Aim",
         "frames": 214,
         "duration_s": 7.1,
-        "authored_root_mps": 0.0148,
-        "authored_stance_mps": 0.0148,
+        "authored_root_mps": 0.015,
+        "authored_stance_mps": 0.015,
         "stance_samples": 0,
         "stance_slide_mm": 0.0,
-        "min_foot_z_mm": -2.74,
+        "min_foot_z_mm": -2.78,
         "median_min_foot_z_mm": 0.29
       },
       "Pistol_Walk": {
         "clip": "Pistol_Walk",
         "frames": 25,
         "duration_s": 0.8,
-        "authored_root_mps": 2.5521,
-        "authored_stance_mps": 2.5107,
+        "authored_root_mps": 2.5858,
+        "authored_stance_mps": 2.5439,
         "stance_samples": 23,
-        "stance_slide_mm": 4.59,
+        "stance_slide_mm": 4.65,
         "min_foot_z_mm": -0.0,
         "median_min_foot_z_mm": 0.04
       },
@@ -718,10 +756,10 @@
         "clip": "Pistol_Run_Aimed",
         "frames": 23,
         "duration_s": 0.7333,
-        "authored_root_mps": 3.0149,
-        "authored_stance_mps": 2.908,
+        "authored_root_mps": 3.0547,
+        "authored_stance_mps": 2.9464,
         "stance_samples": 20,
-        "stance_slide_mm": 7.06,
+        "stance_slide_mm": 7.15,
         "min_foot_z_mm": -0.0,
         "median_min_foot_z_mm": 0.0
       },
@@ -733,8 +771,8 @@
         "authored_stance_mps": 0.0,
         "stance_samples": 0,
         "stance_slide_mm": 0.0,
-        "min_foot_z_mm": 20.15,
-        "median_min_foot_z_mm": 20.19
+        "min_foot_z_mm": 20.42,
+        "median_min_foot_z_mm": 20.46
       },
       "Cover_Fire": {
         "clip": "Cover_Fire",
@@ -744,8 +782,8 @@
         "authored_stance_mps": 0.0,
         "stance_samples": 0,
         "stance_slide_mm": 0.0,
-        "min_foot_z_mm": -13.85,
-        "median_min_foot_z_mm": -11.41
+        "min_foot_z_mm": -14.03,
+        "median_min_foot_z_mm": -11.56
       },
       "Cover_To_Shooting": {
         "clip": "Cover_To_Shooting",
@@ -755,8 +793,8 @@
         "authored_stance_mps": 0.0,
         "stance_samples": 0,
         "stance_slide_mm": 0.0,
-        "min_foot_z_mm": -88.23,
-        "median_min_foot_z_mm": -82.11
+        "min_foot_z_mm": -89.39,
+        "median_min_foot_z_mm": -83.2
       },
       "Hit_React": {
         "clip": "Hit_React",
@@ -766,50 +804,50 @@
         "authored_stance_mps": 0.0,
         "stance_samples": 0,
         "stance_slide_mm": 0.0,
-        "min_foot_z_mm": -3.28,
-        "median_min_foot_z_mm": 2.48
+        "min_foot_z_mm": -3.32,
+        "median_min_foot_z_mm": 2.51
       },
       "Death_Front": {
         "clip": "Death_Front",
         "frames": 133,
         "duration_s": 4.4,
-        "authored_root_mps": 0.0764,
-        "authored_stance_mps": 0.0764,
+        "authored_root_mps": 0.0774,
+        "authored_stance_mps": 0.0774,
         "stance_samples": 0,
         "stance_slide_mm": 0.0,
-        "min_foot_z_mm": -106.09,
-        "median_min_foot_z_mm": -78.74
+        "min_foot_z_mm": -107.49,
+        "median_min_foot_z_mm": -79.78
       },
       "Death_Back": {
         "clip": "Death_Back",
         "frames": 139,
         "duration_s": 4.6,
-        "authored_root_mps": 0.1983,
-        "authored_stance_mps": 0.1983,
+        "authored_root_mps": 0.2009,
+        "authored_stance_mps": 0.2009,
         "stance_samples": 0,
         "stance_slide_mm": 0.0,
-        "min_foot_z_mm": -2.04,
-        "median_min_foot_z_mm": 5.04
+        "min_foot_z_mm": -2.07,
+        "median_min_foot_z_mm": 5.1
       },
       "Dying_Headshot_Knees": {
         "clip": "Dying_Headshot_Knees",
         "frames": 107,
         "duration_s": 3.5333,
-        "authored_root_mps": 0.3284,
-        "authored_stance_mps": 0.3284,
+        "authored_root_mps": 0.3327,
+        "authored_stance_mps": 0.3327,
         "stance_samples": 0,
         "stance_slide_mm": 0.0,
-        "min_foot_z_mm": -101.16,
-        "median_min_foot_z_mm": -72.55
+        "min_foot_z_mm": -102.5,
+        "median_min_foot_z_mm": -73.51
       },
       "Pistol_Walk_Fire": {
         "clip": "Pistol_Walk_Fire",
         "frames": 25,
         "duration_s": 0.8,
-        "authored_root_mps": 2.5521,
-        "authored_stance_mps": 2.5107,
+        "authored_root_mps": 2.5858,
+        "authored_stance_mps": 2.5439,
         "stance_samples": 23,
-        "stance_slide_mm": 4.59,
+        "stance_slide_mm": 4.65,
         "min_foot_z_mm": -0.0,
         "median_min_foot_z_mm": 0.04
       },
@@ -817,10 +855,10 @@
         "clip": "Pistol_Run_Aimed_Fire",
         "frames": 23,
         "duration_s": 0.7333,
-        "authored_root_mps": 3.0149,
-        "authored_stance_mps": 2.908,
+        "authored_root_mps": 3.0547,
+        "authored_stance_mps": 2.9464,
         "stance_samples": 20,
-        "stance_slide_mm": 7.06,
+        "stance_slide_mm": 7.15,
         "min_foot_z_mm": -0.0,
         "median_min_foot_z_mm": 0.0
       }

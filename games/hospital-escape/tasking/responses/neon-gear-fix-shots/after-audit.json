@@ -1,0 +1,472 @@
+{
+  "n2": {
+    "gear": {
+      "Rest@f0": {
+        "GearMat": {
+          "verts": 649,
+          "median_cm": 0.9,
+          "p95_cm": 1.2,
+          "max_cm": 1.2
+        },
+        "GearMatVest": {
+          "verts": 712,
+          "median_cm": 1.5,
+          "p95_cm": 2.07,
+          "max_cm": 2.1
+        },
+        "GearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.68,
+          "p95_cm": 1.87,
+          "max_cm": 3.92
+        }
+      },
+      "Dying_Headshot_Knees@f20": {
+        "GearMat": {
+          "verts": 649,
+          "median_cm": 0.9,
+          "p95_cm": 1.2,
+          "max_cm": 1.21
+        },
+        "GearMatVest": {
+          "verts": 712,
+          "median_cm": 1.5,
+          "p95_cm": 2.07,
+          "max_cm": 2.15
+        },
+        "GearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.67,
+          "p95_cm": 1.87,
+          "max_cm": 3.92
+        }
+      },
+      "Dying_Headshot_Knees@f40": {
+        "GearMat": {
+          "verts": 649,
+          "median_cm": 0.9,
+          "p95_cm": 1.2,
+          "max_cm": 1.21
+        },
+        "GearMatVest": {
+          "verts": 712,
+          "median_cm": 1.51,
+          "p95_cm": 2.05,
+          "max_cm": 2.12
+        },
+        "GearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.66,
+          "p95_cm": 1.81,
+          "max_cm": 3.78
+        }
+      },
+      "Dying_Headshot_Knees@f65": {
+        "GearMat": {
+          "verts": 649,
+          "median_cm": 0.9,
+          "p95_cm": 1.2,
+          "max_cm": 1.22
+        },
+        "GearMatVest": {
+          "verts": 712,
+          "median_cm": 1.5,
+          "p95_cm": 2.09,
+          "max_cm": 2.27
+        },
+        "GearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.7,
+          "p95_cm": 1.8,
+          "max_cm": 3.92
+        }
+      },
+      "Dying_Headshot_Knees@f84": {
+        "GearMat": {
+          "verts": 649,
+          "median_cm": 0.9,
+          "p95_cm": 1.2,
+          "max_cm": 1.23
+        },
+        "GearMatVest": {
+          "verts": 712,
+          "median_cm": 1.5,
+          "p95_cm": 2.08,
+          "max_cm": 2.23
+        },
+        "GearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.71,
+          "p95_cm": 1.75,
+          "max_cm": 3.75
+        }
+      },
+      "Cover_To_Shooting@f41": {
+        "GearMat": {
+          "verts": 649,
+          "median_cm": 0.9,
+          "p95_cm": 1.2,
+          "max_cm": 1.21
+        },
+        "GearMatVest": {
+          "verts": 712,
+          "median_cm": 1.21,
+          "p95_cm": 2.08,
+          "max_cm": 2.3
+        },
+        "GearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.67,
+          "p95_cm": 1.82,
+          "max_cm": 3.89
+        }
+      },
+      "Pistol_Idle_Alert@f15": {
+        "GearMat": {
+          "verts": 649,
+          "median_cm": 0.9,
+          "p95_cm": 1.2,
+          "max_cm": 1.23
+        },
+        "GearMatVest": {
+          "verts": 712,
+          "median_cm": 1.04,
+          "p95_cm": 2.21,
+          "max_cm": 2.4
+        },
+        "GearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.68,
+          "p95_cm": 1.75,
+          "max_cm": 3.94
+        }
+      }
+    },
+    "weapon": {
+      "Cover_To_Shooting@f28": {
+        "hand_span_cm": 27.4,
+        "right_palm_to_gun_cm": 0.97,
+        "left_mid_to_gun_cm": 7.87,
+        "left_wrist_to_gun_cm": 9.23,
+        "left_closest_on_gun": [
+          -0.192,
+          -0.531,
+          1.386
+        ]
+      },
+      "Cover_To_Shooting@f41": {
+        "hand_span_cm": 26.88,
+        "right_palm_to_gun_cm": 0.97,
+        "left_mid_to_gun_cm": 8.81,
+        "left_wrist_to_gun_cm": 9.06,
+        "left_closest_on_gun": [
+          -0.225,
+          -0.52,
+          1.385
+        ]
+      },
+      "Pistol_Idle_Alert@f15": {
+        "hand_span_cm": 15.8,
+        "right_palm_to_gun_cm": 0.97,
+        "left_mid_to_gun_cm": 9.91,
+        "left_wrist_to_gun_cm": 11.94,
+        "left_closest_on_gun": [
+          -0.058,
+          -0.537,
+          1.273
+        ]
+      },
+      "Pistol_Walk@f10": {
+        "hand_span_cm": 15.06,
+        "right_palm_to_gun_cm": 0.97,
+        "left_mid_to_gun_cm": 9.41,
+        "left_wrist_to_gun_cm": 9.45,
+        "left_closest_on_gun": [
+          -0.105,
+          -0.535,
+          1.415
+        ]
+      },
+      "Pistol_Aim@f15": {
+        "hand_span_cm": 11.4,
+        "right_palm_to_gun_cm": 0.97,
+        "left_mid_to_gun_cm": 6.59,
+        "left_wrist_to_gun_cm": 5.47,
+        "left_closest_on_gun": [
+          -0.09,
+          -0.541,
+          1.435
+        ]
+      }
+    }
+  },
+  "gunman": {
+    "gear": {
+      "Rest@f0": {
+        "GunmanBeanieMat": {
+          "verts": 649,
+          "median_cm": 0.75,
+          "p95_cm": 1.1,
+          "max_cm": 1.1
+        },
+        "GunmanGearMat": {
+          "verts": 712,
+          "median_cm": 1.51,
+          "p95_cm": 2.04,
+          "max_cm": 2.1
+        },
+        "GunmanGearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.68,
+          "p95_cm": 1.92,
+          "max_cm": 3.71
+        }
+      },
+      "Dying_Headshot_Knees@f20": {
+        "GunmanBeanieMat": {
+          "verts": 649,
+          "median_cm": 0.75,
+          "p95_cm": 1.1,
+          "max_cm": 1.21
+        },
+        "GunmanGearMat": {
+          "verts": 712,
+          "median_cm": 1.51,
+          "p95_cm": 2.06,
+          "max_cm": 2.15
+        },
+        "GunmanGearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.68,
+          "p95_cm": 1.95,
+          "max_cm": 3.69
+        }
+      },
+      "Dying_Headshot_Knees@f40": {
+        "GunmanBeanieMat": {
+          "verts": 649,
+          "median_cm": 0.75,
+          "p95_cm": 1.1,
+          "max_cm": 1.13
+        },
+        "GunmanGearMat": {
+          "verts": 712,
+          "median_cm": 1.52,
+          "p95_cm": 2.04,
+          "max_cm": 2.12
+        },
+        "GunmanGearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.66,
+          "p95_cm": 1.84,
+          "max_cm": 3.59
+        }
+      },
+      "Dying_Headshot_Knees@f65": {
+        "GunmanBeanieMat": {
+          "verts": 649,
+          "median_cm": 0.75,
+          "p95_cm": 1.1,
+          "max_cm": 1.17
+        },
+        "GunmanGearMat": {
+          "verts": 712,
+          "median_cm": 1.51,
+          "p95_cm": 2.12,
+          "max_cm": 2.34
+        },
+        "GunmanGearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.7,
+          "p95_cm": 1.94,
+          "max_cm": 3.66
+        }
+      },
+      "Dying_Headshot_Knees@f84": {
+        "GunmanBeanieMat": {
+          "verts": 649,
+          "median_cm": 0.75,
+          "p95_cm": 1.1,
+          "max_cm": 1.17
+        },
+        "GunmanGearMat": {
+          "verts": 712,
+          "median_cm": 1.52,
+          "p95_cm": 2.09,
+          "max_cm": 2.27
+        },
+        "GunmanGearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.69,
+          "p95_cm": 1.8,
+          "max_cm": 3.58
+        }
+      },
+      "Cover_To_Shooting@f41": {
+        "GunmanBeanieMat": {
+          "verts": 649,
+          "median_cm": 0.75,
+          "p95_cm": 1.1,
+          "max_cm": 1.11
+        },
+        "GunmanGearMat": {
+          "verts": 712,
+          "median_cm": 1.0,
+          "p95_cm": 2.08,
+          "max_cm": 2.38
+        },
+        "GunmanGearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.68,
+          "p95_cm": 1.95,
+          "max_cm": 3.76
+        }
+      },
+      "Pistol_Idle_Alert@f15": {
+        "GunmanBeanieMat": {
+          "verts": 649,
+          "median_cm": 0.75,
+          "p95_cm": 1.1,
+          "max_cm": 1.11
+        },
+        "GunmanGearMat": {
+          "verts": 712,
+          "median_cm": 1.01,
+          "p95_cm": 2.21,
+          "max_cm": 2.39
+        },
+        "GunmanGearTrimMat": {
+          "verts": 1256,
+          "median_cm": 0.69,
+          "p95_cm": 1.87,
+          "max_cm": 3.76
+        }
+      }
+    },
+    "weapon": {
+      "Cover_To_Shooting@f28": {
+        "hand_span_cm": 27.42,
+        "right_palm_to_gun_cm": 0.97,
+        "left_mid_to_gun_cm": 7.87,
+        "left_wrist_to_gun_cm": 9.24,
+        "left_closest_on_gun": [
+          -0.192,
+          -0.526,
+          1.387
+        ]
+      },
+      "Cover_To_Shooting@f41": {
+        "hand_span_cm": 26.9,
+        "right_palm_to_gun_cm": 0.97,
+        "left_mid_to_gun_cm": 8.82,
+        "left_wrist_to_gun_cm": 9.07,
+        "left_closest_on_gun": [
+          -0.226,
+          -0.514,
+          1.385
+        ]
+      },
+      "Pistol_Idle_Alert@f15": {
+        "hand_span_cm": 15.81,
+        "right_palm_to_gun_cm": 0.97,
+        "left_mid_to_gun_cm": 9.92,
+        "left_wrist_to_gun_cm": 11.96,
+        "left_closest_on_gun": [
+          -0.058,
+          -0.531,
+          1.273
+        ]
+      },
+      "Pistol_Walk@f10": {
+        "hand_span_cm": 15.07,
+        "right_palm_to_gun_cm": 0.97,
+        "left_mid_to_gun_cm": 9.42,
+        "left_wrist_to_gun_cm": 9.46,
+        "left_closest_on_gun": [
+          -0.105,
+          -0.536,
+          1.416
+        ]
+      },
+      "Pistol_Aim@f15": {
+        "hand_span_cm": 11.41,
+        "right_palm_to_gun_cm": 0.97,
+        "left_mid_to_gun_cm": 6.6,
+        "left_wrist_to_gun_cm": 5.48,
+        "left_closest_on_gun": [
+          -0.09,
+          -0.535,
+          1.435
+        ]
+      }
+    }
+  },
+  "maya": {
+    "gear": {
+      "Rest@f0": {
+        "MayaStrapMat": {
+          "verts": 472,
+          "median_cm": 0.94,
+          "p95_cm": 1.89,
+          "max_cm": 8.77
+        }
+      },
+      "Bed_Push_Loop@f0": {
+        "MayaStrapMat": {
+          "verts": 472,
+          "median_cm": 1.15,
+          "p95_cm": 2.46,
+          "max_cm": 9.18
+        }
+      },
+      "Bed_Push_Loop@f27": {
+        "MayaStrapMat": {
+          "verts": 472,
+          "median_cm": 1.14,
+          "p95_cm": 2.47,
+          "max_cm": 9.01
+        }
+      },
+      "Walk_Fem@f10": {
+        "MayaStrapMat": {
+          "verts": 472,
+          "median_cm": 1.07,
+          "p95_cm": 1.97,
+          "max_cm": 8.9
+        }
+      }
+    }
+  },
+  "cole": {
+    "gear": {
+      "Rest@f0": {
+        "ColeGauzeMat": {
+          "verts": 220,
+          "median_cm": 0.2,
+          "p95_cm": 0.6,
+          "max_cm": 0.6
+        },
+        "ColeBloodMat": {
+          "verts": 20,
+          "median_cm": 0.6,
+          "p95_cm": 0.6,
+          "max_cm": 0.6
+        }
+      },
+      "Sit_Disbelief_Forward@f66": {
+        "ColeGauzeMat": {
+          "verts": 220,
+          "median_cm": 0.2,
+          "p95_cm": 0.6,
+          "max_cm": 0.6
+        },
+        "ColeBloodMat": {
+          "verts": 20,
+          "median_cm": 0.6,
+          "p95_cm": 0.6,
+          "max_cm": 0.6
+        }
+      }
+    }
+  }
+}

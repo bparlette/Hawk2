@@ -1,0 +1,472 @@
+{
+  "phase": "after",
+  "shots": [
+    {
+      "slug": "gunman-dying-headshot-3q",
+      "phase": "after",
+      "mode": "gunman",
+      "clip": "Dying_Headshot_Knees",
+      "cam": "3q",
+      "t": 1.35,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 23438,
+      "textures": 12,
+      "programs": 4,
+      "jsHeapMB": 34.02,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "gunman-dying-headshot-extreme-3q",
+      "phase": "after",
+      "mode": "gunman",
+      "clip": "Dying_Headshot_Knees",
+      "cam": "3q",
+      "t": 2.15,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 23438,
+      "textures": 12,
+      "programs": 4,
+      "jsHeapMB": 34.31,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "n2-dying-headshot-3q",
+      "phase": "after",
+      "mode": "n2",
+      "clip": "Dying_Headshot_Knees",
+      "cam": "3q",
+      "t": 1.35,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 19206,
+      "textures": 21,
+      "programs": 5,
+      "jsHeapMB": 35.64,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "n2-dying-headshot-extreme-3q",
+      "phase": "after",
+      "mode": "n2",
+      "clip": "Dying_Headshot_Knees",
+      "cam": "3q",
+      "t": 2.15,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 19206,
+      "textures": 21,
+      "programs": 5,
+      "jsHeapMB": 35.88,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "gunman-idle-alert-3q",
+      "phase": "after",
+      "mode": "gunman",
+      "clip": "Pistol_Idle_Alert",
+      "cam": "3q",
+      "t": 0.5,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 23438,
+      "textures": 21,
+      "programs": 5,
+      "jsHeapMB": 36.08,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "gunman-cover-to-shoot-3q",
+      "phase": "after",
+      "mode": "gunman",
+      "clip": "Cover_To_Shooting",
+      "cam": "3q",
+      "t": 1.38,
+      "pathSpeedMPS": 0,
+      "calls": 17,
+      "triangles": 23598,
+      "textures": 21,
+      "programs": 9,
+      "jsHeapMB": 38.82,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "gunman-walk-side",
+      "phase": "after",
+      "mode": "gunman",
+      "clip": "Pistol_Walk",
+      "cam": "side",
+      "t": 0.35,
+      "pathSpeedMPS": 1.3,
+      "calls": 15,
+      "triangles": 23438,
+      "textures": 21,
+      "programs": 9,
+      "jsHeapMB": 39.02,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "n2-idle-alert-3q",
+      "phase": "after",
+      "mode": "n2",
+      "clip": "Pistol_Idle_Alert",
+      "cam": "3q",
+      "t": 0.5,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 19206,
+      "textures": 21,
+      "programs": 9,
+      "jsHeapMB": 39.32,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "n2-cover-to-shoot-3q",
+      "phase": "after",
+      "mode": "n2",
+      "clip": "Cover_To_Shooting",
+      "cam": "3q",
+      "t": 1.38,
+      "pathSpeedMPS": 0,
+      "calls": 17,
+      "triangles": 19366,
+      "textures": 21,
+      "programs": 10,
+      "jsHeapMB": 40.35,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "n2-walk-side",
+      "phase": "after",
+      "mode": "n2",
+      "clip": "Pistol_Walk",
+      "cam": "side",
+      "t": 0.35,
+      "pathSpeedMPS": 1.3,
+      "calls": 15,
+      "triangles": 19206,
+      "textures": 21,
+      "programs": 10,
+      "jsHeapMB": 40.58,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "maya-bed-push-3q",
+      "phase": "after",
+      "mode": "maya_bed",
+      "clip": "Bed_Push_Loop",
+      "cam": "3q",
+      "t": 0.9,
+      "pathSpeedMPS": 0.392,
+      "calls": 43,
+      "triangles": 19248,
+      "textures": 27,
+      "programs": 12,
+      "jsHeapMB": 42.31,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {
+        "bedWristGapMM": 0.1
+      },
+      "consoleErrors": []
+    },
+    {
+      "slug": "maya-walk-side",
+      "phase": "after",
+      "mode": "maya_bed",
+      "clip": "Walk_Fem",
+      "cam": "side",
+      "t": 0.35,
+      "pathSpeedMPS": 1.529,
+      "calls": 44,
+      "triangles": 19260,
+      "textures": 27,
+      "programs": 12,
+      "jsHeapMB": 30.45,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {
+        "bedWristGapMM": 228.6
+      },
+      "consoleErrors": []
+    },
+    {
+      "slug": "cole-disbelief-forward-3q",
+      "phase": "after",
+      "mode": "cole",
+      "clip": "Sit_Disbelief_Forward",
+      "cam": "3q",
+      "t": 2.2,
+      "pathSpeedMPS": 0,
+      "calls": 53,
+      "triangles": 22286,
+      "textures": 33,
+      "programs": 12,
+      "jsHeapMB": 31.24,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {
+        "coleHeadBoneY": 0.772,
+        "coleEstCrownY": 0.982
+      },
+      "consoleErrors": []
+    },
+    {
+      "slug": "cole-sit-aim-3q",
+      "phase": "after",
+      "mode": "cole",
+      "clip": "Sit_Aim_Fire",
+      "cam": "3q",
+      "t": 0.3,
+      "pathSpeedMPS": 0,
+      "calls": 57,
+      "triangles": 22406,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 31.65,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {
+        "coleHeadBoneY": 1.044,
+        "coleEstCrownY": 1.254
+      },
+      "consoleErrors": []
+    },
+    {
+      "slug": "gunman-idle-alert-grip2x",
+      "phase": "after",
+      "mode": "gunman",
+      "clip": "Pistol_Idle_Alert",
+      "cam": "grip2x",
+      "t": 0.5,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 23438,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 31.88,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "gunman-idle-alert-grip2x-l",
+      "phase": "after",
+      "mode": "gunman",
+      "clip": "Pistol_Idle_Alert",
+      "cam": "grip2x_l",
+      "t": 0.5,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 23438,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 32.08,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "gunman-cover-to-shoot-grip2x",
+      "phase": "after",
+      "mode": "gunman",
+      "clip": "Cover_To_Shooting",
+      "cam": "grip2x",
+      "t": 1.38,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 23438,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 32.16,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "gunman-cover-to-shoot-grip2x-l",
+      "phase": "after",
+      "mode": "gunman",
+      "clip": "Cover_To_Shooting",
+      "cam": "grip2x_l",
+      "t": 1.38,
+      "pathSpeedMPS": 0,
+      "calls": 17,
+      "triangles": 23598,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 32.23,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "gunman-walk-fire-grip2x",
+      "phase": "after",
+      "mode": "gunman",
+      "clip": "Pistol_Walk_Fire",
+      "cam": "grip2x",
+      "t": 0.35,
+      "pathSpeedMPS": 1.3,
+      "calls": 15,
+      "triangles": 23438,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 32.32,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "n2-idle-alert-grip2x",
+      "phase": "after",
+      "mode": "n2",
+      "clip": "Pistol_Idle_Alert",
+      "cam": "grip2x",
+      "t": 0.5,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 19206,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 32.59,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "n2-idle-alert-grip2x-l",
+      "phase": "after",
+      "mode": "n2",
+      "clip": "Pistol_Idle_Alert",
+      "cam": "grip2x_l",
+      "t": 0.5,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 19206,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 32.45,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "n2-cover-to-shoot-grip2x",
+      "phase": "after",
+      "mode": "n2",
+      "clip": "Cover_To_Shooting",
+      "cam": "grip2x",
+      "t": 1.38,
+      "pathSpeedMPS": 0,
+      "calls": 15,
+      "triangles": 19206,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 32.53,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "n2-cover-to-shoot-grip2x-l",
+      "phase": "after",
+      "mode": "n2",
+      "clip": "Cover_To_Shooting",
+      "cam": "grip2x_l",
+      "t": 1.38,
+      "pathSpeedMPS": 0,
+      "calls": 17,
+      "triangles": 19366,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 32.79,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    },
+    {
+      "slug": "n2-walk-fire-grip2x",
+      "phase": "after",
+      "mode": "n2",
+      "clip": "Pistol_Walk_Fire",
+      "cam": "grip2x",
+      "t": 0.35,
+      "pathSpeedMPS": 1.3,
+      "calls": 15,
+      "triangles": 19206,
+      "textures": 34,
+      "programs": 12,
+      "jsHeapMB": 32.87,
+      "flags": [
+        "GLTFLoader (three@0.128.0)"
+      ],
+      "measure": {},
+      "consoleErrors": []
+    }
+  ],
+  "consoleErrors": []
+}
