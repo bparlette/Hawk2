@@ -30,6 +30,8 @@ tasking/responses/opus-integrate.md — per the SHOW YOUR WORK rule: method, too
 
 ## NEXT TASK — DESTRUCTION BEHAVIORS (Cherie, Nov 25 — Opus's active task: the hard thing)
 
+**ENHANCE, don't just fix (Cherie, Nov 25).** Your job on destruction is not just to fix but to ENHANCE — make it more fun and more realistic. The first stab (below) is a floor, not a ceiling: keep what's good, replace what's flat, and add what it needs. You have explicit license to go beyond the first stab's design wherever it makes crashes feel better — physical believability (weight transfer, suspension bounce/settle, crumple and debris that match impact direction and speed, sparks on metal contact, outcomes scaled by impact speed) AND game feel (readable cause-and-effect, satisfying chain reactions, variety so no two wrecks play the same).
+
 Cherie re-pointed Opus at the hard engineering (Nov 25): the car-crash destruction system. The routine defect bundle moved to Moth (below); the vehicle MODELING stays Moth's too. This system is Opus's.
 
 When the player destroys a vehicle (chase / drive beats), vary the outcome — not the same stop every time:
@@ -46,6 +48,29 @@ Probabilities/tuning are your call, but every behavior must actually occur in a 
 **PROCESS is load-bearing here (see top of file): push before testing, push often.** Land increments on main behavior-by-behavior — each behavior working and pushed before the next starts — so a credit cutoff never strands work. Whatever remains unfinished when credits run out, Moth finishes from main; leave the response file current after each increment so the handoff state is never only in your head.
 
 **Frame budget:** stay inside the frame budget T4-PERF bought back — report frame time before/after per beat (SwiftShader-relative, labeled as such).
+
+### First stab + reading list (Moth, Nov 25 — read this before opening anything else)
+
+Moth took a first stab so you spend your credits modifying, not starting from zero: **`game/destruction.js`** — a self-contained `HE.Destruction(game)` module with the outcome picker (veer / rollover / fire / blowout weighted per killing component, speed-gated), per-outcome motion driving the same `p.v` / `p.lat` fields chase's stock crippled branches drive, chain-crash targeting through the real `hitComponent` damage path, a debris pool, an ember-glow fire treatment (no flame tongues), and the window gunman firing through `combat.fairTick / fairFire / fireAtHero` so the fairness audit covers him. It is NOT wired in and NOT play-tested; the exact one-line hooks it needs are listed in the ADAPTER comment at the bottom of the file (director construction + step call, one inserted else-if in chase.step, one branch in combat.shoot, one block in main.js present()). Your job: review it, modify it, integrate it — per the ENHANCE note at the top of this section, go beyond it where the crashes feel better. Push increments to main per the PROCESS rule.
+
+**READ (only these):**
+- `tasking/OPUS-NEXT.md` — this file.
+- `game/destruction.js` — the first stab. Start here; this is the file you modify.
+- `engine/chase.js` — all of it (63 lines): pursuer states, `hitComponent`, `setState`, `place`, the stock crippled branches your `drive()` hook sits in front of.
+- `engine/director.js` — line 73 (where `game.chase` is constructed; `game.destruction` goes next to it) and lines 134–150 (`game.step` order: your `step()` call lands right after `game.chase.step(dt)` on line 144).
+- `engine/combat.js` — `c.shoot` lines 31–46 (hit routing; your gunman branch goes here), and the fairness contract: `fairFire` line 103, `fairTick` line 105, `fireAtHero` line 111.
+- `game/main.js` — the chase presentation loop in `present()` at line 238 (lightbar / spin / smoke flags; your `pose()` + FX drain land here, and the stock spin needs the `owns()` guard), and the `pursuer` / `burn` event handlers in `processEvents` at lines 459–461.
+- `game/art.js` — `A.car` lines 236–256 only (zones, wheels, driver, lightbar — the rig the module reads), plus `A.person` line 80 and `A.pose` lines 172–198 for the gunman figure.
+- `engine/data.js` — lines 97–124 (pursuer wave defs; pursuer + component tuning). Note the shipped game runs `game/level1.js` data: fairness tuning is `level1.js` line 163 (`telegraph 0.6, minPx 40, margin 0.03, seenOnly: true`) — that one line only.
+- `tools/fairness-audit.cjs` — lines 1–30 (what the audit actually checks: every heroHit matched to an `enemyShot` whose logged `vis` was in-zone, unoccluded, ≥ minPx, ≥ telegraph at fire time).
+
+**DO NOT OPEN (token waste for this task):**
+- Everything under `games/hospital-escape/tasking/refs/` — the 360° vehicle images are Moth's modeling references; destruction work needs none of them.
+- All stills / screenshots / shorts folders and response-image folders (`tasking/responses/*-shots/`, `games/hospital-escape/shorts/`, every `*-shots` / `*-stills` directory).
+- `games/hospital-escape/mixamo/` and `games/hospital-escape/mixamo-viewer/`.
+- `tasking/responses/*.md` — all of them except your own `opus-destruction.md` once it exists.
+- The sample pages: `games/hospital-escape-dressing/`, `games/hospital-escape-bakeoff/`, `games/hospital-escape-vehicles/`, and the hallway sample folders.
+- Also skip for this task: `game/painted.js`, `game/painted-data.js`, `game/cast3d.js`, `game/post.js`, `game/t4look.js`, `game/world.js`, `game/enclose.js`, the rest of `game/level1.js`, `engine/greybox.js`, `engine/rail.js`, `engine/tests.js` (run the tools; don't read them).
 
 ### Verification (all must pass on the final code)
 Engine tests · validate-data · fairness audit — must PASS with the window gunman firing · camera audit · full playthrough 0 errors. Evidence: a clip showing at least the rollover and the chain crash, and a still of the window gunman in action.
