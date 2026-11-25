@@ -1,81 +1,30 @@
-# OPUS-NEXT — Opus's task queue, in order (created Nov 24, 20:33 ET)
+# OPUS-NEXT — Hospital Escape tasking for Opus
+Repo: https://github.com/bparlette/Hawk2 — branch main — folder games/hospital-escape/
+Live game: https://bparlette.github.io/Hawk2/games/hospital-escape/
 
-**Location:** https://github.com/bparlette/Hawk2 — branch `main` — folder `games/hospital-escape/tasking/`
-**Owner:** Opus. Work top-down: finish one, mark it, start the next. Specs live in the named files; this file is the order.
+## FINAL BUNDLE — INTEGRATE (GO — this is the last long task; Cherie, Nov 24: credits run out after this one, make it efficient)
 
-## 1. CAMERA-FIX — DONE (Opus, Nov 25: responses/opus-camera-fix.md; camera-audit.cjs added to the gate) + ELEVATOR-BLOCK beat (owner request) done
+One task, one verification pass, one response file. Everything below is "wire in what is already built" — no new asset creation. Work the steps in order; run the full guardrail suite ONCE at the end, not per step.
 
-Spec: `CAMERA-FIX.md`. Owner's phone play (Nov 24) found: camera walks
-through walls; frames of pure wall with the cast invisible; the
-ambulance beat shows only the vehicle's wall; one room's far wall
-doesn't render from inside (see-through to the outside void). Her four
-screenshots are in `camera-fix-evidence/`. Camera never enters
-geometry, walls read from every interior viewpoint, ambulance framing
-keeps vehicle + people in shot. Response:
-`responses/opus-camera-fix.md` with same-beat before/after stills at
-390x844; guardrails green.
+### Step 1 — CAST-QUALITY integration
+Wire Neon's five figures (commit df65d44; GLBs + integration manifest in her delivery, response tasking/responses/neon-cast-quality.md) into cast3d.js so they are live in the game: Dr. Hale, fixed Cole (bed offsets for the 0.72 m mattress), the lying patient, female + male nurses. The ?cast=painted fallback stays available.
 
-## 2. TRANSITION-HITCH — scene 2/3 transition freezes (owner phone report, Nov 24, 20:33 ET)
+### Step 2 — Bed-push staging
+Maya pushes from BEHIND the bed with TWO hands (Cherie's ruling, Nov 24 — supersedes the as-is clip approval; the clip is fine, the staging was the defect).
 
-The owner reports a LONG PAUSE at either the second or third scene
-transition on her phone — she could not pin which, so instrument
-both. Likely suspects (yours to verify): per-zone T4 setup (PMREM /
-environment build) or cast/asset loads firing AT the transition
-instead of streaming during the prior beat. Required: no transition
-may freeze the frame — target under half a second of hitch — with
-assets preloaded or streamed ahead of the cut. Prove it with a timed
-real-input run across the first three transitions, timings in the
-response (fold into the CAMERA-FIX response or a short
-`responses/opus-transition-hitch.md`).
+### Step 3 — Long-gun integration
+Swap in the Stribog SMG from GEAR-FIX (commit 582b182) using Neon's exported muzzle data so flashes track the gun. Same pass, while cast/weapon code is open — keep it cheap.
 
-## 3. CAST-QUALITY integration + bed-push staging — NEXT
+### Step 4 — TRANSITION-HITCH
+The long pause at the scene 2/3 transition Cherie hit on her phone: instrument both transitions, preload/stream assets ahead of the cut, target under 0.5 s of hitch, proven with a timed real-input run.
 
-Spec: `CAST-QUALITY.md`. Two parts:
-- **Bed-push staging (start anytime):** Maya currently pushes the bed
-  from the side with one hand. She must be BEHIND the bed, pushing
-  with TWO hands.
-- **Integration (after Neon lands the figures):** swap in Neon's
-  rigged Dr. Hale, lying patient, and nurses/staff for the painted /
-  low-grade figures. If any figure is removed instead, handle its
-  beats/dialogue and say how.
-Response: `responses/opus-cast-quality.md`; guardrails green;
-patient-eyes system untouched.
+### Verification (once, at the end)
+Engine 24/24 · data validation 0 errors · fairness PASS · camera audit PASS · full playthrough 0 page errors. Phone-size (390×844) stills: Hale dialogue beat, patient on the bed, both nurses, the restaged bed push, the elevator door-block with the long gun in hand.
 
-## 4. VEHICLE-QUALITY — cars to Scaggsville standard (owner, Nov 24, 20:36 ET)
+### Response
+tasking/responses/opus-integrate.md — per the SHOW YOUR WORK rule: method, tools/commands, output locations for each step, plus the timed transition numbers and the stills.
 
-Replace the game's CARS with vehicles of **Scaggsville 3D quality**.
-Correction (owner, Nov 24, 20:38 ET): the AMBULANCE model itself is
-fine — her complaint about it was the camera framing (covered in
-CAMERA-FIX), not the vehicle. Leave the ambulance as it is. The
-chase/traffic cars are the ones that read as slabs next to the cast. Standard: the shared vehicle work from
-Scaggsville 3D / Fleet Drive — the gamepress shared vehicle module
-(`gpvehicles.js`, fleet cars as data rows; quality floor = Neon's
-Bunny Hop cars). The owner has cleared the WHOLE Scaggsville fleet as replacements
-(Nov 24, 20:37 ET): draw chase/traffic cars from the entire shared
-fleet as needed. ALSO (owner, Nov 24, 20:38 ET): you may try
-redoing the game's existing cars better — improving the current
-models is welcome — but the Scaggsville cars must DEFINITELY be
-included either way; redoing alone does not satisfy this item.
-Response: fold into a short
-`responses/opus-vehicles.md` with 390x844 stills of the chase and any
-other beat where cars were replaced.
+## PARKED — do not start in this bundle
+VEHICLE-QUALITY (Scaggsville fleet cars in; ambulance model stays). Next task if credits allow. It does not block anything above.
 
-## 5. Long-gun integration — WHEN GEAR-FIX LANDS
-
-When Neon's GEAR-FIX response lands, integrate the long gun on the
-gunman + N2 in the live game (replacing the pistol in the fire beats),
-with the 2x hold proof re-checked in game. Note it in the CAST-QUALITY
-response or a short `responses/opus-long-gun.md`.
-
-## Standing notes
-
-- Full T4 is the shipped look (owner's phone verdict Nov 24) — the
-  halfway trims are not the default. Fire doors stay T4-true
-  near-black unless the owner says otherwise.
-- Guardrails on every change: tests 24/24, data 201/0, fairness PASS,
-  zero page errors on a real-input run.
-
-## Done (verified)
-
-Integration (N2 cast live), T4-FULL-PORT (whole game on Neon's T4
-look), evidence refresh (fairness PASS 378/0 on final code).
+Standing note: cross-corridor fire doors stay T4-true near-black unless Cherie says otherwise.
