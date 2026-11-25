@@ -34,7 +34,7 @@ var TUN = {
   limpK: 0.45, debrisMax: 64, debrisLife: 3.2,
   rollFire: 0.4,              // chance a rolled car (fast roll) keeps smouldering where it lands
   spring: { k: 95, c: 9.5, pitchPerAcc: 0.011, rollPerLat: 0.06, maxPitch: 0.16, maxRoll: 0.14 },
-  gunman: { first: 1.0, chance: 0.5, hp: 30, fireEvery: 1.6, accuracy: 0.26, damage: 3, leanTime: 0.8, height: 1.0, range: 32, closeGap: 7.5, closeRate: 3.5 }
+  gunman: { first: 1.0, chance: 0.5, hp: 30, fireEvery: 1.6, accuracy: 0.26, damage: 3, leanTime: 0.6, height: 1.0, range: 32, closeGap: 7.5, closeRate: 3.5 }
 };
 HE.DestructionTuning = TUN;
 
@@ -254,7 +254,7 @@ HE.Destruction = function(game){
     var m = obj(p); var A = ART(); if(!m || !(A && A.person)) return null; var r = rig(p);
     var mount = new THREE.Group(), fig = A.person({ height: 1.75, top: 0x23262b, bottom: 0x1d1f24, hairStyle: 'short', gun: 'smg' });
     fig.scale.setScalar(0.95); mount.add(fig); m.add(mount); mount.name = 'gunman:' + p.id;
-    var g = { role: 'gunman:' + p.id, pursuer: p, hp: TUN.gunman.hp, alive: true, deployed: 0, fireT: 1.2 + R() * 0.6, fair: false, vis: null, visT: 0, fairT: 0, side: 0, mount: mount, fig: fig, deadT: 0, flinch: 0 };
+    var g = { role: 'gunman:' + p.id, pursuer: p, hp: TUN.gunman.hp, alive: true, deployed: 0, fireT: 0.25 + R() * 0.3, fair: false, vis: null, visT: 0, fairT: 0, side: 0, mount: mount, fig: fig, deadT: 0, flinch: 0 };
     fig.traverse(function(o){ if(o.isMesh) o.userData.hit = { role: g.role, gunman: true, live: function(){ return g.alive && g.deployed >= 0.5; } }; });
     if(game.greybox && game.greybox.actors) game.greybox.actors[g.role] = fig;
     D.gunmen[p.role] = g; D.stats.gunmen++; D.nGun++;
@@ -302,7 +302,7 @@ HE.Destruction = function(game){
   // ------------------------------------------------------------------ per-step (engine; after chase.step)
   D.step = function(dt){
     game.chase.list.forEach(function(p){
-      if(p.state === 'pursuing' && !p._gmRolled && p.t > 0.9){ p._gmRolled = true; if(R() < (D.nGun === 0 ? TUN.gunman.first : TUN.gunman.chance)) spawnGunman(p); }
+      if(p.state === 'pursuing' && !p._gmRolled && p.t > 0.3){ p._gmRolled = true; if(R() < (D.nGun === 0 ? TUN.gunman.first : TUN.gunman.chance)) spawnGunman(p); }
       var g = D.gunmen[p.role]; if(g) stepGunman(p, g, dt);
       // a car carrying a live gunman surges in to a shooting distance where he reads (the fairness minPx rule) — the readable tell
       if(g && g.alive && g.deployed > 0 && p.state === 'pursuing' && !game.won){
