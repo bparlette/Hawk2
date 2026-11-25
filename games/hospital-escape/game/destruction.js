@@ -34,7 +34,7 @@ var TUN = {
   limpK: 0.45, debrisMax: 64, debrisLife: 3.2,
   rollFire: 0.4,              // chance a rolled car (fast roll) keeps smouldering where it lands
   spring: { k: 95, c: 9.5, pitchPerAcc: 0.011, rollPerLat: 0.06, maxPitch: 0.16, maxRoll: 0.14 },
-  gunman: { first: 1.0, chance: 0.5, hp: 30, fireEvery: 1.6, accuracy: 0.26, damage: 3, leanTime: 0.8, height: 0.95, range: 32 }
+  gunman: { first: 1.0, chance: 0.5, hp: 30, fireEvery: 1.6, accuracy: 0.26, damage: 3, leanTime: 0.8, height: 1.0, range: 32, closeGap: 7.5, closeRate: 3.5 }
 };
 HE.DestructionTuning = TUN;
 
@@ -260,11 +260,14 @@ HE.Destruction = function(game){
     D.gunmen[p.role] = g; D.stats.gunmen++; D.nGun++;
     game.log('destruction', { id: p.id, role: g.role, kind: 'gunmanSpawn' }); return g;
   }
-  function gunmanSide(p){ var m = obj(p); if(!m) return 1; var r = rig(p), rp = game.camera.position; m.updateMatrixWorld(true);
-    return m.localToWorld(V3(r.W / 2, 1.4, r.cabZ)).distanceTo(rp) <= m.localToWorld(V3(-r.W / 2, 1.4, r.cabZ)).distanceTo(rp) ? 1 : -1; }
-  function neckWorld(g){ var J = g.fig.userData.J; var o = (J && J.neck) || g.fig; return o.getWorldPosition(V3()); }
+  // he leans out of the window nearer the centre of the player's view (the ambulance's rear doors frame the shot; the outer window is
+  // usually hidden behind the door pillar) — and if he cannot get a clear line for 2.5 s he ducks back in and tries the other window
+  function gunmanSide(p, g){ var m = obj(p); if(!m) return 1; var r = rig(p), cam = game.camera; m.updateMatrixWorld(true); cam.updateMatrixWorld();
+    var a = m.localToWorld(V3(r.W / 2, 1.5, r.cabZ)).project(cam), b = m.localToWorld(V3(-r.W / 2, 1.5, r.cabZ)).project(cam);
+    var s = Math.abs(a.x) <= Math.abs(b.x) ? 1 : -1; if(g && g.blockedT > 2.5) s = -g.side; return s; }
+  function neckWorld(g){ var J = g.fig.userData.J; var o = (J && (J.head || J.neck)) || g.fig; return o.getWorldPosition(V3()); }
   function poseGunman(p, g, dt){ var A = ART();
-    var r = rig(p), m = obj(p); if(!m) return; if(!g.side) g.side = gunmanSide(p);
+    var r = rig(p), m = obj(p); if(!m) return; if(!g.side) g.side = gunmanSide(p, g);
     var an = m.userData.anchors && m.userData.anchors.window ? m.userData.anchors.window[g.side > 0 ? 'R' : 'L'] : null;
     var lean = g.alive ? g.deployed : 1, s = g.side;
     g.mount.position.set(an ? an.x : s * (r.W / 2 - 0.22), an ? an.y : r.base + r.H + 0.08, an ? an.z : r.cabZ + 0.15);
@@ -276,12 +279,13 @@ HE.Destruction = function(game){
   }
   function stepGunman(p, g, dt){
     if(!g.alive || p.state !== 'pursuing') return;
-    if(g.deployed < 1){ g.deployed = Math.min(1, g.deployed + dt / TUN.gunman.leanTime); return; }
+    if(g.ducking){ g.deployed = Math.max(0, g.deployed - dt / 0.4); if(g.deployed <= 0){ g.ducking = false; g.side = gunmanSide(p, g); g.blockedT = 0; } return; }
+    if(g.deployed < 1){ if(!g.side) g.side = gunmanSide(p, g); g.deployed = Math.min(1, g.deployed + dt / TUN.gunman.leanTime); return; }
     if(game.won) return; var m = obj(p); if(!m || !g.fig) return;
     m.updateMatrixWorld(true); var neck = neckWorld(g), K = TUN.gunman, F = T.fairness;
     if(neck.distanceTo(game.camera.position) > K.range){ g.fair = false; g.visT = 0; return; }
     var foot = neck.clone(); foot.y -= K.height * 0.72;                         // fairness 'feet' point: its LOS target (feet + 0.72 h) is his neck, out of the window
-    if(F){ g.fair = game.combat.fairTick(g, foot, K.height, dt); if(F.seenOnly && !g.fair) return; } else g.fair = true;
+    if(F){ g.fair = game.combat.fairTick(g, foot, K.height, dt); g.blockedT = g.visT > 0 ? 0 : (g.blockedT || 0) + dt; if(g.blockedT > 2.5){ g.ducking = true; game.log('destruction', { role: g.role, kind: 'gunmanSwitch' }); return; } if(F.seenOnly && !g.fair) return; } else g.fair = true;
     g.fireT -= dt; if(g.fireT > 0) return; g.fireT = K.fireEvery * (0.8 + 0.4 * R());
     var hit = R() < K.accuracy && g.fair !== false; if(hit && F) hit = game.combat.fairFire(g, foot, K.height);
     var A = ART(), mz = (A && A.muzzleWorld && A.muzzleWorld(g.fig, V3())) || neck;
@@ -300,6 +304,8 @@ HE.Destruction = function(game){
     game.chase.list.forEach(function(p){
       if(p.state === 'pursuing' && !p._gmRolled && p.t > 0.9){ p._gmRolled = true; if(R() < (D.nGun === 0 ? TUN.gunman.first : TUN.gunman.chance)) spawnGunman(p); }
       var g = D.gunmen[p.role]; if(g) stepGunman(p, g, dt);
+      // a car carrying a live gunman surges in to a shooting distance where he reads (the fairness minPx rule) — the readable tell
+      if(g && g.alive && g.deployed > 0 && p.state === 'pursuing' && !game.won){ var want = game.chase.ambS() - TUN.gunman.closeGap; if(p.s < want) p.s = Math.min(want, p.s + TUN.gunman.closeRate * dt); }
       if(D.episodes[p.role] && p.state.indexOf('crippled:') !== 0) delete D.episodes[p.role];
       var rs = D.rest[p.role]; if(rs && rs.fireT > 0){ rs.fireT -= dt; var fakeEp = rs.ep || (rs.ep = { smokeT: 0 }); smoke(p, fakeEp, dt, 'fire'); }
       stepSus(p, dt);
