@@ -28,10 +28,10 @@ W.build = function(scene, data){ A.makeTextures(); var env = data.env, root = ne
     panel: new THREE.MeshBasicMaterial({ map: A.tex.lightPanel, toneMapped: false, color: 0xf6fbff }), pool: new THREE.MeshBasicMaterial({ color: 0xfff1d8, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }),
     door: new THREE.MeshStandardMaterial({ map: A.tex.door, roughness: 0.6 }), frame: M(0xb8bfc4, { metalness: 0.3, roughness: 0.4 }), glass: new THREE.MeshStandardMaterial({ color: 0xa8c8d8, transparent: true, opacity: 0.22, metalness: 0.6, roughness: 0.05, depthWrite: false }) };
   W._halls = env.zones.filter(function(z){ return z.kind === 'hall'; }); W.data = data;
-  env.zones.forEach(function(z){ var g = new THREE.Group(); g.name = z.kind; var f = BUILD[z.kind]; if(f) f(z, g, mats, data);
+  env.zones.forEach(function(z){ var g = new THREE.Group(); g.name = z.kind; var f = BUILD[z.kind], isOut = z.kind === 'outdoor' || z.kind === 'street'; if(f) f(z, g, mats, data);
     // zones that build in chunks (the street) merge per chunk: small bounding boxes keep line-of-sight rays cheap
-    var chunks = g.children.filter(function(c){ return c.userData.chunk; }); if(chunks.length){ chunks.forEach(function(c){ g.remove(c); root.add(W.merge(c)); }); }
-    root.add(W.merge(g)); });
+    var chunks = g.children.filter(function(c){ return c.userData.chunk; }); if(chunks.length){ chunks.forEach(function(c){ g.remove(c); var mc = W.merge(c); if(isOut) mc.userData.outdoorChunk = true; root.add(mc); }); }
+    var mg = W.merge(g); if(isOut) mg.userData.outdoorChunk = true; root.add(mg); });
   return root; };
 // tiled surface helper: a w x d floor/ceiling with the texture repeated every `tile` m
 function slab(w, d, mat, tile, parent, pos, up){ var m = mat.clone(); if(m.map){ m.map = m.map.clone(); m.map.needsUpdate = true; m.map.repeat.set(w / tile, d / tile); } return plane(w, d, m, parent, pos, [up ? -Math.PI / 2 : Math.PI / 2, 0, 0]); }
@@ -180,8 +180,8 @@ var BUILD = {
         if(pid === 'bay_route') continue;
         if(i % 4 === 0){ [-1, 1].forEach(function(sd){ var lq = p.clone().addScaledVector(right, sd * 7.2); if(W.pathDist(data, z.paths, lq.x, lq.z) < 6.6) return; var sl = A.streetLight(); sl.position.set(sd * 7.2, 0, 0); sl.rotation.y = sd > 0 ? Math.PI : 0; seg.add(sl); }); }
         if(i % 3 === 1){ [-1, 1].forEach(function(sd){ var tq = p.clone().addScaledVector(right, sd * 9.2); if(W.pathDist(data, z.paths, tq.x, tq.z) < 8.4) return; var tr = A.tree(0.8 + rnd() * 0.5); tr.position.set(sd * 9.2, 0, rnd() * 3); seg.add(tr); }); }
-        if(i % 5 === 0){ [-1, 1].forEach(function(sd){ var bw = 14 + rnd() * 10, bh = 9 + rnd() * 20, bc = p.clone().addScaledVector(right, sd * (14 + bw / 2)); if(W.pathDist(data, z.paths, bc.x, bc.z) < Math.hypot(bw, 26) / 2 + 7) return; var fm = facades[Math.floor(rnd() * 4)].clone(); fm.map = fm.map.clone(); fm.map.needsUpdate = true; fm.map.repeat.set(bw / 14, bh / 16);
-          var b = A.box(bw, bh, 26, fm, sd * (14 + bw / 2), bh / 2, 0, seg); }); } }
+        if(i % 5 === 0){ [-1, 1].forEach(function(sd){ var bw = 14 + rnd() * 10, bh = 9 + rnd() * 20, bc = p.clone().addScaledVector(right, sd * (14 + bw / 2)); if(W.pathDist(data, z.paths, bc.x, bc.z) < Math.hypot(bw, 26) / 2 + 7) return; var fm = facades[Math.floor(rnd() * 4)], bg = new THREE.BoxGeometry(bw, bh, 26), buv = bg.attributes.uv, rx = bw / 14, ry = bh / 16; for(var ui = 0; ui < buv.count; ui++) buv.setXY(ui, buv.getX(ui) * rx, buv.getY(ui) * ry);
+          var b = new THREE.Mesh(bg, fm); b.position.set(sd * (14 + bw / 2), bh / 2, 0); seg.add(b); }); } }
       var d = def; if(z.overpassAt && pid === 'chase_road'){ var op = path.pointAt(z.overpassAt), ot = path.tangentAtS(path.sOf(z.overpassAt)); ot.y = 0; ot.normalize(); var ob = new THREE.Group(); ob.position.set(op.x, y, op.z); ob.rotation.y = Math.atan2(ot.x, ot.z); g.add(ob);
         A.box(60, 1.4, 12, M(0x8a8a86), 0, 7.2, 0, ob); A.box(60, 1.0, 0.4, M(0x9a9a96), 0, 8.4, 5.8, ob); A.box(60, 1.0, 0.4, M(0x9a9a96), 0, 8.4, -5.8, ob); [-1, 1].forEach(function(sd){ A.box(1.6, 6.6, 10, M(0x7d7d79), sd * 9.5, 3.3, 0, ob); });
         var hw = A.sign('ROUTE 14  ·  NORTH', { w: 1024, h: 160, mw: 7, bg: '#1f6b3a', size: 80 }); hw.position.set(0, 8.9, 6.1); ob.add(hw); var hw2 = hw.clone(); hw2.position.z = -6.1; hw2.rotation.y = Math.PI; ob.add(hw2); }

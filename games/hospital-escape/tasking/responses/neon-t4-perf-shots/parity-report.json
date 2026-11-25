@@ -1,0 +1,107 @@
+[
+  {
+    "psnr_db": 58.44,
+    "mean_abs": 0.093,
+    "max_abs": 13,
+    "mse": 0.0932,
+    "view": "bed_push"
+  },
+  {
+    "psnr_db": 56.29,
+    "mean_abs": 0.152,
+    "max_abs": 2,
+    "mse": 0.153,
+    "view": "cafeteria"
+  },
+  {
+    "psnr_db": 56.67,
+    "mean_abs": 0.109,
+    "max_abs": 95,
+    "mse": 0.1398,
+    "view": "chase"
+  },
+  {
+    "psnr_db": 51.9,
+    "mean_abs": 0.222,
+    "max_abs": 34,
+    "mse": 0.4195,
+    "view": "damaged"
+  },
+  {
+    "psnr_db": 56.09,
+    "mean_abs": 0.115,
+    "max_abs": 24,
+    "mse": 0.1602,
+    "view": "elevator"
+  },
+  {
+    "psnr_db": 53.13,
+    "mean_abs": 0.21,
+    "max_abs": 5,
+    "mse": 0.3166,
+    "view": "halls"
+  },
+  {
+    "psnr_db": 55.41,
+    "mean_abs": 0.146,
+    "max_abs": 4,
+    "mse": 0.187,
+    "view": "lobby"
+  },
+  {
+    "psnr_db": 57.72,
+    "mean_abs": 0.108,
+    "max_abs": 34,
+    "mse": 0.1099,
+    "view": "train"
+  },
+  {
+    "psnr_db": 57.1,
+    "mean_abs": 0.127,
+    "max_abs": 2,
+    "mse": 0.1268,
+    "view": "transfer"
+  },
+  {
+    "psnr_db": 55.51,
+    "mean_abs": 0.182,
+    "max_abs": 5,
+    "mse": 0.1829,
+    "view": "visit"
+  },
+  {
+    "psnr_db": 52.7,
+    "mean_abs": 0.235,
+    "max_abs": 4,
+    "mse": 0.3495,
+    "view": "vp1"
+  },
+  {
+    "psnr_db": 52.62,
+    "mean_abs": 0.224,
+    "max_abs": 5,
+    "mse": 0.3554,
+    "view": "vp2"
+  },
+  {
+    "psnr_db": 56.32,
+    "mean_abs": 0.148,
+    "max_abs": 9,
+    "mse": 0.1517,
+    "view": "vp3"
+  },
+  {
+    "psnr_db": 51.18,
+    "mean_abs": 0.285,
+    "max_abs": 5,
+    "mse": 0.4953,
+    "view": "waiting"
+  },
+  {
+    "psnr_db": 57.2,
+    "mean_abs": 0.123,
+    "max_abs": 2,
+    "mse": 0.124,
+    "view": "ward"
+  }
+]

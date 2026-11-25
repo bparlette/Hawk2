@@ -18,38 +18,153 @@ var Q = new URLSearchParams(location.search); if(Q.get('t4') === '0') return;
 var V = THREE.Vector3, T = window.HET4 = { on: true, stats: {} }, DIR = 'assets/t4/', K = Math.max(1, Math.min(12, +(Q.get('t4k') || 8))), SHADOWS = Q.get('t4shadow') !== '0', ENV = Q.get('t4env') !== '0', MAPS = Q.get('t4maps') !== '0';   /* measurement switches (opus-t4-full.md cost table) */
 var FOG = { color: 0x081016, density: 0.020 }, BG = 0x05090d, EXPOSURE = 1.06;
 // ------------------------------------------------------------------ T4's area-light term (take4-kitbash.js), fed by uniform panels
-var U = { uPan: { value: [] }, uHalf: { value: [] }, uCol: { value: [] } }; for(var i = 0; i < K; i++){ U.uPan.value.push(new THREE.Vector4(0, -100, 0, 0)); U.uHalf.value.push(new THREE.Vector2(0.28, 0.58)); U.uCol.value.push(new THREE.Vector3(0.84, 0.95, 1.0)); }
-var RECT = ['varying vec3 vAreaWPos;', 'varying vec3 vAreaWNorm;', 'uniform vec4 uPan[' + K + '];', 'uniform vec2 uHalf[' + K + '];', 'uniform vec3 uCol[' + K + '];',
+var U = { uPan: { value: [] }, uHalf: { value: [] }, uCol: { value: [] }, uPanCount: { value: 0 } }; for(var i = 0; i < K; i++){ U.uPan.value.push(new THREE.Vector4(0, -100, 0, 0)); U.uHalf.value.push(new THREE.Vector2(0.28, 0.58)); U.uCol.value.push(new THREE.Vector3(0.84, 0.95, 1.0)); }
+var RECT = ['varying vec3 vAreaWPos;', 'varying vec3 vAreaWNorm;', 'uniform int uPanCount;', 'uniform vec4 uPan[' + K + '];', 'uniform vec2 uHalf[' + K + '];', 'uniform vec3 uCol[' + K + '];',
   'float rectIrradiance(vec3 P, vec3 N, vec3 Lc, float hx, float hz){',
   '  vec3 cp = vec3(clamp(P.x, Lc.x - hx, Lc.x + hx), Lc.y, clamp(P.z, Lc.z - hz, Lc.z + hz));',
   '  vec3 d = cp - P; float dist2 = dot(d, d) + 0.18; vec3 L = normalize(d);',
   '  float nDotL = clamp(dot(N, L) * 0.72 + 0.28, 0.0, 1.0); float lampFacing = smoothstep(-0.15, 0.45, -L.y);',
   '  return (nDotL * lampFacing) / dist2; }'].join('\n');
 var INJECT = ['#include <lights_fragment_end>', '{',
-  '  vec3 Nw = normalize(vAreaWNorm); vec3 Vw = normalize(cameraPosition - vAreaWPos); vec3 Rw = reflect(-Vw, Nw);',
-  '  vec3 aDiff = vec3(0.0); vec3 aSpec = vec3(0.0); float roughA = clamp(material.specularRoughness, 0.12, 0.95);',
-  '  for(int i = 0; i < ' + K + '; i++){',
-  '    vec3 lc = uPan[i].xyz; float dim = uPan[i].w; vec3 col = uCol[i]; vec2 hh = uHalf[i];',
-  '    float irr = rectIrradiance(vAreaWPos, Nw, lc, hh.x, hh.y) * 0.96 * dim; aDiff += col * irr;',
-  '    if(Rw.y > 0.04){ float tHit = (lc.y - vAreaWPos.y) / Rw.y; vec3 hit = vAreaWPos + Rw * tHit;',
-  '      vec2 dRect = max(abs(hit.xz - lc.xz) - hh, vec2(0.0)); float specCone = exp(-dot(dRect, dRect) / (0.03 + roughA * roughA * 1.4));',
-  '      aSpec += col * specCone * dim * (1.0 - roughA) * 0.62; } }',
-  '  reflectedLight.directDiffuse += aDiff * diffuseColor.rgb * 0.85;',
+  '  vec3 Nw = normalize(vAreaWNorm);',
+  '  if(uPanCount > 0){',
+  '    vec3 Vw = normalize(cameraPosition - vAreaWPos); vec3 Rw = reflect(-Vw, Nw);',
+  '    vec3 aDiff = vec3(0.0); vec3 aSpec = vec3(0.0); float roughA = clamp(material.specularRoughness, 0.12, 0.95);',
+  '    bool doSpec = Rw.y > 0.04; float invRwY = doSpec ? (1.0 / Rw.y) : 0.0; float invDenom = 1.0 / (0.03 + roughA * roughA * 1.4);',
+  '    for(int i = 0; i < ' + K + '; i++){',
+  '      if(i >= uPanCount) break;',
+  '      vec3 lc = uPan[i].xyz; vec3 col = uCol[i]; vec2 hh = uHalf[i];',
+  '      aDiff += col * rectIrradiance(vAreaWPos, Nw, lc, hh.x, hh.y);',
+  '      if(doSpec){ float tHit = (lc.y - vAreaWPos.y) * invRwY; vec3 hit = vAreaWPos + Rw * tHit;',
+  '        vec2 dRect = max(abs(hit.xz - lc.xz) - hh, vec2(0.0)); float eArg = dot(dRect, dRect) * invDenom;',
+  '        if(eArg < 10.0) aSpec += col * exp(-eArg); } }',
+  '    reflectedLight.directDiffuse += aDiff * diffuseColor.rgb * 0.816;',
+  '    if(doSpec) reflectedLight.directSpecular += aSpec * ((1.0 - roughA) * 0.62) * mix(vec3(0.04), diffuseColor.rgb, metalnessFactor);',
+  '  }',
   '  if(Nw.y < -0.5) reflectedLight.indirectDiffuse += vec3(0.11, 0.14, 0.16) * diffuseColor.rgb;',
-  '  reflectedLight.directSpecular += aSpec * mix(vec3(0.04), diffuseColor.rgb, metalnessFactor);', '}'].join('\n');
-function withArea(mat){ if(!mat || !mat.isMeshStandardMaterial || mat.userData.t4) return mat; mat.userData.t4 = true; var prev = mat.onBeforeCompile;
-  mat.onBeforeCompile = function(sh, r){ if(prev) prev.call(this, sh, r); sh.uniforms.uPan = U.uPan; sh.uniforms.uHalf = U.uHalf; sh.uniforms.uCol = U.uCol;
-    sh.vertexShader = 'varying vec3 vAreaWPos;\nvarying vec3 vAreaWNorm;\n' + sh.vertexShader.replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvAreaWNorm = normalize(mat3(modelMatrix) * objectNormal);')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvAreaWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = RECT + '\n' + sh.fragmentShader.replace('#include <lights_fragment_end>', INJECT); };
-  var key = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : function(){ return ''; }; mat.customProgramCacheKey = function(){ return key() + '|t4area'; }; mat.needsUpdate = true; return mat; }
+  '}'].join('\n');
+var IBL = null;
+var IBL_PARS = 'uniform samplerCube uT4EnvCube;\nuniform float uT4EnvInt;';
+var IBL_INJECT = [
+  '#include <lights_fragment_maps>',
+  '#if defined( RE_IndirectDiffuse )',
+  '{ vec3 t4WN = inverseTransformDirection( geometry.normal, viewMatrix );',
+  '#ifdef T4_CUBE_LOD',
+  '  vec3 t4DRaw = textureCubeLodEXT( uT4EnvCube, t4WN, 4.0 ).rgb;',
+  '#else',
+  '  vec3 t4DRaw = textureCube( uT4EnvCube, t4WN, 4.0 ).rgb;',
+  '#endif',
+  '  iblIrradiance += ( t4DRaw * t4DRaw ) * ( 3.14159265 * uT4EnvInt ); }',
+  '#endif',
+  '#if defined( RE_IndirectSpecular )',
+  '{ vec3 t4RV = normalize( mix( reflect( -geometry.viewDir, geometry.normal ), geometry.normal, material.specularRoughness * material.specularRoughness ) );',
+  '  vec3 t4WR = inverseTransformDirection( t4RV, viewMatrix );',
+  '  float t4Lod = clamp( material.specularRoughness, 0.0, 1.0 ) * 4.0;',
+  '#ifdef T4_CUBE_LOD',
+  '  vec3 t4SRaw = textureCubeLodEXT( uT4EnvCube, t4WR, t4Lod ).rgb;',
+  '#else',
+  '  vec3 t4SRaw = textureCube( uT4EnvCube, t4WR, t4Lod ).rgb;',
+  '#endif',
+  '  radiance += ( t4SRaw * t4SRaw ) * uT4EnvInt; }',
+  '#endif'
+].join('\n');
+function setupMaterialT4(mat, withRect){
+  if(!mat || !mat.isMeshStandardMaterial) return mat;
+  if(withRect && mat.userData.t4) return mat;
+  if(!withRect && (mat.userData.t4 || mat.userData.t4ibl)) return mat;
+  if(withRect) mat.userData.t4 = true; else mat.userData.t4ibl = true;
+  var prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = function(sh, r){
+    if(prev) prev.call(this, sh, r);
+    if(withRect){
+      sh.uniforms.uPan = U.uPan; sh.uniforms.uHalf = U.uHalf; sh.uniforms.uCol = U.uCol; sh.uniforms.uPanCount = U.uPanCount;
+      sh.vertexShader = 'varying vec3 vAreaWPos;\nvarying vec3 vAreaWNorm;\n' + sh.vertexShader
+        .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvAreaWNorm = normalize(mat3(modelMatrix) * objectNormal);')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvAreaWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = RECT + '\n' + sh.fragmentShader.replace('#include <lights_fragment_end>', INJECT);
+    }
+    if(ENV && IBL){
+      sh.uniforms.uT4EnvCube = IBL.envCube;
+      sh.uniforms.uT4EnvInt = { value: this.envMapIntensity != null ? this.envMapIntensity : 1.0 };
+      var hasLod = r.capabilities.isWebGL2 || !!r.extensions.get('EXT_shader_texture_lod');
+      sh.fragmentShader = (hasLod ? '#define T4_CUBE_LOD 1\n' : '') + IBL_PARS + '\n' +
+        sh.fragmentShader.replace('#include <lights_fragment_maps>', IBL_INJECT);
+    }
+  };
+  var key = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : function(){ return ''; };
+  mat.customProgramCacheKey = function(){ return key() + (withRect ? '|t4a' : '|t4b') + (ENV && IBL ? '|c4' : ''); };
+  mat.needsUpdate = true; return mat;
+}
+function withArea(mat){ return setupMaterialT4(mat, true); }
 T.withArea = withArea;
+function applyFastIBL(mat){ return setupMaterialT4(mat, false); }
 // ------------------------------------------------------------------ T4's corridor PMREM (corridor-data.js buildCorridorPMREM, T4's colours)
 function corridorPMREM(renderer){ var pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader(); var cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; var c = cv.getContext('2d'), g = c.createLinearGradient(0, 0, 0, 256);
   g.addColorStop(0.0, '#243038'); g.addColorStop(0.45, '#2b3740'); g.addColorStop(0.55, '#1e272d'); g.addColorStop(1.0, '#11161a'); c.fillStyle = g; c.fillRect(0, 0, 512, 256);
   c.fillStyle = '#e4f8ff'; for(var i = 0; i < 6; i++) c.fillRect(28 + i * 82, 16, 46, 18);
   var wg = c.createRadialGradient(135, 132, 4, 135, 132, 62); wg.addColorStop(0, 'rgba(255,190,115,0.85)'); wg.addColorStop(1, 'rgba(255,190,115,0)'); c.fillStyle = wg; c.fillRect(60, 70, 150, 125);
   var eq = new THREE.CanvasTexture(cv); eq.mapping = THREE.EquirectangularReflectionMapping; eq.encoding = THREE.sRGBEncoding; var t = pm.fromEquirectangular(eq); eq.dispose(); pm.dispose(); return t.texture; }
+// Bake once at init from corridorPMREM: 8-mip 128x128x6 CubeTexture (sqrt-encoded linear [0..1]; mip 4 = r 1.0 diffuse irradiance)
+function bakeFastIBL(renderer, pmrem){
+  var decFn = pmrem.encoding === THREE.RGBEEncoding ?
+    'vec4 envMapTexelToLinear(vec4 v){ return vec4(v.rgb * exp2(v.a * 255.0 - 128.0), 1.0); }' :
+    pmrem.encoding === THREE.sRGBEncoding ?
+    'vec4 envMapTexelToLinear(vec4 v){ return vec4(mix(pow(v.rgb * 0.9478672986 + vec3(0.0521327014), vec3(2.4)), v.rgb * 0.0773993808, vec3(lessThanEqual(v.rgb, vec3(0.04045)))), v.a); }' :
+    'vec4 envMapTexelToLinear(vec4 v){ return v; }';
+  var bakeMat = new THREE.ShaderMaterial({
+    uniforms: { envMap: { value: pmrem }, uFace: { value: 0 }, uRough: { value: 0 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: [
+      'precision highp float;',
+      'uniform sampler2D envMap; uniform int uFace; uniform float uRough; varying vec2 vUv;',
+      decFn,
+      '#define ENVMAP_TYPE_CUBE_UV',
+      '#include <cube_uv_reflection_fragment>',
+      'void main(){',
+      '  float a = vUv.x * 2.0 - 1.0, b = vUv.y * 2.0 - 1.0; vec3 dir;',
+      '  if(uFace == 0) dir = vec3(1.0, -b, -a);',
+      '  else if(uFace == 1) dir = vec3(-1.0, -b, a);',
+      '  else if(uFace == 2) dir = vec3(a, 1.0, b);',
+      '  else if(uFace == 3) dir = vec3(a, -1.0, -b);',
+      '  else if(uFace == 4) dir = vec3(a, -b, 1.0);',
+      '  else dir = vec3(-a, -b, -1.0);',
+      '  vec3 c = textureCubeUV(envMap, normalize(dir), uRough).rgb;',
+      '  gl_FragColor = vec4(sqrt(clamp(c, 0.0, 1.0)), 1.0);',
+      '}'
+    ].join('\n'),
+    depthTest: false, depthWrite: false
+  });
+  var qs = new THREE.Scene(), qc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), qm = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bakeMat);
+  qs.add(qm);
+  var prevRT = renderer.getRenderTarget(), prevEnc = renderer.outputEncoding, prevTM = renderer.toneMapping, prevAC = renderer.autoClear;
+  renderer.outputEncoding = THREE.LinearEncoding; renderer.toneMapping = THREE.NoToneMapping; renderer.autoClear = true;
+  var sizes = [128, 64, 32, 16, 8, 4, 2, 1], mips = [];
+  for(var l = 0; l < sizes.length; l++){
+    var sz = sizes[l];
+    var rt = new THREE.WebGLRenderTarget(sz, sz, { type: THREE.UnsignedByteType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false, stencilBuffer: false });
+    bakeMat.uniforms.uRough.value = Math.min(1.0, l / 4.0);
+    var dtFaces = [];
+    for(var f = 0; f < 6; f++){
+      bakeMat.uniforms.uFace.value = f;
+      renderer.setRenderTarget(rt);
+      renderer.render(qs, qc);
+      var buf = new Uint8Array(sz * sz * 4);
+      renderer.readRenderTargetPixels(rt, 0, 0, sz, sz, buf);
+      var dt = new THREE.DataTexture(buf, sz, sz, THREE.RGBAFormat, THREE.UnsignedByteType);
+      dt.flipY = false; dt.generateMipmaps = false; dt.needsUpdate = true;
+      dtFaces.push(dt);
+    }
+    rt.dispose();
+    mips.push(dtFaces);
+  }
+  renderer.setRenderTarget(prevRT); renderer.outputEncoding = prevEnc; renderer.toneMapping = prevTM; renderer.autoClear = prevAC;
+  qm.geometry.dispose(); bakeMat.dispose();
+  var cube = new THREE.CubeTexture(mips[0], THREE.CubeReflectionMapping, THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping, THREE.LinearFilter, THREE.LinearMipmapLinearFilter, THREE.RGBAFormat, THREE.UnsignedByteType, 1, THREE.LinearEncoding);
+  cube._needsFlipEnvMap = false; cube.flipY = false; cube.generateMipmaps = false;
+  cube.mipmaps = mips.slice(1).map(function(list){ return { image: list }; });
+  cube.needsUpdate = true;
+  return { envCube: { value: cube }, cube: cube };
+}
 // ------------------------------------------------------------------ T4's materials (exact parameters from take4-kitbash.js)
 var TL = new THREE.TextureLoader();
 function tex(n, srgb){ var t = TL.load(DIR + n); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; if(srgb) t.encoding = THREE.sRGBEncoding; return t; }
@@ -72,13 +187,30 @@ function concat(list){ var n = 0; list.forEach(function(g){ n += g.attributes.po
   list.forEach(function(g){ P.set(g.attributes.position.array, o * 3); N.set(g.attributes.normal.array, o * 3); UV.set(g.attributes.uv.array, o * 2); o += g.attributes.position.count; });
   var b = new THREE.BufferGeometry(); b.setAttribute('position', new THREE.BufferAttribute(P, 3)); b.setAttribute('normal', new THREE.BufferAttribute(N, 3)); b.setAttribute('uv', new THREE.BufferAttribute(UV, 2)); b.computeBoundingSphere(); b.computeBoundingBox(); return b; }
 // ------------------------------------------------------------------ apply
-var panels = [], ctxG = null, roam = null, mats = null;
-T.apply = function(ctx){ ctxG = ctx; var r = ctx.renderer, sc = ctx.scene, root = ctx.root, A = ctx.A, t0 = performance.now(); mats = makeMats();
+var panels = [], outdoorChunks = [], ctxG = null, roam = null, mats = null;
+function bindDynamicIBL(sc){
+  if(!ENV || !IBL) return;
+  for(var i = 0; i < sc.children.length; i++){
+    var o = sc.children[i];
+    if(o.userData && o.userData._t4c === o.children.length) continue;
+    o.userData._t4c = o.children.length;
+    o.traverse(function(ch){
+      if(!ch.isMesh) return;
+      var ms = Array.isArray(ch.material) ? ch.material : [ch.material];
+      for(var k = 0; k < ms.length; k++) if(ms[k] && ms[k].isMeshStandardMaterial) applyFastIBL(ms[k]);
+    });
+  }
+}
+T.apply = function(ctx){ ctxG = ctx; var r = ctx.renderer, sc = ctx.scene, root = ctx.root, A = ctx.A, t0 = performance.now();
   r.shadowMap.enabled = SHADOWS; r.shadowMap.type = THREE.PCFSoftShadowMap;
   if(Q.get('post') === '0'){ r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = EXPOSURE; r.outputEncoding = THREE.sRGBEncoding; }
-  sc.fog = new THREE.FogExp2(FOG.color, FOG.density); if(ENV) sc.environment = corridorPMREM(r); T.bg = new THREE.Color(BG);
+  sc.fog = new THREE.FogExp2(FOG.color, FOG.density);
+  if(ENV){ T.pmrem = corridorPMREM(r); IBL = bakeFastIBL(r, T.pmrem); }
+  T.bg = new THREE.Color(BG);
+  mats = makeMats();
   var st = { meshesBefore: 0, meshesAfter: 0, swapped: { floor: 0, wall: 0, ceil: 0, door: 0 }, lit: 0, pools: 0, panels: 0 }, vinyl = A.tex.vinyl.image, wallI = A.tex.wall.image, ceilI = A.tex.ceiling.image, doorI = A.tex.door.image, panelI = A.tex.lightPanel.image;
   root.children.slice().forEach(function(zg){ var byCls = { floor: [], wall: [], ceil: [] }, drop = [];
+    if(zg.userData && zg.userData.outdoorChunk) outdoorChunks.push(zg);
     zg.traverse(function(o){ if(!o.isMesh || Array.isArray(o.material)) return; st.meshesBefore++; var m = o.material, im = m.map && m.map.image;
       if(im === panelI){ collectPanels(o); m.color.setRGB(0.894 * 2.6, 0.961 * 2.6, 1.0 * 2.6); return; }                 /* T4 lens: 0xe4f5ff x 2.6 */
       if(m.blending === THREE.AdditiveBlending && m.transparent && !m.map){ o.visible = false; st.pools++; return; }
@@ -89,7 +221,7 @@ T.apply = function(ctx){ ctxG = ctx; var r = ctx.renderer, sc = ctx.scene, root 
       if(m.isMeshStandardMaterial){ withArea(m); st.lit++; }
       if(!m.transparent) o.receiveShadow = true; });
     drop.forEach(function(o){ o.parent.remove(o); });
-    Object.keys(byCls).forEach(function(c){ if(!byCls[c].length) return; var mesh = new THREE.Mesh(concat(byCls[c]), mats[c]); mesh.name = 't4-' + c; mesh.receiveShadow = true; zg.add(mesh); }); });
+    Object.keys(byCls).forEach(function(c){ if(!byCls[c].length) return; var mesh = new THREE.Mesh(concat(byCls[c]), mats[c]); mesh.name = 't4-' + c; mesh.receiveShadow = (c !== 'ceil'); zg.add(mesh); }); });
   root.traverse(function(o){ if(o.isMesh) st.meshesAfter++; });
   // the doors: engine objects (W.doors), separate meshes — wood door panels + metal frames, still on their hinges
   (window.HEWORLD.doors || []).forEach(function(d){ [d.group, d.hinge].forEach(function(gq){ if(gq && gq.traverse) gq.traverse(function(o){ if(!o.isMesh) return; var im = o.material.map && o.material.map.image; if(im === doorI) o.material = mats.door; else if(o.material.isMeshStandardMaterial){ withArea(o.material); } o.receiveShadow = true; o.castShadow = true; }); }); });
@@ -106,7 +238,7 @@ T.apply = function(ctx){ ctxG = ctx; var r = ctx.renderer, sc = ctx.scene, root 
   [desk, far].forEach(function(s){ s.shadow.bias = -0.0005; });
   // T4's kit-bash dressing in West Wing B (its hero gurney + crash cart are skipped: the game's own stand at those exact spots)
   if(THREE.GLTFLoader) new THREE.GLTFLoader().load(DIR + 'props.glb', function(g){ var bank = {}; g.scene.traverse(function(o){ if(o.name) bank[o.name] = o; }); var dress = new THREE.Group(); dress.name = 't4-kitbash';
-    function put(k, x, y, z, ry, sc2){ var s = bank[k]; if(!s) return null; var c = s.clone(true); c.traverse(function(ch){ if(ch.isMesh){ ch.castShadow = true; ch.receiveShadow = true; ch.material = withArea(ch.material.clone()); ch.raycast = function(){}; } }); c.position.set(x, y, z); if(ry) c.rotation.y = ry; if(sc2) c.scale.setScalar(sc2); dress.add(c); return c; }
+    function put(k, x, y, z, ry, sc2){ var s = bank[k]; if(!s) return null; var c = s.clone(true), uniq = (k === 'WetFloorCone'); c.traverse(function(ch){ if(ch.isMesh){ ch.castShadow = true; ch.receiveShadow = true; ch.material = withArea(uniq ? ch.material.clone() : ch.material); ch.raycast = function(){}; } }); c.position.set(x, y, z); if(ry) c.rotation.y = ry; if(sc2) c.scale.setScalar(sc2); dress.add(c); return c; }
     put('IVStandHero', 13.26, 0, -37.25, 0.35); var cone = put('WetFloorCone', 12.78, 0, -25.85, 0.25, 0.85); if(cone) cone.traverse(function(c){ if(c.isMesh) c.material.color.setHex(0xe8a818); });
     put('VisitorChair', 13.36, 0, -23.35, -Math.PI / 2); put('VisitorChair', 13.36, 0, -24.08, -Math.PI / 2 + 0.08); put('FireCabinet', 10.32, 1.38, -21.5, Math.PI / 2); put('WallClock', 10.33, 2.34, -25.55, Math.PI / 2);
     put('ChartStack', 10.82, 1.10, -28.05, 0.18); put('ChartStack', 10.80, 1.10, -26.85, -0.45);
@@ -120,17 +252,37 @@ function collectPanels(o){ o.updateMatrixWorld(true); var g = o.geometry, p = g.
   for(var i = 0; i + 6 <= p.count; i += 6){ var mn = new V(1e9, 1e9, 1e9), mx = new V(-1e9, -1e9, -1e9); for(var k = 0; k < 6; k++){ v.fromBufferAttribute(p, i + k).applyMatrix4(o.matrixWorld); mn.min(v); mx.max(v); }
     if(mx.y - mn.y > 0.05) continue; panels.push({ x: (mn.x + mx.x) / 2, y: (mn.y + mx.y) / 2 - 0.03, z: (mn.z + mx.z) / 2, hx: Math.max(0.1, (mx.x - mn.x) / 2 - 0.02), hz: Math.max(0.1, (mx.z - mn.z) / 2 - 0.02) }); } }
 // ------------------------------------------------------------------ per frame: the K nearest panels feed the area term; the roaming shadow spot sits over the nearest panel ahead
-var _c = new V(), _f = new V();
-T.step = function(camera, indoor, seg){ if(!ctxG) return; camera.getWorldPosition(_c); camera.getWorldDirection(_f); var ahead = _c.clone().addScaledVector(_f, 3.0);
-  var near = panels.filter(function(p){ return Math.abs(p.y - _c.y) < 4.5; }).map(function(p){ var dx = p.x - ahead.x, dz = p.z - ahead.z; return { p: p, d: dx * dx + dz * dz }; }).sort(function(a, b){ return a.d - b.d; });
-  for(var i = 0; i < K; i++){ var e = near[i]; if(e && indoor && e.d < 18 * 18){ var p = e.p; U.uPan.value[i].set(p.x, p.y, p.z, p.fail ? 0.48 : 1.0); U.uHalf.value[i].set(p.hx, p.hz); if(p.fail) U.uCol.value[i].set(0.70, 0.92, 0.80); else U.uCol.value[i].set(0.84, 0.95, 1.0); }
-    else { U.uPan.value[i].set(0, -100, 0, 0); } }
+var _c = new V(), _f = new V(), _ahead = new V(), _tq = new V(), _topP = new Array(K), _topD = new Float64Array(K);
+T.step = function(camera, indoor, seg){ if(!ctxG) return; bindDynamicIBL(ctxG.scene); camera.getWorldPosition(_c); camera.getWorldDirection(_f); _ahead.copy(_c).addScaledVector(_f, 3.0);
+  var count = 0, best = null;
+  if(indoor){
+    for(var pi = 0; pi < panels.length; pi++){
+      var p = panels[pi]; if(Math.abs(p.y - _c.y) >= 4.5) continue;
+      var dx = p.x - _ahead.x, dz = p.z - _ahead.z, d = dx * dx + dz * dz;
+      if(d >= 324) continue;
+      if(count < K || d < _topD[count - 1]){
+        var pos = count < K ? count++ : K - 1;
+        while(pos > 0 && _topD[pos - 1] > d){ _topD[pos] = _topD[pos - 1]; _topP[pos] = _topP[pos - 1]; pos--; }
+        _topD[pos] = d; _topP[pos] = p;
+      }
+    }
+    for(var i = 0; i < count; i++){
+      var q = _topP[i], dim = q.fail ? 0.48 : 1.0;
+      U.uPan.value[i].set(q.x, q.y, q.z, dim); U.uHalf.value[i].set(q.hx, q.hz);
+      if(q.fail) U.uCol.value[i].set(0.70 * dim, 0.92 * dim, 0.80 * dim); else U.uCol.value[i].set(0.84, 0.95, 1.0);
+      if(!best && i < 6){ _tq.set(q.x - _c.x, 0, q.z - _c.z); if(_tq.dot(_f) > 0.5) best = q; }
+    }
+  }
+  U.uPanCount.value = count;
   var inWWB = indoor && _c.x > 9.5 && _c.x < 14.5 && _c.z < -14 && _c.z > -45 && Math.abs(_c.y - 1.5) < 2;
   /* TRANSITION-HITCH: the light SET never changes (three.js keys every lit program on the light / shadow counts — toggling visible or
      castShadow recompiled every material on screen at the first cut): lights are switched by intensity only */
-  if(!T.base){ T.base = new Map(); T.wwbLights.traverse(function(l){ if(l.isLight) T.base.set(l, l.intensity); }); T.base.set(roam, roam.intensity); }
-  T.wwbLights.traverse(function(l){ if(l.isLight) l.intensity = indoor && (l.isPointLight || inWWB) ? T.base.get(l) : 0; });
-  var best = null; for(var j = 0; j < near.length && j < 6; j++){ var q = near[j].p, tq = new V(q.x - _c.x, 0, q.z - _c.z); if(tq.dot(_f) > 0.5){ best = q; break; } }
+  if(!T.base){ T.base = new Map(); T._wwbList = []; T.wwbLights.traverse(function(l){ if(l.isLight){ T.base.set(l, l.intensity); T._wwbList.push(l); } }); T.base.set(roam, roam.intensity); }
+  for(var li = 0; li < T._wwbList.length; li++){ var wl = T._wwbList[li]; wl.intensity = indoor && (wl.isPointLight || inWWB) ? T.base.get(wl) : 0; }
+  var warmed = !window.HECAST || !!HECAST.warmed;
+  if(T.kitbash) T.kitbash.visible = !warmed || Math.abs(_c.y - 1.5) < 4.5;
+  var hideOut = !!(warmed && indoor && (_c.y > -3.0 || (_c.y < -5.0 && _c.z > -128.0)));
+  for(var oi = 0; oi < outdoorChunks.length; oi++) outdoorChunks[oi].visible = !hideOut;
   var ron = indoor && !inWWB && !!best; roam.intensity = ron ? T.base.get(roam) : 0; if(ron){ roam.position.set(best.x, best.y - 0.12, best.z); roam.target.position.set(best.x + _f.x * 0.9, best.y - 2.9, best.z + _f.z * 0.9); roam.target.updateMatrixWorld(); } };
 T.fog = function(scene, outdoor){ if(!(scene.fog && scene.fog.isFogExp2)) scene.fog = new THREE.FogExp2(FOG.color, FOG.density); scene.fog.color.setHex(FOG.color); scene.fog.density = FOG.density; scene.background = outdoor ? null : T.bg; };
 T.indoorLights = function(hemi, sun){ hemi.color.set(0x7a9eb0); hemi.groundColor.set(0x1a2228); hemi.intensity = 0.22; sun.intensity = 0; };

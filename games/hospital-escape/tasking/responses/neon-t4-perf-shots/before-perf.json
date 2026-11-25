@@ -1,0 +1,106 @@
+{
+  "phase": "before",
+  "qx": "",
+  "beats": [
+    {
+      "errs": 0,
+      "beat": "visit@2",
+      "seg": "visit_room",
+      "meanMs": 173.2,
+      "p90Ms": 182.8,
+      "calls": 112,
+      "tris": 129068,
+      "programs": 27
+    },
+    {
+      "errs": 0,
+      "beat": "bed_push@4",
+      "seg": "bed_hall_push",
+      "meanMs": 221.5,
+      "p90Ms": 216.1,
+      "calls": 257,
+      "tris": 190882,
+      "programs": 27
+    },
+    {
+      "errs": 0,
+      "beat": "transfer:1@3",
+      "seg": "transfer_chair_corridor",
+      "meanMs": 189.8,
+      "p90Ms": 202.9,
+      "calls": 133,
+      "tris": 114404,
+      "programs": 27
+    },
+    {
+      "errs": 0,
+      "beat": "elevator:0@2",
+      "seg": "elevator_ride",
+      "meanMs": 229.2,
+      "p90Ms": 224.1,
+      "calls": 183,
+      "tris": 130884,
+      "programs": 27
+    },
+    {
+      "errs": 0,
+      "beat": "gauntlet@3",
+      "seg": "gauntlet_halls",
+      "meanMs": 206.3,
+      "p90Ms": 198.5,
+      "calls": 211,
+      "tris": 206690,
+      "programs": 27
+    },
+    {
+      "errs": 0,
+      "beat": "gauntlet:1@4",
+      "seg": "gauntlet_cafeteria",
+      "meanMs": 213.4,
+      "p90Ms": 209.9,
+      "calls": 192,
+      "tris": 190624,
+      "programs": 27
+    },
+    {
+      "errs": 0,
+      "beat": "gauntlet:3@3",
+      "seg": "gauntlet_waiting_room",
+      "meanMs": 177.2,
+      "p90Ms": 180.4,
+      "calls": 273,
+      "tris": 284832,
+      "programs": 27
+    },
+    {
+      "errs": 0,
+      "beat": "entrance@2",
+      "seg": "entrance_holdout",
+      "meanMs": 211.8,
+      "p90Ms": 222.8,
+      "calls": 291,
+      "tris": 304940,
+      "programs": 27
+    },
+    {
+      "errs": 0,
+      "beat": "chase@4",
+      "seg": "chase_harbor_ave",
+      "meanMs": 179.6,
+      "p90Ms": 171.9,
+      "calls": 548,
+      "tris": 77438,
+      "programs": 27
+    },
+    {
+      "errs": 0,
+      "beat": "train_finale@3",
+      "seg": "finale_line9_crossing",
+      "meanMs": 173.2,
+      "p90Ms": 181.3,
+      "calls": 733,
+      "tris": 210034,
+      "programs": 27
+    }
+  ]
+}

@@ -21,7 +21,7 @@ P.create = function(renderer, scene, camera){
     fragmentShader: 'uniform sampler2D t; uniform vec2 dir; varying vec2 vUv; void main(){ vec3 s = texture2D(t, vUv).rgb * 0.2270270270;'
       + ' s += (texture2D(t, vUv + dir * 1.3846153846).rgb + texture2D(t, vUv - dir * 1.3846153846).rgb) * 0.3162162162;'
       + ' s += (texture2D(t, vUv + dir * 3.2307692308).rgb + texture2D(t, vUv - dir * 3.2307692308).rgb) * 0.0702702703; gl_FragColor = vec4(s, 1.0); }' });
-  var comp = new THREE.ShaderMaterial({ depthTest: false, depthWrite: false, vertexShader: VS,
+  var comp = new THREE.ShaderMaterial({ depthTest: false, depthWrite: false, toneMapped: false, vertexShader: VS,
     uniforms: { tC: { value: null }, tD: { value: null }, tB: { value: null }, near: { value: 0.05 }, far: { value: 1500 }, res: { value: new THREE.Vector2() },
       focus: { value: 8 }, nearBlur: { value: 9 }, farBlur: { value: 5 }, soft: { value: 1.2 }, edge: { value: 6 }, hurt: { value: 0 }, dying: { value: 0 }, time: { value: 0 },
       t4: { value: 0 }, t4exp: { value: 1.06 }, exposure: { value: 1.0 }, bloom: { value: 0.9 }, shadowTint: { value: new THREE.Color(0x1d3a44) }, hiTint: { value: new THREE.Color(0xffd7a0) }, sat: { value: 0.72 }, vig: { value: 1.0 }, grain: { value: 0.06 }, kick: { value: 0 }, lidTop: { value: 0 }, lidBot: { value: 0 }, lidRed: { value: 0 }, drift: { value: 0 }, tunnel: { value: 0 } },
@@ -29,27 +29,31 @@ P.create = function(renderer, scene, camera){
       'uniform float t4, t4exp; uniform sampler2D tC, tD, tB; uniform float near, far, focus, nearBlur, farBlur, soft, edge, hurt, dying, time, exposure, bloom, sat, vig, grain, kick, lidTop, lidBot, lidRed, drift, tunnel; uniform vec2 res; uniform vec3 shadowTint, hiTint; varying vec2 vUv;',
       'float lin(float d){ float z = d * 2.0 - 1.0; return 2.0 * near * far / (far + near - z * (far - near)); }',
       'float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }',
-      'vec3 RRTAndODTFit(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }',
-      'vec3 acesT4(vec3 c){ const mat3 I = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777); const mat3 O = mat3(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602); c *= t4exp / 0.6; c = I * c; c = RRTAndODTFit(c); c = O * c; return clamp(c, 0.0, 1.0); }',
+      'vec3 t4RRTAndODTFit(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }',
+      'vec3 acesT4(vec3 c){ const mat3 I = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777); const mat3 O = mat3(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602); c *= t4exp / 0.6; c = I * c; c = t4RRTAndODTFit(c); c = O * c; return clamp(c, 0.0, 1.0); }',
       'vec3 srgbT4(vec3 c){ return mix(pow(c, vec3(0.41666)) * 1.055 - vec3(0.055), c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308)))); }',
       'vec3 aces(vec3 x){ return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }',
-      'vec3 tap(vec2 uv, float ca){ vec2 d = (uv - 0.5) * ca; return vec3(texture2D(tC, uv + d).r, texture2D(tC, uv).g, texture2D(tC, uv - d).b); }',
+      'vec3 tap(vec2 uv, float ca){ if(ca < 1e-5) return texture2D(tC, uv).rgb; vec2 d = (uv - 0.5) * ca; return vec3(texture2D(tC, uv + d).r, texture2D(tC, uv).g, texture2D(tC, uv - d).b); }',
       'void main(){',
       '  vec2 c = vUv - 0.5; c.x *= res.x / res.y; float r = length(c);',
       '  float beat = clamp(0.5 + 0.28 * sin(time * 2.027) + 0.17 * sin(time * 1.337 + 1.3) + 0.12 * sin(time * 0.795 + 2.1), 0.0, 1.0);',   // slow + uneven (3.1/4.7/7.9 s)
-      '  float depth = lin(texture2D(tD, vUv).r);',
-      '  float coc = depth < focus ? nearBlur * clamp((focus * 0.55 - depth) / (focus * 0.55), 0.0, 1.0) : farBlur * smoothstep(focus * 1.8, focus * 7.0, depth);',
       '  float rad = edge * smoothstep(0.28, 0.75, r) * (1.0 + hurt * 1.5);',
       '  float base = soft * (0.45 + 1.1 * beat) * (1.0 + hurt * 2.0 + dying * 3.0) * (1.0 + drift * 3.5);',   // breathing ±42%; drift = an out-of-focus episode
-      '  if(t4 > 0.5){ coc = 0.0; rad *= hurt; base = soft * (0.45 + 1.1 * beat) * (hurt * 2.0 + dying * 3.0 + drift * 3.5); }',   // T4: crisp when healthy; damage still blurs
+      '  float depth = 0.0, coc = 0.0;',
+      '  if(t4 > 0.5){ rad *= hurt; base = soft * (0.45 + 1.1 * beat) * (hurt * 2.0 + dying * 3.0 + drift * 3.5); }',   // T4: crisp when healthy; damage still blurs
+      '  else { depth = lin(texture2D(tD, vUv).r); coc = depth < focus ? nearBlur * clamp((focus * 0.55 - depth) / (focus * 0.55), 0.0, 1.0) : farBlur * smoothstep(focus * 1.8, focus * 7.0, depth); }',
       '  float R = max(max(coc, rad), base) / 844.0 * res.y;',                                               // radii are authored in px at 844 tall
       '  float ca = t4 > 0.5 ? hurt * 0.01 + dying * 0.012 : 0.004 + 0.012 * r * r + hurt * 0.01 + dying * 0.012;',
-      '  vec3 acc = tap(vUv, ca); float wsum = 1.0;',
-      '  for(int i = 0; i < 12; i++){ float fi = float(i); float a = fi * 2.39996; float rr = sqrt((fi + 0.5) / 12.0) * R;',
-      '    vec2 o = vec2(cos(a), sin(a)) * rr / res; vec2 uv = vUv + o;',
-      '    float dd = lin(texture2D(tD, uv).r); float w = dd < depth - 0.5 && depth > focus * 0.6 ? 0.35 : 1.0;',   // limit sharp-on-blurry bleeding
-      '    acc += tap(uv, ca) * w; wsum += w; }',
-      '  vec3 col = acc / wsum;',
+      '  vec3 col = tap(vUv, ca);',
+      '  if(R >= 0.001){',
+      '    if(t4 > 0.5) depth = lin(texture2D(tD, vUv).r);',
+      '    vec3 acc = col; float wsum = 1.0;',
+      '    for(int i = 0; i < 12; i++){ float fi = float(i); float a = fi * 2.39996; float rr = sqrt((fi + 0.5) / 12.0) * R;',
+      '      vec2 o = vec2(cos(a), sin(a)) * rr / res; vec2 uv = vUv + o;',
+      '      float dd = lin(texture2D(tD, uv).r); float w = dd < depth - 0.5 && depth > focus * 0.6 ? 0.35 : 1.0;',   // limit sharp-on-blurry bleeding
+      '      acc += tap(uv, ca) * w; wsum += w; }',
+      '    col = acc / wsum;',
+      '  }',
       '  float dv = hurt * 0.6 + dying;',                                                                     // double vision: a ghost image that drifts with the pulse
       '  if(dv > 0.01){ vec2 off = vec2(0.012 + 0.01 * beat, 0.004 * sin(time * 1.7)) * dv; col = mix(col, tap(vUv + off, ca), 0.38 * clamp(dv, 0.0, 1.0)); }',
       '  if(t4 > 0.5){ col *= 1.0 - dying * 0.35; col = srgbT4(acesT4(col)); col *= 1.0 - step(0.001, tunnel) * smoothstep(0.32 - tunnel * 0.22, 0.95 - tunnel * 0.4, r) * tunnel; }',
