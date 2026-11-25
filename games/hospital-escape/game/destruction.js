@@ -22,7 +22,7 @@
    Local frame: +z forward (chase.place uses lookAt), +y up, origin on the road at the car's centre. */
 (function(){
 'use strict';
-var HE = window.HE, V3 = function(x, y, z){ return new THREE.Vector3(x, y, z); }, MR = Math.random;
+var HE = window.HE, ART = function(){ return window.HEART || null; }, V3 = function(x, y, z){ return new THREE.Vector3(x, y, z); }, MR = Math.random;
 
 var TUN = {
   // component flavour weights (used to break ties inside the variety deck below)
@@ -251,7 +251,7 @@ HE.Destruction = function(game){
 
   // ------------------------------------------------------------------ the window gunman
   function spawnGunman(p){
-    var m = obj(p); if(!m || !(window.A && A.person)) return null; var r = rig(p);
+    var m = obj(p); var A = ART(); if(!m || !(A && A.person)) return null; var r = rig(p);
     var mount = new THREE.Group(), fig = A.person({ height: 1.75, top: 0x23262b, bottom: 0x1d1f24, hairStyle: 'short', gun: 'smg' });
     fig.scale.setScalar(0.95); mount.add(fig); m.add(mount); mount.name = 'gunman:' + p.id;
     var g = { role: 'gunman:' + p.id, pursuer: p, hp: TUN.gunman.hp, alive: true, deployed: 0, fireT: 1.2 + R() * 0.6, fair: false, vis: null, visT: 0, fairT: 0, side: 0, mount: mount, fig: fig, deadT: 0, flinch: 0 };
@@ -263,7 +263,7 @@ HE.Destruction = function(game){
   function gunmanSide(p){ var m = obj(p); if(!m) return 1; var r = rig(p), rp = game.camera.position; m.updateMatrixWorld(true);
     return m.localToWorld(V3(r.W / 2, 1.4, r.cabZ)).distanceTo(rp) <= m.localToWorld(V3(-r.W / 2, 1.4, r.cabZ)).distanceTo(rp) ? 1 : -1; }
   function neckWorld(g){ var J = g.fig.userData.J; var o = (J && J.neck) || g.fig; return o.getWorldPosition(V3()); }
-  function poseGunman(p, g, dt){
+  function poseGunman(p, g, dt){ var A = ART();
     var r = rig(p), m = obj(p); if(!m) return; if(!g.side) g.side = gunmanSide(p);
     var an = m.userData.anchors && m.userData.anchors.window ? m.userData.anchors.window[g.side > 0 ? 'R' : 'L'] : null;
     var lean = g.alive ? g.deployed : 1, s = g.side;
@@ -284,7 +284,7 @@ HE.Destruction = function(game){
     if(F){ g.fair = game.combat.fairTick(g, foot, K.height, dt); if(F.seenOnly && !g.fair) return; } else g.fair = true;
     g.fireT -= dt; if(g.fireT > 0) return; g.fireT = K.fireEvery * (0.8 + 0.4 * R());
     var hit = R() < K.accuracy && g.fair !== false; if(hit && F) hit = game.combat.fairFire(g, foot, K.height);
-    var mz = (A.muzzleWorld && A.muzzleWorld(g.fig, V3())) || neck;
+    var A = ART(), mz = (A && A.muzzleWorld && A.muzzleWorld(g.fig, V3())) || neck;
     game.log('enemyFire', { role: g.role, hit: hit, via: 'gunman' }); D.stats.gunmanShots++;
     fx('flash', mz.clone());
     game.combat.fireAtHero(g.role, mz.clone().setY(mz.y - 1.45), hit, K.damage, g.vis);
