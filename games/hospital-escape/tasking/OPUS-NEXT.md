@@ -24,7 +24,25 @@ Engine 24/24 · data validation 0 errors · fairness PASS · camera audit PASS �
 ### Response
 tasking/responses/opus-integrate.md — per the SHOW YOUR WORK rule: method, tools/commands, output locations for each step, plus the timed transition numbers and the stills.
 
-## PARKED — do not start in this bundle
-VEHICLE-QUALITY (Scaggsville fleet cars in; ambulance model stays). Next task if credits allow. It does not block anything above.
+## NEXT TASK — VEHICLE-QUALITY (un-parked by Cherie, Nov 25)
+
+Bring the vehicles up to the standard the cast and world now set.
+
+**Quality bar (Cherie, Nov 25: "More like Scaggsville quality — or better yet"):** the floor is the Scaggsville 3D fleet — the shared gamepress kit/gpvehicles.js data-row cars: modeled from reference images, rounded forms, proper lamps and headlight beams (quality floor = Neon's Bunny Hop / Scaggsville cars). The target is to MEET OR BEAT that standard, not merely improve on the current blockouts. Where practical, build the ambulance and chase vehicles in the same data-row spirit so the work is reusable across games.
+
+- **Hero ambulance** (steal / drive-away / chase / finale beats): modeled detail instead of blockout shapes — proper cab/body proportions, wheels that read as wheels, open rear doors with a lit interior and the stretcher visible, rear step, working light treatment: headlight beams, taillight glow, emergency lightbar with a believable flash pattern, reflective markings.
+- **Chase car(s):** same bar — real proportions, lit headlights/taillights, no box-with-wheels silhouettes.
+- **Traffic / set vehicles** wherever they appear: at minimum, no unlit boxes in any framed shot.
+
+**Constraints:**
+- Stay inside the frame budget T4-PERF bought back — report frame time before/after per beat (SwiftShader-relative, labeled as such).
+- No new external assets with unclear licenses for a shipped build — procedural / modeled-in-code or existing repo assets only.
+- Maya's ambulance driving figure is OUT of scope (separate open item, Cherie's call).
+
+**Verification (all must pass on the final code):** engine tests · validate-data · fairness audit · camera audit · full playthrough 0 errors. Evidence: before/after stills at 390×844 for the ambulance rear (doors open), the chase, and one traffic frame; plus a short clip of the lightbar + headlights in the drive-away.
+
+**Response:** tasking/responses/opus-vehicle-quality.md — per the SHOW YOUR WORK rule: how the work was done (tools/commands, where the models were built, how the lights were faked or made real).
+
+Work on main only, no branches. Commit + push when done, then the response file.
 
 Standing note: cross-corridor fire doors stay T4-true near-black unless Cherie says otherwise.
