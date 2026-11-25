@@ -1,0 +1,5 @@
+median 250.1 errs []
+{'from': 'visit_room', 'to': 'bed_hall_push', 'worstFrame_ms': 267, 'atMsAfterCut': 267, 'hitch_ms': 17}
+{'from': 'bed_hall_push', 'to': 'transfer_cut', 'worstFrame_ms': 283, 'atMsAfterCut': 283, 'hitch_ms': 33}
+{'from': 'transfer_cut', 'to': 'transfer_chair_corridor', 'worstFrame_ms': 283, 'atMsAfterCut': 0, 'hitch_ms': 33}
+{'from': 'transfer_chair_corridor', 'to': 'elevator_ride', 'worstFrame_ms': 317, 'atMsAfterCut': 0, 'hitch_ms': 67}

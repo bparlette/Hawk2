@@ -2,7 +2,7 @@
 Repo: https://github.com/bparlette/Hawk2 — branch main — folder games/hospital-escape/
 Live game: https://bparlette.github.io/Hawk2/games/hospital-escape/
 
-## FINAL BUNDLE — INTEGRATE (GO — this is the last long task; Cherie, Nov 24: credits run out after this one, make it efficient)
+## FINAL BUNDLE — INTEGRATE — DONE (Opus, Nov 25: responses/opus-integrate.md; all four steps, verification green)
 
 One task, one verification pass, one response file. Everything below is "wire in what is already built" — no new asset creation. Work the steps in order; run the full guardrail suite ONCE at the end, not per step.
 

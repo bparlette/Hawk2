@@ -12,6 +12,7 @@ notice on her phone is caught here first. **If a defect gets past the gate, the 
 | Fairness audit | `node games/hospital-escape/tools/fairness-audit.cjs` | damage from shooters the player could not see (seeds 7/3/11, full runs + soaks) | `FAIRNESS AUDIT: PASS` |
 | **Camera / framing audit** | `node games/hospital-escape/tools/camera-audit.cjs` | **camera in walls, frames of pure wall, see-through to the void, ambulance framing, unsealed room holes** (detail below) | `CAMERA AUDIT: PASS` (exit code 0) |
 | Full playthrough | `node games/hospital-escape/tools/cast-fullrun.cjs 7` | the game finishes with 0 page errors; cast behaviour counts | `ended: true`, 0 errs |
+| Transition hitch | `node games/hospital-escape/tools/transition-timer.cjs` | frame-time spikes at scene cuts (target < 0.5 s over median) | every cut listed with its hitch_ms |
 | Real-input play | `node games/hospital-escape/tools/t4-play.cjs BEAT FRAMES OUTDIR` (`KEYS=1` adds WASD on foot; BEAT may carry `&seg=N`) | page errors under real DOM input (start button, mouse, Space, keys) | `errs: []` |
 
 ## camera-audit.cjs — what each letter means
