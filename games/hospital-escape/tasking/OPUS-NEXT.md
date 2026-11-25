@@ -15,7 +15,20 @@ keeps vehicle + people in shot. Response:
 `responses/opus-camera-fix.md` with same-beat before/after stills at
 390x844; guardrails green.
 
-## 2. CAST-QUALITY integration + bed-push staging — NEXT
+## 2. TRANSITION-HITCH — scene 2/3 transition freezes (owner phone report, Nov 24, 20:33 ET)
+
+The owner reports a LONG PAUSE at either the second or third scene
+transition on her phone — she could not pin which, so instrument
+both. Likely suspects (yours to verify): per-zone T4 setup (PMREM /
+environment build) or cast/asset loads firing AT the transition
+instead of streaming during the prior beat. Required: no transition
+may freeze the frame — target under half a second of hitch — with
+assets preloaded or streamed ahead of the cut. Prove it with a timed
+real-input run across the first three transitions, timings in the
+response (fold into the CAMERA-FIX response or a short
+`responses/opus-transition-hitch.md`).
+
+## 3. CAST-QUALITY integration + bed-push staging — NEXT
 
 Spec: `CAST-QUALITY.md`. Two parts:
 - **Bed-push staging (start anytime):** Maya currently pushes the bed
@@ -28,7 +41,7 @@ Spec: `CAST-QUALITY.md`. Two parts:
 Response: `responses/opus-cast-quality.md`; guardrails green;
 patient-eyes system untouched.
 
-## 3. Long-gun integration — WHEN GEAR-FIX LANDS
+## 4. Long-gun integration — WHEN GEAR-FIX LANDS
 
 When Neon's GEAR-FIX response lands, integrate the long gun on the
 gunman + N2 in the live game (replacing the pistol in the fire beats),
