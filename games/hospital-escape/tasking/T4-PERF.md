@@ -9,6 +9,12 @@ Full T4 is the shipped look — it plays fine on her phone. The trim
 switches (`?t4env=0`, `?t4k=4`, `?t4shadow=0`, `?t4maps=0`) are NOT
 the answer: they buy speed by removing parts of the look.
 
+**Scope — the FULL GAME, not the T4 sample level.** The target is the
+shipped game at `games/hospital-escape/` — every zone and beat (halls,
+visits, bed push, cafeteria, chase, train, outdoors) running Opus's
+T4-FULL port. The standalone T4 hallway page is only the look
+reference; optimising it alone does not count.
+
 Your task: find **performance enhancements that keep the full look
 intact** — engineering wins, not feature cuts. Opus's measurements on
 the CPU renderer put the halls at ~258 ms vs ~115 ms for the old look,

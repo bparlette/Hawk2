@@ -24,7 +24,9 @@ scene. Opus integrates after you land these.
 
 ## 3. T4-PERF — AFTER CAST-QUALITY
 
-Spec: `T4-PERF.md`. Full T4 is the shipped look (owner's phone verdict
+Spec: `T4-PERF.md`. Scope is the FULL GAME (all zones/beats of the
+shipped `games/hospital-escape/`), not just the T4 sample level.
+Full T4 is the shipped look (owner's phone verdict
 Nov 24: "full t4 seems fine"). Find engineering performance wins —
 Opus measured halls ~258 ms, PMREM environment the biggest chunk —
 WITHOUT changing the look: before/after stills must be
