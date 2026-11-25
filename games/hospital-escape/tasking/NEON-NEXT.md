@@ -10,17 +10,18 @@ with body-contoured BVHTree headgear/vests, clavicle straps, multi-bone surface
 weights, palm-flip weapon seating, and Grand Power Stribog SMG (`390x844` stills
 + `2x` holds + 30fps Blender audit in `responses/neon-gear-fix.md`).
 
-## 2. CAST-QUALITY figures — CURRENT
+## 2. CAST-QUALITY figures — DONE (`responses/neon-cast-quality.md`)
 
-Spec: `CAST-QUALITY.md`. Build full rigged 3D replacements at
-main-cast standard for: **Dr. Hale** (currently a flat painted cutout —
-owner: "horrible"), **the patient lying on the bed** (opening/ambulance
-+ bed scenes), and **the standard nurses / background staff**. Or
-remove a figure instead — say which and why. Response:
-`responses/neon-cast-quality.md` with 390x844 stills of each figure in
-scene. Opus integrates after you land these.
+Spec: `CAST-QUALITY.md`. Built & verified MIT VALID v1.0 rigged 3D GLBs in
+`games/hospital-escape-leaders-neon/assets/cast-pass/`: `dr-hale-mixamo.glb`
+(1:1 tailored open white lab coat, glasses, silver hair, 5 clips),
+`patient-lying-mixamo.glb` (sage top/shorts, IV wrap, 4 clips, `bed_offsets`),
+refreshed `cole-mixamo.glb` (pajama trouser + grip-sock leg fix, `bed_offsets`),
+and `nurse-female-mixamo.glb` / `nurse-male-mixamo.glb` (7 staff clips each,
+stethoscope/badge/bun/pager). Zero console errors across all 12 T4-lit 390x844 stills.
+*(Opus integrates into `cast3d.js` + bed-push staging.)*
 
-## 3. T4-PERF — AFTER CAST-QUALITY
+## 3. T4-PERF — CURRENT
 
 Spec: `T4-PERF.md`. Scope is the FULL GAME (all zones/beats of the
 shipped `games/hospital-escape/`), not just the T4 sample level.

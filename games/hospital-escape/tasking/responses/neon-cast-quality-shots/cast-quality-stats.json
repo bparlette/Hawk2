@@ -1,0 +1,185 @@
+{
+  "shots": [
+    {
+      "file": "hale-opening-room-390x844.png",
+      "mode": "room412",
+      "clip": "Hale_Objecting",
+      "cam": "hero",
+      "t": 0.7,
+      "calls": 53,
+      "triangles": 32633,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "file": "patient-on-bed-390x844.png",
+      "mode": "ward_beds",
+      "clip": "Lay_Breathless",
+      "cam": "patient_side",
+      "t": 0.35,
+      "calls": 36,
+      "triangles": 16973,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.6812862744510849,
+        1.1110208301989222,
+        -0.5460203036228544
+      ]
+    },
+    {
+      "file": "cole-bed-legs-closeup-390x844.png",
+      "mode": "ward_beds",
+      "clip": "Lay_Breathless",
+      "cam": "cole_legs",
+      "t": 0.35,
+      "calls": 39,
+      "triangles": 17009,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.6812862744510849,
+        1.1110208301989222,
+        -0.5460203036228544
+      ]
+    },
+    {
+      "file": "cole-wheelchair-legs-390x844.png",
+      "mode": "cole_chair",
+      "clip": "Sit_Idle_Breath",
+      "cam": "legs",
+      "t": 0.8,
+      "calls": 27,
+      "triangles": 10492,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.6812862744510849,
+        1.1110208301989222,
+        -0.5460203036228544
+      ]
+    },
+    {
+      "file": "nurse-station-390x844.png",
+      "mode": "nurse_station",
+      "clip": "Staff_Typing",
+      "cam": "hero",
+      "t": 1.1,
+      "calls": 31,
+      "triangles": 17165,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.6812862744510849,
+        1.1110208301989222,
+        -0.5460203036228544
+      ]
+    },
+    {
+      "file": "staff-corridor-390x844.png",
+      "mode": "corridor",
+      "clip": "Hale_Walk",
+      "cam": "hero",
+      "t": 0.4,
+      "calls": 31,
+      "triangles": 30595,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.6812862744510849,
+        1.1110208301989222,
+        -0.5460203036228544
+      ]
+    },
+    {
+      "file": "cast-quality-lineup-390x844.png",
+      "mode": "lineup",
+      "clip": "",
+      "cam": "hero",
+      "t": 0.5,
+      "calls": 46,
+      "triangles": 68191,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.5286905725777253,
+        1.0866156095676742,
+        -0.5396939317851002
+      ]
+    },
+    {
+      "file": "hale-closeup-390x844.png",
+      "mode": "hale_detail",
+      "clip": "Hale_Objecting",
+      "cam": "hero",
+      "t": 0.75,
+      "calls": 16,
+      "triangles": 13624,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.5286905725777253,
+        1.0866156095676742,
+        -0.5396939317851002
+      ]
+    },
+    {
+      "file": "hale-hands-up-390x844.png",
+      "mode": "hale_detail",
+      "clip": "Hale_Hands_Up",
+      "cam": "hero",
+      "t": 0.65,
+      "calls": 16,
+      "triangles": 13624,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.5286905725777253,
+        1.0866156095676742,
+        -0.5396939317851002
+      ]
+    },
+    {
+      "file": "nurse-f-closeup-390x844.png",
+      "mode": "nurse_f_detail",
+      "clip": "Staff_Idle",
+      "cam": "hero",
+      "t": 0.45,
+      "calls": 18,
+      "triangles": 9533,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.5286905725777253,
+        1.0866156095676742,
+        -0.5396939317851002
+      ]
+    },
+    {
+      "file": "nurse-f-back-390x844.png",
+      "mode": "nurse_f_detail",
+      "clip": "Staff_Idle",
+      "cam": "back",
+      "t": 0.45,
+      "calls": 16,
+      "triangles": 9509,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.5286905725777253,
+        1.0866156095676742,
+        -0.5396939317851002
+      ]
+    },
+    {
+      "file": "nurse-m-closeup-390x844.png",
+      "mode": "nurse_m_detail",
+      "clip": "Staff_Idle",
+      "cam": "hero",
+      "t": 0.45,
+      "calls": 16,
+      "triangles": 7556,
+      "consoleErrors": [],
+      "patientHeadWorld": [
+        -0.5286905725777253,
+        1.0866156095676742,
+        -0.5396939317851002
+      ]
+    }
+  ],
+  "consoleErrors": []
+}

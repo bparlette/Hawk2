@@ -175,12 +175,13 @@ def setup_valid_rig(glb_path, target_height, col_tex, rough_tex, nm_tex, decimat
     bpy.ops.object.transform_apply(location=True, rotation=False, scale=True)
     bpy.context.view_layer.update()
 
-    dec = body.modifiers.new('Decimate', 'DECIMATE')
-    dec.decimate_type = 'COLLAPSE'
-    dec.ratio = decimate_ratio
-    bpy.context.view_layer.objects.active = body
-    bpy.ops.object.modifier_move_up(modifier='Decimate')
-    bpy.ops.object.modifier_apply(modifier='Decimate')
+    if decimate_ratio < 0.99:
+        dec = body.modifiers.new('Decimate', 'DECIMATE')
+        dec.decimate_type = 'COLLAPSE'
+        dec.ratio = decimate_ratio
+        bpy.context.view_layer.objects.active = body
+        bpy.ops.object.modifier_move_up(modifier='Decimate')
+        bpy.ops.object.modifier_apply(modifier='Decimate')
 
     # Optional anatomical barefoot slimming + smooth ankle taper for Cole (removes bulky sneaker lug & cuff shelf)
     if barefoot_slender:

@@ -451,7 +451,7 @@
   },
   "cole": {
     "file": "cole-mixamo.glb",
-    "bytes": 3228548,
+    "bytes": 3227740,
     "tris": 9018,
     "mats": 4,
     "weapon_muzzle": {
@@ -686,6 +686,26 @@
         "raw_crown_z_m": 1.3821,
         "hips_z_m": 0.6046,
         "raw_min_foot_z_m": 0.0265
+      }
+    },
+    "height_m": 1.8,
+    "bones": 84,
+    "source_body": "White_M_3_Casual.glb (MIT VALID v1.0) \u2014 hospital pajama trouser leg fix",
+    "bed_offsets": {
+      "Lay_Breathless": {
+        "dorsal_min_y_m": 0.9826,
+        "hips_y_m": 1.0668,
+        "bed_dy_for_mattress_072m": -0.2626
+      },
+      "Lay_Sleeping": {
+        "dorsal_min_y_m": 0.992,
+        "hips_y_m": 1.0768,
+        "bed_dy_for_mattress_072m": -0.272
+      },
+      "Lay_Moaning": {
+        "dorsal_min_y_m": 0.9968,
+        "hips_y_m": 1.0842,
+        "bed_dy_for_mattress_072m": -0.2768
       }
     }
   },
