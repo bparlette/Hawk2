@@ -28,9 +28,53 @@ Engine 24/24 · data validation 0 errors · fairness PASS · camera audit PASS �
 ### Response
 tasking/responses/opus-integrate.md — per the SHOW YOUR WORK rule: method, tools/commands, output locations for each step, plus the timed transition numbers and the stills.
 
-## NEXT TASK — FINAL DEFECT BUNDLE (Cherie, Nov 25 — Opus's final run; credits almost out, so this is deliberately SMALL: one run, one verification pass, one response file)
+## NEXT TASK — DESTRUCTION BEHAVIORS (Cherie, Nov 25 — Opus's active task: the hard thing)
 
-Two known residuals from INTEGRATE, fixed in one pass. Nothing else — VEHICLE-QUALITY has been reassigned to Moth (see below) and is NOT part of this run.
+Cherie re-pointed Opus at the hard engineering (Nov 25): the car-crash destruction system. The routine defect bundle moved to Moth (below); the vehicle MODELING stays Moth's too. This system is Opus's.
+
+When the player destroys a vehicle (chase / drive beats), vary the outcome — not the same stop every time:
+1. **Veer + chain crash:** the wreck sometimes veers into another vehicle and takes it out too.
+2. **Rollover:** sometimes the car rolls — 2–3 full rolls with bounce/settle, shedding debris as it goes.
+3. **Fire:** sometimes it catches fire — the house fire standard: dark smoke puffs + gold-orange ember glow under the hood/body, NO flame tongues.
+4. **Blown tire:** sometimes a tire blows — the car pulls hard to one side, limps on the rim with sparks, tire shred/debris.
+5. **Window gunman:** during the chase, a gunman leans out of a car window and shoots at the player. He is a valid target wired into the shooting/fairness systems, not set dressing.
+
+Probabilities/tuning are your call, but every behavior must actually occur in a normal playthrough of the chase (not 1-in-100 rarities), and the fairness audit must still PASS with the window gunman firing.
+
+**Built against the CURRENT in-game vehicles.** Moth is modeling replacement vehicles in parallel (VEHICLE-QUALITY, in the Moth section below). Build the destruction system against a clean interface to the vehicle objects — destruction hooks, per-vehicle state, debris/fire attachment points — so Moth's modeled vehicles drop in later without reworking the system. Note the interface you define in the response file so Moth can model to it.
+
+**PROCESS is load-bearing here (see top of file): push before testing, push often.** Land increments on main behavior-by-behavior — each behavior working and pushed before the next starts — so a credit cutoff never strands work. Whatever remains unfinished when credits run out, Moth finishes from main; leave the response file current after each increment so the handoff state is never only in your head.
+
+**Frame budget:** stay inside the frame budget T4-PERF bought back — report frame time before/after per beat (SwiftShader-relative, labeled as such).
+
+### Verification (all must pass on the final code)
+Engine tests · validate-data · fairness audit — must PASS with the window gunman firing · camera audit · full playthrough 0 errors. Evidence: a clip showing at least the rollover and the chain crash, and a still of the window gunman in action.
+
+### Response
+tasking/responses/opus-destruction.md — per the SHOW YOUR WORK rule: method, tools/commands, how each behavior is implemented, the vehicle-object interface you defined, and the tuning probabilities you chose.
+
+Work on main only, no branches. Push before testing, push often — commit + push each behavior as it lands, then the response file updates.
+
+## STRETCH TASK — OPTIONAL (Cherie, Nov 25 — only if DESTRUCTION BEHAVIORS is done and credits remain; nothing blocks on this)
+
+Two designed-but-unbuilt flourishes. If credits run out before or during this, that is fine — the destruction system is the run that matters. Push-before-testing applies here too (see PROCESS at the top).
+
+### (a) "DOORS HELD" end card
+The designed end card for the elevator beat — the door-block moment gets its "DOORS HELD" card as designed. Wire it into the beat's end as specced in the design notes; keep it in the game's existing subtitle/card style.
+
+### (b) Room 412 ECG beep
+A subtle ECG beep for Room 412, built as procedural audio consistent with the game's existing procedural SFX. The game has NO voice assets and stays that way — this is a quiet monitor beep only, mixed low, not a dialogue or music element. (Note: no ECG beep exists in any captured footage — this is new, designed work, so keep it tasteful and subtle.)
+
+### Verification + response
+Same gates as the destruction task for anything touched: full guardrail suite green (engine tests · validate-data · fairness audit · camera audit · full playthrough 0 errors). Response: append to tasking/responses/opus-destruction.md or write a small tasking/responses/opus-stretch.md — your choice. SHOW YOUR WORK detail, same as always.
+
+Work on main only, no branches. Push before testing, push often.
+
+## REASSIGNED TO MOTH (Nov 25) — not Opus's
+
+### FINAL DEFECT BUNDLE (reassigned to Moth, Nov 25 — Moth does this pass; text preserved from Opus's queue)
+
+Two known residuals from INTEGRATE, fixed in one pass. (Moved here Nov 25 when Cherie re-pointed Opus at DESTRUCTION BEHAVIORS — the hard thing is his; this routine bundle is Moth's.)
 
 ### Defect 1 — Bed-push frame bump
 The residual ~215 ms frame bump ~1.2 s into the bed-push beat, when the first wave's cover prop spawns. Fix it the same way TRANSITION-HITCH was fixed: pre-warm / pre-spawn the cover props ahead of the beat so nothing loads, compiles, or spawns cold mid-beat.
@@ -42,26 +86,9 @@ The camera audit's one pre-existing warning: a pillar in the transfer corridor c
 Full guardrail suite green: engine tests · validate-data · fairness audit · camera audit with **0 warnings** · full playthrough 0 errors. Plus frame-timing evidence for the bed-push bump: before/after numbers (SwiftShader-relative, labeled as such).
 
 ### Response
-tasking/responses/opus-final-defects.md — per the SHOW YOUR WORK rule: method, tools/commands, what was pre-warmed/pre-spawned, how the corridor framing was fixed, and the before/after bump timings.
+tasking/responses/moth-final-defects.md — per the SHOW YOUR WORK rule: method, tools/commands, what was pre-warmed/pre-spawned, how the corridor framing was fixed, and the before/after bump timings.
 
 Work on main only, no branches. Commit + push when done, then the response file.
-
-## STRETCH TASK — OPTIONAL (Cherie, Nov 25 — only if the FINAL DEFECT BUNDLE is done and credits remain; nothing blocks on this)
-
-Two designed-but-unbuilt flourishes. If credits run out before or during this, that is fine — the defect bundle is the run that matters. Push-before-testing applies here too (see PROCESS at the top).
-
-### (a) "DOORS HELD" end card
-The designed end card for the elevator beat — the door-block moment gets its "DOORS HELD" card as designed. Wire it into the beat's end as specced in the design notes; keep it in the game's existing subtitle/card style.
-
-### (b) Room 412 ECG beep
-A subtle ECG beep for Room 412, built as procedural audio consistent with the game's existing procedural SFX. The game has NO voice assets and stays that way — this is a quiet monitor beep only, mixed low, not a dialogue or music element. (Note: no ECG beep exists in any captured footage — this is new, designed work, so keep it tasteful and subtle.)
-
-### Verification + response
-Same gates as the defect bundle for anything touched: full guardrail suite green (engine tests · validate-data · fairness audit · camera audit · full playthrough 0 errors). Response: append to tasking/responses/opus-final-defects.md or write a small tasking/responses/opus-stretch.md — your choice. SHOW YOUR WORK detail, same as always.
-
-Work on main only, no branches. Push before testing, push often.
-
-## REASSIGNED TO MOTH (Nov 25) — not Opus's
 
 ### VEHICLE-QUALITY (un-parked by Cherie, Nov 25; reassigned to Moth, Nov 25 — full text preserved; Moth works from this)
 
@@ -75,21 +102,14 @@ Bring the vehicles up to the standard the cast and world now set.
 - **Chase car(s):** same bar — real proportions, lit headlights/taillights, no box-with-wheels silhouettes.
 - **Traffic / set vehicles** wherever they appear: at minimum, no unlit boxes in any framed shot.
 
-**Destruction behavior (Cherie, Nov 25):** when the player destroys a vehicle (chase / drive beats), vary the outcome — not the same stop every time:
-1. **Veer + chain crash:** the wreck sometimes veers into another vehicle and takes it out too.
-2. **Rollover:** sometimes the car rolls — 2–3 full rolls with bounce/settle, shedding debris as it goes.
-3. **Fire:** sometimes it catches fire — the house fire standard: dark smoke puffs + gold-orange ember glow under the hood/body, NO flame tongues.
-4. **Blown tire:** sometimes a tire blows — the car pulls hard to one side, limps on the rim with sparks, tire shred/debris.
-5. **Window gunman:** during the chase, a gunman leans out of a car window and shoots at the player. He is a valid target wired into the shooting/fairness systems, not set dressing.
-
-Probabilities/tuning are your call, but every behavior must actually occur in a normal playthrough of the chase (not 1-in-100 rarities), and the fairness audit must still PASS with the window gunman firing.
+**Destruction behavior:** moved OUT of this task Nov 25 — it is now Opus's active task (DESTRUCTION BEHAVIORS, above): the crash system is his, the modeling below is Moth's. The two meet at the vehicle-object interface Opus defines in tasking/responses/opus-destruction.md — models must expose what the destruction system needs (per-vehicle group, wheels, lamp/glass parts, attachment points).
 
 **Constraints:**
 - Stay inside the frame budget T4-PERF bought back — report frame time before/after per beat (SwiftShader-relative, labeled as such).
 - No new external assets with unclear licenses for a shipped build — procedural / modeled-in-code or existing repo assets only.
 - Maya's ambulance driving figure is OUT of scope (separate open item, Cherie's call).
 
-**Verification (all must pass on the final code):** engine tests · validate-data · fairness audit · camera audit · full playthrough 0 errors. Evidence: before/after stills at 390×844 for the ambulance rear (doors open), the chase, and one traffic frame; plus a short clip of the lightbar + headlights in the drive-away; plus a clip showing at least the rollover and the chain crash, and a still of the window gunman in action.
+**Verification (all must pass on the final code):** engine tests · validate-data · fairness audit · camera audit · full playthrough 0 errors. Evidence: before/after stills at 390×844 for the ambulance rear (doors open), the chase, and one traffic frame; plus a short clip of the lightbar + headlights in the drive-away.
 
 **Response:** tasking/responses/opus-vehicle-quality.md — per the SHOW YOUR WORK rule: how the work was done (tools/commands, where the models were built, how the lights were faked or made real).
 
