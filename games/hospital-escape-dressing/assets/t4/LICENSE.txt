@@ -1,0 +1,8 @@
+T4 look assets (from Neon's Take 4, games/hospital-escape-hallway-neon/assets/), used by game/t4look.js.
+PBR maps — Poly Haven, CC0 1.0 (https://polyhaven.com/license), 1K JPEG diff / nor_gl / rough:
+  floor_*  old_linoleum_flooring_01   https://polyhaven.com/a/old_linoleum_flooring_01
+  wall_*   grey_plaster               https://polyhaven.com/a/grey_plaster
+  wood_*   dark_wood                  https://polyhaven.com/a/dark_wood
+  metal_*  metal_plate                https://polyhaven.com/a/metal_plate
+  ceil_*   brushed_concrete_03        https://polyhaven.com/a/brushed_concrete_03
+props.glb — original kit-bash props modelled by Neon in Blender for this project (no third-party content).
