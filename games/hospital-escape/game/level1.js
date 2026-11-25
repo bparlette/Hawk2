@@ -23,6 +23,7 @@ var L = [
   // ---- beats 4–9, extended in the same voice ----
   ['hale_02', 'NPC:Dr. Hale', 'Then go — and stay off the east stairs. Go!', 2.4],
   ['cole_04', 'HERO', 'Ground floor. If they\'re smart, they\'re waiting.', 2.4],
+  ['maya_06b', 'FRIEND', 'He\'s holding the doors — drop him before they close!', 2.4],   // ELEVATOR-BLOCK (owner request, Nov 25)
   ['maya_07', 'FRIEND', 'They\'re not smart. They\'re waiting anyway — doors opening!', 2.6],
   ['maya_08', 'FRIEND', 'Bag under the trolley — longer bark. Take it.', 2.4],
   ['cole_05', 'HERO', 'Oh, I like this one.', 1.6],
@@ -60,8 +61,8 @@ var paths = [
     look: [{ at: 0, target: 'group:tr_w1' }, { at: 0.427, target: 'group:tr_w2' }],
     events: [{ at: 0.0, type: 'line', line: 'cole_03' }, { at: 0.12, type: 'line', line: 'maya_04' }, { at: 0.435, type: 'wave', wave: 'tr_w2' }, { at: 0.501, type: 'line', line: 'maya_05' }, { at: 1, type: 'segmentEnd' }] }),
   // 4 — the elevator: roll into the car (Ward 4B), doors close, descend; the car opens on the ground floor, hot
-  rig(CHAIR, { id: 'elevator_in', vehicle: 'chair', points: [[0, 0, -63], [0, 0, -69], [0, 0, -75.9]], speedKeys: [{ at: 0, speed: 2.8 }, { at: 0.3, speed: 0 }, { at: 0.34, speed: 2.8 }, { at: 0.75, speed: 2.2 }],
-    look: [{ at: 0, target: 'group:el_up' }], events: [{ at: 0.0, type: 'line', line: 'maya_06' }, { at: 0.04, type: 'wave', wave: 'el_up' }, { at: 0.8, type: 'line', line: 'cole_04' }, { at: 1, type: 'segmentEnd' }] }),
+  rig(CHAIR, { id: 'elevator_in', vehicle: 'chair', points: [[0, 0, -63], [0, 0, -69], [0, 0, -75.9]], speedKeys: [{ at: 0, speed: 2.8 }, { at: 0.3, speed: 0 }, { at: 0.34, speed: 2.8 }, { at: 0.75, speed: 2.2 }, { at: 0.88, speed: 0 }, { at: 0.885, speed: 2.2 }], holdClamp: 180,
+    look: [{ at: 0, target: 'group:el_up' }, { at: 0.86, target: 'group:el_block' }], events: [{ at: 0.0, type: 'line', line: 'maya_06' }, { at: 0.04, type: 'wave', wave: 'el_up' }, { at: 0.8, type: 'line', line: 'cole_04' }, { at: 0.86, type: 'wave', wave: 'el_block' }, { at: 0.865, type: 'line', line: 'maya_06b' }, { at: 1, type: 'segmentEnd' }] }),
   rig(CHAIR, { id: 'elevator_out', vehicle: 'chair', points: [[0, G, -75.9], [0, G, -82], [0, G, -91]], speedKeys: [{ at: 0, speed: 0 }, { at: 0.02, speed: 2.8 }],
     look: [{ at: 0, target: 'group:el_w1' }], events: [{ at: 0, type: 'line', line: 'maya_07' }, { at: 1, type: 'segmentEnd' }] }),
   // 5 — the gauntlet: halls -> cafeteria (through the glass) -> the ward on foot (Maya) -> the waiting room
@@ -84,12 +85,12 @@ var paths = [
     events: [{ at: 0.05, type: 'line', line: 'maya_13' }, { at: 1, type: 'segmentEnd' }] }),
   // 7 — steal the ambulance: held camera at the bay, then the staging pull-out (rear rig looks back at the hospital)
   { id: 'bay_view', vehicle: 'chair', points: [[61.4, G, -174.2], [61.3, G, -174.6]], height: 1.65, back: 0, speed: 0, look: [{ at: 0, target: [58, G + 1.2, -181] }], events: [] },
-  { id: 'bay_route', vehicle: 'ambulance', bayOffset: 1.35, points: [[58, G, -181], [58, G, -196], [66, G, -205.5], [90, G, -208]], height: 1.75, back: 0,
+  { id: 'bay_route', vehicle: 'ambulance', bayOffset: 1.35, lookClamp: 15, points: [[58, G, -181], [58, G, -196], [66, G, -205.5], [90, G, -208]], height: 1.75, back: 0,
     speedKeys: [{ at: 0, speed: 4 }, { at: 0.4, speed: 10 }], look: [{ at: 0, target: 'group:lot_w1' }], events: [{ at: 0.03, type: 'line', line: 'cole_10' }, { at: 1, type: 'segmentEnd' }] },
   // 8 — the chase (east on Harbor Avenue) — 9 — the train finale (the Line 9 crossing)
-  { id: 'chase_road', vehicle: 'ambulance', bayOffset: 1.35, points: [[90, G, -208], [150, G, -209], [190, G, -225], [215, G, -262], [240, G, -305], [285, G, -325], [350, G, -322], [400, G, -300], [450, G, -298], [500, G, -318], [540, G, -352], [565, G, -400], [610, G, -428], [680, G, -432], [760, G, -430]], height: 1.75, back: 0, speed: 24,
+  { id: 'chase_road', vehicle: 'ambulance', bayOffset: 1.35, lookClamp: 15, points: [[90, G, -208], [150, G, -209], [190, G, -225], [215, G, -262], [240, G, -305], [285, G, -325], [350, G, -322], [400, G, -300], [450, G, -298], [500, G, -318], [540, G, -352], [565, G, -400], [610, G, -428], [680, G, -432], [760, G, -430]], height: 1.75, back: 0, speed: 24,
     events: [{ at: 0.03, type: 'line', line: 'maya_15' }, { at: 1, type: 'segmentEnd' }] },
-  { id: 'finale_road', vehicle: 'ambulance', bayOffset: 1.35, points: [[760, G, -430], [820, G, -442], [868, G, -472], [930, G, -484], [990, G, -458], [1040, G, -430], [1100, G, -426], [1300, G, -426]], height: 1.75, back: 0, speed: 24,
+  { id: 'finale_road', vehicle: 'ambulance', bayOffset: 1.35, lookClamp: 15, points: [[760, G, -430], [820, G, -442], [868, G, -472], [930, G, -484], [990, G, -458], [1040, G, -430], [1100, G, -426], [1300, G, -426]], height: 1.75, back: 0, speed: 24,
     crossingAt: 0.86, trainAt: 0.873, trainOccupies: 12, events: [{ at: 0.74, type: 'line', line: 'maya_17' }, { at: 1, type: 'segmentEnd' }] }
 ];
 var W = function(id, trigger, spawns, onCleared){ var w = { id: id, trigger: trigger, spawns: spawns }; if(onCleared) w.onCleared = onCleared; return w; };
@@ -103,6 +104,7 @@ var waves = [
   W('tr_w3', { type: 'afterWave', wave: 'tr_w2', delay: 0.4 }, [S('gunman', [0, 0, -65.6], 2, 0.5, 'rush')]),
   W('tr_w2', { type: 'pathEvent' }, [S('staff', [-0.4, 0, -58.4], 1, 0, 'cover'), S('staff', [1.3, 0, -60.2], 1, 0, 'cover'), S('staff', [0, 0, -64.4], 1, 0.6, 'rush')], { type: 'resume' }),
   W('el_up', { type: 'pathEvent' }, [S('gunman', [-1.2, 0, -72.7], 1, 0, 'cover'), S('staff', [1.1, 0, -72.3], 1, 0.4, 'cover')], { type: 'resume' }),
+  W('el_block', { type: 'pathEvent' }, [S('gunman', [0.6, 0, -64.5], 1, 0, 'rush')], { type: 'resume' }),   // ELEVATOR-BLOCK: the doors are closing — he runs in and holds them; the car waits for him to drop
   W('el_w1', { type: 'segmentStart' }, [S('gunman', [-1.4, G, -84.5], 1, 0, 'cover'), S('gunman', [1.4, G, -86.5], 1, 0.4, 'cover'), S('gunman', [0, G, -90], 1, 0.8, 'rush')]),
   W('g_w0', { type: 'timer', delay: 0.8 }, [S('staff', [1.3, G, -97], 1, 0, 'cover')]),
   W('g_w1', { type: 'pathEvent' }, [S('gunman', [-1.3, G, -108.5], 1, 0, 'cover'), S('staff', [1.2, G, -110.5], 1, 0.5, 'cover'), S('gunman', [1.5, G, -116], 1, 1.0, 'rush')], { type: 'resume' }),
@@ -132,7 +134,7 @@ var beats = [
   { id: 'visit', segments: [seg('visit_room', 'CUTSCENE', 'room_view', [], ['hale_01', 'maya_01'])] },
   { id: 'bed_push', segments: [seg('bed_hall_push', 'RAIL_CHAIR', 'bed_hall', ['bed_w0', 'bed_w1', 'bed_w2'], ['cole_01', 'hale_02', 'maya_02', 'cole_02'])] },
   { id: 'transfer', segments: [seg('transfer_cut', 'CUTSCENE', 'transfer_view', [], ['maya_03']), seg('transfer_chair_corridor', 'RAIL_CHAIR', 'chair_corridor', ['tr_w1', 'tr_w2', 'tr_w3'], ['cole_03', 'maya_04', 'maya_05'])] },
-  { id: 'elevator', segments: [seg('elevator_ride', 'RAIL_CHAIR', 'elevator_in', ['el_up'], ['maya_06', 'cole_04']), seg('elevator_doors_ground', 'RAIL_CHAIR', 'elevator_out', ['el_w1'], ['maya_07'])] },
+  { id: 'elevator', segments: [seg('elevator_ride', 'RAIL_CHAIR', 'elevator_in', ['el_up', 'el_block'], ['maya_06', 'cole_04', 'maya_06b']), seg('elevator_doors_ground', 'RAIL_CHAIR', 'elevator_out', ['el_w1'], ['maya_07'])] },
   { id: 'gauntlet', segments: [seg('gauntlet_halls', 'RAIL_CHAIR', 'g_halls', ['g_w0', 'g_w1', 'g_w2'], ['maya_08', 'cole_05']), seg('gauntlet_cafeteria', 'RAIL_CHAIR', 'g_caf', ['caf_w1', 'caf_w2'], ['maya_09', 'cole_06']),
                                seg('gauntlet_ward_on_foot', 'FREE_FOOT', 'ward_foot', ['foot_w1', 'foot_w2'], ['maya_10', 'cole_07']), seg('gauntlet_waiting_room', 'RAIL_CHAIR', 'g_wait', ['wait_w1'], ['maya_11', 'cole_08'])] },
   { id: 'entrance', segments: [seg('entrance_holdout', 'HOLDOUT', 'lobby_hold', ['ent_w1', 'ent_w2'], ['maya_12', 'cole_09']), seg('entrance_exit_push', 'RAIL_CHAIR', 'exit_push', ['exit_w1'], ['maya_13'])] },

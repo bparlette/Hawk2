@@ -29,6 +29,7 @@ Promise.all([load('n2-mixamo.glb'), load('maya-mixamo.glb'), load('cole-mixamo.g
   paces.n2 = {}; [['pistol-walk', [0, 0, 1]], ['pistol-run-aimed', [0, 0, 1]], ['pistol-walk-backward', [0, 0, -1]], ['pistol-strafe', [1, 0, 0]], ['pistol-strafe-mirrored', [-1, 0, 0]], ['crouch-walk-forward', [0, 0, 1]],
     ['pistol-walk-arc-left', [0.24, 0, 0.97]], ['pistol-walk-arc-right', [-0.21, 0, 0.98]]].forEach(function(d){ paces.n2[d[0]] = contactPace('n2', mxClip('n2', d[0]), new V().fromArray(d[1])); });
   paces.maya = {}; base.maya.animations.forEach(function(c){ if(/Push_Loop|Wheelchair_Push|Walk_Fem/.test(c.name)) paces.maya[c.name] = contactPace('maya', c, new V(0, 0, 1)); });
+  paces.maya['pistol-walk'] = contactPace('maya', mxClip('maya', 'pistol-walk'), new V(0, 0, 1));   /* on foot: her aimed walk, paced by contact on HER body */
   C.paces = {}; Object.keys(paces).forEach(function(k){ C.paces[k] = {}; Object.keys(paces[k]).forEach(function(n){ C.paces[k][n] = +paces[k][n].toFixed(3); }); });
   C.ready = true; window.__castReady = true;
   /* background patients: two VALID bodies + 7 retargeted patient clips, loaded after the cast (never blocks it) */
@@ -182,6 +183,9 @@ C.stepMaya = function(o){ var maya = o.maya; if(!C.ready) return false; var K = 
   if(m === 'RAIL_CHAIR'){ var bed = o.vehicle === 'bed', loop = bed ? K.bed : K.chair, pace = paces.maya[loop.name] || 1, sp = o.speed;
     if(o.fireT > 0){ play(f, 'full', sp > 0.05 ? loop : K.legsIdle, 0.2); play(f, 'up', K.upAim, 0.15); } else { play(f, 'full', loop, 0.3); stopSlot(f, 'up', 0.3); f.gun.visible = false; }
     f.cur.full.setEffectiveTimeScale(sp > 0.05 ? sp / pace : 0.0001); }
+  else if(m === 'FREE_FOOT'){ /* CAMERA-FIX: the player's over-the-shoulder Maya is the 3D figure, not the procedural stand-in */
+    var mp = maya.position, sp2 = 0; if(f.lastP && o.dt > 0) sp2 = Math.hypot(mp.x - f.lastP.x, mp.z - f.lastP.z) / o.dt; f.lastP = (f.lastP || new V()).copy(mp); f.spS = (f.spS || 0) + (sp2 - (f.spS || 0)) * Math.min(1, o.dt * 8);
+    if(f.spS > 0.25){ var wa = play(f, 'full', K.aimWalk, 0.2); wa.setEffectiveTimeScale(f.spS / (paces.maya['pistol-walk'] || 1)); stopSlot(f, 'up', 0.2); } else { play(f, 'full', K.legsIdle, 0.25); play(f, 'up', K.upAim, 0.2); } }
   else if(m === 'HOLDOUT'){ if(o.fireT > 0){ play(f, 'full', K.kneelAim, 0.2); } else play(f, 'full', K.crouch, 0.3); stopSlot(f, 'up'); }
   else if(m === 'CUTSCENE' && (seg === 'visit_room' || seg === 'steal_cut')){ play(f, 'full', K.legsIdle, 0.3); play(f, 'up', K.upAim, 0.3); }
   else if(m === 'CUTSCENE' && seg === 'transfer_cut'){ play(f, 'full', K.crouch, 0.3); stopSlot(f, 'up'); }
@@ -192,7 +196,7 @@ C.stepMaya = function(o){ var maya = o.maya; if(!C.ready) return false; var K = 
   if(o.nearShot && (f.reactT || 0) <= 0){ pulse(f, o.nearShot.red ? K.duck : K.flinch, o.nearShot.red ? 0.9 : 0.75); f.reactT = 0.7; C.stats.mayaReact = C.stats.mayaReact || { flinch: 0, duck: 0 }; C.stats.mayaReact[o.nearShot.red ? 'duck' : 'flinch']++; }
   f.reactT = (f.reactT || 0) - o.dt;
   f.mixer.update(o.dt);
-  if(o.aimAt && f.cur.up){ f.model.updateMatrixWorld(true); var sh = f.model.getObjectByName('RightArm').getWorldPosition(new V()), ad = f.gun.localToWorld(new V(0, 0.026, 0.3)).sub(f.gun.localToWorld(new V(0, 0.026, 0))); ad.y = 0; ad.normalize();
+  if(o.aimAt && (f.cur.up || o.mode === 'FREE_FOOT')){ f.model.updateMatrixWorld(true); var sh = f.model.getObjectByName('RightArm').getWorldPosition(new V()), ad = f.gun.localToWorld(new V(0, 0.026, 0.3)).sub(f.gun.localToWorld(new V(0, 0.026, 0))); ad.y = 0; ad.normalize();
     var to = o.aimAt.clone().sub(sh); to.y = 0; to.normalize(); var want = Math.max(-1.3, Math.min(1.3, Math.atan2(ad.z * to.x - ad.x * to.z, ad.dot(to)))); f.twist += (want - f.twist) * Math.min(1, o.dt * 8); } else f.twist *= Math.max(0, 1 - o.dt * 6);
   if(Math.abs(f.twist) > 1e-3) ['Spine', 'Spine1', 'Spine2'].forEach(function(n){ var b = f.model.getObjectByName(n); if(b) b.rotateOnWorldAxis(UPV, f.twist / 3); });
   lightFig(f); return true; };

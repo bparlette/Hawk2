@@ -88,8 +88,14 @@ HE.Rail = function(game){
     if(tg) _des.subVectors(tg, pos).normalize(); else _des.copy(base);
     if(!stopped && _des.dot(fwd) < Math.cos(110 * Math.PI / 180)) _des.copy(base);
     if(clampDeg){ var a = Math.acos(HE.clamp(_des.dot(base), -1, 1)), c = clampDeg * Math.PI / 180; if(a > c) _des.copy(base).lerp(_des, c / a).normalize(); }   // ext: keeps the heroes in frame
-    if(snap) r.lookDir.copy(_des); else if(dt > 0) r.lookDir.lerp(_des, 1 - Math.exp(-dt / 0.35)).normalize();
-    cam.lookAt(_tgt.copy(pos).add(r.lookDir)); HE.applyCameraOffset(game, cam); cam.updateMatrixWorld(); };
+    if(snap) r.lookDir.copy(_des); else if(dt > 0){ var kb = 1 - Math.exp(-dt / 0.35);
+      if(r.lookDir.dot(_des) > -0.2) r.lookDir.lerp(_des, kb).normalize();
+      else { var y0 = Math.atan2(r.lookDir.x, r.lookDir.z), y1 = Math.atan2(_des.x, _des.z), dy = y1 - y0; while(dy > Math.PI) dy -= 2 * Math.PI; while(dy < -Math.PI) dy += 2 * Math.PI;   // ext (ELEVATOR-BLOCK): a turn of ~100 deg+ swings
+        var p0 = Math.asin(HE.clamp(r.lookDir.y, -1, 1)), p1 = Math.asin(HE.clamp(_des.y, -1, 1)), yy = y0 + dy * kb, pp = p0 + (p1 - p0) * kb;                                     // round in yaw (shortest arc) — a straight lerp passes
+        r.lookDir.set(Math.sin(yy) * Math.cos(pp), Math.sin(pp), Math.cos(yy) * Math.cos(pp)); } }                                                                                   // through ~zero and points the lens at the floor
+    cam.lookAt(_tgt.copy(pos).add(r.lookDir)); HE.applyCameraOffset(game, cam);
+    if(game.cameraCollide && r.mode !== 'AMBULANCE'){ var pv = r.path.pointAtS(r.s); pv.y += r.path.height; game.cameraCollide(cam, pv); }   // ext (game-layer hook, CAMERA-FIX): pull the camera in toward the rider if geometry is between them
+    cam.updateMatrixWorld(); };
   return r;
 };
 })();

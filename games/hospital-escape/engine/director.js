@@ -157,10 +157,12 @@ HE.createGame = function(opts){
     // ext (data-gated by tuning.footTurn): edge-turn — holding the reticle near a screen edge turns Maya (the free mode can look around)
     var ft = data.tuning.footTurn; if(ft){ var ax = game.input.aim.x, turn = ax < 0.22 ? -(0.22 - ax) / 0.22 : ax > 0.78 ? (ax - 0.78) / 0.22 : 0; if(turn){ f.fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -turn * ft * dt).normalize(); } }
     var right = new THREE.Vector3(-f.fwd.z, 0, f.fwd.x);
-    var d = f.fwd.clone().multiplyScalar(-mv.y).addScaledVector(right, mv.x); if(d.lengthSq() > 1) d.normalize(); f.pos.addScaledVector(d, sp * dt);
+    var d = f.fwd.clone().multiplyScalar(-mv.y).addScaledVector(right, mv.x); if(d.lengthSq() > 1) d.normalize(); var prevPos = f.pos.clone(); f.pos.addScaledVector(d, sp * dt); if(game.footCollide) game.footCollide(prevPos, f.pos);   // ext (game-layer hook, CAMERA-FIX): Maya stops at walls
     var n = f.path.nearestS(f.pos), w = (data.tuning.footHalfWidth || 3); if(n.d > w){ var c = f.path.pointAtS(n.s); f.pos.sub(c).setLength(w).add(c); }
     var cam = game.camera; cam.position.copy(f.pos).addScaledVector(f.fwd, -f.path.back).addScaledVector(right, 0.5); cam.position.y = f.pos.y + f.path.height;
-    cam.lookAt(cam.position.clone().add(f.fwd).setY(cam.position.y - 0.05)); HE.applyCameraOffset(game, cam); cam.updateMatrixWorld(); }
+    cam.lookAt(cam.position.clone().add(f.fwd).setY(cam.position.y - 0.05)); HE.applyCameraOffset(game, cam);
+    if(game.cameraCollide){ var pv = f.pos.clone(); pv.y += f.path.height; game.cameraCollide(cam, pv); }   // ext (game-layer hook, CAMERA-FIX)
+    cam.updateMatrixWorld(); }
   // ---- outputs ----
   game.state = function(){ var c = game.combat, fb = c.feedback;
     return { beat: game.beat, segment: game.segment, mode: game.mode, vehicle: game.vehicle, health: c.health, nearDeath: c.health < 30, ammo: c.ammo(),

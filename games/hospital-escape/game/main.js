@@ -14,6 +14,39 @@ var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high
 renderer.outputEncoding = THREE.LinearEncoding; renderer.toneMapping = THREE.NoToneMapping;   /* HDR scene target; ACES + sRGB happen in the post composite */ $('game').appendChild(renderer.domElement);
 function resize(){ renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); } addEventListener('resize', resize); resize();
 var worldRoot = W.build(scene, HE.DATA);
+if(window.HEENCLOSE) HEENCLOSE.close(scene, worldRoot, HE.DATA, A);   // CAMERA-FIX: seal the holes from any room into the void (game/enclose.js)
+// CAMERA-FIX: the camera never enters geometry. Called by the engine INSIDE camera placement (so the reticle ray uses exactly this camera):
+// a ray from the pivot (the rider / Maya at eye height, always in open space) to the wanted camera position; if the world is in the way,
+// the camera comes in to 0.25 m short of it (the near plane is 0.05 m, so no wall can fill the lens).
+var camRay = new THREE.Raycaster(), _cd = new V(), _pd = new V(); game.camStats = { checks: 0, pulls: 0, maxPull: 0 };
+/* the collision world: a double-sided proxy of every static world mesh (built once, on first use, after the T4 pass + enclosure), plus the live
+   door groups (they swing) — single-sided furniture must stop the lens from behind too */
+var camWorld = null, CAM_MAT = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+function buildCamWorld(){ camWorld = []; worldRoot.updateMatrixWorld(true); var doorSet = new Set(); W.doors.forEach(function(d){ [d.group, d.hinge].forEach(function(q){ if(q && q.isObject3D) q.traverse(function(o){ doorSet.add(o); }); }); });
+  worldRoot.traverse(function(o){ if(!o.isMesh || doorSet.has(o) || !o.visible || (o.material && (o.material.transparent || o.material.opacity < 0.9))) return; var m = new THREE.Mesh(o.geometry, CAM_MAT); m.matrixAutoUpdate = false; m.matrixWorld.copy(o.matrixWorld); camWorld.push(m); });
+  W.doors.forEach(function(d){ [d.group, d.hinge].forEach(function(q){ if(q && q.isObject3D) camWorld.push(q); }); }); game.camStats.meshes = camWorld.length; }
+// CAMERA-FIX: Maya on foot has a body. Her move (prev -> next) is swept at knee and chest height with a 0.35 m radius against the collision
+// world; she stops short of a wall and slides along it (one slide), so neither she nor the camera pivot can enter geometry.
+var _fm = new V(), _fn = new V(), _fo = new V();
+function sweep(from, move, out){ var L = move.length(); if(L < 1e-5) return null; _fm.copy(move).divideScalar(L); var best = null;
+  [0.45, 1.25].forEach(function(hy){ _fo.copy(from); _fo.y += hy; camRay.set(_fo, _fm); camRay.near = 0; camRay.far = L + 0.35; var hs = camRay.intersectObjects(camWorld, true);
+    for(var i = 0; i < hs.length; i++){ var o = hs[i].object; if(o.material && o.material.transparent && o.material !== CAM_MAT) continue; if(!best || hs[i].distance < best.distance) best = hs[i]; break; } });
+  return best; }
+game.footCollide = function(prev, next){ if(!camWorld) buildCamWorld(); var mv = next.clone().sub(prev); mv.y = 0; var h = sweep(prev, mv);
+  if(!h){ return next; } game.camStats.footStops = (game.camStats.footStops || 0) + 1; var L = mv.length(), go = Math.max(0, h.distance - 0.35);
+  _fn.copy(h.face ? h.face.normal : new V(-mv.x, 0, -mv.z)).transformDirection(h.object.matrixWorld); _fn.y = 0; if(_fn.lengthSq() < 1e-6) _fn.set(-mv.x, 0, -mv.z); _fn.normalize(); if(_fn.dot(mv) > 0) _fn.negate();
+  var p = prev.clone().addScaledVector(mv, go / L), rest = mv.clone().multiplyScalar(1 - go / L); rest.addScaledVector(_fn, -rest.dot(_fn));   /* slide along the wall */
+  if(rest.lengthSq() > 1e-8 && !sweep(p, rest)) p.add(rest); next.x = p.x; next.z = p.z; return next; };
+game.cameraCollide = function(cam, pivot){ game.camStats.checks++; if(!camWorld) buildCamWorld(); var _before = cam.position.clone();
+  // 1) 0.3 m of air around the lens: 8 short horizontal probes; a wall closer than that pushes the camera off it
+  for(var k = 0; k < 8; k++){ var a = k * Math.PI / 4; _pd.set(Math.sin(a), 0, Math.cos(a)); camRay.set(cam.position, _pd); camRay.near = 0; camRay.far = 0.3; var hh = camRay.intersectObjects(camWorld, true);
+    for(var j = 0; j < hh.length; j++){ var oo = hh[j].object; if(!oo.visible || (oo.material && (oo.material.transparent || oo.material.opacity < 0.9))) continue; cam.position.addScaledVector(_pd, -(0.3 - hh[j].distance)); game.camStats.pushes = (game.camStats.pushes || 0) + 1; break; } }
+  // 2) LAST: nothing solid between the pivot (open space by construction) and the lens — pulled in to 0.25 m short of the first hit
+  _cd.subVectors(cam.position, pivot); var L = _cd.length(); if(L < 1e-3) return; _cd.divideScalar(L);
+  camRay.set(pivot, _cd); camRay.near = 0; camRay.far = L + 0.25; var hits = camRay.intersectObjects(camWorld, true);
+  for(var i = 0; i < hits.length; i++){ var o = hits[i].object; if(!o.visible || (o.material && (o.material.transparent || o.material.opacity < 0.9))) continue;
+    var d = Math.max(0.05, hits[i].distance - 0.25); if(d < L){ cam.position.copy(pivot).addScaledVector(_cd, d); game.camStats.pulls++; game.camStats.maxPull = Math.max(game.camStats.maxPull, +(L - d).toFixed(2)); } break; }
+  game.camStats.last = { pivot: pivot.toArray(), before: _before.toArray(), after: cam.position.toArray(), n: hits.length }; };
 var post = window.HEPOST ? HEPOST.create(renderer, scene, camera) : null; window.__post = post; window.__renderer = renderer;
 scene.traverse(function(o){ if(o.material && o.material.map === A.tex.lightPanel){ o.material.color.setRGB(3.2, 3.3, 3.5); } });   // HDR ceiling panels -> bloom
 var T4 = window.HET4 && HET4.on ? HET4 : null;   /* T4-FULL-PORT: Neon's Take 4 look over the whole game (game/t4look.js); ?t4=0 = the previous look */
@@ -208,7 +241,7 @@ function present(dt){ tAnim += dt; if(PT) PT.time = tAnim; patientStep(dt); if(T
   if(train) placeTrain(game.chase.train ? game.chase.train.t : 0);
   W.crossings.forEach(function(x){ var on = !!game.chase.train; x.userData.lights.forEach(function(l, i){ l.material.emissiveIntensity = on && (Math.floor(tAnim * 3) + i) % 2 ? 3 : 0; }); x.userData.arm.rotation.z = on ? Math.max(-0.0, x.userData.arm.rotation.z - dt) : Math.min(1.45, x.userData.arm.rotation.z + dt); if(!on) x.userData.arm.rotation.z = 1.45; });
   // elevator doors: close as the car fills on 4, open hot on G
-  W.doors.forEach(function(d){ if(!d.elevator) return; if(seg === 'elevator_ride'){ if(d.floor === 'upper' && d.end === 0) d.target = r.pathT() < 0.86 ? 1 : 0; if(d.floor === 'ground') d.target = 0; }
+  W.doors.forEach(function(d){ if(!d.elevator) return; if((d.floor === 'upper' && d.end === 1) || (d.floor === 'ground' && d.end === 0)){ d.target = 0; return; }   // CAMERA-FIX: the far end of each car stays shut (it opened onto the void) if(seg === 'elevator_ride'){ if(d.floor === 'upper' && d.end === 0) d.target = (r.pathT() < 0.86 || game.combat.live().some(function(e){ return e.wave === 'el_block'; })) ? 1 : 0;   /* ELEVATOR-BLOCK: a live door-holder keeps the car doors open */ if(d.floor === 'ground') d.target = 0; }
     else if(seg === 'elevator_doors_ground'){ if(d.floor === 'ground' && d.end === 1) d.target = game.segT > 0.35 ? 1 : 0; } });
   W.update(dt, tAnim); stepFx(dt); stepFlights(); }
 // ------------------------------------------------------------------ the painted cast: per-beat frames + placement
@@ -225,7 +258,7 @@ function mayaNear(d){ if(!HC || !d.from || !d.to) return; var a = new V().fromAr
   if(a.clone().addScaledVector(ab, t).distanceTo(p) < 1.6) mayaNearQ = { red: !!d.red }; }   // a round passing within 1.6 m of Maya
 function castFriends(dt, st, m, seg){ var r = game.rail; if(!HC || !HC.ready) return { maya: false, cole: false }; HC.roomVis(seg);
   if(PT && maya.userData.painted) PT.use(maya, false);
-  var sm = HC.stepMaya({ maya: maya, mode: m, seg: seg, vehicle: st.vehicle, speed: r.path ? r.speed() : 0, fireT: mayaFireT, fireQ: mayaFireQ, nearShot: mayaNearQ, aimAt: mayaFireT > 0 ? mayaTarget : null, dt: dt }); mayaFireQ = false; mayaNearQ = null;
+  var sm = HC.stepMaya({ maya: maya, mode: m, seg: seg, vehicle: st.vehicle, speed: r.path ? r.speed() : 0, fireT: mayaFireT, fireQ: mayaFireQ, nearShot: mayaNearQ, aimAt: m === 'FREE_FOOT' ? camera.position.clone().addScaledVector(aimRay(), 20) : mayaFireT > 0 ? mayaTarget : null, dt: dt }); mayaFireQ = false; mayaNearQ = null;
   var pose = null, yaw = 0, dz = 0, dy = 0;   /* where the painted Cole used to appear: in the bed (visit + the bed push's opening), in the chair (cutscenes, parked on foot) */
   if((m === 'CUTSCENE' && seg === 'visit_room') || (m === 'RAIL_CHAIR' && st.vehicle === 'bed' && estK > 0)){ pose = 'bed'; cole.position.copy(bed.position); cole.rotation.copy(bed.rotation); dy = HC.bedDy || 0; dz = HC.bedDz || 0; yaw = HC.bedYaw || 0; bed.visible = true; }
   else if(m === 'CUTSCENE' && (seg === 'transfer_cut' || seg === 'steal_cut')){ pose = 'chair'; cole.position.copy(chair.position); cole.rotation.copy(chair.rotation); chair.visible = true; dz = HC.chairDz || 0; dy = HC.chairDy || 0; }
@@ -396,8 +429,8 @@ function updateVisibleZone(st){ var Z = game.visibleZone || (game.visibleZone = 
 // ------------------------------------------------------------------ engine events -> FX / HUD
 var logIdx = 0;
 function processEvents(){ var L = game._log; for(; logIdx < L.length; logIdx++){ var e = L[logIdx], d = e.data;
-  if(e.type === 'shot' && HC) HC.onShot(d.point);
-  if(e.type === 'shot'){ var gunner = game.mode === 'FREE_FOOT' ? maya : cole, mz = (gunner === cole && (coleHidden || coleGunFG)) ? fgMuzzle(new V()) : (A.muzzleWorld(gunner, new V()) || camera.position.clone()); muzzle(mz, d.weapon === 'machine_pistol'); sfx.shot(d.weapon === 'machine_pistol');
+  if(e.type === 'shot' && HC){ HC.onShot(d.point); if(game.mode === 'FREE_FOOT') mayaFireQ = true; }
+  if(e.type === 'shot'){ var gunner = game.mode === 'FREE_FOOT' ? maya : cole, mz = (gunner === cole && (coleHidden || coleGunFG)) ? fgMuzzle(new V()) : ((gunner === maya && HC && HC.mayaMuzzle(new V())) || A.muzzleWorld(gunner, new V()) || camera.position.clone()); muzzle(mz, d.weapon === 'machine_pistol'); sfx.shot(d.weapon === 'machine_pistol');
     var end = d.point ? new V().fromArray(d.point) : mz.clone().addScaledVector(aimRay(), 40); tracer(mz, end, 0xffe2a0, 0.06, 0.03); if(d.point){ sparks(end, d.hit ? 3 : 6); } }
   else if(e.type === 'partnerShot'){ var en = game.combat.byRole(d.role); if(en){ mayaTarget.copy(en.pos).setY(en.pos.y + 1.3); } mayaFireT = 0.45; mayaFireQ = true; var mm = (HC && HC.mayaMuzzle(new V())) || A.muzzleWorld(maya, new V()); if(mm){ muzzle(mm); tracer(mm, new V().fromArray(d.to), 0xffd080, 0.07, 0.03); } sfx.shot(false); }
   else if(e.type === 'enemyShot' && gb.actors[d.role] && gb.actors[d.role].userData.c3){ var s3 = gb.actors[d.role]; HC.onFire(s3); var m3 = HC.muzzle(s3, new V()); addFlight(Object.assign({}, d, { from: m3.toArray() })); muzzle(m3, true); sprite(TX.flash, m3, 0.9, 0.06); sfx.enemy(d.red); mayaNear(d); }   // INTEGRATION: the round leaves the seated pistol's barrel

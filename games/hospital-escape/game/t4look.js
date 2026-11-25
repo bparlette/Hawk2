@@ -55,11 +55,13 @@ var TL = new THREE.TextureLoader();
 function tex(n, srgb){ var t = TL.load(DIR + n); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; if(srgb) t.encoding = THREE.sRGBEncoding; return t; }
 function set(n){ return { map: tex(n + '_diff.jpg', true), nor: MAPS ? tex(n + '_nor.jpg') : null, rgh: MAPS ? tex(n + '_rough.jpg') : null }; }
 function makeMats(){ var fl = set('floor'), wl = set('wall'), wd = set('wood'), mt = set('metal'), ce = set('ceil'), S = THREE.MeshStandardMaterial;
-  return { floor: withArea(new S({ color: 0x5c7a86, map: fl.map, normalMap: fl.nor, normalScale: new THREE.Vector2(0.45, 0.45), roughnessMap: fl.rgh, roughness: 0.42, metalness: 0.02 })),
+  var M5 = { floor: withArea(new S({ color: 0x5c7a86, map: fl.map, normalMap: fl.nor, normalScale: new THREE.Vector2(0.45, 0.45), roughnessMap: fl.rgh, roughness: 0.42, metalness: 0.02 })),
     wall: withArea(new S({ color: 0xb6c2c0, map: wl.map, normalMap: wl.nor, normalScale: new THREE.Vector2(0.55, 0.55), roughnessMap: wl.rgh, roughness: 0.86 })),
     ceil: withArea(new S({ color: 0xd0dade, map: ce.map, normalMap: ce.nor, normalScale: new THREE.Vector2(0.22, 0.22), roughnessMap: ce.rgh, roughness: 0.88 })),
     door: withArea(new S({ color: 0x947462, map: wd.map, normalMap: wd.nor, roughnessMap: wd.rgh, roughness: 0.54 })),
-    metal: withArea(new S({ color: 0x909ca4, normalMap: mt.nor, normalScale: new THREE.Vector2(0.15, 0.15), roughness: 0.30, metalness: 0.72 })) }; }
+    metal: withArea(new S({ color: 0x909ca4, normalMap: mt.nor, normalScale: new THREE.Vector2(0.15, 0.15), roughness: 0.30, metalness: 0.72 })) };
+  ['floor', 'wall', 'ceil'].forEach(function(k){ M5[k].side = THREE.DoubleSide; });   /* CAMERA-FIX: room surfaces read from both sides (no see-through from a back face) */
+  return M5; }
 var TILE = { floor: 1.85, wall: 1.8, ceil: 1.9, door: 1.0 };
 /* metric UVs from world position (T4's applyMetricUV idea): floors/ceilings by x-z, walls by their run + height */
 function metricUV(g, tile){ var p = g.attributes.position, n = g.attributes.normal, uv = new Float32Array(p.count * 2);

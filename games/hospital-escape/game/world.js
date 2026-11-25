@@ -112,6 +112,7 @@ var BUILD = {
         wallStrip(cl, 2.5, steel, g, new V(-0.9, cy + 1.25, (c0 + c1) / 2), Math.PI / 2); wallStrip(cl, 2.5, steel, g, new V(0.9, cy + 1.25, (c0 + c1) / 2), -Math.PI / 2);
         A.box(1.6, 0.05, 0.05, steel, 0, cy + 0.95, (c0 + c1) / 2, g); plane(0.9, 1.8, mats.panel, g, new V(0, cy + 2.49, (c0 + c1) / 2), [Math.PI / 2, 0, 0]);
         // sliding doors on both ends (the through-car opens front on 4, back on G)
+        [c0, c1].forEach(function(cz2){ [-0.8, 0.8].forEach(function(jx){ A.box(0.2, 2.5, 0.06, steel, jx, cy + 1.25, cz2, g); }); A.box(1.8, 0.32, 0.06, steel, 0, cy + 2.36, cz2, g); });   // CAMERA-FIX: door jambs + header — the 0.2 m beside the sliding doors and the 0.3 m above them showed the void
         [c0, c1].forEach(function(cz2, k){ var dd = new THREE.Group(); dd.userData.keep = true; dd.position.set(0, cy, cz2); g.add(dd);
           var l = A.box(0.7, 2.2, 0.04, steel, -0.35, 1.1, 0, dd), r = A.box(0.7, 2.2, 0.04, steel, 0.35, 1.1, 0, dd); W.doors.push({ group: dd, hinge: { rotation: {} }, pos: new V(0, cy, cz2), open: 1, target: 1, slide: [l, r], elevator: true, floor: cy === 0 ? 'upper' : 'ground', end: k }); }); }); } },
   cafeteria: function(z, g, mats){ var y = z.y, w = z.max[0] - z.min[0], d = z.max[2] - z.min[2], cx = (z.min[0] + z.max[0]) / 2, cz = (z.min[2] + z.max[2]) / 2, h = z.max[1] - y;
