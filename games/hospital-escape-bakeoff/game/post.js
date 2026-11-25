@@ -45,6 +45,7 @@ P.create = function(renderer, scene, camera){
       '  if(t4 > 0.5){ rad *= hurt; base = soft * (0.45 + 1.1 * beat) * (hurt * 2.0 + dying * 3.0 + drift * 3.5); }',   // T4: crisp when healthy; damage still blurs
       '  else { depth = lin(texture2D(tD, vUv).r); coc = depth < focus ? nearBlur * clamp((focus * 0.55 - depth) / (focus * 0.55), 0.0, 1.0) : farBlur * smoothstep(focus * 1.8, focus * 7.0, depth); }',
       '  float R = max(max(coc, rad), base) / 844.0 * res.y;',                                               // radii are authored in px at 844 tall
+      '  if(lookMode > 5.5) R = 0.0;',                                                                       // CELNATIVE: no DOF / breathing blur — the toon materials do the flattening
       '  float ca = t4 > 0.5 ? hurt * 0.01 + dying * 0.012 : 0.004 + 0.012 * r * r + hurt * 0.01 + dying * 0.012;',
       '  vec3 col = (lookMode > 0.5 && lookMode < 2.5) ? texture2D(tC, vUv).rgb : tap(vUv, ca);   // retro looks: no DOF blur — chunk must stay crisp',
       '  if(R >= 0.001){',
@@ -59,6 +60,7 @@ P.create = function(renderer, scene, camera){
       '  float dv = hurt * 0.6 + dying;',                                                                     // double vision: a ghost image that drifts with the pulse
       '  if(dv > 0.01){ vec2 off = vec2(0.012 + 0.01 * beat, 0.004 * sin(time * 1.7)) * dv; col = mix(col, tap(vUv + off, ca), 0.38 * clamp(dv, 0.0, 1.0)); }',
       '  if(t4 > 0.5){ col *= 1.0 - dying * 0.35; col = srgbT4(acesT4(col)); col *= 1.0 - step(0.001, tunnel) * smoothstep(0.32 - tunnel * 0.22, 0.95 - tunnel * 0.4, r) * tunnel; }',
+      '  else if(lookMode > 5.5){ col *= 1.0 - dying * 0.35; col = 1.0 - exp(-col * exposure * 2.15); col = pow(col, vec3(1.0 / 2.2)); }',   // CELNATIVE grade: exponential shoulder + gamma only — no ACES filmic, no split-tone, no bloom (2.6 washed the toon palette to pastel; 2.15 keeps it nearer cel's values)
       '  else {',
       '  col += texture2D(tB, vUv).rgb * bloom * (1.0 + kick);',
       '  col *= exposure * (1.0 - dying * 0.35);',
@@ -84,15 +86,28 @@ P.create = function(renderer, scene, camera){
       '    col = pow(col * vec3(1.07, 1.0, 0.88), vec3(0.94));',
       '  } else if(lookMode > 3.5 && lookMode < 4.5){',                          // WEB: hyper-casual bright + saturated
       '    float l3 = dot(col, vec3(0.2126, 0.7152, 0.0722)); col = pow(col, vec3(0.8)); col = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, 1.32); col += 0.03;',
-      '  } else if(lookMode > 4.5){',                                            // CEL: lift, band, saturate, outline
-      '    col = pow(col, vec3(0.82)) * 1.12;',
-      '    float l4 = dot(col, vec3(0.2126, 0.7152, 0.0722)); float band = floor(l4 * 3.0) / 3.0 + 0.30;',
-      '    col *= clamp(band / max(l4, 0.001), 0.78, 1.5); float l5 = dot(col, vec3(0.2126, 0.7152, 0.0722)); col = mix(vec3(l5), col, 1.35);',
+      '  } else if(lookMode > 4.5){',                                            // CEL v3 (round 2): hard bands + band tint + fine channel posterize + dual-edge ink
+      '    col = pow(col, vec3(0.82)) * 1.10;',
+      '    float l4 = dot(col, vec3(0.2126, 0.7152, 0.0722));',
+      '    float band = (floor(clamp(l4, 0.0, 0.999) * 3.0) + 0.5) / 3.0;',       // snap luminance to 3 band centres — flat, no soft ramp
+      '    col *= clamp(band / max(l4, 0.001), 0.62, 1.45);',
+      '    col *= l4 < 0.32 ? vec3(0.88, 0.95, 1.08) : (l4 > 0.72 ? vec3(1.06, 1.01, 0.92) : vec3(1.0));',   // cool shadow band / warm light band (v3: gentler than v2 — the teal wash went)
+      '    col = floor(col * 9.0 + 0.5) / 9.0;',                                  // fine per-channel posterize (v2's 5 steps rainbow-banded hair/skin gradients)
+      '    float l5 = dot(col, vec3(0.2126, 0.7152, 0.0722)); col = mix(vec3(l5), col, 1.38);',
       '    float dC = lin(texture2D(tD, vUv).r);',
-      '    float dR = lin(texture2D(tD, vUv + vec2(1.6, 0.0) / res).r);',
-      '    float dU = lin(texture2D(tD, vUv + vec2(0.0, 1.6) / res).r);',
-      '    float edg = clamp((abs(dR - dC) + abs(dU - dC)) * 1.1 - 0.05, 0.0, 1.0);',
-      '    col = mix(col, vec3(0.05, 0.05, 0.06), edg * 0.88);',
+      '    vec2 px2 = vec2(2.2, 2.2) / res;',
+      '    float dR = lin(texture2D(tD, vUv + vec2(px2.x, 0.0)).r);',
+      '    float dL = lin(texture2D(tD, vUv - vec2(px2.x, 0.0)).r);',
+      '    float dU = lin(texture2D(tD, vUv + vec2(0.0, px2.y)).r);',
+      '    float dD = lin(texture2D(tD, vUv - vec2(0.0, px2.y)).r);',
+      '    float edgD = clamp(((abs(dR - dC) + abs(dL - dC) + abs(dU - dC) + abs(dD - dC)) * 0.55 - 0.05) * 1.9, 0.0, 1.0);',   // 4-tap depth ink, wider + stronger
+      '    vec2 px1 = vec2(1.5, 1.5) / res;',
+      '    float gC = dot(texture2D(tC, vUv).rgb, vec3(0.333));',
+      '    float gR = dot(texture2D(tC, vUv + vec2(px1.x, 0.0)).rgb, vec3(0.333));',
+      '    float gU = dot(texture2D(tC, vUv + vec2(0.0, px1.y)).rgb, vec3(0.333));',
+      '    float edgL = clamp(((abs(gR - gC) + abs(gU - gC)) / (gC + 0.25) - 1.25) * 1.3, 0.0, 1.0) * 0.35;',   // relative luma ink, strict (v2 fired on wall texture noise; v3 still streaked the cafeteria wall)
+      '    float edg = max(edgD, edgL);',
+      '    col = mix(col, vec3(0.03, 0.03, 0.045), edg * 0.95);',
       '  }',
       '  gl_FragColor = vec4(col, 1.0);',
       '}'].join('\n') });
@@ -105,8 +120,9 @@ P.create = function(renderer, scene, camera){
   if(DBG) comp.fragmentShader = 'uniform sampler2D tC, tD, tB; uniform float near, far; varying vec2 vUv; float lin(float d){ float z = d * 2.0 - 1.0; return 2.0 * near * far / (far + near - z * (far - near)); } void main(){ ' + (DBG === 'raw' ? 'gl_FragColor = vec4(pow(texture2D(tC, vUv).rgb, vec3(1.0/2.2)), 1.0);' : DBG === 'depth' ? 'gl_FragColor = vec4(vec3(lin(texture2D(tD, vUv).r) / 30.0), 1.0);' : 'gl_FragColor = vec4(texture2D(tB, vUv).rgb, 1.0);') + ' }';
   var post = { enabled: true, hdr: hdr, u: comp.uniforms,
     render: function(t){ size(); renderer.setRenderTarget(rtScene); renderer.render(scene, camera);
-      if(comp.uniforms.t4.value < 0.5){ bright.uniforms.t.value = rtScene.texture; pass(bright, rtA); }
-      for(var k = 0; k < (comp.uniforms.t4.value < 0.5 ? 2 : 0); k++){ blur.uniforms.t.value = rtA.texture; blur.uniforms.dir.value.set(1 / rtA.width * (k + 1), 0); pass(blur, rtB); blur.uniforms.t.value = rtB.texture; blur.uniforms.dir.value.set(0, 1 / rtA.height * (k + 1)); pass(blur, rtA); }
+      var cheap = comp.uniforms.t4.value >= 0.5 || (window.HELOOK && window.HELOOK.post === 6);   // CELNATIVE skips the bloom pyramid entirely
+      if(!cheap){ bright.uniforms.t.value = rtScene.texture; pass(bright, rtA); }
+      for(var k = 0; k < (cheap ? 0 : 2); k++){ blur.uniforms.t.value = rtA.texture; blur.uniforms.dir.value.set(1 / rtA.width * (k + 1), 0); pass(blur, rtB); blur.uniforms.t.value = rtB.texture; blur.uniforms.dir.value.set(0, 1 / rtA.height * (k + 1)); pass(blur, rtA); }
       var u = comp.uniforms; u.tC.value = rtScene.texture; u.tD.value = rtScene.depthTexture; u.tB.value = rtA.texture; u.near.value = camera.near; u.far.value = camera.far; u.res.value.set(W, H); u.time.value = t;
       pass(comp, null); } };
   return post; };

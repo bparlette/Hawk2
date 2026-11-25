@@ -17,10 +17,21 @@ var MODES = {
   snes: { post: 2, pr: 0.36, stepHz: 12, fogMul: 1.25, fogCol: null,     lightMul: 1.05, bg: null,     snap: false },
   n64:  { post: 3, pr: 0.75, stepHz: 0,  fogMul: 2.3,  fogCol: 0x35302a, lightMul: 1.12, bg: null,     snap: false },
   web:  { post: 4, pr: 1.35, stepHz: 0,  fogMul: 0.25, fogCol: 0xbfe3ff, lightMul: 1.35, bg: 0x9fd4ff, snap: false },
-  cel:  { post: 5, pr: 1.15, stepHz: 0,  fogMul: 0.40, fogCol: 0xcfe4ef, lightMul: 1.32, bg: 0xa8c8dd, snap: false }
+  cel:  { post: 5, pr: 1.15, stepHz: 0,  fogMul: 0.40, fogCol: 0xcfe4ef, lightMul: 1.32, bg: 0xa8c8dd, snap: false },
+  /* round 2: celnative = cel look with the heavy 3D stripped (see below).
+     (snescel — sprite cast inside this cel environment — lands with the sprite-lane merge.) */
+  celnative: { post: 6, pr: 1.15, stepHz: 0, fogMul: 0.40, fogCol: 0xcfe4ef, lightMul: 1.05, bg: 0xa8c8dd, snap: false }
 };
 var M = MODES[name] || MODES.t4;
+if(Q.get('pr')) M = Object.assign({}, M, { pr: parseFloat(Q.get('pr')) || M.pr });   // measurement override: &pr= lets the frame-time harness probe other internal resolutions without a code change
 window.HELOOK = { name: name, post: M.post, mode: M };
+
+/* CELNATIVE: switch the T4 layer off before t4look.js reads the query (it bails on ?t4=0, a mode the
+   shipped game already supports) — that removes the PBR texture sets, the area-light GLSL injection and
+   the IBL in one move; the toon conversion below then replaces what's left of the standard materials. */
+if(name === 'celnative' && Q.get('t4') !== '0'){
+  try{ var u = new URL(location.href); u.searchParams.set('t4', '0'); history.replaceState(null, '', u.href); }catch(e){}
+}
 
 /* BAKE-OFF PACKAGING: this sample folder carries text files only (the GitHub
    connector corrupts binaries). The heavy binary assets (cast GLBs, painted
@@ -53,6 +64,39 @@ function snapMat(m){ if(!m || m.__lookSnap || typeof m.onBeforeCompile !== 'func
       '#include <project_vertex>\n{ vec4 lp = gl_Position; lp.xyz /= lp.w; lp.xy = floor(lp.xy * vec2(140.0, 300.0)) / vec2(140.0, 300.0); lp.xyz *= lp.w; gl_Position = lp; }'); };
   m.customProgramCacheKey = function(){ return 'looksnap1'; }; m.needsUpdate = true; }
 
+/* ---- CEL round 2: quantized rim light injected into standard materials (chained over T4's own
+   onBeforeCompile, like snapMat). A hard 2-step fresnel band in a pale cyan — the anime rim. */
+function rimMat(m){ if(!m || m.__celRim || !m.isMeshStandardMaterial || typeof m.onBeforeCompile !== 'function') return; m.__celRim = true;
+  var prev = m.onBeforeCompile;
+  m.onBeforeCompile = function(sh, r){ if(prev) prev.call(this, sh, r);
+    if(sh.fragmentShader.indexOf('#include <output_fragment>') >= 0)
+      sh.fragmentShader = sh.fragmentShader.replace('#include <output_fragment>',
+        '#ifndef FLAT_SHADED\n{ vec3 rN = normalize(vNormal); vec3 rV = normalize(vViewPosition); float rim = pow(1.0 - abs(dot(rN, rV)), 3.0); rim = floor(rim * 2.0 + 0.5) / 2.0; outgoingLight += rim * vec3(0.45, 0.62, 0.78) * 0.55; }\n#endif\n#include <output_fragment>'); };
+  var key = m.customProgramCacheKey ? m.customProgramCacheKey.bind(m) : function(){ return ''; };
+  m.customProgramCacheKey = function(){ return key() + '|celrim2'; };
+  m.needsUpdate = true; }
+
+/* ---- CELNATIVE: replace standard materials with flat toon materials. Colour = the material's own
+   diffuse colour multiplied by its map's average colour (sampled off the map image), so surfaces keep
+   their identity with NO map sampling at render time. Skinned meshes (the rigged cast) are skipped —
+   few materials, skinning-safe, and the shared cel post chain still grades them. */
+var GRAD = null;
+function gradMap(){ if(GRAD) return GRAD; var t = new THREE.DataTexture(new Uint8Array([96, 152, 208, 255]), 4, 1, THREE.LuminanceFormat);
+  t.minFilter = THREE.NearestFilter; t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return GRAD = t; }
+var _ac = document.createElement('canvas'); _ac.width = _ac.height = 8;
+function avgColor(mat){ var im = mat.map && mat.map.image; if(!im) return null;
+  try{ var c = _ac.getContext('2d'); c.clearRect(0, 0, 8, 8); c.drawImage(im, 0, 0, 8, 8);
+    var d = c.getImageData(0, 0, 8, 8).data, r = 0, g = 0, b = 0, n = 0;
+    for(var i = 0; i < d.length; i += 4){ if(d[i + 3] < 40) continue; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+    return n ? new THREE.Color(r / n / 255, g / n / 255, b / n / 255) : null; }catch(e){ return null; } }
+function toonify(o){ var m = o.material; if(!m || Array.isArray(m) || !m.isMeshStandardMaterial || o.isSkinnedMesh) return;
+  var col = m.color ? m.color.clone() : new THREE.Color(0xffffff); var avg = avgColor(m); if(avg) col.multiply(avg);
+  var t = new THREE.MeshToonMaterial({ color: col, gradientMap: gradMap(), side: m.side,
+    transparent: m.transparent, opacity: m.opacity, alphaTest: m.alphaTest || 0 });
+  if(m.emissive){ t.emissive = m.emissive.clone(); t.emissiveIntensity = m.emissiveIntensity != null ? m.emissiveIntensity : 1; }
+  if(m.vertexColors) t.vertexColors = true;
+  o.material = t; }
+
 /* ---- scene enforcement: fog, key lights, background, material snap */
 setInterval(function(){ var g = window.__game; if(!g || !g.game || !g.game.scene) return; var sc = g.game.scene;
   if(sc.fog && sc.fog.isFogExp2){ if(M.fogCol != null) sc.fog.color.setHex(M.fogCol); sc.fog.density = 0.020 * M.fogMul; }
@@ -62,6 +106,8 @@ setInterval(function(){ var g = window.__game; if(!g || !g.game || !g.game.scene
     if(o.isLight && (o.isHemisphereLight || o.isAmbientLight || o.isDirectionalLight)){
       if(o.userData.__lb === undefined) o.userData.__lb = o.intensity; o.intensity = o.userData.__lb * M.lightMul; }
     if(M.snap && o.material){ (Array.isArray(o.material) ? o.material : [o.material]).forEach(snapMat); }
+    if(name === 'cel' && o.material){ (Array.isArray(o.material) ? o.material : [o.material]).forEach(rimMat); }
+    if(name === 'celnative' && o.isMesh) toonify(o);
   });
 }, 700);
 })();
