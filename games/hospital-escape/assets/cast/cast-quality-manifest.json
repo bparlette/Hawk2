@@ -1,0 +1,576 @@
+{
+  "cole": {
+    "file": "cole-mixamo.glb",
+    "bytes": 3227740,
+    "tris": 9018,
+    "mats": 4,
+    "weapon_muzzle": {
+      "tip": [
+        0.0976,
+        0.176,
+        0.0446
+      ],
+      "dir": [
+        0.2903,
+        0.9479,
+        0.131
+      ]
+    },
+    "clips": {
+      "Sit_Idle_Breath": {
+        "clip": "Sit_Idle_Breath",
+        "frames": 130,
+        "duration_s": 4.3,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 40.55,
+        "median_min_foot_z_mm": 40.68
+      },
+      "Sit_Idle_Thighs": {
+        "clip": "Sit_Idle_Thighs",
+        "frames": 193,
+        "duration_s": 6.4,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 26.38,
+        "median_min_foot_z_mm": 26.47
+      },
+      "Sit_Idle_Still": {
+        "clip": "Sit_Idle_Still",
+        "frames": 90,
+        "duration_s": 2.9667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 26.41,
+        "median_min_foot_z_mm": 26.49
+      },
+      "Sit_Aim_Pistol": {
+        "clip": "Sit_Aim_Pistol",
+        "frames": 164,
+        "duration_s": 5.4333,
+        "authored_root_mps": 0.0023,
+        "authored_stance_mps": 0.0023,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 12.12,
+        "median_min_foot_z_mm": 12.75
+      },
+      "Sit_Lower_Pistol": {
+        "clip": "Sit_Lower_Pistol",
+        "frames": 162,
+        "duration_s": 5.3667,
+        "authored_root_mps": 0.0022,
+        "authored_stance_mps": 0.0022,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 11.81,
+        "median_min_foot_z_mm": 12.34
+      },
+      "Sit_Gun_Motion": {
+        "clip": "Sit_Gun_Motion",
+        "frames": 145,
+        "duration_s": 4.8,
+        "authored_root_mps": 0.0001,
+        "authored_stance_mps": 0.0001,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 5.51,
+        "median_min_foot_z_mm": 5.98
+      },
+      "Sit_Rub_Arm": {
+        "clip": "Sit_Rub_Arm",
+        "frames": 240,
+        "duration_s": 7.9667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 6.13,
+        "median_min_foot_z_mm": 7.41
+      },
+      "Sit_Dodge": {
+        "clip": "Sit_Dodge",
+        "frames": 268,
+        "duration_s": 8.9,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 21.41,
+        "median_min_foot_z_mm": 36.23
+      },
+      "Sit_Disbelief": {
+        "clip": "Sit_Disbelief",
+        "frames": 144,
+        "duration_s": 4.7667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 26.32,
+        "median_min_foot_z_mm": 27.19
+      },
+      "Sit_Disbelief_Forward": {
+        "clip": "Sit_Disbelief_Forward",
+        "frames": 140,
+        "duration_s": 4.6333,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -13.33,
+        "median_min_foot_z_mm": -11.32
+      },
+      "Lay_Breathless": {
+        "clip": "Lay_Breathless",
+        "frames": 26,
+        "duration_s": 0.8333,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 991.32,
+        "median_min_foot_z_mm": 991.45
+      },
+      "Lay_Sleeping": {
+        "clip": "Lay_Sleeping",
+        "frames": 52,
+        "duration_s": 1.7,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 980.36,
+        "median_min_foot_z_mm": 980.4
+      },
+      "Lay_Moaning": {
+        "clip": "Lay_Moaning",
+        "frames": 65,
+        "duration_s": 2.1333,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 952.47,
+        "median_min_foot_z_mm": 953.36
+      },
+      "Injured_Walk": {
+        "clip": "Injured_Walk",
+        "frames": 31,
+        "duration_s": 1.0,
+        "authored_root_mps": 1.7233,
+        "authored_stance_mps": 1.7718,
+        "stance_samples": 27,
+        "stance_slide_mm": 1.3,
+        "min_foot_z_mm": 0.0,
+        "median_min_foot_z_mm": 0.03
+      },
+      "Walking_Arm_Injury": {
+        "clip": "Walking_Arm_Injury",
+        "frames": 31,
+        "duration_s": 1.0,
+        "authored_root_mps": 1.7233,
+        "authored_stance_mps": 1.7718,
+        "stance_samples": 27,
+        "stance_slide_mm": 1.3,
+        "min_foot_z_mm": 0.0,
+        "median_min_foot_z_mm": 0.03
+      },
+      "Sit_To_Stand": {
+        "clip": "Sit_To_Stand",
+        "frames": 69,
+        "duration_s": 2.2667,
+        "authored_root_mps": 0.207,
+        "authored_stance_mps": 0.207,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -23.94,
+        "median_min_foot_z_mm": -9.79
+      },
+      "Stand_To_Sit": {
+        "clip": "Stand_To_Sit",
+        "frames": 68,
+        "duration_s": 2.2333,
+        "authored_root_mps": 0.2127,
+        "authored_stance_mps": 0.2127,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -11.86,
+        "median_min_foot_z_mm": -3.59
+      },
+      "Sit_Aim_Fire": {
+        "clip": "Sit_Aim_Fire",
+        "frames": 130,
+        "duration_s": 4.3,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 40.55,
+        "median_min_foot_z_mm": 40.68
+      }
+    },
+    "seated_crown": {
+      "Sit_Aim_Fire": {
+        "raw_crown_z_m": 1.2644,
+        "hips_z_m": 0.5615,
+        "raw_min_foot_z_m": 0.0404
+      },
+      "Sit_Aim_Pistol": {
+        "raw_crown_z_m": 1.1283,
+        "hips_z_m": 0.5615,
+        "raw_min_foot_z_m": 0.0083
+      },
+      "Sit_Idle_Breath": {
+        "raw_crown_z_m": 1.3111,
+        "hips_z_m": 0.5615,
+        "raw_min_foot_z_m": 0.0404
+      },
+      "Sit_Disbelief_Forward": {
+        "raw_crown_z_m": 1.3821,
+        "hips_z_m": 0.6046,
+        "raw_min_foot_z_m": 0.0265
+      }
+    },
+    "height_m": 1.8,
+    "bones": 84,
+    "source_body": "White_M_3_Casual.glb (MIT VALID v1.0) \u2014 hospital pajama trouser leg fix",
+    "bed_offsets": {
+      "Lay_Breathless": {
+        "dorsal_min_y_m": 0.9826,
+        "hips_y_m": 1.0668,
+        "bed_dy_for_mattress_072m": -0.2626
+      },
+      "Lay_Sleeping": {
+        "dorsal_min_y_m": 0.992,
+        "hips_y_m": 1.0768,
+        "bed_dy_for_mattress_072m": -0.272
+      },
+      "Lay_Moaning": {
+        "dorsal_min_y_m": 0.9968,
+        "hips_y_m": 1.0842,
+        "bed_dy_for_mattress_072m": -0.2768
+      }
+    }
+  },
+  "dr_hale": {
+    "file": "dr-hale-mixamo.glb",
+    "bytes": 1380712,
+    "height_m": 1.78,
+    "bones": 84,
+    "tris": 12651,
+    "mats": 4,
+    "source_body": "g-White_M_2_Casual.glb (MIT VALID v1.0)",
+    "clips": {
+      "Hale_Idle": {
+        "clip": "Hale_Idle",
+        "frames": 45,
+        "duration_s": 1.4667,
+        "authored_root_mps": 0.0826,
+        "authored_stance_mps": 0.0826,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 1.96,
+        "median_min_foot_z_mm": 3.11
+      },
+      "Hale_Talk_Standing": {
+        "clip": "Hale_Talk_Standing",
+        "frames": 111,
+        "duration_s": 3.6667,
+        "authored_root_mps": 0.035,
+        "authored_stance_mps": 0.035,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 2.42,
+        "median_min_foot_z_mm": 3.08
+      },
+      "Hale_Objecting": {
+        "clip": "Hale_Objecting",
+        "frames": 69,
+        "duration_s": 2.2667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 2.52,
+        "median_min_foot_z_mm": 2.81
+      },
+      "Hale_Hands_Up": {
+        "clip": "Hale_Hands_Up",
+        "frames": 40,
+        "duration_s": 1.3,
+        "authored_root_mps": 0.0277,
+        "authored_stance_mps": 0.0277,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 8.69,
+        "median_min_foot_z_mm": 9.17
+      },
+      "Hale_Walk": {
+        "clip": "Hale_Walk",
+        "frames": 25,
+        "duration_s": 0.8,
+        "authored_root_mps": 2.5161,
+        "authored_stance_mps": 2.4604,
+        "stance_samples": 23,
+        "stance_slide_mm": 5.44,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.05
+      }
+    }
+  },
+  "patient_lying": {
+    "file": "patient-lying-mixamo.glb",
+    "bytes": 1085592,
+    "height_m": 1.74,
+    "bones": 114,
+    "tris": 7459,
+    "mats": 2,
+    "source_body": "g-Hispanic_M_2_Casual.glb (MIT VALID v1.0)",
+    "bed_offsets": {
+      "Lay_Breathless": {
+        "dorsal_min_y_m": 0.944,
+        "hips_y_m": 1.0175,
+        "bed_dy_for_mattress_072m": -0.224
+      },
+      "Lay_Sleeping": {
+        "dorsal_min_y_m": 0.9574,
+        "hips_y_m": 1.027,
+        "bed_dy_for_mattress_072m": -0.2374
+      },
+      "Lay_Moaning": {
+        "dorsal_min_y_m": 0.9639,
+        "hips_y_m": 1.0339,
+        "bed_dy_for_mattress_072m": -0.2439
+      }
+    },
+    "clips": {
+      "Lay_Breathless": {
+        "clip": "Lay_Breathless",
+        "frames": 26,
+        "duration_s": 0.8333,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 969.82,
+        "median_min_foot_z_mm": 969.98
+      },
+      "Lay_Sleeping": {
+        "clip": "Lay_Sleeping",
+        "frames": 52,
+        "duration_s": 1.7,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 956.51,
+        "median_min_foot_z_mm": 956.57
+      },
+      "Lay_Moaning": {
+        "clip": "Lay_Moaning",
+        "frames": 65,
+        "duration_s": 2.1333,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 928.35,
+        "median_min_foot_z_mm": 929.24
+      },
+      "Sit_Idle_Breath": {
+        "clip": "Sit_Idle_Breath",
+        "frames": 130,
+        "duration_s": 4.3,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 61.5,
+        "median_min_foot_z_mm": 61.63
+      }
+    }
+  },
+  "nurse_female": {
+    "file": "nurse-female-mixamo.glb",
+    "bytes": 1740556,
+    "height_m": 1.64,
+    "bones": 114,
+    "tris": 9227,
+    "mats": 6,
+    "source_body": "Hispanic_F_1_Util.glb (MIT VALID v1.0)",
+    "clips": {
+      "Staff_Idle": {
+        "clip": "Staff_Idle",
+        "frames": 45,
+        "duration_s": 1.4667,
+        "authored_root_mps": 0.0775,
+        "authored_stance_mps": 0.0775,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -6.52,
+        "median_min_foot_z_mm": -5.18
+      },
+      "Staff_Walk": {
+        "clip": "Staff_Walk",
+        "frames": 25,
+        "duration_s": 0.8,
+        "authored_root_mps": 2.3584,
+        "authored_stance_mps": 2.2826,
+        "stance_samples": 23,
+        "stance_slide_mm": 5.23,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.01
+      },
+      "Staff_Sitting_Talking": {
+        "clip": "Staff_Sitting_Talking",
+        "frames": 151,
+        "duration_s": 5.0,
+        "authored_root_mps": 0.0003,
+        "authored_stance_mps": 0.0003,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 36.1,
+        "median_min_foot_z_mm": 36.26
+      },
+      "Staff_Talking_Seated": {
+        "clip": "Staff_Talking_Seated",
+        "frames": 151,
+        "duration_s": 5.0,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 53.88,
+        "median_min_foot_z_mm": 54.14
+      },
+      "Staff_Typing": {
+        "clip": "Staff_Typing",
+        "frames": 151,
+        "duration_s": 5.0,
+        "authored_root_mps": 0.0009,
+        "authored_stance_mps": 0.0009,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 32.31,
+        "median_min_foot_z_mm": 32.43
+      },
+      "Staff_Talking_On_Phone": {
+        "clip": "Staff_Talking_On_Phone",
+        "frames": 151,
+        "duration_s": 5.0,
+        "authored_root_mps": 0.0469,
+        "authored_stance_mps": 0.0469,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -3.55,
+        "median_min_foot_z_mm": 0.37
+      },
+      "Staff_Cower_Duck": {
+        "clip": "Staff_Cower_Duck",
+        "frames": 78,
+        "duration_s": 2.5667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 9.19,
+        "median_min_foot_z_mm": 9.3
+      }
+    }
+  },
+  "nurse_male": {
+    "file": "nurse-male-mixamo.glb",
+    "bytes": 1511308,
+    "height_m": 1.76,
+    "bones": 84,
+    "tris": 7464,
+    "mats": 4,
+    "source_body": "g-Black_M_3_Casual.glb (MIT VALID v1.0)",
+    "clips": {
+      "Staff_Idle": {
+        "clip": "Staff_Idle",
+        "frames": 45,
+        "duration_s": 1.4667,
+        "authored_root_mps": 0.0787,
+        "authored_stance_mps": 0.0787,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": -0.12,
+        "median_min_foot_z_mm": 2.28
+      },
+      "Staff_Walk": {
+        "clip": "Staff_Walk",
+        "frames": 25,
+        "duration_s": 0.8,
+        "authored_root_mps": 2.3952,
+        "authored_stance_mps": 2.3687,
+        "stance_samples": 23,
+        "stance_slide_mm": 4.05,
+        "min_foot_z_mm": -0.0,
+        "median_min_foot_z_mm": 0.04
+      },
+      "Staff_Sitting_Talking": {
+        "clip": "Staff_Sitting_Talking",
+        "frames": 151,
+        "duration_s": 5.0,
+        "authored_root_mps": 0.0003,
+        "authored_stance_mps": 0.0003,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 31.45,
+        "median_min_foot_z_mm": 31.74
+      },
+      "Staff_Talking_Seated": {
+        "clip": "Staff_Talking_Seated",
+        "frames": 151,
+        "duration_s": 5.0,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 53.62,
+        "median_min_foot_z_mm": 53.94
+      },
+      "Staff_Typing": {
+        "clip": "Staff_Typing",
+        "frames": 151,
+        "duration_s": 5.0,
+        "authored_root_mps": 0.0009,
+        "authored_stance_mps": 0.0009,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 19.32,
+        "median_min_foot_z_mm": 19.54
+      },
+      "Staff_Talking_On_Phone": {
+        "clip": "Staff_Talking_On_Phone",
+        "frames": 151,
+        "duration_s": 5.0,
+        "authored_root_mps": 0.0477,
+        "authored_stance_mps": 0.0477,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 2.78,
+        "median_min_foot_z_mm": 6.18
+      },
+      "Staff_Cower_Duck": {
+        "clip": "Staff_Cower_Duck",
+        "frames": 78,
+        "duration_s": 2.5667,
+        "authored_root_mps": 0.0,
+        "authored_stance_mps": 0.0,
+        "stance_samples": 0,
+        "stance_slide_mm": 0.0,
+        "min_foot_z_mm": 9.08,
+        "median_min_foot_z_mm": 9.18
+      }
+    }
+  }
+}

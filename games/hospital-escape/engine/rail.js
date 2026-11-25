@@ -94,7 +94,7 @@ HE.Rail = function(game){
         var p0 = Math.asin(HE.clamp(r.lookDir.y, -1, 1)), p1 = Math.asin(HE.clamp(_des.y, -1, 1)), yy = y0 + dy * kb, pp = p0 + (p1 - p0) * kb;                                     // round in yaw (shortest arc) — a straight lerp passes
         r.lookDir.set(Math.sin(yy) * Math.cos(pp), Math.sin(pp), Math.cos(yy) * Math.cos(pp)); } }                                                                                   // through ~zero and points the lens at the floor
     cam.lookAt(_tgt.copy(pos).add(r.lookDir)); HE.applyCameraOffset(game, cam);
-    if(game.cameraCollide && r.mode !== 'AMBULANCE'){ var pv = r.path.pointAtS(r.s); pv.y += r.path.height; game.cameraCollide(cam, pv); }   // ext (game-layer hook, CAMERA-FIX): pull the camera in toward the rider if geometry is between them
+    if(game.cameraCollide && r.mode !== 'AMBULANCE' && game.mode !== 'CUTSCENE'){   /* cutscene framings are authored */ var pv = r.path.pointAtS(r.s); pv.y += r.path.height; game.cameraCollide(cam, pv); }   // ext (game-layer hook, CAMERA-FIX): pull the camera in toward the rider if geometry is between them
     cam.updateMatrixWorld(); };
   return r;
 };

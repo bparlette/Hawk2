@@ -234,7 +234,7 @@ function present(dt){ tAnim += dt; if(PT) PT.time = tAnim; patientStep(dt); if(T
     if(e.exposed || moving){ var tgt = game.heroTarget(); aimArm(p, 'R', tgt.clone().sub(p.position.clone().setY(p.position.y + 1.35)).normalize()); }
     if(e.aiming > 0 && Math.random() < 0.5){ var mz = A.muzzleWorld(p, new V()); if(mz) sprite(TX.glint, mz, 0.35 + Math.random() * 0.2, 0.06); } });
   game.extraOccluders.forEach(function(o){ if(o.userData.slideTo){ o.position.lerp(o.userData.slideTo, Math.min(1, dt * 2)); } });
-  game.bystanders.list.forEach(function(b){ var p = gb.actors[b.role]; if(!p) return; if(b.state === 'hit'){ A.pose(p, 'hurt', 0); return; } A.pose(p, b.state === 'pause' ? 'cower' : (b.def.speed || 1.6) > 1.9 ? 'flee' : 'walk', tAnim); });
+  game.bystanders.list.forEach(function(b){ var p = gb.actors[b.role]; if(!p) return; if(HC && (p.userData.c3 || HC.attachBystander(p, b.def.kind))){ HC.stepBystander(b, p, dt); return; }   /* CAST-QUALITY: rigged nurses / orderlies */ if(b.state === 'hit'){ A.pose(p, 'hurt', 0); return; } A.pose(p, b.state === 'pause' ? 'cower' : (b.def.speed || 1.6) > 1.9 ? 'flee' : 'walk', tAnim); });
   game.chase.list.forEach(function(pz){ var c = gb.actors[pz.role]; if(!c) return; if(c.userData.lightbar) c.userData.lightbar.children.forEach(function(x, i){ x.visible = pz.state === 'pursuing' && Math.floor(tAnim * 7 + i) % 2 === 0; });
     if(pz.state === 'crippled:driver' || (pz.state === 'wrecked' && pz.outcome === 'drift')){ c.userData.spin = Math.min(2.6, c.userData.spin + dt * 2.4); } else if(pz.state === 'crippled:tire'){ c.userData.spin = Math.min(0.5, c.userData.spin + dt * 0.4); }
     c.rotateY(c.userData.spin); if(c.userData.smoke && Math.random() < dt * 14){ var sp = c.position.clone().add(new V(0, 1.2, 0)); sprite(c.userData.fire ? TX.fire : TX.smoke, sp, 1.0, 1.2, { vel: new V((Math.random() - 0.5), 1.6, (Math.random() - 0.5)), grow: 1.5, normal: !c.userData.fire, alpha: 0.8 }); } });
@@ -256,19 +256,26 @@ function gripSolve(veh, barLocal, f, mir){ veh.updateMatrixWorld(true); var B = 
 var mayaFireQ = false, mayaNearQ = null;
 function mayaNear(d){ if(!HC || !d.from || !d.to) return; var a = new V().fromArray(d.from), b = new V().fromArray(d.to), p = maya.position.clone(); p.y += 1.2; var ab = b.clone().sub(a), t = HE.clamp(p.clone().sub(a).dot(ab) / Math.max(1e-6, ab.lengthSq()), 0, 1);
   if(a.clone().addScaledVector(ab, t).distanceTo(p) < 1.6) mayaNearQ = { red: !!d.red }; }   // a round passing within 1.6 m of Maya
-function castFriends(dt, st, m, seg){ var r = game.rail; if(!HC || !HC.ready) return { maya: false, cole: false }; HC.roomVis(seg);
+function castFriends(dt, st, m, seg){ var r = game.rail; if(!HC || !HC.ready) return { maya: false, cole: false, hale: false }; HC.roomVis(seg);
   if(PT && maya.userData.painted) PT.use(maya, false);
+  // BED-PUSH STAGING (owner ruling): Maya stands BEHIND the push bar, square to the travel direction (no side offset); her two hands are solved onto the bar
+  var barW = null; if(m === 'RAIL_CHAIR' && r.path){ var veh = st.vehicle === 'bed' ? bed : chair; veh.updateMatrixWorld(true); barW = veh.localToWorld(BAR[st.vehicle === 'bed' ? 'bed' : 'chair'].clone()); var tb = fwdOf(r.path, r.s); maya.position.set(barW.x - tb.x * 0.45, veh.position.y, barW.z - tb.z * 0.45); yawTo(maya, tb); }
   var sm = HC.stepMaya({ maya: maya, mode: m, seg: seg, vehicle: st.vehicle, speed: r.path ? r.speed() : 0, fireT: mayaFireT, fireQ: mayaFireQ, nearShot: mayaNearQ, aimAt: m === 'FREE_FOOT' ? camera.position.clone().addScaledVector(aimRay(), 20) : mayaFireT > 0 ? mayaTarget : null, dt: dt }); mayaFireQ = false; mayaNearQ = null;
+  if(sm && barW && mayaFireT <= 0) HC.pushStat = HC.handsToBar(barW, dt);
+  if(sm) HC.fadeNear(HC.maya3(), camera.position);
+  var hu = st.subtitle && st.subtitle.speaker === 'FRIEND'; if(hu && hale.visible) haleUp = true; if(PT && hale.visible && hale.userData.painted && HC.patientsReady) PT.use(hale, false);
+  var sh3 = HC.stepHale({ hale: hale, show: hale.visible, handsUp: haleUp, talking: !!(st.subtitle && /hale/i.test(st.subtitle.speaker || '')), dt: dt });
   var pose = null, yaw = 0, dz = 0, dy = 0;   /* where the painted Cole used to appear: in the bed (visit + the bed push's opening), in the chair (cutscenes, parked on foot) */
   if((m === 'CUTSCENE' && seg === 'visit_room') || (m === 'RAIL_CHAIR' && st.vehicle === 'bed' && estK > 0)){ pose = 'bed'; cole.position.copy(bed.position); cole.rotation.copy(bed.rotation); dy = HC.bedDy || 0; dz = HC.bedDz || 0; yaw = HC.bedYaw || 0; bed.visible = true; }
   else if(m === 'CUTSCENE' && (seg === 'transfer_cut' || seg === 'steal_cut')){ pose = 'chair'; cole.position.copy(chair.position); cole.rotation.copy(chair.rotation); chair.visible = true; dz = HC.chairDz || 0; dy = HC.chairDy || 0; }
   else if((m === 'RAIL_CHAIR' && st.vehicle !== 'bed') || m === 'HOLDOUT'){ pose = 'chair'; cole.position.copy(chair.position); cole.rotation.copy(chair.rotation); chair.visible = true; dz = HC.chairDz || 0; dy = HC.chairDy || 0; }   // his own chair views: the camera rides behind him
   else if(m === 'FREE_FOOT' && cole.position.distanceTo(camera.position) > 3.0){ pose = 'chair'; cole.position.copy(chair.position); cole.rotation.copy(chair.rotation); chair.visible = true; dz = HC.chairDz || 0; dy = HC.chairDy || 0; }
   var sc = false; if(pose){ if(PT && cole.userData.painted) PT.use(cole, false); cole.scale.setScalar(1); cole.visible = true; sc = HC.stepCole({ cole: cole, pose: pose, yaw: yaw, dz: dz, dy: dy, dt: dt }); } else HC.stepCole({ cole: cole, pose: null, dt: dt });
-  return { maya: sm, cole: sc }; }
+  return { maya: sm, cole: sc, hale: sh3 }; }
 function paintCast(dt, st, m, seg){ var own = castFriends(dt, st, m, seg); if(!PT || !PT.ready){ return; } var r = game.rail;
   // Dr. Hale (the opening only): objecting -> hands up once Maya's gun is out (her line)
-  if(st.beat !== 'visit') haleUp = false; if(hale.visible){ PT.use(hale, true); if(st.subtitle && st.subtitle.speaker === 'FRIEND') haleUp = true; PT.show(hale, haleUp ? 'dr-hale-hands-up' : 'dr-hale-objecting', 1, camera); }
+  if(st.beat !== 'visit') haleUp = false; if(own.hale){ }   // CAST-QUALITY: the rigged 3D Dr. Hale
+  else if(hale.visible){ PT.use(hale, true); if(st.subtitle && st.subtitle.speaker === 'FRIEND') haleUp = true; PT.show(hale, haleUp ? 'dr-hale-hands-up' : 'dr-hale-objecting', 1, camera); }
   // Maya
   if(own.maya){ }   // INTEGRATION: the 3D Maya (cast3d.js) owns this view
   else if((m === 'RAIL_CHAIR') && r.path){ PT.use(maya, true); var veh = st.vehicle === 'bed' ? bed : chair, sp = r.speed();

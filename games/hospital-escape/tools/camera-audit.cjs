@@ -9,7 +9,7 @@
 //                         (calibrated: the owner's shot-1 framing measures 0.74; the in-bay view through the rear doors 0.33-0.48)
 //   E) ENCLOSURE          the boundary audit (game/enclose.js) re-run AFTER the repair (doors settled, 120 m rays): any hole left.  FAIL.
 //   F) CAST OFF SCREEN    live enemies in a combat segment but none projected on screen for > 4 s.                    WARN (report).
-// Coverage: one full autopilot playthrough (every beat, sampled every 0.1 s of game time) + a scripted ON-FOOT pass (Maya walks backward
+// Coverage: one full autopilot playthrough (every beat INCLUDING cutscenes for B/C, sampled every 0.1 s of game time) + a scripted ON-FOOT pass (Maya walks backward
 // into walls, strafes, turns hard with the edge-turn — the moves the autopilot never makes) in the ward.
 // Every surface is made double-sided in THIS page only, so a wall seen from behind still counts as a wall.
 const { chromium } = require('playwright'); const fs=require('fs'), path=require('path'), os=require('os');
@@ -21,9 +21,9 @@ const PAGE_FN = (opts) => { const g=__game.game, cam=g.camera, rc=new THREE.Rayc
   const solid = h => h.object.visible!==false && !(h.object.material && (h.object.material.transparent || h.object.material.opacity<0.9));
   const OUTDOOR = /steal|chase|finale|train|exit_push/;   /* entrance_exit_push walks OUT through the main doors to the street: the outside is meant to show */ const res={ samples:0, A:[], B:[], C:[], D:[], F:[], run:{ B:0, C:0, D:0, F:0 } };
   const ndc=new THREE.Vector2(), grid=[]; for(let i=0;i<7;i++) for(let j=0;j<13;j++) grid.push([(i+0.5)/7*2-1, (j+0.5)/13*2-1]);
-  function sample(t, tag){ const st=g.state(), m=st.mode, seg=st.segment||''; if(!m || m==='CUTSCENE') { res.run.B=res.run.C=res.run.D=0; return; } res.samples++;
+  function sample(t, tag){ const st=g.state(), m=st.mode, seg=st.segment||''; if(!m) { res.run.B=res.run.C=res.run.D=0; return; } res.samples++; const cut = m==='CUTSCENE';   /* cutscenes ARE audited for B/C (wall fill, void) — the Room 412 regression showed why; A needs a pivot, so not there */
     // A: pivot -> lens
-    let pv=null; if(m==='FREE_FOOT'&&g.foot){ pv=g.foot.pos.clone(); pv.y+=g.foot.path.height; } else if(g.rail.path && m!=='AMBULANCE'){ pv=g.rail.path.pointAtS(g.rail.s); pv.y+=g.rail.path.height; }
+    let pv=null; if(cut){ } else if(m==='FREE_FOOT'&&g.foot){ pv=g.foot.pos.clone(); pv.y+=g.foot.path.height; } else if(g.rail.path && m!=='AMBULANCE'){ pv=g.rail.path.pointAtS(g.rail.s); pv.y+=g.rail.path.height; }
     if(pv){ const d=cam.position.clone().sub(pv), L=d.length(); if(L>0.06){ rc.set(pv,d.normalize()); rc.near=0; rc.far=L; const h=rc.intersectObjects(world,true).filter(solid)[0]; if(h && h.distance < L-0.02 && res.A.length<40) res.A.push({ t:+t.toFixed(1), tag, seg, depth:+(L-h.distance).toFixed(2) }); } }
     // B / C / D: the screen grid
     let near=0, voids=0, ambN=0; cam.updateMatrixWorld(true);

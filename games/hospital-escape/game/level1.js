@@ -48,7 +48,8 @@ var L = [
 
 var paths = [
   // 1 — the visit: camera held in the corner of Room 412 by the door, looking at the bed
-  { id: 'room_view', vehicle: 'bed', points: [[3.75, 0, -7.05], [3.65, 0, -6.75]], height: 1.65, back: 0, speed: 0, look: [{ at: 0, target: [0.1, 1.0, -3.4] }], events: [] },
+  // INTEGRATE: the Room 412 camera moved INSIDE the room's corner (it sat outside the walls and only worked while single-sided walls were invisible from behind)
+  { id: 'room_view', vehicle: 'bed', points: [[3.25, 0, -6.15], [3.2, 0, -5.95]], height: 1.65, back: 0, speed: 0, look: [{ at: 0, target: [0.1, 1.0, -3.4] }], events: [] },
   // 2 — the bed push: Room 412 -> out the door -> West Wing hall. Rider point = Cole's head; the bed extends ahead of it.
   rig(BED, { id: 'bed_hall', vehicle: 'bed', points: [[0, 0, -2.6], [0, 0, -9], [0, 0, -13.6], [1.8, 0, -16], [8, 0, -16], [10.8, 0, -17.6], [12, 0, -21], [12, 0, -30], [12, 0, -38.6]],
     speedKeys: [{ at: 0, speed: 2.9 }, { at: 0.20, speed: 0 }, { at: 0.374, speed: 0 }, { at: 0.397, speed: 2.9 }, { at: 0.673, speed: 0 }, { at: 0.7, speed: 2.9 }],

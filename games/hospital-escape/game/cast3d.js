@@ -16,16 +16,17 @@ var L = new THREE.GLTFLoader(), base = {}, clipsMX = {}, seat = {}, rest = {}, p
 function load(f){ return new Promise(function(res, rej){ L.load(DIR + f, res, undefined, rej); }); }
 function boneOf(root, n){ var b = null; root.traverse(function(o){ if(!b && (o.isBone || o.type === 'Object3D') && o.name === n) b = o; }); return b; }
 function comp(a, i, k){ var v = a.array[i * a.itemSize + k]; if(a.normalized){ var A = a.array; v /= A instanceof Uint8Array ? 255 : A instanceof Uint16Array ? 65535 : A instanceof Int8Array ? 127 : A instanceof Int16Array ? 32767 : 1; } return v; }
-var TARGET_H = { n2: 1.79, maya: 1.68, cole: 1.80, pa: 1.77, pb: 1.74 };
+var TARGET_H = { n2: 1.79, maya: 1.68, cole: 1.80, pa: 1.77, pb: 1.74, hale: 1.78, pl: 1.74, nf: 1.64, nm: 1.76 }, ARMED = { maya: 1, cole: 1 }, MAN = null, tipL = {};   /* n2 carries Neon's Stribog SMG (GEAR-FIX); maya + cole get the seated pistol */
 // ------------------------------------------------------------------ load + prepare
 Promise.all([load('n2-mixamo.glb'), load('maya-mixamo.glb'), load('cole-mixamo.glb'), load('mx-gunman.glb')]).then(function(r){
   base.n2 = r[0]; base.maya = r[1]; base.cole = r[2]; var mx = r[3];
   ['n2', 'maya', 'cole'].forEach(function(k){ var s = base[k].scene; var kill = []; s.traverse(function(o){ if(o.isMesh && ((o.material && /Pistol/i.test(o.material.name || '')) || /Pistol/i.test(o.name))) kill.push(o); });
     kill.forEach(function(o){ o.parent.remove(o); }); s.updateMatrixWorld(true); measure(k); });
+  fetch(DIR + 'cast-pass-manifest.json').then(function(r){ return r.json(); }).then(function(j){ MAN = j; if(C.ready) longGunTip(); }).catch(function(){});
   // the Mixamo gunman set: rotations as authored; the hips track re-based per body (leg ratio, in the hips' parent space)
   var refHips = mx.scene.getObjectByName('Hips'), refLeg = legLocal(mx.scene);
   mx.animations.forEach(function(c){ c.tracks = c.tracks.filter(function(t){ return t.name === 'Hips.position' || /\.quaternion$/.test(t.name); }); clipsMX[c.name] = { clip: c, ref: refHips.position.clone(), refLeg: refLeg }; });
-  ['n2', 'maya', 'cole'].forEach(function(k){ seat[k] = seatPistol(k); });
+  ['maya', 'cole'].forEach(function(k){ seat[k] = seatPistol(k); }); longGunTip();
   paces.n2 = {}; [['pistol-walk', [0, 0, 1]], ['pistol-run-aimed', [0, 0, 1]], ['pistol-walk-backward', [0, 0, -1]], ['pistol-strafe', [1, 0, 0]], ['pistol-strafe-mirrored', [-1, 0, 0]], ['crouch-walk-forward', [0, 0, 1]],
     ['pistol-walk-arc-left', [0.24, 0, 0.97]], ['pistol-walk-arc-right', [-0.21, 0, 0.98]]].forEach(function(d){ paces.n2[d[0]] = contactPace('n2', mxClip('n2', d[0]), new V().fromArray(d[1])); });
   paces.maya = {}; base.maya.animations.forEach(function(c){ if(/Push_Loop|Wheelchair_Push|Walk_Fem/.test(c.name)) paces.maya[c.name] = contactPace('maya', c, new V(0, 0, 1)); });
@@ -33,7 +34,9 @@ Promise.all([load('n2-mixamo.glb'), load('maya-mixamo.glb'), load('cole-mixamo.g
   C.paces = {}; Object.keys(paces).forEach(function(k){ C.paces[k] = {}; Object.keys(paces[k]).forEach(function(n){ C.paces[k][n] = +paces[k][n].toFixed(3); }); });
   C.ready = true; window.__castReady = true;
   /* background patients: two VALID bodies + 7 retargeted patient clips, loaded after the cast (never blocks it) */
-  Promise.all([load('patient-a.glb'), load('patient-b.glb'), load('mx-patients.glb')]).then(function(q){ base.pa = q[0]; base.pb = q[1]; measure('pa'); measure('pb');
+  Promise.all([load('patient-a.glb'), load('patient-b.glb'), load('mx-patients.glb'), load('dr-hale-mixamo.glb'), load('patient-lying-mixamo.glb'), load('nurse-female-mixamo.glb'), load('nurse-male-mixamo.glb'), fetch(DIR + 'cast-quality-manifest.json').then(function(r){ return r.json(); })]).then(function(q){ base.pa = q[0]; base.pb = q[1]; measure('pa'); measure('pb');
+    base.hale = q[3]; base.pl = q[4]; base.nf = q[5]; base.nm = q[6]; C.cq = q[7]; ['hale', 'pl', 'nf', 'nm'].forEach(function(k){ base[k].scene.updateMatrixWorld(true); measure(k); });   /* CAST-QUALITY (Neon df65d44) */
+    paces.nf = { walk: contactPace('nf', clipOf('nf', 'Staff_Walk'), new V(0, 0, 1)) }; paces.nm = { walk: contactPace('nm', clipOf('nm', 'Staff_Walk'), new V(0, 0, 1)) }; C.paces.nf = +paces.nf.walk.toFixed(3); C.paces.nm = +paces.nm.walk.toFixed(3);
     var rh = q[2].scene.getObjectByName('Hips'), rl = legLocal(q[2].scene); q[2].animations.forEach(function(c){ c.tracks = c.tracks.filter(function(t){ return t.name === 'Hips.position' || /\.quaternion$/.test(t.name); }); clipsMX[c.name] = { clip: c, ref: rh.position.clone(), refLeg: rl }; });
     C.patientsReady = true; if(C.onPatientsReady) C.onPatientsReady(); }).catch(function(e){ console.error('HECAST patients failed', e); });
   }).catch(function(e){ console.error('HECAST load failed', e); window.__castReady = 'fail:' + e; });
@@ -66,7 +69,7 @@ function seatPistol(k){ var s = base[k].scene, mx = new THREE.AnimationMixer(s),
   resetPose(s); return local; }
 function resetPose(s){ s.traverse(function(o){ if(o.isSkinnedMesh) o.skeleton.pose(); }); s.updateMatrixWorld(true); }
 // ------------------------------------------------------------------ stance-phase foot-contact pace (the law's ONLY measure): sole heel/toe points of this body, clip at 240 samples
-function footPoints(k){ var s = base[k].scene, body = null; s.traverse(function(o){ if(o.isSkinnedMesh && !body) body = o; }); var g = body.geometry, sk = body.skeleton, v = new V(), out = {}; resetPose(s);
+function footPoints(k){ var s = base[k].scene, body = null; s.traverse(function(o){ if(o.isSkinnedMesh && /HighRes/.test(o.name) && (!o.material || !/Hair|Badge|Steth|Pager|Coat|Glasses|IV|Gear|Gun/i.test(o.material.name)) && (!body || o.geometry.attributes.position.count > body.geometry.attributes.position.count)) body = o; });   /* the BODY mesh (not hair / badges) */ var g = body.geometry, sk = body.skeleton, v = new V(), out = {}; resetPose(s);
   ['Left', 'Right'].forEach(function(sd){ var ids = sk.bones.map(function(x, i){ return /Foot|Toe/.test(x.name) && x.name.indexOf(sd) === 0 ? i : -1; }).filter(function(i){ return i >= 0; }), pts = [];
     for(var i = 0; i < g.attributes.position.count; i += 2){ var w = 0; for(var j = 0; j < 4; j++) if(ids.indexOf(comp(g.attributes.skinIndex, i, j)) >= 0) w += comp(g.attributes.skinWeight, i, j); if(w > 0.5) pts.push(body.boneTransform(i, v.set(0, 0, 0)).applyMatrix4(body.matrixWorld).clone()); }
     var ymin = Infinity; pts.forEach(function(p){ ymin = Math.min(ymin, p.y); }); var sole = pts.filter(function(p){ return p.y < ymin + 0.03 * rest[k].height; });
@@ -104,7 +107,10 @@ function additive(c, a, b, name){ var AU = THREE.AnimationUtils; return AU.makeC
 C.make = function(k){ var model = cloneSkinned(base[k].scene), root = new THREE.Group(), s = TARGET_H[k] / rest[k].height; root.add(model); model.scale.setScalar(s); model.position.y = -rest[k].foot * s; root.name = 'cast3d';
   var f = { k: k, root: root, model: model, mixer: new THREE.AnimationMixer(model), acts: {}, cur: {}, twist: 0, yawOff: 0, offs: new V() };
   model.traverse(function(o){ if(o.isMesh){ o.frustumCulled = false; o.raycast = function(){}; if(o.material){ o.material = o.material.clone(); o.material.envMapIntensity = 0.6; } } });
-  var hand = model.getObjectByName('RightHand'), gun = pistolMesh(); gun.matrixAutoUpdate = false; gun.matrix.copy(seat[k]); gun.raycast = function(){}; hand.add(gun); f.gun = gun;
+  var hand = model.getObjectByName('RightHand'), mz = new THREE.Object3D(); mz.name = 'muzzle';
+  if(ARMED[k]){ var gun = pistolMesh(); gun.matrixAutoUpdate = false; gun.matrix.copy(seat[k]); gun.raycast = function(){}; hand.add(gun); f.gun = gun; mz.position.set(0, 0.026, 0.145); gun.add(mz); }
+  else { f.gun = new THREE.Object3D(); if(k === 'n2' && tipL.n2){ mz.position.copy(tipL.n2.p); mz.quaternion.setFromUnitVectors(new V(0, 0, 1), tipL.n2.d); hand.add(mz); } else hand.add(mz); }   /* n2: the muzzle of the SMG it carries */
+  f.mz = mz;
   var bl = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 0.62), new THREE.MeshBasicMaterial({ map: BLOB_TEX, transparent: true, depthWrite: false, opacity: 0.4 })); bl.rotation.x = -Math.PI / 2; bl.position.y = 0.015; bl.renderOrder = 1; bl.raycast = function(){}; root.add(bl); f.blob = bl;
   if(window.HET4 && HET4.on) HET4.dressFigure(root);   /* T4-FULL: the area term + real shadows on the cast */
   addCapsules(f); C.figs.push(f); return f; };
@@ -114,7 +120,19 @@ function play(f, slot, clip, fade, opt){ if(!clip) return null; var cur = f.cur[
   if(cur && cur !== a) a.crossFadeFrom(cur, fade == null ? 0.25 : fade, false); f.cur[slot] = a; return a; }
 function stopSlot(f, slot, fade){ var cur = f.cur[slot]; if(cur){ cur.fadeOut(fade || 0.2); f.cur[slot] = null; } }
 function pulse(f, clip, w){ var a = C.action(f, clip, { additive: true, once: true }); a.reset(); a.setEffectiveWeight(w == null ? 1 : w); a.play(); }
-C.muzzle = function(p, out){ var f = p.userData.c3; if(!f) return null; return f.gun.localToWorld(out.set(0, 0.026, 0.145)); };
+C.muzzle = function(p, out){ var f = p.userData.c3; if(!f) return null; return f.mz.getWorldPosition(out); };
+function barrelDir(f){ var a = f.mz.getWorldPosition(new V()); return f.mz.localToWorld(new V(0, 0, 1)).sub(a); }
+function clipOf(k, n){ var c = null; base[k].animations.forEach(function(x){ if(x.name === n) c = x; }); return c; }
+/* GEAR-FIX long gun: the barrel tip measured on the gun's own skinned geometry in the aim pose (Pistol Walk @30%), stored in RightHand space;
+   Neon's manifest tip (weapon_muzzle.tip) is used when it agrees within 4 cm, else the measured one — the agreement is reported */
+function longGunTip(){ if(tipL.n2 && tipL.n2.checked) return; var s = base.n2.scene, gm = null; s.traverse(function(o){ if(o.isSkinnedMesh && /LongGun/.test(o.name + ' ' + (o.material && o.material.name))) gm = o; }); if(!gm) return;
+  var mx = new THREE.AnimationMixer(s), c = mxClip('n2', 'pistol-walk'), a = mx.clipAction(c); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.play(); mx.setTime(c.duration * 0.3); s.updateMatrixWorld(true);
+  var hand = s.getObjectByName('RightHand'), fa = s.getObjectByName('RightForeArm').getWorldPosition(new V()), hp = hand.getWorldPosition(new V()), ax = hp.clone().sub(fa).normalize(), best = null, bv = -1e9, v = new V();
+  for(var i = 0; i < gm.geometry.attributes.position.count; i++){ gm.boneTransform(i, v.set(0, 0, 0)); v.applyMatrix4(gm.matrixWorld); var d = v.clone().sub(hp).dot(ax); if(d > bv){ bv = d; best = v.clone(); } }
+  var pL = hand.worldToLocal(best.clone()), dL = hand.worldToLocal(hp.clone().add(ax)).sub(hand.worldToLocal(hp.clone())).normalize(), use = 'geometry', agree = null;
+  if(MAN && MAN.n2 && MAN.n2.weapon_muzzle){ var t = MAN.n2.weapon_muzzle.tip, sc = hand.getWorldScale(new V()).x, cands = [new V(t[0], t[1], t[2]), new V(t[0], t[1], t[2]).divideScalar(sc)];
+    cands.forEach(function(cl){ var w = hand.localToWorld(cl.clone()), dd = w.distanceTo(best) * (TARGET_H.n2 / rest.n2.height); if(agree === null || dd < agree){ agree = dd; if(dd < 0.04){ pL = cl.clone(); use = 'manifest'; } } }); }
+  tipL.n2 = { p: pL, d: dL, checked: !!MAN }; C.stats.muzzle = { source: use, manifestVsGeometry_cm: agree === null ? null : +(agree * 100).toFixed(1) }; mx.stopAllAction(); resetPose(s); }
 // ------------------------------------------------------------------ GUNMEN: N2 on the Mixamo set; behaviour -> clip
 var GC = null;
 function gunClips(){ if(GC) return GC; var g = function(n){ return mxClip('n2', n); }, AU = THREE.AnimationUtils;
@@ -128,7 +146,7 @@ function styleFor(e){ var r = hash(e.role), W = window.HEWORLD;
   if(e.behavior === 'cover'){ var nearDoor = W && W.doors && W.doors.some(function(d){ return !d.elevator && Math.hypot(d.pos.x - e.pos.x, d.pos.z - e.pos.z) < 2.6 && Math.abs(d.pos.y - e.pos.y) < 1.5; });
     if(nearDoor) return 'door'; return r < 0.45 ? 'kneel' : 'stand'; }
   if(e.behavior === 'rush') return r < 0.34 ? 'flank' : 'rush'; return 'stand'; }
-C.attachEnemy = function(p, kind){ if(!C.ready || (kind !== 'gunman' && kind !== 'staff')) return false; var f = C.make('n2');
+C.attachEnemy = function(p, kind){ if(!C.ready || (kind !== 'gunman' && kind !== 'staff')) return false; var f = (POOL.n2 && POOL.n2.length) ? POOL.n2.pop() : C.make('n2'); if(f.root.parent) f.root.parent.remove(f.root); f.root.visible = true;
   p.children.slice().forEach(function(c){ c.traverse(function(o){ o.layers.set(31); }); }); p.add(f.root); p.userData.c3 = f; p.userData.pk = null; p.userData.painted = false; f.p = p; return true; };
 var _v = new V(), _w = new V(), _q = new Qt(), UPV = new V(0, 1, 0);
 C.stepEnemy = function(e, p, dt, game){ var f = p.userData.c3, K = gunClips(); if(!f) return; if(!f.style){ f.style = styleFor(e); C.stats.styles[f.style] = (C.stats.styles[f.style] || 0) + 1; if(f.style === 'door') e.noCommit = true; }
@@ -163,7 +181,7 @@ C.stepEnemy = function(e, p, dt, game){ var f = p.userData.c3, K = gunClips(); i
   if(f.hitQ){ var hl = f.hitQ; f.hitQ = null; pulse(f, hl.left ? K.hitL : K.hit, 1.0); }
   f.mixer.update(dt);
   // aim correction: twist the spine so the gun arm points at the camera (kneel / door / stand); never while walking
-  if(!hidden && !f.gait && game){ f.model.updateMatrixWorld(true); var sh = f.model.getObjectByName('RightArm').getWorldPosition(new V()), ad = f.gun.localToWorld(new V(0, 0.026, 0.3)).sub(f.gun.localToWorld(new V(0, 0.026, 0))); ad.y = 0; ad.normalize();
+  if(!hidden && !f.gait && game){ f.model.updateMatrixWorld(true); var sh = f.model.getObjectByName('RightArm').getWorldPosition(new V()), ad = barrelDir(f); ad.y = 0; ad.normalize();
     var to = game.camera.position.clone().sub(sh); to.y = 0; to.normalize(); var want = Math.max(-0.9, Math.min(0.9, Math.atan2(ad.z * to.x - ad.x * to.z, ad.dot(to)))); f.twist += (want - f.twist) * Math.min(1, dt * 6); } else f.twist *= Math.max(0, 1 - dt * 6);
   if(Math.abs(f.twist) > 1e-3) ['Spine', 'Spine1', 'Spine2'].forEach(function(n){ var b = f.model.getObjectByName(n); if(b) b.rotateOnWorldAxis(UPV, f.twist / 3); });
   lightFig(f); };
@@ -196,7 +214,7 @@ C.stepMaya = function(o){ var maya = o.maya; if(!C.ready) return false; var K = 
   if(o.nearShot && (f.reactT || 0) <= 0){ pulse(f, o.nearShot.red ? K.duck : K.flinch, o.nearShot.red ? 0.9 : 0.75); f.reactT = 0.7; C.stats.mayaReact = C.stats.mayaReact || { flinch: 0, duck: 0 }; C.stats.mayaReact[o.nearShot.red ? 'duck' : 'flinch']++; }
   f.reactT = (f.reactT || 0) - o.dt;
   f.mixer.update(o.dt);
-  if(o.aimAt && (f.cur.up || o.mode === 'FREE_FOOT')){ f.model.updateMatrixWorld(true); var sh = f.model.getObjectByName('RightArm').getWorldPosition(new V()), ad = f.gun.localToWorld(new V(0, 0.026, 0.3)).sub(f.gun.localToWorld(new V(0, 0.026, 0))); ad.y = 0; ad.normalize();
+  if(o.aimAt && (f.cur.up || o.mode === 'FREE_FOOT')){ f.model.updateMatrixWorld(true); var sh = f.model.getObjectByName('RightArm').getWorldPosition(new V()), ad = barrelDir(f); ad.y = 0; ad.normalize();
     var to = o.aimAt.clone().sub(sh); to.y = 0; to.normalize(); var want = Math.max(-1.3, Math.min(1.3, Math.atan2(ad.z * to.x - ad.x * to.z, ad.dot(to)))); f.twist += (want - f.twist) * Math.min(1, o.dt * 8); } else f.twist *= Math.max(0, 1 - o.dt * 6);
   if(Math.abs(f.twist) > 1e-3) ['Spine', 'Spine1', 'Spine2'].forEach(function(n){ var b = f.model.getObjectByName(n); if(b) b.rotateOnWorldAxis(UPV, f.twist / 3); });
   lightFig(f); return true; };
@@ -204,8 +222,8 @@ C.stepMaya = function(o){ var maya = o.maya; if(!C.ready) return false; var K = 
    unless the painted billboard owns the character (painted.js toggles those itself) */
 function hideOthers(g, f, show){ var bb = g.userData.bb; if(show){ g.children.forEach(function(c){ if(c !== f.root) c.traverse(function(x){ x.layers.set(31); }); }); g.userData.c3hid = true; }
   else if(g.userData.c3hid && !g.userData.painted){ g.children.forEach(function(c){ if(c !== f.root && c !== bb) c.traverse(function(x){ x.layers.set(0); }); }); g.userData.c3hid = false; } }
-C.bedDz = 0.7; C.bedDy = -0.15;   /* Lay_Breathless on A.bed(): measured — head end at the bed origin, mattress top ~0.15 m under the clip's authored lying height */
-C.mayaMuzzle = function(out){ return maya3 && maya3.root.visible && maya3.gun.visible ? maya3.gun.localToWorld(out.set(0, 0.026, 0.145)) : null; };
+C.bedDz = 0.7; C.bedDy = -0.2626;   /* CAST-QUALITY: Neon's cole Lay_Breathless bed_dy_for_mattress_072m (was my measured -0.15 on the old model) */ C.bedDy0 = -0.15;   /* Lay_Breathless on A.bed(): measured — head end at the bed origin, mattress top ~0.15 m under the clip's authored lying height */
+C.mayaMuzzle = function(out){ return maya3 && maya3.root.visible && maya3.gun.visible ? maya3.mz.getWorldPosition(out) : null; };
 var CC = null;
 function coleClips(){ if(CC) return CC; var A = {}; base.cole.animations.forEach(function(c){ A[c.name] = c; }); CC = { sit: A.Sit_Idle_Breath, bed: A.Lay_Breathless, braced: A.Sit_Disbelief_Forward || A.Sit_Idle_Still }; return CC; }
 /* where the painted Cole used to stand in: 'chair' (seated in the wheelchair), 'bed' (lying on the bed), 'braced' (ambulance bay floor). Returns true if shown. */
@@ -217,7 +235,7 @@ C.stepCole = function(o){ if(!C.ready) return false; var cole = o.cole, K = cole
 /* bake one skinned figure at one clip frame into a plain world-space geometry (position, normal, uv) */
 function bakePose(k, clip, frac, world){ if(!clip) return []; var m = cloneSkinned(base[k].scene), mx = new THREE.AnimationMixer(m), a = mx.clipAction(clip); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.play(); mx.setTime(clip.duration * frac); m.updateMatrixWorld(true);
   var out = [], v = new V(), n = new V(), sc = TARGET_H[k] / rest[k].height;
-  m.traverse(function(o){ if(!o.isSkinnedMesh || !/HighRes/.test(o.name) || /Pistol|Gauze|Blood|Strap|Gear|Ponytail|Beanie|Eye/i.test(o.material && o.material.name || '')) return; var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, cnt = P.count;
+  m.traverse(function(o){ if(!o.isSkinnedMesh || !/HighRes/.test(o.name) || /Pistol|Gauze|Blood|Strap|Gear|Ponytail|Beanie|Eye|IV/i.test(o.material && o.material.name || '')) return; var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, cnt = P.count;
     var pos = new Float32Array(cnt * 3), nor = new Float32Array(cnt * 3), uv = new Float32Array(cnt * 2), sk = o.skeleton, bm = new THREE.Matrix4(), sm = new THREE.Matrix4(), nm = new THREE.Matrix3();
     for(var i = 0; i < cnt; i++){ v.fromBufferAttribute(P, i);   /* linear-blend skinning by hand, as three r128's shader does it */
       var ii = i; sm.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); var wsum = 0;
@@ -232,12 +250,30 @@ function mergeParts(parts){ var n = 0; parts.forEach(function(p){ n += p.pos.len
   parts.forEach(function(p){ P.set(p.pos, o * 3); N.set(p.nor, o * 3); U.set(p.uv, o * 2); o += p.pos.length / 3; }); var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(N, 3)); g.setAttribute('uv', new THREE.BufferAttribute(U, 2)); return g; }
 /* rooms: [{ name, body: 'pa'|'pb', spots: [{ clip, frac, pos: V, yaw, dy }] }] -> ONE mesh per room (one body texture, one material = 1 draw call) */
 C.buildPatients = function(scene, rooms){ if(!C.patientsReady) return null; var out = [];
-  rooms.forEach(function(R){ var parts = [], k = R.body || 'pa'; R.spots.forEach(function(s){ var w = new THREE.Matrix4().compose(s.pos.clone().setY(s.pos.y + (s.dy || 0)), new Qt().setFromAxisAngle(UPV, s.yaw || 0), new V(1, 1, 1)); bakePose(k, mxClip(k, s.clip), s.frac, w).forEach(function(p){ parts.push(p); }); });
+  rooms.forEach(function(R){ var parts = [], k = R.body || 'pa'; R.spots.forEach(function(s){ var w = new THREE.Matrix4().compose(s.pos.clone().setY(s.pos.y + (s.dy || 0)), new Qt().setFromAxisAngle(UPV, s.yaw || 0), new V(1, 1, 1)); bakePose(k, (s.own ? clipOf(k, s.clip) : mxClip(k, s.clip)), s.frac, w).forEach(function(p){ parts.push(p); }); });
     if(!parts.length) return; var map = parts[0].map, g = mergeParts(parts), mat = new THREE.MeshStandardMaterial({ map: map, roughness: 0.8, color: 0xd8e4ea });
     if(window.HET4 && HET4.on) HET4.withArea(mat);
     var mesh = new THREE.Mesh(g, mat); mesh.name = 'patients:' + R.name; mesh.receiveShadow = true; mesh.userData.figures = R.spots.length; mesh.raycast = function(){}; scene.add(mesh); out.push(mesh); });
   C.patients = out; return out; };
 
+/* ------------------------------------------------------------------ CAST-QUALITY (Neon df65d44): Dr. Hale + the nurses, live */
+var hale3 = null;
+C.stepHale = function(o){ if(!C.patientsReady || !base.hale) return false; if(!hale3){ hale3 = C.make('hale'); o.hale.add(hale3.root); } var f = hale3; hideOthers(o.hale, f, !!o.show); f.root.visible = !!o.show; if(!o.show) return false;
+  play(f, 'full', clipOf('hale', o.handsUp ? 'Hale_Hands_Up' : o.talking ? 'Hale_Talk_Standing' : 'Hale_Objecting'), 0.35); f.mixer.update(o.dt); lightFig(f); return true; };
+var STAFF = { nurse: 'nf', orderly: 'nm' }, POOL = { n2: [] };
+C.attachBystander = function(p, kind){ var k = STAFF[kind]; if(!k || !C.patientsReady || !base[k]) return false; var f = C.make(k); p.children.slice().forEach(function(c){ c.traverse(function(o){ o.layers.set(31); }); }); p.add(f.root); p.userData.c3 = f; p.userData.pk = null; p.userData.painted = false; f.p = p; C.stats.staff = (C.stats.staff || 0) + 1; return true; };
+C.stepBystander = function(b, p, dt){ var f = p.userData.c3, k = f.k; if(!f) return; p.updateMatrixWorld(true); var w = p.getWorldPosition(new V()), sp = f.lw && dt > 0 ? Math.hypot(w.x - f.lw.x, w.z - f.lw.z) / dt : 0; f.lw = (f.lw || new V()).copy(w); f.sps = (f.sps || 0) + (sp - (f.sps || 0)) * Math.min(1, dt * 8);
+  if(b.state === 'hit' || b.state === 'pause') play(f, 'full', clipOf(k, 'Staff_Cower_Duck'), 0.25); else if(f.sps > 0.25){ var a = play(f, 'full', clipOf(k, 'Staff_Walk'), 0.25); a.setEffectiveTimeScale(f.sps / (paces[k].walk || 1)); } else play(f, 'full', clipOf(k, 'Staff_Idle'), 0.3);
+  f.mixer.update(dt); lightFig(f); };
+/* BED-PUSH STAGING (owner ruling): Maya stands BEHIND the push bar; after the clip pose, her two hands' midpoint is solved onto the bar (xz), smoothed */
+/* CAMERA-PROXIMITY FADE: behind the bar Maya stands ~0.7 m in front of the rider camera in the chair / bed play views; there she is
+   not drawn while her head is within 1.6 m of the lens (any see-through ghost read worse: her face showed through when she turned to fire) so she is present without hiding the fight */
+C.fadeNear = function(f, camPos){ if(!f || !f.root.visible) return; f.model.updateMatrixWorld(true); var hd = f.model.getObjectByName('Head').getWorldPosition(new V()), d = hd.distanceTo(camPos), op = d < 1.6 ? 0 : 1;
+  if(f.fadeOp === op) return; f.fadeOp = op; f.model.traverse(function(o){ if(o.isMesh && o.name !== 'proxy' && o.material){ o.visible = op > 0.02; o.material.transparent = op < 0.999; o.material.opacity = op; o.material.depthWrite = op >= 0.999; } }); C.stats.mayaFade = op; };
+C.maya3 = function(){ return maya3; };
+C.handsToBar = function(bar, dt){ var f = maya3; if(!f || !f.root.visible || !bar) return null; f.model.updateMatrixWorld(true); var L = f.model.getObjectByName('LeftHand').getWorldPosition(new V()), R = f.model.getObjectByName('RightHand').getWorldPosition(new V()), mid = L.clone().add(R).multiplyScalar(0.5);
+  var d = bar.clone().sub(mid); d.y = 0; var par = f.root.parent; par.updateMatrixWorld(true); var lp = par.worldToLocal(f.root.getWorldPosition(new V()).add(d)); f.barOff = (f.barOff || new V()).lerp(lp.setY(0), Math.min(1, dt * 6)); f.root.position.copy(f.barOff);
+  return { handsApart_m: +L.distanceTo(R).toFixed(2), offBar_cm: +(Math.hypot(d.x, d.z) * 100).toFixed(1), handY: +((L.y + R.y) / 2 - bar.y).toFixed(2) }; };
 /* the rooms (INTEGRATION item 4): WARD 2 · RECOVERY gets four occupied beds along its north wall (clear of Maya's on-foot route),
    the waiting room gets seated patients on its existing chair rows. Patients: one merged mesh per room. The new beds: merged per
    material (A.bed() is ~10 meshes each). Built once, as soon as the patient assets are in. Numbers -> C.roomStats. */
@@ -253,19 +289,46 @@ C.buildRooms = function(){ if(C.roomsBuilt || !C.patientsReady || !window.HE || 
   /* ward: beds head-to-wall (yaw PI: the bed runs from its head-end origin along local +Z = world -Z into the room) */
   var bedsG = new THREE.Group(), wy = ward.y, bedX = [53.0, 55.4, 57.8], spots = [], LAY = ['laying-sleeping', 'laying-breathless', 'laying-moaning'];
   bedX.forEach(function(x, i){ var b = A.bed(); b.position.set(x, wy, ward.max[2] - 0.35); b.rotation.y = Math.PI; bedsG.add(b);
-    spots.push({ clip: LAY[i % 3], frac: 0.35 + 0.2 * i, pos: new V(x, wy, ward.max[2] - 0.35 - C.bedDz), yaw: Math.PI, dy: C.bedDy }); });
+    var cn = ['Lay_Sleeping', 'Lay_Breathless', 'Lay_Moaning'][i % 3], off = C.cq && C.cq.patient_lying && C.cq.patient_lying.bed_offsets && C.cq.patient_lying.bed_offsets[cn];
+    spots.push({ clip: cn, own: true, frac: 0.35 + 0.2 * i, pos: new V(x, wy, ward.max[2] - 0.35 - C.bedDz), yaw: Math.PI, dy: off ? off.bed_dy_for_mattress_072m : C.bedDy }); });   /* CAST-QUALITY: Neon's lying patient, its own Lay_* clips, its calibrated mattress offsets */
   scene.add(bedsG); var callsBefore = 0; bedsG.traverse(function(o){ if(o.isMesh) callsBefore++; }); var bedsM = mergeByMaterial(bedsG, 'ward-beds'); scene.remove(bedsG); scene.add(bedsM);
   stats.wardBeds = { beds: bedX.length, callsBefore: callsBefore, callsAfter: bedsM.children.length };
   /* waiting room: the same chair rows world.js builds (path-checked identically); every row gets 1-2 seated patients */
   var wsp = [], SIT = ['sitting-idle-still', 'sitting-idle-breathing', 'sitting-rubbing-arm', 'sitting-disbelief'], k = 0;
   for(var r = 0; r < 4; r++){ [-1, 1].forEach(function(sd){ var rx = sd < 0 ? wait.min[0] + 0.8 : 61.4, rz = -135.5 - r * 3.4; if(W.pathDist(W.data, ['g_wait'], rx + 0.9, rz) < 1.6) return;
       [(k % 2) ? 0 : 1, (k % 3) ? 3 : null].forEach(function(seat){ if(seat === null) return; wsp.push({ clip: SIT[k % 4], frac: 0.2 + 0.15 * (k % 4), pos: new V(rx + seat * 0.58, wait.y, rz + C.seatDz), yaw: 0, dy: C.seatDy }); k++; }); }); }
-  var made = C.buildPatients(scene, [{ name: 'ward', body: 'pa', spots: spots }, { name: 'waiting', body: 'pb', spots: wsp }]) || [];
+  var made = C.buildPatients(scene, [{ name: 'ward', body: 'pl', spots: spots }, { name: 'waiting', body: 'pb', spots: wsp }]) || [];
   made.forEach(function(m){ var t = 0, g = m.geometry; t = g.attributes.position.count / 3; stats[m.name] = { figures: m.userData.figures, drawCalls: 1, tris: Math.round(t), callsIfAnimated: m.userData.figures * 2 }; });
   C.roomStats = stats; return stats; };
 C.seatDz = 0.0; C.seatDy = 0.0;
 /* the rooms only draw in the segments that can see them (frustum culling alone keeps them through walls) */
 var ROOM_SEGS = { 'patients:ward': /gauntlet_(cafeteria|ward_on_foot|waiting_room)/, 'ward-beds': /gauntlet_(cafeteria|ward_on_foot|waiting_room)/, 'patients:waiting': /gauntlet_(ward_on_foot|waiting_room)|entrance_holdout/ };
 C.roomVis = function(seg){ if(!C.roomsBuilt || !window.__game) return; __game.game.scene.children.forEach(function(o){ var re = ROOM_SEGS[o.name]; if(re) o.visible = re.test(seg || ''); }); };
-C.onPatientsReady = function(){ C.buildRooms(); };
+C.onPatientsReady = function(){ C.buildRooms(); C.warm(); };
+/* TRANSITION-HITCH: everything that used to happen on the first frame of the bed push (cloning the first gunmen, compiling their skinned /
+   shadow-depth programs, the T4 hall materials and the West Wing B shadow spots) happens here instead, once, while the start screen is up:
+   a pool of 6 N2 figures is built, and one hidden render from inside West Wing B (shadow spots on) + renderer.compile warm every program. */
+C.warm = function(){ if(C.warmed || !window.__game || !window.__renderer) return; C.warmed = true; var t0 = performance.now(), g = __game.game, sc = g.scene, R = __renderer;
+  var holder = new THREE.Group(); holder.name = 'warm'; sc.add(holder);
+  for(var i = 0; i < 6; i++){ var f = C.make('n2'); f.root.position.set(12 + (i % 3) * 0.6, 0, -24 - Math.floor(i / 3) * 0.8); holder.add(f.root); f.mixer.clipAction(gunClips().walk).play(); f.mixer.update(0.1); POOL.n2.push(f); }
+  ['nf', 'nm', 'hale'].forEach(function(k, j){ if(!base[k]) return; var f = C.make(k); f.root.position.set(11.5 + j * 0.6, 0, -26); holder.add(f.root); f.warmOnly = true; });
+  var cam = new THREE.PerspectiveCamera(60, 390 / 844, 0.05, 1500); cam.position.set(12, 1.55, -18); cam.lookAt(12, 1.3, -30); cam.updateMatrixWorld(true);
+  var spots = window.HET4 && HET4.wwbSpots || [], keep = spots.map(function(s){ return s.castShadow; }); spots.forEach(function(s){ s.castShadow = true; });
+  /* the FX materials the first shots create (sprite flash, additive tracer / flight tail) — same program variants as main.js builds */
+  var fxc = document.createElement('canvas'); fxc.width = fxc.height = 8; var fxt = new THREE.CanvasTexture(fxc);
+  holder.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: fxt, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false })));
+  holder.add(new THREE.Mesh(new THREE.PlaneGeometry(0.05, 1), new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })));
+  /* ONE hidden render with frustum culling off: every mesh in the game draws once -> every texture uploads, every program (incl. the shadow-depth
+     variants under the West Wing B spots) compiles, here at load instead of on the first frame of the bed push */
+  var culled = []; sc.traverse(function(o){ if((o.isMesh || o.isSprite || o.isPoints) && o.frustumCulled){ culled.push(o); o.frustumCulled = false; } });
+  try { R.compile(sc, cam); var rt = new THREE.WebGLRenderTarget(64, 128); R.setRenderTarget(rt); R.render(sc, cam); R.setRenderTarget(null); rt.dispose(); } catch(e){ console.error('warm', e); }
+  culled.forEach(function(o){ o.frustumCulled = true; });
+  spots.forEach(function(s, i){ s.castShadow = keep[i]; }); holder.children.slice().forEach(function(c){ holder.remove(c); }); sc.remove(holder);
+  /* ...and a camera TOUR: the real pipeline (scene -> HDR -> composite) renders once from the start of every rail path, behind the start screen,
+     so each scene's first frame after its cut finds its draw state ready (a GPU driver builds per-state pipelines on first use) */
+  var gc = g.camera, kp = gc.position.clone(), kq = gc.quaternion.clone(), n = 0; (HE.DATA.paths || []).forEach(function(pd){ var pth = g.path && g.path(pd.id); if(!pth) return;
+    var p0 = pth.pointAtS(pth.lead || 0), tg = pth.tangentAtS(pth.lead || 0); gc.position.copy(p0); gc.position.y += pd.height || 1.5; gc.lookAt(gc.position.clone().add(tg)); gc.updateMatrixWorld(true);
+    try { if(window.__post) __post.render(0); else R.render(sc, gc); n++; } catch(e){} });
+  gc.position.copy(kp); gc.quaternion.copy(kq); gc.updateMatrixWorld(true);
+  C.stats.warm = { ms: Math.round(performance.now() - t0), pooledN2: POOL.n2.length, programs: R.info.programs ? R.info.programs.length : null, tourViews: n }; };
 })();

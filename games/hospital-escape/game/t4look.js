@@ -126,9 +126,12 @@ T.step = function(camera, indoor, seg){ if(!ctxG) return; camera.getWorldPositio
   for(var i = 0; i < K; i++){ var e = near[i]; if(e && indoor && e.d < 18 * 18){ var p = e.p; U.uPan.value[i].set(p.x, p.y, p.z, p.fail ? 0.48 : 1.0); U.uHalf.value[i].set(p.hx, p.hz); if(p.fail) U.uCol.value[i].set(0.70, 0.92, 0.80); else U.uCol.value[i].set(0.84, 0.95, 1.0); }
     else { U.uPan.value[i].set(0, -100, 0, 0); } }
   var inWWB = indoor && _c.x > 9.5 && _c.x < 14.5 && _c.z < -14 && _c.z > -45 && Math.abs(_c.y - 1.5) < 2;
-  T.wwbLights.visible = indoor; T.wwbSpots.forEach(function(s){ s.castShadow = inWWB; });
+  /* TRANSITION-HITCH: the light SET never changes (three.js keys every lit program on the light / shadow counts — toggling visible or
+     castShadow recompiled every material on screen at the first cut): lights are switched by intensity only */
+  if(!T.base){ T.base = new Map(); T.wwbLights.traverse(function(l){ if(l.isLight) T.base.set(l, l.intensity); }); T.base.set(roam, roam.intensity); }
+  T.wwbLights.traverse(function(l){ if(l.isLight) l.intensity = indoor && (l.isPointLight || inWWB) ? T.base.get(l) : 0; });
   var best = null; for(var j = 0; j < near.length && j < 6; j++){ var q = near[j].p, tq = new V(q.x - _c.x, 0, q.z - _c.z); if(tq.dot(_f) > 0.5){ best = q; break; } }
-  roam.visible = indoor && !inWWB && !!best; if(roam.visible){ roam.position.set(best.x, best.y - 0.12, best.z); roam.target.position.set(best.x + _f.x * 0.9, best.y - 2.9, best.z + _f.z * 0.9); roam.target.updateMatrixWorld(); } };
+  var ron = indoor && !inWWB && !!best; roam.intensity = ron ? T.base.get(roam) : 0; if(ron){ roam.position.set(best.x, best.y - 0.12, best.z); roam.target.position.set(best.x + _f.x * 0.9, best.y - 2.9, best.z + _f.z * 0.9); roam.target.updateMatrixWorld(); } };
 T.fog = function(scene, outdoor){ if(!(scene.fog && scene.fog.isFogExp2)) scene.fog = new THREE.FogExp2(FOG.color, FOG.density); scene.fog.color.setHex(FOG.color); scene.fog.density = FOG.density; scene.background = outdoor ? null : T.bg; };
 T.indoorLights = function(hemi, sun){ hemi.color.set(0x7a9eb0); hemi.groundColor.set(0x1a2228); hemi.intensity = 0.22; sun.intensity = 0; };
 T.EXPOSURE = EXPOSURE;
