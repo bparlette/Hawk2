@@ -15,8 +15,10 @@ const SEEDS=(process.argv[2]||'7,3,11').split(','), START=process.argv[3]||'stea
   const r=await p.evaluate(()=>{ const g=__game.game, L=g._log; const ev=L.filter(e=>e.type==='destruction').map(e=>e.data);
    const rolls=ev.filter(d=>d.kind==='rollover').map(d=>d.rolls); const gm=L.filter(e=>e.type==='enemyFire'&&e.data.via==='gunman');
    return { won: !!g.won, lost: !!g.lost, stats: g.destruction && g.destruction.stats, rolls, outcomes: ev.filter(d=>d.kind!=='slam'&&d.kind!=='gunmanSpawn').map(d=>d.kind+(d.victim?'(victim)':'')),
-     gunmanShots: gm.length, gunmanHits: gm.filter(e=>e.data.hit).length, gunmanShotsWithVis: L.filter(e=>e.type==='enemyShot'&&/^gunman:/.test(e.data.role)&&e.data.vis).length }; });
-  const s=r.stats||{}, ok = s.veer>0 && s.chain>0 && s.rollover>0 && s.fire>0 && s.blowout>0 && r.gunmanShots>0 && r.rolls.every(n=>n>=2&&n<=3) && !errs.length;
+     gunmanShots: gm.length, gunmanHits: gm.filter(e=>e.data.hit).length, gunmanShotsWithVis: L.filter(e=>e.type==='enemyShot'&&/^gunman:/.test(e.data.role)&&e.data.vis).length,
+     // the fairness contract applied to the gunman's DAMAGING shots: in zone, unoccluded, >= minPx, telegraphed >= telegraph s
+     gunmanUnfair: (()=>{ const F=g.data.tuning.fairness; return L.filter(e=>e.type==='enemyShot'&&/^gunman:/.test(e.data.role)&&e.data.hit).filter(e=>{ const v=e.data.vis; return !v||!v.inZone||v.occl||v.px<F.minPx||v.visT<F.telegraph; }).length; })() }; });
+  const s=r.stats||{}, ok = s.veer>0 && s.chain>0 && s.rollover>0 && s.fire>0 && s.blowout>0 && r.gunmanShots>0 && r.rolls.every(n=>n>=2&&n<=3) && r.gunmanUnfair===0 && !errs.length;
   if(!ok) fail=true; console.log(JSON.stringify(Object.assign({seed:SEED, pass: ok}, r, {errs})));
   await p.close(); }
  console.log(fail ? 'DESTRUCTION RUN: FAIL' : 'DESTRUCTION RUN: PASS'); await b.close(); process.exit(fail?1:0); })();
