@@ -70,7 +70,7 @@ HE.createGame = function(opts){
   game.waveDef = function(id){ return WD[id] || null; }; game.pursuerDef = function(id){ return PU[id] || null; };
   game.log = function(type, d){ game._log.push({ t: +game.time.toFixed(4), type: type, data: d || {} }); };
   game.events = function(){ return game._log.slice(); };
-  game.rail = HE.Rail(game); game.greybox = HE.Greybox(game); game.combat = HE.Combat(game); game.chase = HE.Chase(game); game.waves = HE.Waves(game); game.bystanders = HE.Bystanders(game);
+  game.rail = HE.Rail(game); game.greybox = HE.Greybox(game); game.combat = HE.Combat(game); game.chase = HE.Chase(game); game.destruction = HE.Destruction ? HE.Destruction(game) : null; game.waves = HE.Waves(game); game.bystanders = HE.Bystanders(game);
   game.greybox.build(data); game.greybox.addActor('hero', 'hero'); game.greybox.addActor('friend', 'friend');
   game.actorObject = function(role){ return game.greybox.object(role); };
   game.actorPos = function(role){ var o = game.actorObject(role); return o ? o.position.clone() : null; };
@@ -98,7 +98,7 @@ HE.createGame = function(opts){
     var hb = data.tuning.healOnBeat; if(hb && game.combat.health < 100 && !game.lost){ var h0 = game.combat.health; game.combat.health = Math.min(100, h0 + hb); game.log('heal', { from: h0, to: game.combat.health }); } }
   function enterSegment(si){ var seg = data.beats[game.bi].segments[si], prevMode = game.mode; game.si = si; game.segment = seg.id; game.segDef = seg; game.segT = 0;
     game.endReached = false; game.quietT = -1; game.lineQ = seg.mode === 'CUTSCENE' ? (seg.lines || []).slice() : []; game.subtitle = seg.mode === 'CUTSCENE' ? null : game.subtitle;
-    game.combat.clearEnemies(); game.chase.reset(); game.mode = seg.mode;
+    game.combat.clearEnemies(); game.chase.reset(); if(game.destruction) game.destruction.reset(); game.mode = seg.mode;
     var path = seg.path ? game.path(seg.path) : null; if(path) game.vehicle = path.vehicle;
     game.log('segment', { beat: game.beat, segment: seg.id, index: si, mode: seg.mode });
     if(prevMode !== seg.mode || si === 0) game.log('mode', { mode: seg.mode, beat: game.beat, segment: seg.id });
@@ -141,7 +141,7 @@ HE.createGame = function(opts){
     else if(m === 'FREE_FOOT') stepFoot(dt);
     else if(m === 'CUTSCENE' && game.rail.path) game.rail.place(dt, false);
     if(m !== 'CUTSCENE') game.combat.handleInput(inp, dt);
-    game.waves.step(); game.combat.stepEnemies(dt); if(m === 'AMBULANCE') game.chase.step(dt);
+    game.waves.step(); game.combat.stepEnemies(dt); if(m === 'AMBULANCE'){ game.chase.step(dt); if(game.destruction) game.destruction.step(dt); }
     game.combat.stepPartner(dt); game.combat.stepShots(); game.bystanders.step(dt);
     game.placeActors(); game.combat.updateFeedback(dt);
     if(game.lost) return;
