@@ -24,11 +24,33 @@ Engine 24/24 · data validation 0 errors · fairness PASS · camera audit PASS �
 ### Response
 tasking/responses/opus-integrate.md — per the SHOW YOUR WORK rule: method, tools/commands, output locations for each step, plus the timed transition numbers and the stills.
 
-## NEXT TASK — VEHICLE-QUALITY (un-parked by Cherie, Nov 25)
+## NEXT TASK — FINAL DEFECT BUNDLE (Cherie, Nov 25 — Opus's final run; credits almost out, so this is deliberately SMALL: one run, one verification pass, one response file)
+
+Two known residuals from INTEGRATE, fixed in one pass. Nothing else — VEHICLE-QUALITY has been reassigned to Moth (see below) and is NOT part of this run.
+
+### Defect 1 — Bed-push frame bump
+The residual ~215 ms frame bump ~1.2 s into the bed-push beat, when the first wave's cover prop spawns. Fix it the same way TRANSITION-HITCH was fixed: pre-warm / pre-spawn the cover props ahead of the beat so nothing loads, compiles, or spawns cold mid-beat.
+
+### Defect 2 — Transfer-corridor camera warning
+The camera audit's one pre-existing warning: a pillar in the transfer corridor can fill much of the screen in some views. Fix the framing (camera path / pillar placement — your call) so the camera audit passes with ZERO warnings.
+
+### Verification (once, at the end, all on the final code)
+Full guardrail suite green: engine tests · validate-data · fairness audit · camera audit with **0 warnings** · full playthrough 0 errors. Plus frame-timing evidence for the bed-push bump: before/after numbers (SwiftShader-relative, labeled as such).
+
+### Response
+tasking/responses/opus-final-defects.md — per the SHOW YOUR WORK rule: method, tools/commands, what was pre-warmed/pre-spawned, how the corridor framing was fixed, and the before/after bump timings.
+
+Work on main only, no branches. Commit + push when done, then the response file.
+
+## REASSIGNED TO MOTH (Nov 25) — not Opus's
+
+### VEHICLE-QUALITY (un-parked by Cherie, Nov 25; reassigned to Moth, Nov 25 — full text preserved; Moth works from this)
 
 Bring the vehicles up to the standard the cast and world now set.
 
 **Quality bar (Cherie, Nov 25: "More like Scaggsville quality — or better yet"):** the floor is the Scaggsville 3D fleet — the shared gamepress kit/gpvehicles.js data-row cars: modeled from reference images, rounded forms, proper lamps and headlight beams (quality floor = Neon's Bunny Hop / Scaggsville cars). The target is to MEET OR BEAT that standard, not merely improve on the current blockouts. Where practical, build the ambulance and chase vehicles in the same data-row spirit so the work is reusable across games.
+
+**Modeling references:** 360° views for the ambulance, the Charger, the traffic cars, and a black SUV are in `games/hospital-escape/tasking/refs/vehicles/` (board: `index.html`, sources: `SOURCES.md`) — model proportions from them; references only, none ship.
 
 - **Hero ambulance** (steal / drive-away / chase / finale beats): modeled detail instead of blockout shapes — proper cab/body proportions, wheels that read as wheels, open rear doors with a lit interior and the stretcher visible, rear step, working light treatment: headlight beams, taillight glow, emergency lightbar with a believable flash pattern, reflective markings.
 - **Chase car(s):** same bar — real proportions, lit headlights/taillights, no box-with-wheels silhouettes.
