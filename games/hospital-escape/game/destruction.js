@@ -305,7 +305,11 @@ HE.Destruction = function(game){
       if(p.state === 'pursuing' && !p._gmRolled && p.t > 0.9){ p._gmRolled = true; if(R() < (D.nGun === 0 ? TUN.gunman.first : TUN.gunman.chance)) spawnGunman(p); }
       var g = D.gunmen[p.role]; if(g) stepGunman(p, g, dt);
       // a car carrying a live gunman surges in to a shooting distance where he reads (the fairness minPx rule) — the readable tell
-      if(g && g.alive && g.deployed > 0 && p.state === 'pursuing' && !game.won){ var want = game.chase.ambS() - TUN.gunman.closeGap; if(p.s < want) p.s = Math.min(want, p.s + TUN.gunman.closeRate * dt); }
+      if(g && g.alive && g.deployed > 0 && p.state === 'pursuing' && !game.won){
+        // ...but never out of the player's reach: it tucks in toward the centre line (|lat| <= 1.5 m) and keeps |lat| / gap inside the
+        // rear-door view cone (tan 14 deg ~ 0.25), so the car's own hit zones stay on screen while its gunman is.
+        if(Math.abs(p.lat) > 1.5) p.lat -= Math.sign(p.lat) * Math.min(Math.abs(p.lat) - 1.5, 1.2 * dt);
+        var gap = Math.max(TUN.gunman.closeGap, Math.abs(p.lat) / 0.25 + 1), want = game.chase.ambS() - gap; if(p.s < want) p.s = Math.min(want, p.s + TUN.gunman.closeRate * dt); }
       if(D.episodes[p.role] && p.state.indexOf('crippled:') !== 0) delete D.episodes[p.role];
       var rs = D.rest[p.role]; if(rs && rs.fireT > 0){ rs.fireT -= dt; var fakeEp = rs.ep || (rs.ep = { smokeT: 0 }); smoke(p, fakeEp, dt, 'fire'); }
       stepSus(p, dt);
