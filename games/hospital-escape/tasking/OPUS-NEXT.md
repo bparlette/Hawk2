@@ -52,7 +52,11 @@ Scaggsville 3D / Fleet Drive — the gamepress shared vehicle module
 (`gpvehicles.js`, fleet cars as data rows; quality floor = Neon's
 Bunny Hop cars). The owner has cleared the WHOLE Scaggsville fleet as replacements
 (Nov 24, 20:37 ET): draw chase/traffic cars from the entire shared
-fleet as needed. Response: fold into a short
+fleet as needed. ALSO (owner, Nov 24, 20:38 ET): you may try
+redoing the game's existing cars better — improving the current
+models is welcome — but the Scaggsville cars must DEFINITELY be
+included either way; redoing alone does not satisfy this item.
+Response: fold into a short
 `responses/opus-vehicles.md` with 390x844 stills of the chase and any
 other beat where cars were replaced.
 
