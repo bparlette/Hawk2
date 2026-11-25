@@ -2,6 +2,10 @@
 Repo: https://github.com/bparlette/Hawk2 — branch main — folder games/hospital-escape/
 Live game: https://bparlette.github.io/Hawk2/games/hospital-escape/
 
+## PROCESS — READ FIRST (Cherie, Nov 25): PUSH BEFORE TESTING, AND PUSH OFTEN
+
+**Push before testing, and push often.** Commit and push to main BEFORE running the test/verification suite, and push after each finished item — if credits run out mid-run, the work must already be on main, never stranded locally. Verification still happens and gets reported; it just runs after the push, not before. This applies to every remaining run, including the stretch task below.
+
 ## FINAL BUNDLE — INTEGRATE — DONE (Opus, Nov 25: responses/opus-integrate.md; all four steps, verification green)
 
 One task, one verification pass, one response file. Everything below is "wire in what is already built" — no new asset creation. Work the steps in order; run the full guardrail suite ONCE at the end, not per step.
@@ -41,6 +45,21 @@ Full guardrail suite green: engine tests · validate-data · fairness audit · c
 tasking/responses/opus-final-defects.md — per the SHOW YOUR WORK rule: method, tools/commands, what was pre-warmed/pre-spawned, how the corridor framing was fixed, and the before/after bump timings.
 
 Work on main only, no branches. Commit + push when done, then the response file.
+
+## STRETCH TASK — OPTIONAL (Cherie, Nov 25 — only if the FINAL DEFECT BUNDLE is done and credits remain; nothing blocks on this)
+
+Two designed-but-unbuilt flourishes. If credits run out before or during this, that is fine — the defect bundle is the run that matters. Push-before-testing applies here too (see PROCESS at the top).
+
+### (a) "DOORS HELD" end card
+The designed end card for the elevator beat — the door-block moment gets its "DOORS HELD" card as designed. Wire it into the beat's end as specced in the design notes; keep it in the game's existing subtitle/card style.
+
+### (b) Room 412 ECG beep
+A subtle ECG beep for Room 412, built as procedural audio consistent with the game's existing procedural SFX. The game has NO voice assets and stays that way — this is a quiet monitor beep only, mixed low, not a dialogue or music element. (Note: no ECG beep exists in any captured footage — this is new, designed work, so keep it tasteful and subtle.)
+
+### Verification + response
+Same gates as the defect bundle for anything touched: full guardrail suite green (engine tests · validate-data · fairness audit · camera audit · full playthrough 0 errors). Response: append to tasking/responses/opus-final-defects.md or write a small tasking/responses/opus-stretch.md — your choice. SHOW YOUR WORK detail, same as always.
+
+Work on main only, no branches. Push before testing, push often.
 
 ## REASSIGNED TO MOTH (Nov 25) — not Opus's
 
