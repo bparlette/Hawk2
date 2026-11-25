@@ -1,0 +1,68 @@
+{
+ "seed": 7,
+ "playthrough": {
+  "ended": true,
+  "lost": false,
+  "samples": 2270
+ },
+ "onFootSamples": 300,
+ "fails": {
+  "A lens in geometry": 0,
+  "B wall fill > 0.6 s": 0,
+  "C void visible indoors > 0.3 s": 0,
+  "D ambulance body fills frame > 0.6 s": 0,
+  "E enclosure holes left": 0,
+  "page errors": 0
+ },
+ "warn": {
+  "F cast off screen > 4 s": 1
+ },
+ "examples": {
+  "A": [],
+  "B": [],
+  "C": [],
+  "D": [],
+  "E": [],
+  "F": [
+   {
+    "t": 174.4,
+    "tag": "autopilot",
+    "seg": "steal_staging"
+   }
+  ]
+ },
+ "enclosure": [
+  {
+   "zone": "elevatorLobby#6",
+   "holes": 10,
+   "strips": 3,
+   "doorwaysKept": 0
+  },
+  {
+   "zone": "elevatorLobby#7",
+   "holes": 8,
+   "strips": 3,
+   "doorwaysKept": 0
+  },
+  {
+   "zone": "ward#11",
+   "holes": 18,
+   "strips": 3,
+   "doorwaysKept": 0
+  },
+  {
+   "zone": "waiting#12",
+   "holes": 8,
+   "strips": 2,
+   "doorwaysKept": 0
+  },
+  {
+   "zone": "ST. MERCER MEMORIAL#13",
+   "holes": 8,
+   "strips": 3,
+   "doorwaysKept": 0
+  }
+ ],
+ "errs": []
+}
+CAMERA AUDIT: PASS

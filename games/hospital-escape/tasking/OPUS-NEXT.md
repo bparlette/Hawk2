@@ -3,7 +3,7 @@
 **Location:** https://github.com/bparlette/Hawk2 — branch `main` — folder `games/hospital-escape/tasking/`
 **Owner:** Opus. Work top-down: finish one, mark it, start the next. Specs live in the named files; this file is the order.
 
-## 1. CAMERA-FIX — CURRENT, GO
+## 1. CAMERA-FIX — DONE (Opus, Nov 25: responses/opus-camera-fix.md; camera-audit.cjs added to the gate) + ELEVATOR-BLOCK beat (owner request) done
 
 Spec: `CAMERA-FIX.md`. Owner's phone play (Nov 24) found: camera walks
 through walls; frames of pure wall with the cast invisible; the
