@@ -34,12 +34,21 @@ Bring the vehicles up to the standard the cast and world now set.
 - **Chase car(s):** same bar — real proportions, lit headlights/taillights, no box-with-wheels silhouettes.
 - **Traffic / set vehicles** wherever they appear: at minimum, no unlit boxes in any framed shot.
 
+**Destruction behavior (Cherie, Nov 25):** when the player destroys a vehicle (chase / drive beats), vary the outcome — not the same stop every time:
+1. **Veer + chain crash:** the wreck sometimes veers into another vehicle and takes it out too.
+2. **Rollover:** sometimes the car rolls — 2–3 full rolls with bounce/settle, shedding debris as it goes.
+3. **Fire:** sometimes it catches fire — the house fire standard: dark smoke puffs + gold-orange ember glow under the hood/body, NO flame tongues.
+4. **Blown tire:** sometimes a tire blows — the car pulls hard to one side, limps on the rim with sparks, tire shred/debris.
+5. **Window gunman:** during the chase, a gunman leans out of a car window and shoots at the player. He is a valid target wired into the shooting/fairness systems, not set dressing.
+
+Probabilities/tuning are your call, but every behavior must actually occur in a normal playthrough of the chase (not 1-in-100 rarities), and the fairness audit must still PASS with the window gunman firing.
+
 **Constraints:**
 - Stay inside the frame budget T4-PERF bought back — report frame time before/after per beat (SwiftShader-relative, labeled as such).
 - No new external assets with unclear licenses for a shipped build — procedural / modeled-in-code or existing repo assets only.
 - Maya's ambulance driving figure is OUT of scope (separate open item, Cherie's call).
 
-**Verification (all must pass on the final code):** engine tests · validate-data · fairness audit · camera audit · full playthrough 0 errors. Evidence: before/after stills at 390×844 for the ambulance rear (doors open), the chase, and one traffic frame; plus a short clip of the lightbar + headlights in the drive-away.
+**Verification (all must pass on the final code):** engine tests · validate-data · fairness audit · camera audit · full playthrough 0 errors. Evidence: before/after stills at 390×844 for the ambulance rear (doors open), the chase, and one traffic frame; plus a short clip of the lightbar + headlights in the drive-away; plus a clip showing at least the rollover and the chain crash, and a still of the window gunman in action.
 
 **Response:** tasking/responses/opus-vehicle-quality.md — per the SHOW YOUR WORK rule: how the work was done (tools/commands, where the models were built, how the lights were faked or made real).
 
