@@ -4,7 +4,7 @@ import { loft, v3, TAU, normalizeForMerge, paint } from './util.js';
 
 let cached = null;
 
-// 流线型小鱼：放样鱼身 + 尾鳍 + 背鳍 + 眼睛，头朝 +X
+// Streamlined little fish: lofted body + tail fin + dorsal fin + eyes, head toward +X
 export function fishGeometry() {
   if (cached) return cached;
   const L = 0.3;
