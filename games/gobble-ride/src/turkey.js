@@ -270,13 +270,15 @@ export function createTurkey() {
   };
   // Tail fan: the turkey's signature — big banded feathers splayed upright
   const tail = new THREE.Group();
-  tail.position.set(-0.42, 0.12, 0);
+  tail.position.set(-0.42, 0.14, 0);
   body.add(tail);
   for (let i = 0; i < 13; i++) {
     const d = Math.abs(i - 6) / 6;
     const f = new THREE.Mesh(tailFeatherGeometry(0.62 - d * 0.15, 0.105), M.tail);
     const pivot = new THREE.Group();
-    pivot.rotation.set((i - 6) / 6 * 1.08, 0, 0.8 - d * 0.12);
+    // Near-zero Z tilt in body space: the body's own BODY_PITCH (0.35, nose-up)
+    // leans the fan back, so a small pivot tilt lands it upright in world space.
+    pivot.rotation.set((i - 6) / 6 * 1.08, 0, 0.1 - d * 0.05);
     f.castShadow = true;
     pivot.add(f);
     tail.add(pivot);
