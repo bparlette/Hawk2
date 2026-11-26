@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Castle Craters — one-player artillery duel</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#1b1030; }
+  body { font-family:-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; touch-action:none;
+         -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; overscroll-behavior:none; }
+  #stage { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#1b1030; }
+  #wrap { position:relative; }
+  canvas { display:block; touch-action:none; }
+  /* ---------- HUD (all overlay UI sits at z-index >= 1100) ---------- */
+  .hud { position:absolute; z-index:1100; }
+  #topbar { top:0; left:0; right:0; display:flex; align-items:flex-start; justify-content:space-between;
+            padding:6px 8px; pointer-events:none; }
+  .sidebox { background:rgba(16,10,34,.72); border:1px solid rgba(255,255,255,.22); border-radius:10px;
+             padding:5px 8px; color:#fff; min-width:118px; }
+  .sidebox .nm { font-size:11px; font-weight:800; letter-spacing:.06em; }
+  .sidebox.you .nm { color:#9fd8ff; } .sidebox.foe .nm { color:#ff9fd0; }
+  .sidebox .corebar { height:7px; border-radius:4px; background:rgba(255,255,255,.18); margin:4px 0 3px; overflow:hidden; }
+  .sidebox .corefill { height:100%; border-radius:4px; transition:width .25s; }
+  .you .corefill { background:#39d0ff; } .foe .corefill { background:#ff4fa0; }
+  .sidebox .crew { font-size:11px; letter-spacing:2px; }
+  .sidebox .coretxt { font-size:9px; opacity:.85; letter-spacing:.04em; }
+  #windbox { background:rgba(16,10,34,.72); border:1px solid rgba(255,255,255,.22); border-radius:10px;
+             color:#fff; text-align:center; padding:5px 10px; min-width:74px; }
+  #windbox .wl { font-size:9px; letter-spacing:.14em; opacity:.8; }
+  #windArrows { font-size:15px; font-weight:900; color:#ffe066; line-height:1.1; }
+  #windNum { font-size:10px; opacity:.9; }
+  #turnbanner { top:122px; left:0; right:0; text-align:center; pointer-events:none; }
+  #turnbanner span { display:inline-block; background:rgba(16,10,34,.78); color:#fff; font-weight:900;
+    font-size:15px; letter-spacing:.08em; padding:6px 16px; border-radius:999px; border:1px solid rgba(255,255,255,.25); }
+  #turnbanner.foe span { color:#ffb3d9; } #turnbanner.you span { color:#bdeaff; }
+  /* ---------- weapon cards ---------- */
+  #cards { bottom:0; left:0; right:0; display:flex; gap:6px; padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+           background:linear-gradient(to top, rgba(10,6,24,.88), rgba(10,6,24,0)); }
+  .card { flex:1; pointer-events:auto; cursor:pointer; border:2px solid rgba(255,255,255,.25); border-radius:12px;
+          background:rgba(24,16,48,.85); color:#fff; padding:6px 2px 5px; text-align:center; position:relative; }
+  .card .ic { font-size:21px; display:block; line-height:1.15; }
+  .card .nm { font-size:9.5px; font-weight:700; letter-spacing:.02em; display:block; }
+  .card .am { font-size:9px; opacity:.85; display:block; }
+  .card.sel { border-color:#ffe066; background:rgba(64,44,10,.9); box-shadow:0 0 10px rgba(255,224,102,.45); }
+  .card.empty { opacity:.38; }
+  /* ---------- overlays ---------- */
+  .overlay { position:absolute; inset:0; z-index:1200; display:flex; flex-direction:column; align-items:center;
+             justify-content:center; background:rgba(12,6,28,.78); color:#fff; text-align:center; padding:24px; }
+  .overlay.hidden { display:none; }
+  .overlay h1 { font-size:34px; letter-spacing:.04em; margin-bottom:6px; text-shadow:0 3px 0 rgba(0,0,0,.35); }
+  .overlay h2 { font-size:15px; font-weight:600; opacity:.92; margin-bottom:14px; line-height:1.45; }
+  .overlay .rules { font-size:13px; line-height:1.65; opacity:.95; background:rgba(255,255,255,.08);
+                    border:1px solid rgba(255,255,255,.18); border-radius:12px; padding:10px 14px; margin-bottom:18px; max-width:320px; }
+  .bigbtn { pointer-events:auto; cursor:pointer; background:#ffb300; color:#231300; border:none; border-radius:999px;
+            font-size:18px; font-weight:900; letter-spacing:.05em; padding:13px 34px; box-shadow:0 4px 0 #a86e00; }
+  .bigbtn:active { transform:translateY(2px); box-shadow:0 2px 0 #a86e00; }
+  #endstats { font-size:14px; line-height:1.7; margin-bottom:18px; white-space:pre-line; }
+  #toast { top:164px; left:0; right:0; text-align:center; pointer-events:none; }
+  #toast span { display:inline-block; background:rgba(255,60,120,.9); color:#fff; font-weight:900; font-size:14px;
+                padding:5px 14px; border-radius:999px; letter-spacing:.06em; }
+  #toast.hidden { display:none; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="wrap">
+  <canvas id="cv" width="420" height="860"></canvas>
+
+  <div class="hud" id="topbar">
+    <div class="sidebox you"><div class="nm">⛨ STONE KEEP · YOU</div>
+      <div class="corebar"><div class="corefill" id="coreYou"></div></div>
+      <div class="coretxt" id="coreYouTxt">CORE 100%</div><div class="crew" id="crewYou"></div></div>
+    <div id="windbox"><div class="wl">WIND</div><div id="windArrows">·</div><div id="windNum">calm</div></div>
+    <div class="sidebox foe"><div class="nm">NEON SPIRE ☠</div>
+      <div class="corebar"><div class="corefill" id="coreFoe"></div></div>
+      <div class="coretxt" id="coreFoeTxt">CORE 100%</div><div class="crew" id="crewFoe"></div></div>
+  </div>
+  <div class="hud" id="turnbanner" style="display:none"><span id="turntxt">YOUR TURN</span></div>
+  <div class="hud" id="toast" style="display:none"><span>⚠ INCOMING ⚠</span></div>
+  <div class="hud" id="cards"></div>
+
+  <div class="overlay" id="intro">
+    <h1>🏰 CASTLE CRATERS 💥</h1>
+    <h2>One player. Two fortresses. One very tall hill.</h2>
+    <div class="rules">
+      🎯 <b>Drag</b> anywhere to aim — the dotted arc is the real shot.<br>
+      💣 Blast craters out of the hill, drop the towers, blast the little defenders flying.<br>
+      💠 Dig out the enemy <b>CORE</b> and smash it — or wipe their crew — before the bot does it to you.<br>
+      🌬 Watch the wind. It pushes every shot.
+    </div>
+    <button class="bigbtn" id="btnGo">▶ &nbsp;BATTLE</button>
+  </div>
+
+  <div class="overlay hidden" id="endcard">
+    <h1 id="endtitle">VICTORY!</h1>
+    <div id="endstats"></div>
+    <button class="bigbtn" id="btnAgain">↻ &nbsp;PLAY AGAIN</button>
+  </div>
+</div></div>
+
+<script>
+'use strict';
+/* ================= CASTLE CRATERS =================
+   Single-player mashup: Worms (destructible cratered terrain, wind, timed
+   grenades, cluster bombs, flying crew, water kills) × Castle Busters duel
+   (two fortresses across a TALL hill, collapsing towers, glowing core finish,
+   aim arc that always stays on screen, hit-stop / camera punch / squash-
+   stretch / ghost trails). Base engine patterns reused from the Nov 14
+   Castle Busters duel build (pushready): clampAimToScreen + solveAim
+   algorithms, turn machine shape, feel-kit timings, __game test hooks —
+   re-implemented here on a custom ballistic integrator (no library code
+   inlined) so the SAME sim drives preview, firing and the bot. */
+const W = 420, H = 860;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const clamp = (v,a,b)=> v<a?a : v>b?b : v;
+const dist2 = (x1,y1,x2,y2)=>{ const dx=x2-x1, dy=y2-y1; return dx*dx+dy*dy; };
+
+/* deterministic RNG (seeded via ?seed=) so test runs are reproducible */
+let _s = (parseInt(new URLSearchParams(location.search).get('seed')||'7',10)>>>0) || 7;
+function rnd(){ _s|=0; _s = _s + 0x6D2B79F5 | 0; let t = Math.imul(_s ^ _s>>>15, 1|_s);
+  t = t + Math.imul(t ^ t>>>7, 61|t) ^ t; return ((t ^ t>>>14)>>>0)/4294967296; }
+const rr = (a,b)=> a + rnd()*(b-a);
+
+/* ---------------- game feel kit (timings from the duel build) ----------------
+   hit-stop: 50ms small core hit · 60ms big blast (R>=62) · 70ms collapse
+   cascade · 95ms before the finishing slow-mo. Camera punch up to +7% zoom,
+   ~260ms decay. Squash-stretch 140% on fast projectiles. Ghost trails every
+   40ms on the fastest projectile, 200ms fade. */
+const GRAV = 620;              // px/s^2
+const WIND_ACC = 15;           // px/s^2 per wind unit
+const WATER_Y = 818;
+const STEP = 1/60;
+
+const G = {
+  phase:'intro',            // intro | play | won | lost
+  turn:0,                   // 0 = player, 1 = bot
+  ts:'aim',                 // aim | busy | botaim
+  time:0, round:1,
+  wind:0, aim:null, weapon:0,
+  hitStop:0, timeScale:1, slowT:0,
+  shake:0, punch:0, punchX:210, punchY:400,
+  projectiles:[], parts:[], ghosts:[], floats:[],
+  blocks:[], crew:[], piano:null, flare:null,
+  lastGhost:0, busyGrace:0, botTimer:0, botPlan:null,
+  score:0, shotsFired:0, finishBonus:false,
+  camY:0,
+};
+const MANUAL = new URLSearchParams(location.search).has('manual');
+
+/* ---------------- audio: all-synthesized WebAudio SFX ---------------- */
+let AC = null;
+function audioInit(){
+  try{
+    if(navigator.audioSession) navigator.audioSession.type = 'playback';  // iOS 17+: beat the silent switch
+    if(!AC){ AC = new (window.AudioContext||window.webkitAudioContext)(); }
+    if(AC.state==='suspended') AC.resume();
+  }catch(e){}
+}
+function beep(freq, dur, type, vol, slide){
+  if(!AC) return;
+  const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type||'square'; o.frequency.setValueAtTime(freq, t);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(20,slide), t+dur);
+  g.gain.setValueAtTime(vol||0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+  o.connect(g).connect(AC.destination); o.start(t); o.stop(t+dur);
+}
+function noiseBurst(dur, vol){
+  if(!AC) return;
+  const n = Math.floor(AC.sampleRate*dur), buf = AC.createBuffer(1, n, AC.sampleRate), d = buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1 - i/n);
+  const src = AC.createBufferSource(); src.buffer = buf;
+  const g = AC.createGain(); g.gain.value = vol||0.25;
+  const f = AC.createBiquadFilter(); f.type='lowpass'; f.frequency.value = 900;
+  src.connect(f).connect(g).connect(AC.destination); src.start();
+}
+const sfx = {
+  fire(){ beep(220, .18, 'square', .10, 60); },
+  boom(big){ noiseBurst(big?.5:.32, big?.4:.28); beep(70, big?.5:.3, 'sine', .3, 34); },
+  splash(){ noiseBurst(.25, .12); beep(500,.2,'sine',.06,180); },
+  thud(){ beep(90,.09,'sine',.14,50); },
+  hurt(){ beep(660,.09,'square',.07,300); },
+  core(){ beep(1200,.35,'sawtooth',.10,2400); },
+  piano(){ beep(196,.5,'triangle',.12,98); },
+  turn(){ beep(880,.07,'square',.05); },
+};
+
+/* ---------------- terrain: heightfield, crater-carved ----------------
+   One height value per 2px column. The hill profile keeps Cherie's binding
+   Nov 14 fix: peak ~444px above the pads (the duel's x1.75 hill). */
+const COLW = 2, NCOL = W/COLW;
+let terr = new Float32Array(NCOL);
+function buildTerrain(){
+  // control points: x -> surface y (smaller y = higher ground)
+  const pts = [[0,706],[52,700],[96,694],[128,600],[168,452],[210,262],[252,452],[292,600],[324,694],[368,700],[420,706]];
+  for(let i=0;i<NCOL;i++){
+    const x = i*COLW + COLW/2;
+    let a = pts[0], b = pts[pts.length-1];
+    for(let j=0;j<pts.length-1;j++){ if(x>=pts[j][0] && x<=pts[j+1][0]){ a=pts[j]; b=pts[j+1]; break; } }
+    const t = (x-a[0]) / Math.max(1,(b[0]-a[0]));
+    const s = t*t*(3-2*t);                       // smoothstep between control points
+    terr[i] = a[1] + (b[1]-a[1])*s;
+  }
+}
+function terrainH(x){
+  const i = clamp(Math.floor(x/COLW), 0, NCOL-1);
+  return terr[i];
+}
+function carveTerrain(cx, cy, R){
+  // lower the surface inside the blast circle (chunk-by-chunk cratering)
+  const i0 = clamp(Math.floor((cx-R)/COLW),0,NCOL-1), i1 = clamp(Math.ceil((cx+R)/COLW),0,NCOL-1);
+  for(let i=i0;i<=i1;i++){
+    const x = i*COLW + COLW/2, dx = x-cx;
+    const half = Math.sqrt(Math.max(0, R*R - dx*dx));
+    const floorY = cy + half;                    // bottom edge of the blast circle
+    if(floorY > terr[i]) terr[i] = Math.min(floorY, H);   // terrain only ever drops
+  }
+}
+
+/* ---------------- fortresses: block grids with a buried core ----------------
+   Blocks are grid cells with continuous positions so unsupported ones fall.
+   side 0 = player STONE KEEP (left), side 1 = bot NEON SPIRE (right). */
+const BS = 19;   // block size px
+let castles = [];
+function buildCastles(){
+  G.blocks = []; G.crew = []; castles = [];
+  castles[0] = makeCastle(0, 30,  {cols:4, rows:6, mat:'stone'});
+  castles[1] = makeCastle(1, 336, {cols:3, rows:8, mat:'neon'});
+  for(const c of castles){
+    // crew: two on the roof, one on the ground beside the fortress
+    const top = castleTop(c);
+    addCrew(c.side, c.cx - 16, top);
+    addCrew(c.side, c.cx + 16, top);
+    addCrew(c.side, c.side===0 ? c.x0 - 16 : c.x0 + c.w + 16, terrainH(c.side===0 ? c.x0-16 : c.x0 + c.w + 16));
+  }
+}
+function makeCastle(side, x0, opt){
+  const w = opt.cols*BS;
+  const c = { side, x0, w, cx:x0 + w/2, mat:opt.mat, coreHP:60, coreMax:60,
+              coreExposed:false, ammo:{ cluster:3, piano:2 }, muzzle:{x:x0+w/2, y:0} };
+  const baseY = terrainH(c.cx);
+  // solid grid; the core (2x2) sits low in the middle, roof row has crenellation gaps
+  for(let col=0; col<opt.cols; col++){
+    for(let row=0; row<opt.rows; row++){
+      if(row===opt.rows-1 && col%2===1) continue;              // crenellation gaps
+      const bx = x0 + col*BS, by = baseY - (row+1)*BS;
+      const isCoreCell = (row<2) && (col>= (opt.cols>>1)-0 && col<= (opt.cols>>1)) && opt.cols>3
+        ? (row<2 && (col===1 || col===2))
+        : (row<2 && col===1);
+      if(isCoreCell) continue;                                 // core occupies this space
+      G.blocks.push({ side, x:bx, y:by, w:BS, h:BS, hp: opt.mat==='stone'?42:36, maxhp:42,
+                      mat:opt.mat, vy:0, falling:false, alive:true, seed:rnd()*10 });
+    }
+  }
+  // the core itself: 2 cols x 2 rows, low in the fortress
+  const coreCol = opt.cols>3 ? 1 : 1;
+  c.core = { side, x:x0 + coreCol*BS, y: baseY - 2*BS, w: BS*(opt.cols>3?2:1)+ (opt.cols>3?0:BS*0), h: 2*BS,
+             vy:0, falling:false, alive:true, core:true };
+  if(opt.cols===3){ c.core.x = x0 + BS; c.core.w = BS; }
+  G.blocks.push(c.core);
+  c.muzzle.y = baseY - opt.rows*BS - 8;
+  return c;
+}
+function castleTop(c){
+  let top = Infinity;
+  for(const b of G.blocks) if(b.alive && b.side===c.side) top = Math.min(top, b.y);
+  return top===Infinity ? terrainH(c.cx) : top;
+}
+function castleOf(side){ return castles[side]; }
+function updateMuzzle(c){
+  c.muzzle.x = c.cx;
+  c.muzzle.y = castleTop(c) - 8;
+}
+function addCrew(side, x, groundY){
+  G.crew.push({ side, x, y:groundY-9, vx:0, vy:0, hp:50, r:7, alive:true,
+                airborne:false, face: side===0?1:-1, blink:rnd()*4 });
+}
+/* what is the standing surface at x for a crew member (terrain or block top)? */
+function standY(x, ignore){
+  let y = terrainH(x);
+  for(const b of G.blocks){
+    if(!b.alive || b===ignore) continue;
+    if(x > b.x-2 && x < b.x + b.w + 2) y = Math.min(y, b.y);
+  }
+  return y;
+}
+/* ---------------- weapons ---------------- */
+const WEAPONS = [
+  { id:'bazooka', name:'Bazooka',  icon:'🚀', ammo:Infinity },
+  { id:'grenade', name:'Grenade',  icon:'💣', ammo:Infinity },
+  { id:'cluster', name:'Cluster',  icon:'✸',  ammo:'cluster' },
+  { id:'piano',   name:'Piano Drop', icon:'🎹', ammo:'piano', drop:true },
+];
+function curWeapon(){ return WEAPONS[G.weapon]; }
+function ammoLeft(c, w){ return w.ammo===Infinity ? Infinity : c.ammo[w.ammo]; }
+
+/* ---------------- ballistics: ONE integrator for preview, firing, solver --
+   Exact arc simulation (Euler at STEP/2). The preview dots, the aim clamp
+   and the bot solver all read this, so the arc shown is the arc that flies. */
+function simArc(mx, my, angle, power, wind, steps, bounds){
+  const sp = 190 + power*500;
+  let x=mx, y=my, vx=Math.cos(angle)*sp, vy=Math.sin(angle)*sp;
+  const dt = STEP/2, pts=[{x,y}]; let out=false;
+  for(let i=0;i<steps;i++){
+    vy += GRAV*dt; vx += wind*WIND_ACC*dt;
+    x += vx*dt; y += vy*dt;
+    pts.push({x,y});
+    if(bounds && (x<bounds.x0 || x>bounds.x1 || y<bounds.y0 || y>bounds.y1)){ out=true; break; }
+    if(y >= terrainH(x)) break;                       // terrain impact ends the preview
+    if(y > WATER_Y) break;
+    let hitBlock = false;                             // masonry impact ends it too
+    for(const b of G.blocks){ if(b.alive && x>b.x && x<b.x+b.w && y>b.y && y<b.y+b.h){ hitBlock=true; break; } }
+    if(hitBlock) break;
+  }
+  return {pts, out};
+}
+const ARC_MAX_STEPS = 560;   // at STEP/2 per step: covers the slowest full-power lob
+const ARC_MARGIN = 3;
+function arcFitsScreen(mx,my,angle,power,wind){
+  return !simArc(mx,my,angle,power,wind,ARC_MAX_STEPS,
+    {x0:ARC_MARGIN, x1:W-ARC_MARGIN, y0:ARC_MARGIN, y1:H-ARC_MARGIN}).out;
+}
+/* Cherie's binding rule (Nov 14): the aim arc ALWAYS stays fully on screen.
+   Wind the power down first (binary search, strongest fitting shot); only a
+   near-vertical lob that can't fit at any power gets its angle shallowed.
+   computeAim stores the clamped values in G.aim and BOTH the preview and
+   the fired shot read G.aim — no bait-and-switch. */
+function clampAimToScreen(mz, angle, power, wind){
+  if(arcFitsScreen(mz.x,mz.y,angle,power,wind)) return {angle, power};
+  let lo=0, hi=power, best=-1;
+  for(let i=0;i<9;i++){
+    const mid=(lo+hi)/2;
+    if(arcFitsScreen(mz.x,mz.y,angle,mid,wind)){ best=mid; lo=mid; } else hi=mid;
+  }
+  if(best>=0) return {angle, power:best};
+  let a=angle;
+  while(a<-0.55){ a=Math.min(-0.55, a+0.05); if(arcFitsScreen(mz.x,mz.y,a,0,wind)) return {angle:a, power:0}; }
+  return {angle:a, power:0};
+}
+/* Bot solver: grid search over angle/power scored against the target with
+   the exact sim (wind included). Window is long because the winning shots
+   over the tall hill are steep lobs with long flight times. */
+function solveAim(mz, dir, tx, ty, wind){
+  let best=null, bd=1e12;
+  for(const power of [0.45,0.55,0.65,0.75,0.85,0.95,1.0]){
+    for(let off=6; off<=86; off+=3){
+      const a = dir>0 ? -off*Math.PI/180 : Math.PI + off*Math.PI/180;
+      const {pts} = simArc(mz.x, mz.y, a, power, wind, ARC_MAX_STEPS);
+      for(const pt of pts){
+        const d = dist2(pt.x, pt.y, tx, ty);
+        if(d<bd){ bd=d; best={angle:a, power}; }
+      }
+    }
+  }
+  return best;
+}
+
+/* ---------------- firing ---------------- */
+function fireWeapon(w, side, angle, power, tx){
+  const c = castleOf(side);
+  if(w.ammo!==Infinity){
+    if(c.ammo[w.ammo]<=0) return false;
+    c.ammo[w.ammo]--;
+  }
+  updateMuzzle(c);
+  const mz = c.muzzle;
+  G.shotsFired++;
+  if(w.drop){   // piano: a flare marks the spot, then the piano falls
+    G.flare = { x:clamp(tx,20,W-20), t:0.55, side };
+    sfx.fire();
+    return true;
+  }
+  const sp = 190 + power*500;
+  const p = { kind:w.id, side, x:mz.x, y:mz.y, vx:Math.cos(angle)*sp, vy:Math.sin(angle)*sp,
+              r: w.id==='grenade'?6:5, t:0, fuse: w.id==='grenade'?2.6:Infinity,
+              split: w.id==='cluster', resting:false, dead:false };
+  G.projectiles.push(p);
+  sfx.fire();
+  return true;
+}
+function spawnPiano(x, side){
+  G.piano = { x, y:-46, vy:0, rot:0, vr:rr(-0.4,0.4), side };
+  sfx.piano();
+}
+
+/* ---------------- explosions ---------------- */
+function explode(x, y, R, dmg, side){
+  carveTerrain(x, y, R);
+  sfx.boom(R>=62);
+  if(R>=62) G.hitStop = Math.max(G.hitStop, 60);          // HIT-STOP: big blast
+  G.shake = Math.min(14, R*0.16);
+  G.punch = Math.min(0.07, R*0.0011); G.punchX = x; G.punchY = y;   // CAMERA PUNCH up to +7%
+  for(let i=0;i<R*0.55;i++){
+    const a = rnd()*Math.PI*2, s = rr(30, 300);
+    G.parts.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s - 60, life:rr(.3,.8), t:0,
+                   col: ['#ffd23f','#ff6b35','#f7fff7','#8d6e63'][i%4], r:rr(1.5,3.5) });
+  }
+  // blocks (both fortresses — friendly fire is real)
+  let destroyed = 0;
+  for(const b of G.blocks){
+    if(!b.alive) continue;
+    const cx = clamp(x, b.x, b.x+b.w), cy = clamp(y, b.y, b.y+b.h);
+    const d = Math.hypot(x-cx, y-cy);
+    if(d < R){
+      const f = 1 - d/(R+10);
+      if(b.core){
+        const owner = castleOf(b.side);
+        if(owner.coreExposed){ damageCore(owner, dmg*f*1.15, side); }
+        // a buried core is shielded by its cover — dig it out first
+      } else {
+        b.hp -= dmg*f;
+        if(b.hp<=0){ b.alive=false; destroyed++; blockDebris(b); if(side!==b.side) G.score += 12; }
+      }
+    }
+  }
+  if(destroyed>=3) G.hitStop = Math.max(G.hitStop, 70);   // HIT-STOP: collapse cascade
+  // crew: damage + glorious knockback
+  for(const m of G.crew){
+    if(!m.alive) continue;
+    const d = Math.hypot(m.x-x, m.y-y);
+    if(d < R + 26){
+      const f = 1 - d/(R+30);
+      m.hp -= dmg*f*0.9;
+      const a = Math.atan2(m.y-y, m.x-x);
+      m.vx += Math.cos(a)*560*f; m.vy += Math.sin(a)*560*f - 190*f;
+      m.airborne = true;
+      sfx.hurt();
+      addFloat(m.x, m.y-16, '-'+Math.round(dmg*f*0.9), '#ffe066');
+      if(m.hp<=0) killCrew(m, side);
+    }
+  }
+  for(const c of castles) checkCoreExposure(c);
+  settleCheckSoon();
+}
+function blockDebris(b){
+  for(let i=0;i<6;i++)
+    G.parts.push({ x:b.x+b.w/2, y:b.y+b.h/2, vx:rr(-120,120), vy:rr(-160,10), life:rr(.4,.9), t:0,
+                   col: b.mat==='neon' ? '#67e8f9' : '#b8b0a4', r:rr(2,4.5), rect:true });
+}
+function damageCore(c, dmg, bySide){
+  if(!c.core.alive) return;
+  c.coreHP = Math.max(0, c.coreHP - dmg);
+  G.hitStop = Math.max(G.hitStop, 50);                    // HIT-STOP: core hit
+  sfx.core();
+  addFloat(c.core.x + c.core.w/2, c.core.y - 10, 'CORE -'+Math.round(dmg), '#ff4fa0');
+  if(bySide!==c.side) G.score += Math.round(dmg)*2;
+  if(c.coreHP<=0 && c.core.alive){
+    c.core.alive = false;
+    explode(c.core.x + c.core.w/2, c.core.y + c.core.h/2, 74, 30, bySide);
+    G.hitStop = 95;                                        // HIT-STOP before slow-mo
+    G.slowT = 0.85; G.timeScale = 0.25;
+    if(bySide!==c.side) { G.finishBonus = c.coreExposed; if(G.finishBonus) G.score += 500; }
+  }
+}
+function checkCoreExposure(c){
+  if(!c.core.alive || c.coreExposed) return;
+  // exposed when nothing alive covers the core's roof zone
+  let cover = 0;
+  for(const b of G.blocks){
+    if(!b.alive || b.core || b.side!==c.side) continue;
+    if(b.x < c.core.x + c.core.w && b.x + b.w > c.core.x && b.y + b.h <= c.core.y + 2 && b.y > c.core.y - 62) cover++;
+  }
+  if(cover===0){
+    c.coreExposed = true;
+    addFloat(c.core.x + c.core.w/2, c.core.y - 18, 'CORE EXPOSED!', '#39d0ff');
+    sfx.core();
+  }
+}
+function killCrew(m, bySide){
+  m.alive = false;
+  if(bySide!==m.side) G.score += 100;
+  addFloat(m.x, m.y-20, 'KO +100', '#ff9fd0');
+  for(let i=0;i<10;i++)
+    G.parts.push({ x:m.x, y:m.y, vx:rr(-90,90), vy:rr(-190,-20), life:rr(.4,.8), t:0, col:'#fff', r:2 });
+}
+function addFloat(x,y,txt,col){ G.floats.push({x,y,txt,col,t:0}); }
+
+/* ---------------- physics step ---------------- */
+function circleHitsBlock(p, b){
+  const cx = clamp(p.x, b.x, b.x+b.w), cy = clamp(p.y, b.y, b.y+b.h);
+  return dist2(p.x, p.y, cx, cy) < p.r*p.r;
+}
+function stepProjectile(p, dt){
+  p.t += dt;
+  const sub = 2, sdt = dt/sub;
+  for(let s=0;s<sub;s++){
+    p.vy += GRAV*sdt;
+    if(!p.resting) p.vx += G.wind*WIND_ACC*sdt;
+    p.x += p.vx*sdt; p.y += p.vy*sdt;
+    // water
+    if(p.y >= WATER_Y){ p.dead = true; splashAt(p.x); return; }
+    // terrain
+    const th = terrainH(p.x);
+    if(p.y + p.r >= th){
+      if(p.kind==='grenade' && Math.abs(p.vy)>60){ p.y = th - p.r; p.vy *= -0.35; p.vx *= 0.72; }
+      else if(p.kind==='grenade'){ p.y = th - p.r; p.vy = 0; p.vx *= 0.8; if(Math.abs(p.vx)<14){ p.vx=0; p.resting=true; } }
+      else { impact(p); return; }
+    }
+    // blocks
+    for(const b of G.blocks){
+      if(!b.alive) continue;
+      if(circleHitsBlock(p, b)){
+        if(p.kind==='grenade'){ // bounce off masonry
+          p.x -= p.vx*sdt; p.y -= p.vy*sdt; p.vy *= -0.3; p.vx *= 0.7;
+        } else { impact(p); return; }
+      }
+    }
+    // crew (contact weapons only)
+    if(p.kind!=='grenade'){
+      for(const m of G.crew){
+        if(m.alive && dist2(p.x,p.y,m.x,m.y) < (p.r+m.r)*(p.r+m.r)){ impact(p); return; }
+      }
+    }
+    // cluster split mid-flight
+    if(p.split && p.t>=0.5){
+      p.split = false; p.dead = true;
+      for(const off of [-46, 0, 46]){
+        G.projectiles.push({ kind:'bomblet', side:p.side, x:p.x, y:p.y,
+          vx:p.vx + off, vy:p.vy + (off===0?26:0), r:4.5, t:0, fuse:Infinity, resting:false, dead:false });
+      }
+      return;
+    }
+    if(p.x < -30 || p.x > W+30) { p.dead = true; return; }
+  }
+  // grenade fuse
+  if(p.kind==='grenade'){
+    p.fuse -= dt;
+    if(p.fuse<=0){ p.dead = true; explode(p.x, p.y, 44, 52, p.side); }
+  }
+  // ghost trail on the fastest projectile
+  if(G.time - G.lastGhost >= 0.04){
+    const sp = Math.hypot(p.vx, p.vy);
+    if(sp > 380){ G.ghosts.push({x:p.x, y:p.y, t:0}); G.lastGhost = G.time; }
+  }
+}
+function impact(p){
+  p.dead = true;
+  if(p.kind==='bomblet') explode(p.x, p.y, 30, 30, p.side);
+  else if(p.kind==='cluster') explode(p.x, p.y, 34, 34, p.side);
+  else explode(p.x, p.y, 47, 56, p.side);   // bazooka
+}
+function splashAt(x){
+  sfx.splash();
+  for(let i=0;i<10;i++)
+    G.parts.push({ x:x+rr(-6,6), y:WATER_Y, vx:rr(-40,40), vy:rr(-190,-60), life:rr(.3,.6), t:0, col:'#7dd3fc', r:2 });
+}
+function stepBlocks(dt){
+  // support: a block rests on terrain or on another block's top; else it falls
+  for(const b of G.blocks){
+    if(!b.alive) continue;
+    const cx = b.x + b.w/2;
+    let floor = terrainH(cx);
+    for(const o of G.blocks){
+      if(!o.alive || o===b) continue;
+      if(cx > o.x-3 && cx < o.x+o.w+3 && o.y >= b.y + b.h - 1) floor = Math.min(floor, o.y);
+    }
+    const gap = floor - (b.y + b.h);
+    if(gap > 1.5){
+      b.vy = Math.min(560, b.vy + GRAV*dt);
+      b.y += b.vy*dt;
+      if(b.y + b.h >= floor){ b.y = floor - b.h; if(b.vy>300) sfx.thud(); b.vy = 0; }
+    } else { b.vy = 0; if(gap<0) b.y = floor - b.h; }
+  }
+}
+function stepCrew(dt){
+  for(const m of G.crew){
+    if(!m.alive) continue;
+    const ground = standY(m.x, null) - m.r;
+    if(m.airborne || m.y < ground - 1){
+      m.vy = Math.min(640, m.vy + GRAV*dt);
+      m.x += m.vx*dt; m.y += m.vy*dt;
+      m.vx *= 0.995;
+      if(m.y >= ground){
+        const impactV = m.vy;
+        m.y = ground; m.vy = 0; m.vx = 0; m.airborne = false;
+        if(impactV > 380){                        // fall damage
+          const fd = (impactV - 380)/7;
+          m.hp -= fd; addFloat(m.x, m.y-16, '-'+Math.round(fd), '#fca5a5'); sfx.hurt();
+          if(m.hp<=0) killCrew(m, 1-m.side);
+        }
+      }
+      if(m.y > WATER_Y - 2){ m.alive=false; splashAt(m.x); addFloat(m.x, WATER_Y-24, 'SPLASH!', '#7dd3fc'); }
+    } else {
+      m.y = ground;   // terrain fell away or rose: stay planted
+      if(ground > WATER_Y - 4){ m.alive=false; splashAt(m.x); }
+    }
+    m.x = clamp(m.x, 8, W-8);
+  }
+}
+function stepPiano(dt){
+  if(!G.piano) return;
+  const p = G.piano;
+  p.vy = Math.min(700, p.vy + GRAV*dt);
+  p.y += p.vy*dt; p.rot += p.vr*dt;
+  const th = terrainH(p.x);
+  let hitY = th;
+  for(const b of G.blocks) if(b.alive && p.x > b.x-8 && p.x < b.x+b.w+8) hitY = Math.min(hitY, b.y);
+  if(p.y + 16 >= hitY){
+    const side = p.side; G.piano = null;
+    explode(p.x, hitY - 6, 72, 92, side);
+  }
+}
+function anythingMoving(){
+  if(G.projectiles.some(p=>!p.dead) || G.piano || G.flare) return true;
+  for(const b of G.blocks) if(b.alive && b.vy>0) return true;
+  for(const m of G.crew) if(m.alive && m.airborne) return true;
+  return false;
+}
+function settleCheckSoon(){ G.busyGrace = Math.max(G.busyGrace, 0.3); }
+
+let FAST = false;   // test stepping: skip per-step renders
+function step(dt){
+  G.time += dt;
+  if(G.hitStop > 0){ G.hitStop -= dt*1000; if(!FAST) render(); return; }
+  if(G.slowT > 0){ G.slowT -= dt; if(G.slowT<=0) G.timeScale = 1; }
+  const sdt = dt * G.timeScale;
+  for(const p of G.projectiles) if(!p.dead) stepProjectile(p, sdt);
+  G.projectiles = G.projectiles.filter(p=>!p.dead);
+  stepBlocks(sdt);
+  stepCrew(sdt);
+  stepPiano(sdt);
+  if(G.flare){
+    G.flare.t -= sdt;
+    if(G.flare.t<=0){ const f = G.flare; G.flare = null; spawnPiano(f.x, f.side); }
+  }
+  for(const pt of G.parts){ pt.t += sdt; pt.vy += GRAV*0.55*sdt; pt.x += pt.vx*sdt; pt.y += pt.vy*sdt; }
+  G.parts = G.parts.filter(p=>p.t<p.life);
+  for(const g of G.ghosts) g.t += sdt;
+  G.ghosts = G.ghosts.filter(g=>g.t<0.2);
+  for(const f of G.floats){ f.t += sdt; f.y -= 22*sdt; }
+  G.floats = G.floats.filter(f=>f.t<1.15);
+  G.shake = Math.max(0, G.shake - 30*sdt);
+  G.punch = Math.max(0, G.punch - 0.27*sdt);       // ~260ms decay
+  // turn flow
+  if(G.phase==='play'){
+    if(G.ts==='busy'){
+      if(!anythingMoving()){
+        G.busyGrace -= sdt;
+        if(G.busyGrace<=0) endTurn();
+      } else G.busyGrace = 0.35;
+    } else if(G.ts==='botaim'){
+      G.botTimer -= sdt;
+      if(G.botTimer<=0 && G.botPlan){
+        const bp = G.botPlan; G.botPlan = null;
+        const ok = fireWeapon(bp.w, 1, bp.angle, bp.power, bp.tx);
+        G.ts = 'busy'; G.busyGrace = 0.35;
+        hideToast();
+        if(!ok) endTurn();
+      }
+    }
+  }
+  if(!FAST) render();
+}
+function endTurn(){
+  if(checkEnd()) return;
+  G.turn = 1 - G.turn;
+  G.round += G.turn===0 ? 1 : 0;
+  rollWind();
+  updateMuzzle(castleOf(0)); updateMuzzle(castleOf(1));
+  if(G.turn===1){ planBot(); }
+  else { G.ts = 'aim'; G.aim = null; sfx.turn(); }
+  updateHUD();
+}
+function rollWind(){ G.wind = Math.round(rr(-5,5)); if(rnd()<0.18) G.wind = 0; }
+function checkEnd(){
+  const foeDead = !castleOf(1).core.alive || G.crew.every(m=> m.side!==1 || !m.alive);
+  const youDead = !castleOf(0).core.alive || G.crew.every(m=> m.side!==0 || !m.alive);
+  if(foeDead && !youDead) return finishGame(true);
+  if(youDead) return finishGame(false);
+  return false;
+}
+function finishGame(won){
+  G.phase = won ? 'won' : 'lost';
+  const foe = castleOf(1);
+  const foeBlocksGone = G.blocks.filter(b=>b.side===1 && !b.core && !b.alive).length;
+  document.getElementById('endtitle').textContent = won ? '🏆 VICTORY!' : '💀 THE SPIRE WINS';
+  document.getElementById('endstats').textContent =
+    (won ? (G.finishBonus ? 'One-shot CORE FINISH! +500 bonus\n' : 'The Neon Spire is rubble.\n')
+         : 'Your core is gone. The hill remains smug.\n') +
+    `Rounds: ${G.round} · Shots fired: ${G.shotsFired}\nEnemy blocks wrecked: ${foeBlocksGone} · Score: ${G.score}`;
+  document.getElementById('endcard').classList.remove('hidden');
+  document.getElementById('turnbanner').style.display = 'none';
+  return true;
+}
+
+/* ---------------- the bot: believable aim error, real threat ----------------
+   Solver aim is exact, so error is added to the TARGET: starts ~±46px and
+   tightens to ~±16px by round 8, with an occasional bad read. It picks
+   weapons like a player: dig with cluster, finish an exposed core with the
+   piano, lob grenades when the direct line is ugly. */
+function planBot(){
+  G.ts = 'botaim'; G.botTimer = 0.9;
+  showToast();
+  const foe = castleOf(0), me = castleOf(1);
+  updateMuzzle(me);
+  const err = Math.max(16, 50 - G.round*4.2) * (rnd()<0.14 ? 2 : 1);
+  let tx, ty, wid = 'bazooka';
+  const aliveCrew = G.crew.filter(m=>m.side===0 && m.alive);
+  if(foe.coreExposed && foe.core.alive){
+    tx = foe.core.x + foe.core.w/2; ty = foe.core.y + foe.core.h/2;
+    if(me.ammo.piano>0 && rnd()<0.55) wid = 'piano';
+  } else if(rnd()<0.3 && aliveCrew.length){
+    const m = aliveCrew[Math.floor(rnd()*aliveCrew.length)];
+    tx = m.x; ty = m.y;
+    if(me.ammo.cluster>0 && rnd()<0.5) wid = 'cluster';
+  } else {
+    tx = foe.cx + rr(-14,14); ty = castleTop(foe) + 56;
+    const r = rnd();
+    if(me.ammo.cluster>0 && r<0.3) wid = 'cluster';
+    else if(r<0.52) wid = 'grenade';
+  }
+  tx += rr(-err, err); ty += rr(-err*0.6, err*0.6);
+  const w = WEAPONS.find(x=>x.id===wid);
+  if(w.drop){ G.botPlan = { w, tx, angle:0, power:0 }; return; }
+  const s = solveAim(me.muzzle, -1, tx, ty, G.wind);
+  G.botPlan = { w, tx, angle: s? s.angle : Math.PI + 0.9, power: s? s.power : 0.8 };
+}
+function showToast(){ document.getElementById('toast').style.display='block'; }
+function hideToast(){ document.getElementById('toast').style.display='none'; }
+
+/* ---------------- input: drag aim (pointer-native, the duel's scheme) --- */
+let aiming = false;
+function ptrPos(e){
+  const r = cv.getBoundingClientRect();
+  return { x:(e.clientX-r.left)*(W/r.width), y:(e.clientY-r.top)*(H/r.height) };
+}
+function computeAim(p){
+  const w = curWeapon(), c = castleOf(0);
+  updateMuzzle(c);
+  const mz = c.muzzle;
+  if(w.drop) return { tx: clamp(p.x, 26, 394), drop:true };
+  let angle, power;
+  const dx = p.x-mz.x, dy = p.y-mz.y;
+  if(dx>8 && dy<-8){           // direct aim: pointing up-field
+    angle = Math.atan2(dy,dx);
+    power = clamp((Math.hypot(dx,dy)-50)/180, 0.15, 1);
+  } else {                     // slingshot: pull back from the muzzle
+    const sx = mz.x-p.x, sy = mz.y-p.y;
+    angle = Math.atan2(sy,sx);
+    power = clamp((Math.hypot(sx,sy)-26)/190, 0, 1);
+  }
+  angle = clamp(angle, -1.48, -0.08);
+  const cl = clampAimToScreen(mz, angle, power, G.wind);   // arc ALWAYS fits the screen
+  return { angle:cl.angle, power:cl.power, tx:p.x };
+}
+cv.addEventListener('pointerdown', e=>{
+  audioInit();
+  if(G.phase!=='play' || G.turn!==0 || G.ts!=='aim') return;
+  aiming = true; cv.setPointerCapture(e.pointerId);
+  G.aim = computeAim(ptrPos(e));
+});
+cv.addEventListener('pointermove', e=>{ if(aiming) G.aim = computeAim(ptrPos(e)); });
+function endAim(){
+  if(!aiming) return; aiming = false;
+  if(G.phase==='play' && G.turn===0 && G.ts==='aim' && G.aim){
+    const w = curWeapon();
+    let ok = false;
+    if(w.drop) ok = fireWeapon(w, 0, 0, 0, G.aim.tx);
+    else if(G.aim.power > 0.06) ok = fireWeapon(w, 0, G.aim.angle, G.aim.power, 0);
+    if(ok){ G.ts = 'busy'; G.busyGrace = 0.35; }
+  }
+  G.aim = null;
+}
+cv.addEventListener('pointerup', endAim);
+cv.addEventListener('pointercancel', ()=>{ aiming=false; G.aim=null; });
+document.addEventListener('keydown', e=>{
+  const n = parseInt(e.key); if(n>=1 && n<=4){ G.weapon = n-1; buildCards(); }
+});
+/* game guard: no zoom, no scroll, no callouts */
+for(const ev of ['gesturestart','dblclick']) document.addEventListener(ev, e=>e.preventDefault());
+document.addEventListener('contextmenu', e=>e.preventDefault());
+document.addEventListener('touchmove', e=>{ e.preventDefault(); }, { passive:false });
+
+/* ---------------- HUD ---------------- */
+function buildCards(){
+  const wrap = document.getElementById('cards'); wrap.innerHTML = '';
+  const c = castleOf(0);
+  WEAPONS.forEach((w,i)=>{
+    const left = ammoLeft(c, w);
+    const b = document.createElement('button');
+    b.className = 'card' + (i===G.weapon?' sel':'') + (left<=0?' empty':'');
+    b.innerHTML = `<span class="ic">${w.icon}</span><span class="nm">${w.name}</span>` +
+                  `<span class="am">${left===Infinity ? '∞ ammo' : left+' left'}</span>`;
+    b.addEventListener('pointerdown', e=>{ e.preventDefault(); audioInit(); if(left>0){ G.weapon=i; buildCards(); } });
+    wrap.appendChild(b);
+  });
+}
+function crewPips(side){
+  return G.crew.filter(m=>m.side===side).map(m=> m.alive ? '●' : '○').join('');
+}
+function updateHUD(){
+  const you = castleOf(0), foe = castleOf(1);
+  document.getElementById('coreYou').style.width = (you.coreHP/you.coreMax*100)+'%';
+  document.getElementById('coreFoe').style.width = (foe.coreHP/foe.coreMax*100)+'%';
+  document.getElementById('coreYouTxt').textContent = 'CORE ' + Math.ceil(you.coreHP/you.coreMax*100) + '%' + (you.coreExposed?' · EXPOSED!':'');
+  document.getElementById('coreFoeTxt').textContent = 'CORE ' + Math.ceil(foe.coreHP/foe.coreMax*100) + '%' + (foe.coreExposed?' · EXPOSED!':'');
+  document.getElementById('crewYou').textContent = crewPips(0);
+  document.getElementById('crewFoe').textContent = crewPips(1);
+  const wa = document.getElementById('windArrows'), wn = document.getElementById('windNum');
+  if(G.wind===0){ wa.textContent = '·'; wn.textContent = 'calm'; }
+  else {
+    const n = Math.abs(G.wind), arrow = G.wind>0 ? '▶' : '◀';
+    wa.textContent = arrow.repeat(Math.max(1, Math.round(n/1.7)));
+    wn.textContent = n + (G.wind>0 ? ' → them' : ' → you');
+  }
+  const tb = document.getElementById('turnbanner');
+  if(G.phase==='play'){
+    tb.style.display = 'block';
+    tb.className = 'hud ' + (G.turn===0 ? 'you' : 'foe');
+    document.getElementById('turntxt').textContent =
+      G.turn===0 ? '🎯 YOUR TURN — drag to aim' : '☠ SPIRE IS AIMING…';
+  } else tb.style.display = 'none';
+  buildCards();
+}
+
+/* ---------------- rendering ---------------- */
+function render(){
+  ctx.setTransform(1,0,0,1,0,0);
+  // sky: dusk gradient
+  const sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#2b1055'); sky.addColorStop(.45,'#7597de'); sky.addColorStop(.72,'#ff9a5a'); sky.addColorStop(1,'#5b2a86');
+  ctx.fillStyle = sky; ctx.fillRect(0,0,W,H);
+  // camera punch + shake, centred on the blast
+  const sc = 1 + G.punch;
+  const shx = G.shake ? rr(-G.shake,G.shake)*0.5 : 0, shy = G.shake ? rr(-G.shake,G.shake)*0.5 : 0;
+  ctx.translate(G.punchX + shx, G.punchY + shy); ctx.scale(sc,sc); ctx.translate(-G.punchX, -G.punchY);
+  // sun + clouds
+  ctx.fillStyle = '#ffd97a'; ctx.beginPath(); ctx.arc(66, 150, 30, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,214,150,.35)'; ctx.beginPath(); ctx.arc(66, 150, 46, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  for(const cl of [[150,86,34],[268,60,26],[340,120,40],[96,210,22]]){
+    ctx.beginPath(); ctx.ellipse(cl[0], cl[1], cl[2], cl[2]*0.36, 0, 0, 7); ctx.fill();
+  }
+  drawWater();
+  drawTerrain();
+  drawCastles();
+  drawCrew();
+  if(G.flare) drawFlare();
+  if(G.piano) drawPiano();
+  for(const g of G.ghosts){ ctx.globalAlpha = 0.35*(1-g.t/0.2); ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(g.x, g.y, 4, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  for(const p of G.projectiles) drawProjectile(p);
+  for(const pt of G.parts){ ctx.globalAlpha = 1 - pt.t/pt.life; ctx.fillStyle = pt.col;
+    if(pt.rect) ctx.fillRect(pt.x-pt.r, pt.y-pt.r, pt.r*2, pt.r*2);
+    else { ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, 7); ctx.fill(); } }
+  ctx.globalAlpha = 1;
+  if(G.aim && G.phase==='play' && G.turn===0 && G.ts==='aim') drawAim();
+  ctx.setTransform(1,0,0,1,0,0);
+  for(const f of G.floats){
+    ctx.globalAlpha = Math.min(1, 1.6 - f.t);
+    ctx.font = '900 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = f.col; ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 3;
+    ctx.strokeText(f.txt, f.x, f.y); ctx.fillText(f.txt, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+}
+function drawWater(){
+  ctx.fillStyle = 'rgba(38,90,160,.88)';
+  ctx.fillRect(0, WATER_Y, W, H-WATER_Y);
+  ctx.strokeStyle = 'rgba(160,220,255,.8)'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for(let x=0;x<=W;x+=6){
+    const y = WATER_Y + Math.sin(x*0.09 + G.time*2.4)*2;
+    x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+}
+function drawTerrain(){
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  for(let i=0;i<NCOL;i++) ctx.lineTo(i*COLW + COLW/2, terr[i]);
+  ctx.lineTo(W, H); ctx.closePath();
+  const g = ctx.createLinearGradient(0, 260, 0, H);
+  g.addColorStop(0,'#8a6b46'); g.addColorStop(.25,'#6d5133'); g.addColorStop(1,'#3d2b18');
+  ctx.fillStyle = g; ctx.fill();
+  // grassy crest line
+  ctx.beginPath();
+  for(let i=0;i<NCOL;i++){ const x = i*COLW + COLW/2; i===0 ? ctx.moveTo(x, terr[i]) : ctx.lineTo(x, terr[i]); }
+  ctx.strokeStyle = '#69a84f'; ctx.lineWidth = 5; ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1;
+  for(let i=4;i<NCOL;i+=9){ const x=i*COLW; ctx.beginPath(); ctx.moveTo(x, terr[i]+8); ctx.lineTo(x+3, terr[i]+16); ctx.stroke(); }
+}
+function drawCastles(){
+  for(const b of G.blocks){
+    if(!b.alive) continue;
+    if(b.core){ drawCore(b); continue; }
+    const hurt = 1 - b.hp/b.maxhp;
+    if(b.mat==='stone'){
+      ctx.fillStyle = `rgb(${148-hurt*60},${144-hurt*60},${138-hurt*55})`;
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.strokeStyle = 'rgba(40,36,60,.55)'; ctx.lineWidth = 1;
+      ctx.strokeRect(b.x+.5, b.y+.5, b.w-1, b.h-1);
+      ctx.beginPath(); ctx.moveTo(b.x, b.y+b.h/2); ctx.lineTo(b.x+b.w, b.y+b.h/2); ctx.stroke();
+      if(hurt>0.45){ ctx.strokeStyle='rgba(20,16,30,.8)'; ctx.beginPath();
+        ctx.moveTo(b.x+3, b.y+2); ctx.lineTo(b.x+b.w*0.55, b.y+b.h*0.6); ctx.lineTo(b.x+b.w-4, b.y+b.h-3); ctx.stroke(); }
+    } else {
+      ctx.fillStyle = `rgb(${22+hurt*40},${30+hurt*10},${58})`;
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.strokeStyle = (Math.floor(b.x+b.y) % 2===0) ? '#ff4fa0' : '#22d3ee';
+      ctx.lineWidth = 1.6; ctx.strokeRect(b.x+1, b.y+1, b.w-2, b.h-2);
+      ctx.fillStyle = 'rgba(140,220,255,.35)'; ctx.fillRect(b.x+3, b.y+3, b.w-6, 4);
+    }
+  }
+  // banners on the keep + cannon muzzles
+  for(const c of castles){
+    updateMuzzle(c);
+    ctx.fillStyle = c.side===0 ? '#2563eb' : '#db2777';
+    ctx.fillRect(c.cx-1, castleTop(c)-16, 2, 16);
+    ctx.beginPath();
+    ctx.moveTo(c.cx+1, castleTop(c)-16); ctx.lineTo(c.cx+13, castleTop(c)-12); ctx.lineTo(c.cx+1, castleTop(c)-8);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#1f2430';
+    ctx.beginPath(); ctx.arc(c.muzzle.x, c.muzzle.y, 6, 0, 7); ctx.fill();
+    ctx.fillStyle = '#0c0e14'; ctx.beginPath(); ctx.arc(c.muzzle.x, c.muzzle.y, 3, 0, 7); ctx.fill();
+  }
+}
+function drawCore(b){
+  const c = castleOf(b.side);
+  const pulse = 0.72 + 0.28*Math.sin(G.time*4);
+  const col = b.side===0 ? '#39d0ff' : '#ff4fa0';
+  ctx.save();
+  if(c.coreExposed){ ctx.shadowColor = col; ctx.shadowBlur = 22*pulse; }
+  ctx.fillStyle = '#141021'; ctx.fillRect(b.x, b.y, b.w, b.h);
+  ctx.fillStyle = col; ctx.globalAlpha = c.coreExposed ? pulse : 0.55;
+  ctx.beginPath();
+  const cx = b.x + b.w/2, cy = b.y + b.h/2;
+  ctx.moveTo(cx, cy - b.h*0.36); ctx.lineTo(cx + b.w*0.3, cy); ctx.lineTo(cx, cy + b.h*0.36); ctx.lineTo(cx - b.w*0.3, cy);
+  ctx.closePath(); ctx.fill();
+  ctx.restore(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.strokeRect(b.x+.5, b.y+.5, b.w-1, b.h-1);
+}
+function drawCrew(){
+  for(const m of G.crew){
+    if(!m.alive) continue;
+    const bob = m.airborne ? 0 : Math.sin(G.time*2 + m.x)*0.6;
+    const x = m.x, y = m.y + bob;
+    ctx.fillStyle = m.side===0 ? '#2563eb' : '#db2777';
+    ctx.fillRect(x-5, y-2, 10, 9);                                   // body
+    ctx.fillStyle = '#f2c79b'; ctx.beginPath(); ctx.arc(x, y-6, 5, 0, 7); ctx.fill();  // head
+    ctx.fillStyle = m.side===0 ? '#93c5fd' : '#f9a8d4';
+    ctx.beginPath(); ctx.arc(x, y-7, 5.4, Math.PI, 0); ctx.fill();  // helmet
+    ctx.fillStyle = '#141021';
+    ctx.fillRect(x + m.face*2 - 1, y-7, 2, 2);                       // eye
+    if(m.hp < 50){ ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(x-7, y-15, 14, 3);
+      ctx.fillStyle = '#4ade80'; ctx.fillRect(x-7, y-15, 14*(m.hp/50), 3); }
+  }
+}
+function drawProjectile(p){
+  const sp = Math.hypot(p.vx, p.vy);
+  const sq = 1 + Math.min(0.4, sp/1100);                    // SQUASH-STRETCH up to 140%
+  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(p.vy, p.vx)); ctx.scale(sq, 1/sq);
+  if(p.kind==='bazooka'){
+    ctx.fillStyle = '#e5e7eb'; ctx.fillRect(-7, -3, 13, 6);
+    ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.moveTo(6,-3); ctx.lineTo(11,0); ctx.lineTo(6,3); ctx.fill();
+    ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.moveTo(-7,-2); ctx.lineTo(-12,0); ctx.lineTo(-7,2); ctx.fill();
+  } else if(p.kind==='grenade'){
+    ctx.fillStyle = '#243024'; ctx.beginPath(); ctx.arc(0,0,6,0,7); ctx.fill();
+    const fast = p.fuse < 0.7;
+    if(Math.floor(G.time*(fast?14:5))%2===0){ ctx.fillStyle = '#ff3b30';
+      ctx.beginPath(); ctx.arc(0,-6,2,0,7); ctx.fill(); }
+  } else {
+    ctx.fillStyle = p.kind==='cluster' ? '#f97316' : '#fb923c';
+    ctx.beginPath(); ctx.arc(0,0,p.r,0,7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-1.5,-1.5,1.6,0,7); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawFlare(){
+  const x = G.flare.x, y = terrainH(x);
+  if(Math.floor(G.time*8)%2===0){
+    ctx.strokeStyle = '#ff3b30'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y-4, 9, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y-14); ctx.setLineDash([4,6]); ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+function drawPiano(){
+  const p = G.piano;
+  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+  ctx.fillStyle = '#0a0a0f'; ctx.fillRect(-22, -10, 44, 16);                    // body
+  ctx.beginPath(); ctx.moveTo(-22,-10); ctx.lineTo(22,-10); ctx.lineTo(14,2); ctx.lineTo(-22,2); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.fillRect(-20, 4, 40, 4);                          // keys
+  ctx.fillStyle = '#0a0a0f'; for(let i=0;i<8;i++) ctx.fillRect(-18+i*5, 4, 2, 3);
+  ctx.fillRect(-18, 8, 3, 9); ctx.fillRect(15, 8, 3, 9);                        // legs
+  ctx.restore();
+}
+function drawAim(){
+  const w = curWeapon(), c = castleOf(0);
+  updateMuzzle(c);
+  if(w.drop){
+    const x = G.aim.tx, y = terrainH(x);
+    ctx.strokeStyle = '#ff3b30'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y-4, 11, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x-15, y-4); ctx.lineTo(x+15, y-4); ctx.moveTo(x, y-19); ctx.lineTo(x, y+11); ctx.stroke();
+    ctx.font = '700 10px sans-serif'; ctx.textAlign='center'; ctx.fillStyle = '#ff8a80';
+    ctx.fillText('PIANO INBOUND', x, y-26);
+    return;
+  }
+  const mz = c.muzzle;
+  const {pts} = simArc(mz.x, mz.y, G.aim.angle, G.aim.power, G.wind, ARC_MAX_STEPS);
+  const stride = Math.max(1, Math.ceil(pts.length/64));
+  ctx.fillStyle = 'rgba(255,255,255,.92)';
+  pts.forEach((pt,i)=>{ if(i%stride===0){ ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.6, 0, 7); ctx.fill(); } });
+  // cannon direction tick
+  ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(mz.x, mz.y);
+  ctx.lineTo(mz.x + Math.cos(G.aim.angle)*20, mz.y + Math.sin(G.aim.angle)*20); ctx.stroke();
+}
+
+/* ---------------- auto-player (test hook: bot-vs-bot) ---------------- */
+let autoPlayer = false;
+function autoPlayerPlan(){
+  const foe = castleOf(1), me = castleOf(0);
+  updateMuzzle(me);
+  const err = Math.max(16, 50 - G.round*4.2) * (rnd()<0.14 ? 2 : 1);
+  let tx, ty, wid = 'bazooka';
+  const aliveCrew = G.crew.filter(m=>m.side===1 && m.alive);
+  if(foe.coreExposed && foe.core.alive){ tx = foe.core.x + foe.core.w/2; ty = foe.core.y + foe.core.h/2;
+    if(me.ammo.piano>0 && rnd()<0.55) wid = 'piano'; }
+  else if(rnd()<0.3 && aliveCrew.length){ const m = aliveCrew[Math.floor(rnd()*aliveCrew.length)];
+    tx = m.x; ty = m.y; if(me.ammo.cluster>0 && rnd()<0.5) wid = 'cluster'; }
+  else { tx = foe.cx + rr(-14,14); ty = castleTop(foe) + 56;
+    const r = rnd(); if(me.ammo.cluster>0 && r<0.3) wid = 'cluster'; else if(r<0.52) wid = 'grenade'; }
+  tx += rr(-err, err); ty += rr(-err*0.6, err*0.6);
+  const w = WEAPONS.find(x=>x.id===wid);
+  if(w.drop){ fireWeapon(w, 0, 0, 0, tx); }
+  else { const s = solveAim(me.muzzle, 1, tx, ty, G.wind);
+    fireWeapon(w, 0, s?s.angle:-0.9, s?s.power:0.8, 0); }
+  G.ts = 'busy'; G.busyGrace = 0.35;
+}
+
+/* ---------------- match setup + main loop ---------------- */
+function startMatch(){
+  buildTerrain(); buildCastles();
+  G.projectiles = []; G.parts = []; G.ghosts = []; G.floats = [];
+  G.piano = null; G.flare = null;
+  G.phase = 'play'; G.turn = 0; G.ts = 'aim'; G.round = 1;
+  G.score = 0; G.shotsFired = 0; G.finishBonus = false; G.weapon = 0;
+  G.hitStop = 0; G.timeScale = 1; G.slowT = 0; G.aim = null;
+  rollWind();
+  updateMuzzle(castleOf(0)); updateMuzzle(castleOf(1));
+  document.getElementById('endcard').classList.add('hidden');
+  hideToast();
+  updateHUD();
+}
+document.getElementById('btnGo').addEventListener('click', ()=>{ audioInit(); startMatch(); });
+document.getElementById('btnAgain').addEventListener('click', ()=>{ audioInit(); startMatch(); });
+
+let lastT = 0, acc = 0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(!lastT) lastT = ts;
+  let dt = Math.min(0.1, (ts - lastT)/1000); lastT = ts;
+  if(MANUAL) { render(); return; }
+  acc += dt;
+  while(acc >= STEP){ step(STEP); acc -= STEP; }
+  if(autoPlayer && G.phase==='play' && G.turn===0 && G.ts==='aim') autoPlayerPlan();
+}
+
+/* ---------------- scripted-play hooks (verification) ---------------- */
+window.__game = {
+  start(){ document.getElementById('intro').classList.add('hidden'); startMatch(); },
+  auto(on){ autoPlayer = !!on; },
+  stepFrames(n){ for(let i=0;i<n;i++){ step(STEP);
+    if(autoPlayer && G.phase==='play' && G.turn===0 && G.ts==='aim') autoPlayerPlan(); } },
+  stepFast(n){ FAST = true; try { this.stepFrames(n); } finally { FAST = false; render(); } },
+  select(i){ G.weapon = i; buildCards(); },
+  setWind(v){ G.wind = v; updateHUD(); },
+  fire(wid, angleDeg, power){
+    if(G.phase!=='play' || G.turn!==0 || G.ts!=='aim') return false;
+    const idx = WEAPONS.findIndex(w=>w.id===wid); if(idx<0) return false;
+    G.weapon = idx;
+    const ok = fireWeapon(WEAPONS[idx], 0, (angleDeg||-50)*Math.PI/180, power==null?0.75:power, 0);
+    if(ok){ G.ts='busy'; G.busyGrace=0.35; }
+    return ok;
+  },
+  fireAt(wid, tx, ty){
+    if(G.phase!=='play' || G.turn!==0 || G.ts!=='aim') return false;
+    const idx = WEAPONS.findIndex(w=>w.id===wid); if(idx<0) return false;
+    const w = WEAPONS[idx]; G.weapon = idx;
+    let ok = false;
+    if(w.drop) ok = fireWeapon(w, 0, 0, 0, tx);
+    else { updateMuzzle(castleOf(0));
+      const s = solveAim(castleOf(0).muzzle, 1, tx, ty, G.wind);
+      ok = fireWeapon(w, 0, s?s.angle:-0.9, s?s.power:0.75, 0); }
+    if(ok){ G.ts='busy'; G.busyGrace=0.35; }
+    return ok;
+  },
+  aimAt(tx, ty){
+    const w = curWeapon();
+    if(w.drop){ G.aim = { tx:clamp(tx,26,394), drop:true }; return; }
+    updateMuzzle(castleOf(0));
+    const s = solveAim(castleOf(0).muzzle, 1, tx, ty, G.wind);
+    if(s) G.aim = { angle:s.angle, power:s.power, tx };
+  },
+  aimState(){
+    if(!G.aim) return null;
+    if(G.aim.drop) return { drop:true, tx:G.aim.tx };
+    updateMuzzle(castleOf(0));
+    const mz = castleOf(0).muzzle;
+    const {pts} = simArc(mz.x, mz.y, G.aim.angle, G.aim.power, G.wind, ARC_MAX_STEPS);
+    return { angle:G.aim.angle, power:G.aim.power,
+             pts: pts.map(p=>({x:Math.round(p.x*10)/10, y:Math.round(p.y*10)/10})) };
+  },
+  expose(side){
+    const c = castleOf(side); if(!c.core.alive) return false;
+    for(const b of G.blocks){
+      if(!b.alive || b.core || b.side!==side) continue;
+      if(b.x < c.core.x + c.core.w && b.x + b.w > c.core.x && b.y + b.h <= c.core.y + 2) b.alive = false;
+    }
+    checkCoreExposure(c);
+    return c.coreExposed;
+  },
+  state(){
+    const cs = s => { const c = castleOf(s);
+      const total = G.blocks.filter(b=>b.side===s && !b.core).length;
+      const dead = G.blocks.filter(b=>b.side===s && !b.core && !b.alive).length;
+      return { coreHP:Math.ceil(c.coreHP), coreAlive:c.core.alive, coreExposed:c.coreExposed,
+               coreX:c.core.x + c.core.w/2, coreY:c.core.y + c.core.h/2,
+               cx:c.cx, top:castleTop(c), destruction: total? Math.round(dead/total*100):0,
+               crewAlive: G.crew.filter(m=>m.side===s && m.alive).length,
+               ammo:{...c.ammo} }; };
+    return { phase:G.phase, turn:G.turn===0?'player':'ai', turnState:G.ts, round:G.round,
+             wind:G.wind, score:G.score, shots:G.shotsFired, finishBonus:G.finishBonus,
+             you:cs(0), foe:cs(1),
+             hillPeak: Math.min(...terr), terrainAt: x => Math.round(terrainH(x)) };
+  },
+};
+
+/* ---------------- fit + boot ---------------- */
+function fit(){
+  const s = Math.min(innerWidth/W, innerHeight/H);
+  const wrap = document.getElementById('wrap');
+  wrap.style.width = (W*s)+'px'; wrap.style.height = (H*s)+'px';
+  cv.style.width = (W*s)+'px'; cv.style.height = (H*s)+'px';
+}
+addEventListener('resize', fit);
+buildTerrain(); buildCastles(); rollWind(); updateHUD(); fit(); render();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
