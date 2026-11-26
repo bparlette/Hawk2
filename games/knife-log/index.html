@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Knife Log — Tap. Throw. Shatter.</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#1b1035;touch-action:none;overscroll-behavior:none}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+  #game{position:fixed;inset:0;display:block;touch-action:none}
+  .hud{position:fixed;z-index:1100;pointer-events:none;text-shadow:0 2px 0 rgba(0,0,0,.45)}
+  #hud-top{top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:0 14px}
+  #stage-box{text-align:left}
+  #stage-label{font-size:13px;font-weight:800;letter-spacing:.18em;opacity:.85}
+  #stage-name{font-size:26px;font-weight:900;line-height:1.05}
+  #boss-tag{display:none;margin-top:4px;background:#e63946;color:#fff;font-size:11px;font-weight:900;letter-spacing:.14em;padding:3px 8px;border-radius:999px;width:max-content}
+  #score-box{text-align:right}
+  #score{font-size:26px;font-weight:900;line-height:1.05}
+  #apples{font-size:15px;font-weight:800}
+  #hud-knives{bottom:calc(env(safe-area-inset-bottom,0px) + 118px);left:0;right:0;display:flex;justify-content:center;gap:6px}
+  .kicon{font-size:24px;filter:drop-shadow(0 2px 0 rgba(0,0,0,.4));transition:opacity .15s, transform .15s}
+  .kicon.used{opacity:.22;transform:scale(.82) rotate(24deg)}
+  #banner{top:44%;left:0;right:0;text-align:center;font-size:44px;font-weight:1000;letter-spacing:.02em;opacity:0;transform:scale(.7);transition:opacity .12s,transform .12s}
+  #banner.show{opacity:1;transform:scale(1)}
+  #hint{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:0;right:0;text-align:center;font-size:15px;font-weight:700;opacity:.85}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="hud" id="hud-top">
+  <div id="stage-box">
+    <div id="stage-label">STAGE</div>
+    <div id="stage-name">1 · Log</div>
+    <div id="boss-tag">★ BOSS ★</div>
+  </div>
+  <div id="score-box">
+    <div id="score">0</div>
+    <div id="apples">🍎 0</div>
+  </div>
+</div>
+<div class="hud" id="hud-knives"></div>
+<div class="hud" id="banner"></div>
+<div class="hud" id="hint">TAP anywhere to throw 🔪</div>
+<script>
+'use strict';
+// ============ Knife Log — original tap-to-throw game ============
+// One verb: TAP. Throw knives into a spinning target until it shatters.
+// Never hit a knife already stuck in it. Slice apples for bonus points.
+const W = 390, H = 844;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let DPR = 1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 3);
+  canvas.width = W*DPR; canvas.height = H*DPR;
+  canvas.style.width = '100vw'; canvas.style.height = '100vh';
+}
+window.addEventListener('resize', resize); resize();
+
+// Block double-tap zoom + browser gestures
+document.addEventListener('gesturestart', e=>e.preventDefault());
+document.addEventListener('dblclick', e=>e.preventDefault());
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e=>{ const n=Date.now(); if(n-lastTouchEnd<=350) e.preventDefault(); lastTouchEnd=n; }, {passive:false});
+document.addEventListener('touchmove', e=>e.preventDefault(), {passive:false});
+
+// ---------- Audio (tiny synth, no assets) ----------
+let AC = null;
+function audio(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(AC && AC.state==='suspended') AC.resume(); return AC; }
+if(window.navigator && navigator.audioSession){ try{ navigator.audioSession.type='playback'; }catch(e){} }
+function thock(freq, dur, gain, type){
+  const ac = audio(); if(!ac) return; const t = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type||'sine'; o.frequency.setValueAtTime(freq, t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(30,freq*0.45), t+dur);
+  g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+dur+0.02);
+}
+function noiseBurst(dur, gain){
+  const ac = audio(); if(!ac) return; const t = ac.currentTime;
+  const len = Math.floor(ac.sampleRate*dur), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i] = (Math.random()*2-1)*(1-i/len);
+  const s = ac.createBufferSource(); s.buffer = buf;
+  const g = ac.createGain(); g.gain.value = gain;
+  const f = ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value = 900;
+  s.connect(f); f.connect(g); g.connect(ac.destination); s.start(t);
+}
+const sfx = {
+  throwK(){ thock(700, .07, .12, 'triangle'); },
+  stick(){ thock(180, .12, .5); noiseBurst(.06,.18); },
+  clang(){ thock(1200, .18, .3, 'square'); thock(300,.25,.3,'sawtooth'); },
+  slice(){ noiseBurst(.12,.3); thock(500,.1,.2,'triangle'); },
+  shatter(){ thock(70, .5, .9); thock(50,.7,.7); noiseBurst(.35,.5); }
+};
+
+// ---------- Stage data: rotation patterns as data ----------
+const TARGETS = {
+  log:    { name:'Log',         body:'#b5762e', ring:'#8a5518', face:'#e0aa54', crack:'#7a4a12' },
+  cheese: { name:'Cheese Wheel',body:'#f2b53a', ring:'#d99a1f', face:'#ffd35e', crack:'#c9851a' },
+  tire:   { name:'Tire',        body:'#3a3f4a', ring:'#23262e', face:'#565e6e', crack:'#171a20' },
+  pumpkin:{ name:'Pumpkin',     body:'#e8710a', ring:'#c25e06', face:'#ff9426', crack:'#a34e05' },
+  barrel: { name:'Barrel',      body:'#9c5a24', ring:'#6e3c12', face:'#c07f3a', crack:'#5e320e' }
+};
+// pattern = looping segments {dur (s), speed (rad/s)} — 0 = pause, negative = reverse
+function stageDef(n){
+  const boss = n % 5 === 0;
+  const cycle = Math.floor((n-1)/5);
+  const kind = boss ? (['cheese','tire','pumpkin','barrel'])[(n/5-1)%4] : 'log';
+  const base = 1.15 + Math.min(1.5, (n-1)*0.11) + cycle*0.15;
+  let pattern;
+  if(kind==='cheese')       pattern = [{dur:1.6,speed:base},{dur:1.1,speed:base*1.9},{dur:1.4,speed:-base*1.2},{dur:1.6,speed:base}];
+  else if(kind==='tire')    pattern = [{dur:1.3,speed:base*1.4},{dur:0.7,speed:0},{dur:1.3,speed:-base*1.4},{dur:0.7,speed:0},{dur:1.6,speed:base}];
+  else if(kind==='pumpkin') pattern = [{dur:0.9,speed:base*2.0},{dur:0.9,speed:-base*2.0},{dur:0.6,speed:0},{dur:1.4,speed:base*0.8}];
+  else if(kind==='barrel')  pattern = [{dur:2.0,speed:base},{dur:0.5,speed:base*3.0},{dur:2.0,speed:-base},{dur:0.5,speed:0}];
+  else if(n===1)            pattern = [{dur:99,speed:1.15}];
+  else if(n===2)            pattern = [{dur:2.2,speed:base},{dur:2.2,speed:-base}];
+  else if(n===3)            pattern = [{dur:1.8,speed:base},{dur:0.6,speed:0},{dur:1.8,speed:base*1.3}];
+  else                      pattern = [{dur:1.7,speed:base},{dur:1.2,speed:-base*1.25},{dur:0.5,speed:0},{dur:1.7,speed:base*1.15}];
+  const required = Math.min(9, 5 + Math.floor((n-1)%5) + (boss?1:0) - (boss?1:0) + Math.floor((n-1)/10));
+  // simpler, explicit: 5,6,7,8,9 across each 5-stage run, boss = 8
+  const reqTable = [5,6,7,8,8];
+  const requiredF = boss ? 8 : reqTable[(n-1)%5];
+  const preStuck = n===1 ? 0 : Math.min(3, 1 + Math.floor((n-2)/2));
+  const apples = n===1 ? 1 : (Math.random()<0.75 ? (Math.random()<0.3?2:1) : 0);
+  return { n, boss, kind, pattern, required: requiredF, preStuck, apples };
+}
+
+// deterministic-ish placement helper (avoids overlaps)
+function spacedAngles(count, minGap, avoid){
+  const out = []; let guard = 0;
+  while(out.length < count && guard++ < 500){
+    const a = Math.random()*Math.PI*2;
+    const all = out.concat(avoid||[]);
+    if(all.every(b => angDiff(a,b) > minGap)) out.push(a);
+  }
+  return out;
+}
+function angDiff(a,b){ let d = Math.abs(a-b)%(Math.PI*2); return d>Math.PI? Math.PI*2-d : d; }
+
+// ---------- Game state ----------
+const CX = W/2, CY = 350, R = 108;
+const HIT_ANGLE = Math.PI/2;          // knives arrive at the bottom of the target
+const KNIFE_GAP = 0.34;               // min angular distance between stuck knives
+const APPLE_GAP = 0.34;
+let S = null;
+function newRun(){ return { stage:1, score:0, stagesCleared:0, applesSliced:0 }; }
+function loadStage(run, n){
+  const def = stageDef(n);
+  const pre = spacedAngles(def.preStuck, KNIFE_GAP*1.6, []);
+  const apples = spacedAngles(def.apples, KNIFE_GAP*1.8, pre).map(a=>({a, sliced:false, wob: Math.random()*6.28}));
+  return {
+    run, def, rotation: Math.random()*6.28, segT: 0, segIdx: 0,
+    stuck: pre.slice(), apples, thrown: 0,
+    phase: 'play',            // play | flying | shatter | fail
+    knifeY: 716, knifeVy: 0, particles: [], shards: [], t: 0, phaseT: 0,
+    shake: 0, pop: 1, flashRed: 0, lastSlice: false
+  };
+}
+S = loadStage(newRun(), 1);
+
+function currentSpeed(){
+  const p = S.def.pattern[S.segIdx % S.def.pattern.length];
+  return p.speed;
+}
+function stepRotation(dt){
+  const pat = S.def.pattern;
+  S.segT += dt;
+  let seg = pat[S.segIdx % pat.length];
+  while(S.segT >= seg.dur){ S.segT -= seg.dur; S.segIdx = (S.segIdx+1)%pat.length; seg = pat[S.segIdx]; }
+  S.rotation = (S.rotation + seg.speed*dt) % (Math.PI*2);
+}
+function localAngleAtImpact(){ return norm(HIT_ANGLE - S.rotation); }
+function norm(a){ a %= Math.PI*2; return a<0? a+Math.PI*2 : a; }
+
+function throwKnife(){
+  if(S.phase !== 'play') return false;
+  audio(); sfx.throwK();
+  S.phase = 'flying'; S.knifeY = 716; S.lastSlice = false;
+  return true;
+}
+function resolveImpact(){
+  const local = localAngleAtImpact();
+  // hit a stuck knife?
+  for(const a of S.stuck){ if(angDiff(local, a) < KNIFE_GAP){ return fail(); } }
+  // slice an apple?
+  for(const ap of S.apples){ if(!ap.sliced && angDiff(local, ap.a) < APPLE_GAP){
+    ap.sliced = true; S.run.applesSliced++; S.run.score += 25; S.lastSlice = true; sfx.slice();
+    burst(CX + Math.cos(HIT_ANGLE)*R, CY + Math.sin(HIT_ANGLE)*R, '#e63946', 10);
+  } }
+  S.stuck.push(local); S.thrown++;
+  sfx.stick(); S.pop = 1.12; S.shake = Math.max(S.shake, 3);
+  burst(CX + Math.cos(HIT_ANGLE)*(R-6), CY + Math.sin(HIT_ANGLE)*(R-6), '#d9c9a8', 6);
+  if(S.thrown >= S.def.required){ return shatter(); }
+  S.phase = 'play'; S.knifeY = 716;
+}
+function fail(){
+  S.phase = 'fail'; S.phaseT = 0; S.flashRed = 1; S.shake = 12; sfx.clang();
+  showBanner('CLANG! 💥', '#ff5d6c');
+}
+function shatter(){
+  S.phase = 'shatter'; S.phaseT = 0; S.pop = 1.3; S.shake = 9; sfx.shatter();
+  S.run.stagesCleared++; S.run.score += 100;
+  const col = TARGETS[S.def.kind];
+  for(let i=0;i<9;i++){
+    const a = i/9*Math.PI*2 + S.rotation;
+    S.shards.push({ a, x:CX, y:CY, vx:Math.cos(a)*(90+Math.random()*170), vy:Math.sin(a)*(90+Math.random()*170)-70,
+      rot:Math.random()*6.28, vr:(Math.random()-0.5)*9, col: i%2? col.body: col.face });
+  }
+  burst(CX, CY, '#ffffff', 16);
+  showBanner(S.def.boss ? 'BOSS SHATTERED! 🏆' : 'SHATTERED! 🎉', '#ffe14d');
+}
+function burst(x,y,col,n){ for(let i=0;i<n;i++){ const a=Math.random()*6.28, v=40+Math.random()*150;
+  S.particles.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-40,life:.5+Math.random()*.3,t:0,col,r:2+Math.random()*3}); } }
+
+// ---------- HUD ----------
+const el = id => document.getElementById(id);
+const bannerEl = el('banner'); let bannerT = null;
+function showBanner(txt, col){ bannerEl.textContent = txt; bannerEl.style.color = col||'#fff'; bannerEl.classList.add('show');
+  clearTimeout(bannerT); bannerT = setTimeout(()=>bannerEl.classList.remove('show'), 850); }
+function syncHUD(){
+  el('stage-name').textContent = S.def.n + ' · ' + TARGETS[S.def.kind].name;
+  el('boss-tag').style.display = S.def.boss ? 'block' : 'none';
+  el('score').textContent = S.run.score;
+  el('apples').textContent = '🍎 ' + S.run.applesSliced;
+  const kh = el('hud-knives'); const want = S.def.required;
+  if(kh.childElementCount !== want){ kh.innerHTML = ''; for(let i=0;i<want;i++){ const s=document.createElement('span'); s.className='kicon'; s.textContent='🗡️'; kh.appendChild(s); } }
+  [...kh.children].forEach((c,i)=> c.classList.toggle('used', i < S.thrown));
+}
+
+// ---------- Drawing ----------
+function drawKnifeShape(x, y, angle, scale){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(angle); ctx.scale(scale,scale);
+  // blade
+  ctx.fillStyle = '#dfe6ee'; ctx.beginPath(); ctx.moveTo(0,-46); ctx.lineTo(7,-12); ctx.lineTo(3,0); ctx.lineTo(-3,0); ctx.lineTo(-7,-12); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#aeb9c6'; ctx.beginPath(); ctx.moveTo(0,-46); ctx.lineTo(7,-12); ctx.lineTo(3,0); ctx.lineTo(0,0); ctx.closePath(); ctx.fill();
+  // guard + handle
+  ctx.fillStyle = '#f2b53a'; ctx.fillRect(-10,0,20,5);
+  ctx.fillStyle = '#7a3b12'; roundRect(-5,5,10,24,4); ctx.fill();
+  ctx.fillStyle = '#5e2c0c'; ctx.fillRect(-5,11,10,3); ctx.fillRect(-5,19,10,3);
+  ctx.restore();
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function drawTarget(){
+  const col = TARGETS[S.def.kind];
+  const pop = S.pop;
+  ctx.save(); ctx.translate(CX,CY); ctx.scale(pop,pop); ctx.rotate(S.rotation);
+  // body
+  ctx.fillStyle = col.body; ctx.beginPath(); ctx.arc(0,0,R,0,6.29); ctx.fill();
+  ctx.fillStyle = col.face; ctx.beginPath(); ctx.arc(0,0,R*0.84,0,6.29); ctx.fill();
+  ctx.strokeStyle = col.ring; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(0,0,R-4,0,6.29); ctx.stroke();
+  if(S.def.kind==='log'){
+    ctx.strokeStyle = col.crack; ctx.lineWidth = 3; ctx.globalAlpha = .55;
+    for(const rr of [0.3,0.52,0.7]){ ctx.beginPath(); ctx.arc(0,0,R*rr,0.4,4.6); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = col.crack; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-14,-6); ctx.lineTo(4,2); ctx.lineTo(-4,14); ctx.stroke();
+  } else if(S.def.kind==='cheese'){
+    ctx.fillStyle = col.crack; ctx.globalAlpha=.5;
+    for(const [hx,hy,hr] of [[-38,-20,13],[30,26,17],[8,-46,10],[-8,48,9],[48,-30,8]]){ ctx.beginPath(); ctx.arc(hx,hy,hr,0,6.29); ctx.fill(); }
+    ctx.globalAlpha=1;
+  } else if(S.def.kind==='tire'){
+    ctx.fillStyle = '#22252c'; ctx.beginPath(); ctx.arc(0,0,R*0.42,0,6.29); ctx.fill();
+    ctx.strokeStyle = col.face; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0,0,R*0.62,0,6.29); ctx.stroke();
+    ctx.fillStyle = '#cfd6e4'; for(let i=0;i<5;i++){ const a=i/5*6.28; ctx.beginPath(); ctx.arc(Math.cos(a)*R*0.42,Math.sin(a)*R*0.42,5,0,6.29); ctx.fill(); }
+  } else if(S.def.kind==='pumpkin'){
+    ctx.strokeStyle = col.crack; ctx.lineWidth = 5; ctx.globalAlpha=.6;
+    for(let i=-2;i<=2;i++){ ctx.beginPath(); ctx.ellipse(i*R*0.32,0,R*0.3,R*0.92,0,0,6.29); ctx.stroke(); }
+    ctx.globalAlpha=1; ctx.fillStyle='#3f7a1e'; ctx.fillRect(-7,-R-8,14,16);
+    ctx.fillStyle='#241a10'; ctx.beginPath(); ctx.moveTo(-34,-8); ctx.lineTo(-14,-26); ctx.lineTo(-8,-4); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(34,-8); ctx.lineTo(14,-26); ctx.lineTo(8,-4); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#241a10'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(-36,26); ctx.lineTo(-14,14); ctx.lineTo(2,26); ctx.lineTo(18,14); ctx.lineTo(36,26); ctx.stroke();
+  } else { // barrel
+    ctx.strokeStyle = col.ring; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.moveTo(-R*0.86,-R*0.42); ctx.lineTo(R*0.86,-R*0.42); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-R*0.86,R*0.42); ctx.lineTo(R*0.86,R*0.42); ctx.stroke();
+    ctx.strokeStyle = col.crack; ctx.lineWidth=3; ctx.globalAlpha=.5; ctx.beginPath(); ctx.moveTo(0,-R); ctx.lineTo(0,R); ctx.stroke(); ctx.globalAlpha=1;
+  }
+  // apples (wobble on the surface)
+  for(const ap of S.apples){ if(ap.sliced) continue;
+    const wob = Math.sin(S.t*6 + ap.wob)*0.06;
+    const ax = Math.cos(ap.a+wob)*(R+4), ay = Math.sin(ap.a+wob)*(R+4);
+    ctx.save(); ctx.translate(ax,ay); ctx.rotate(ap.a + Math.PI/2 + wob*2);
+    ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.arc(-6,2,10,0,6.29); ctx.arc(6,2,10,0,6.29); ctx.fill();
+    ctx.fillStyle = '#c22633'; ctx.beginPath(); ctx.arc(0,6,9,0,6.29); ctx.fill();
+    ctx.strokeStyle = '#5e2c0c'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,-4); ctx.quadraticCurveTo(2,-12,6,-13); ctx.stroke();
+    ctx.fillStyle = '#3f9e2e'; ctx.beginPath(); ctx.ellipse(9,-11,6,3,-0.5,0,6.29); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+  // stuck knives (drawn un-popped, tips in the rim, handles out)
+  for(const a of S.stuck){
+    const wa = a + S.rotation;
+    const x = CX + Math.cos(wa)*(R+26), y = CY + Math.sin(wa)*(R+26);
+    drawKnifeShape(x, y, wa - Math.PI/2, 0.92);
+  }
+}
+function drawBackground(t){
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#2b1a5e'); g.addColorStop(.55,'#7a2d8b'); g.addColorStop(.78,'#e2603f'); g.addColorStop(.781,'#3a2340'); g.addColorStop(1,'#241631');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  // ferris wheel silhouette
+  ctx.save(); ctx.translate(322,190); ctx.rotate(t*0.05);
+  ctx.strokeStyle='rgba(20,10,40,.55)'; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(0,0,86,0,6.29); ctx.stroke();
+  for(let i=0;i<8;i++){ const a=i/8*6.28; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*86,Math.sin(a)*86); ctx.stroke();
+    ctx.fillStyle='rgba(255,209,102,.8)'; ctx.beginPath(); ctx.arc(Math.cos(a)*86,Math.sin(a)*86,6,0,6.29); ctx.fill(); }
+  ctx.restore();
+  ctx.strokeStyle='rgba(20,10,40,.55)'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(322,190); ctx.lineTo(292,330); ctx.moveTo(322,190); ctx.lineTo(352,330); ctx.stroke();
+  // string lights / bunting
+  for(let row=0; row<2; row++){
+    const y0 = 54+row*36;
+    ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,y0); ctx.quadraticCurveTo(W/2,y0+26,W,y0); ctx.stroke();
+    const cols=['#ffd166','#ef476f','#06d6a0','#4cc9f0','#ffe14d'];
+    for(let i=0;i<11;i++){ const x=14+i*36, y=y0+ (Math.sin(i/10*Math.PI)*22);
+      ctx.fillStyle=cols[(i+row)%5]; ctx.beginPath(); ctx.arc(x,y+8,5,0,6.29); ctx.fill(); }
+  }
+  // stalls at the sides
+  ctx.fillStyle='rgba(20,10,40,.5)'; ctx.fillRect(0,560,54,110); ctx.fillRect(W-54,560,54,110);
+  ctx.fillStyle='#ffd166'; ctx.globalAlpha=.85; ctx.fillRect(0,548,54,12); ctx.fillRect(W-54,548,54,12); ctx.globalAlpha=1;
+  // ground shadow under target
+  ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(CX,CY+R+38,120,16,0,0,6.29); ctx.fill();
+}
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const sx = S.shake? (Math.random()-0.5)*S.shake : 0, sy = S.shake? (Math.random()-0.5)*S.shake : 0;
+  ctx.save(); ctx.translate(sx,sy);
+  drawBackground(S.t);
+  if(S.phase !== 'shatter'){
+    drawTarget();
+  } else {
+    for(const sh of S.shards){
+      ctx.save(); ctx.translate(sh.x,sh.y); ctx.rotate(sh.rot);
+      ctx.fillStyle = sh.col; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R*0.98,-0.35,0.35); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    // stuck knives fly out too
+    for(const a of S.stuck){ const wa=a+S.rotation; drawKnifeShape(CX+Math.cos(wa)*(R+60), CY+Math.sin(wa)*(R+60), wa-Math.PI/2, .92); }
+  }
+  // particles
+  for(const p of S.particles){ ctx.globalAlpha = Math.max(0,1-p.t/p.life); ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.29); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  // the ready / flying knife at the bottom
+  if(S.phase==='play' || S.phase==='flying'){
+    drawKnifeShape(CX, S.knifeY, 0, 1.15);
+  }
+  ctx.restore();
+  if(S.flashRed>0){ ctx.fillStyle = `rgba(230,40,60,${S.flashRed*0.28})`; ctx.fillRect(0,0,W,H); }
+}
+
+// ---------- Main loop ----------
+let lastTs = 0;
+function frame(ts){
+  const dt = Math.min(0.05, (ts-lastTs)/1000 || 0.016); lastTs = ts;
+  S.t += dt;
+  S.pop += (1 - S.pop)*Math.min(1, dt*10);
+  S.shake *= Math.pow(0.001, dt); if(S.shake<0.2) S.shake=0;
+  S.flashRed = Math.max(0, S.flashRed - dt*2.2);
+  if(S.phase==='play' || S.phase==='flying') stepRotation(dt);
+  if(S.phase==='flying'){
+    S.knifeY -= 1500*dt;
+    if(S.knifeY <= CY + R + 34) resolveImpact();
+  }
+  if(S.phase==='shatter'){
+    S.phaseT += dt;
+    for(const sh of S.shards){ sh.x+=sh.vx*dt; sh.y+=sh.vy*dt; sh.vy+=620*dt; sh.rot+=sh.vr*dt; }
+    if(S.phaseT > 0.95){ const run=S.run; S = loadStage(run, run.stage+1); run.stage++; }
+  }
+  if(S.phase==='fail'){
+    S.phaseT += dt;
+    if(S.phaseT > 0.9){ const run=S.run; S = loadStage(run, S.def.n); } // instant retry, same stage
+  }
+  for(const p of S.particles){ p.t+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=300*dt; }
+  S.particles = S.particles.filter(p=>p.t<p.life);
+  syncHUD();
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------- Input: one verb ----------
+function onTap(e){
+  if(e) e.preventDefault();
+  audio();
+  if(S.phase==='fail' && S.phaseT>0.25){ const run=S.run; S = loadStage(run, S.def.n); return; }
+  if(S.phase==='shatter' && S.phaseT>0.35){ const run=S.run; S = loadStage(run, run.stage+1); run.stage++; return; }
+  throwKnife();
+}
+window.addEventListener('pointerdown', onTap);
+window.addEventListener('mousedown', e=>{ if(e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) return; /* pointerdown covers it */ });
+
+// ---------- QA / debug surface ----------
+window.__knife = {
+  state(){ return { stage:S.def.n, kind:S.def.kind, boss:S.def.boss, phase:S.phase, stuck:S.stuck.length,
+    thrown:S.thrown, required:S.def.required, preStuck:S.def.preStuck,
+    applesLeft:S.apples.filter(a=>!a.sliced).length, applesSliced:S.run.applesSliced,
+    score:S.run.score, stagesCleared:S.run.stagesCleared, rotation:+S.rotation.toFixed(3), speed:+currentSpeed().toFixed(2) }; },
+  // predicted local angle if a knife were thrown right now (flight ~0.24s, rotation keeps stepping)
+  predictedLocal(){ let rot = S.rotation, segT = S.segT, idx = S.segIdx, left = 0.15;
+    const pat = S.def.pattern;
+    while(left>0){ const seg = pat[idx%pat.length]; const remain = seg.dur-segT; const step = Math.min(left, remain);
+      rot += seg.speed*step; left -= step; segT += step; if(segT>=seg.dur){ segT=0; idx++; } }
+    return norm(HIT_ANGLE - rot); },
+  safeToThrow(){ const l = this.predictedLocal();
+    if(S.stuck.some(a=>angDiff(l,a) < KNIFE_GAP+0.13)) return false;
+    return true; },
+  doomedToThrow(){ const l = this.predictedLocal();
+    return S.stuck.some(a=>angDiff(l,a) < KNIFE_GAP-0.06); },
+  appleAligned(){ const l = this.predictedLocal();
+    return S.apples.some(ap=>!ap.sliced && angDiff(l,ap.a) < 0.16); },
+  throwKnife, tap: onTap
+};
+</script>
+</body>
+</html>
