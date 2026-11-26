@@ -1039,6 +1039,7 @@ function startMatch(){
   G.hitStop = 0; G.timeScale = 1; G.slowT = 0; G.aim = null;
   rollWind();
   updateMuzzle(castleOf(0)); updateMuzzle(castleOf(1));
+  document.getElementById('intro').classList.add('hidden');
   document.getElementById('endcard').classList.add('hidden');
   hideToast();
   updateHUD();
