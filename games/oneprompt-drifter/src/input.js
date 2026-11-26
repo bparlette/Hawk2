@@ -1,5 +1,5 @@
-// 键位：尽量还原 QQ飞车端游默认键位
-// ↑↓←→ 驾驶 · Shift 漂移 · Ctrl 氮气/道具 · ↑(出弯点按) 或 W 小喷 · Alt 道具换位 · R 复位
+// Key bindings: as close as possible to the classic QQ Speed PC defaults
+// arrows drive · Shift drift · Ctrl nitro/item · tap up (exiting a corner) or W mini-boost · Alt swap item · R reset
 const PREVENT = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'AltLeft', 'AltRight', 'PageUp', 'PageDown', 'Tab', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'KeyW', 'KeyR']);
 
 export class Input {
@@ -8,7 +8,7 @@ export class Input {
     this.pressed = new Set();
     this.touch = { up: false, down: false, left: false, right: false, shift: false };
     this.touchPressed = new Set();
-    this.onKey = null; // 非驾驶类按键回调（暂停、视角等）
+    this.onKey = null; // callback for non-driving keys (pause, camera, etc.)
     window.addEventListener('keydown', (e) => {
       if (PREVENT.has(e.code)) e.preventDefault();
       if (e.ctrlKey && (e.code === 'KeyW' || e.code === 'KeyR')) e.preventDefault();
@@ -28,7 +28,7 @@ export class Input {
   has(...codes) { return codes.some((c) => this.down.has(c)); }
   was(...codes) { return codes.some((c) => this.pressed.has(c) || this.touchPressed.has(c)); }
 
-  // 每帧生成一次驾驶输入（边沿触发量只在本帧有效）
+  // build one frame of driving input (edge-triggered values are valid this frame only)
   frame() {
     const t = this.touch;
     const inp = {
@@ -48,7 +48,7 @@ export class Input {
     return inp;
   }
 
-  // 触屏按钮
+  // touch buttons
   bindTouch(root) {
     const btn = (sel, key, edge) => {
       const el = root.querySelector(sel);

@@ -1,6 +1,6 @@
 import { clamp, wrapAngle, damp } from './util.js';
 
-// 手感参数（米/秒）。显示时速 = 速度 × 3.6
+// Handling parameters (metres/second). Displayed speed = speed x 3.6
 export const TUNE = {
   vmax: 55, // ~198 km/h
   vmaxNitro: 76, // ~274 km/h
@@ -115,11 +115,11 @@ export class PlayerCar {
       inp = NO_INPUT;
     }
 
-    // 平滑转向
+    // smooth steering
     const steerT = (inp.left ? 1 : 0) - (inp.right ? 1 : 0);
     this.steer = damp(this.steer, steerT, 12, dt);
 
-    // 各种加速状态
+    // boost states
     let vmax = T.vmax, acc = T.accel;
     if (this.nitroTime > 0) { vmax = T.vmaxNitro; acc = T.nitroAccel; this.nitroTime -= dt; }
     if (this.smallBoost > 0) { vmax += this.smallBoostPower; acc += 14; this.smallBoost -= dt; }
@@ -131,7 +131,7 @@ export class PlayerCar {
     if (this.shield > 0) this.shield -= dt;
     this.vmaxNow = vmax;
 
-    // 小喷 / 落地喷窗口
+    // mini-boost / landing-boost window
     if (this.smallWindow > 0) {
       this.smallWindow -= dt;
       if (inp.upPressed || inp.wPressed) {
@@ -150,7 +150,7 @@ export class PlayerCar {
     if (inp.nitroPressed && !itemMode) this.triggerNitro();
 
     const onGround = !this.airborne;
-    // 纵向
+    // longitudinal
     this.throttle = inp.up ? 1 : inp.down ? -1 : 0;
     if (onGround) {
       if (inp.up) {
@@ -164,11 +164,11 @@ export class PlayerCar {
         this.s = Math.abs(this.s) <= dec ? 0 : this.s - Math.sign(this.s) * dec;
       }
       if (this.s > vmax) this.s -= (this.s - vmax) * 1.1 * dt;
-      // 坡度影响
+      // slope effect
       this.s -= tr.slope[this.hint] * Math.cos(this.h - tr.hd[this.hint]) * 6 * dt;
     }
 
-    // 进入漂移：Shift + 方向
+    // enter drift: Shift + direction
     if (!this.drifting && inp.shift && steerT !== 0 && this.s > T.driftMinSpeed && onGround && !spinning) {
       this.drifting = true;
       this.driftDir = steerT;
@@ -222,7 +222,7 @@ export class PlayerCar {
     }
     if (spinning) this.h += 9 * dt;
 
-    // 位置积分
+    // integrate position
     const dirSign = this.s >= 0 ? 1 : -1;
     const mv = this.s >= 0 ? this.m : this.h;
     let vx = Math.sin(mv) * Math.abs(this.s) * dirSign;
@@ -234,7 +234,7 @@ export class PlayerCar {
     this.hint = p.i;
     this.d = p.d;
 
-    // 护栏碰撞
+    // guardrail collision
     const lim = tr.halfW - 1.1;
     this.impact = 0;
     if (Math.abs(p.lat) > lim) {
@@ -256,7 +256,7 @@ export class PlayerCar {
         if (this.s >= 0) {
           this.s = ns;
           if (ns > 0.5) this.m = Math.atan2(vx, vz);
-          // 车头顺着墙摆正
+          // square the nose up along the wall
           const th = Math.abs(wrapAngle(this.h - p.hd)) < Math.PI / 2 ? p.hd : p.hd + Math.PI;
           this.h += wrapAngle(th - this.h) * Math.min(1, 0.6 * impact + 0.05);
         } else this.s = -ns;
@@ -269,7 +269,7 @@ export class PlayerCar {
     }
     this.lat = p.lat;
 
-    // 垂直：贴地 / 腾空 / 落地
+    // vertical: grounded / airborne / landing
     const groundY = p.y + p.lat * Math.sin(p.bank);
     if (this.airborne) {
       this.vy -= T.gravity * dt;
@@ -289,7 +289,7 @@ export class PlayerCar {
         this.airTime = 0;
       }
     } else {
-      // 沿赛道方向的速度分量；竖直向心加速度超过重力即腾空
+      // speed component along the track; if vertical centripetal acceleration beats gravity, we launch
       const va = this.s * Math.cos(this.m - p.hd);
       if (va > 18 && va * va * -tr.vcurv[p.i] > T.gravity) {
         this.airborne = true;
@@ -302,12 +302,12 @@ export class PlayerCar {
       }
     }
 
-    // 逆行检测
+    // wrong-way detection
     const fwdDot = Math.cos(wrapAngle(this.h - p.hd));
     if (fwdDot < -0.35 && this.s > 4) this.wrongWay += dt;
     else this.wrongWay = Math.max(0, this.wrongWay - dt * 2);
 
-    // 加速带
+    // boost pads
     if (tr.boostPads)
       for (const bp of tr.boostPads) {
         let dd = this.d - (bp.d - bp.len / 2);
@@ -322,7 +322,7 @@ export class PlayerCar {
       }
   }
 
-  // 同步 3D 模型
+  // sync the 3D model
   syncModel(dt) {
     const mdl = this.model;
     const u = mdl.userData;
@@ -336,7 +336,7 @@ export class PlayerCar {
     this.pitchVis = damp(this.pitchVis, pitchT, 10, dt);
     this.rollVis = damp(this.rollVis, -bankAlong, 10, dt);
     mdl.rotation.set(this.pitchVis, this.h, this.rollVis, 'YXZ');
-    // 车身动态：转向侧倾、加减速俯仰
+    // body dynamics: steering lean, acceleration pitch
     const sp = Math.abs(this.s);
     const lean = this.drifting ? this.driftDir * 0.07 : this.steer * 0.045 * clamp(sp / 30, 0, 1);
     const pitchDyn = this.throttle > 0 && sp < 30 ? -0.025 : this.throttle < 0 && this.s > 5 ? 0.04 : 0;

@@ -3,11 +3,11 @@ import { formatTime } from './util.js';
 const $ = (id) => document.getElementById(id);
 
 export const ITEM_INFO = {
-  nitro: { icon: '🔥', name: '氮气' },
-  missile: { icon: '🚀', name: '导弹' },
-  banana: { icon: '🍌', name: '香蕉皮' },
-  shield: { icon: '😇', name: '天使' },
-  magnet: { icon: '🧲', name: '磁铁' },
+  nitro: { icon: '🔥', name: 'Nitro' },
+  missile: { icon: '🚀', name: 'Missile' },
+  banana: { icon: '🍌', name: 'Banana Peel' },
+  shield: { icon: '😇', name: 'Angel' },
+  magnet: { icon: '🧲', name: 'Magnet' },
 };
 
 export class HUD {
@@ -92,7 +92,7 @@ export class HUD {
     g.lineWidth = 9;
     path();
     g.stroke();
-    // 高架段着色
+    // colouring for elevated sections
     g.strokeStyle = 'rgba(39,199,255,.9)';
     g.lineWidth = 5;
     for (let i = 0; i < track.N; i++) {
@@ -193,7 +193,7 @@ export class HUD {
   update(st) {
     this.set('lap', this.lap, st.lap);
     this.set('time', this.time, formatTime(st.time));
-    this.set('best', this.best, '最佳单圈 ' + formatTime(st.best));
+    this.set('best', this.best, 'BEST LAP ' + formatTime(st.best));
     this.set('spd', this.spd, String(Math.round(st.kmh)));
     this.set('rk', this.rk, String(st.rank));
     this.set('rkof', this.rkof, '/' + st.total);
@@ -262,7 +262,7 @@ export class HUD {
 
   clearFx() { this.fxx.clearRect(0, 0, this.fx.width, this.fx.height); this.lines.length = 0; }
 
-  // 速度线
+  // speed lines
   speedLines(dt, k, color) {
     const g = this.fxx, W = this.fx.width, H = this.fx.height;
     g.clearRect(0, 0, W, H);

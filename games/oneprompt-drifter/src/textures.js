@@ -37,7 +37,7 @@ function cached(key, fn) {
   return cache.get(key);
 }
 
-// 路面：u 横跨整个路宽，v 沿路方向（一张 = 24 米）
+// road surface: u spans the full road width, v runs along the road (one tile = 24 m)
 export function roadTexture(style) {
   return cached('road-' + style, () => {
     const W = 512, H = 1024;
@@ -45,7 +45,7 @@ export function roadTexture(style) {
     const rnd = mulberry32(7);
     if (style === 'asphalt') {
       noiseFill(g, W, H, '#474b55', 0.16, rnd, 2);
-      // 车辙暗带
+      // dark tyre-track bands
       for (const x of [0.3, 0.7]) {
         const grd = g.createLinearGradient(W * x - 40, 0, W * x + 40, 0);
         grd.addColorStop(0, 'rgba(0,0,0,0)');
@@ -65,7 +65,7 @@ export function roadTexture(style) {
         g.fillRect(W * 0.25 - 3, y, 6, 128);
         g.fillRect(W * 0.75 - 3, y, 6, 128);
       }
-      // 路面蓝色霓虹边
+      // blue neon road edge
       g.fillStyle = '#2aa8ff';
       g.fillRect(0, 0, 8, H);
       g.fillRect(W - 8, 0, 8, H);
@@ -95,7 +95,7 @@ export function roadTexture(style) {
         g.fillStyle = `rgba(0,0,0,${rnd() * 0.08})`;
         g.fillRect(rnd() * W, rnd() * H, 2, 2);
       }
-      // 蓝色路缘
+      // blue kerb
       g.fillStyle = '#2f7fd8';
       g.fillRect(0, 0, 14, H);
       g.fillRect(W - 14, 0, 14, H);
@@ -125,7 +125,7 @@ export function roadTexture(style) {
         g.fillStyle = `rgba(${rnd() > 0.5 ? '255,240,200' : '90,60,30'},${rnd() * 0.12})`;
         g.fillRect(rnd() * W, rnd() * H, 2, 2);
       }
-      // 紫色路边（参考法老金字塔原画）
+      // purple roadside (from the Pharaoh's Pyramid key art)
       g.fillStyle = '#5b3f9e';
       g.fillRect(0, 0, 18, H);
       g.fillRect(W - 18, 0, 18, H);
@@ -135,7 +135,7 @@ export function roadTexture(style) {
     } else if (style === 'plate') {
       g.fillStyle = '#3c4a66';
       g.fillRect(0, 0, W, H);
-      // 菱形防滑钢板
+      // diamond-plate anti-slip steel
       for (let y = 0; y < H; y += 24) {
         for (let x = 0; x < W; x += 24) {
           const ox = ((y / 24) & 1) * 12;
@@ -155,7 +155,7 @@ export function roadTexture(style) {
         g.fillStyle = `rgba(255,255,255,${rnd() * 0.08})`;
         g.fillRect(rnd() * W, rnd() * H, 2, 2);
       }
-      // 雪边与亮蓝边线
+      // snow edge and bright blue edge line
       const grd = g.createLinearGradient(0, 0, 40, 0);
       grd.addColorStop(0, 'rgba(240,248,255,0.95)');
       grd.addColorStop(1, 'rgba(240,248,255,0)');
@@ -203,7 +203,7 @@ export function checkerTexture(a = '#111', b = '#fff', nx = 8, ny = 2) {
   });
 }
 
-// 护栏：一张覆盖 16 米
+// guardrail: one tile covers 16 m
 export function wallTexture(style) {
   return cached('wall-' + style, () => {
     const W = 1024, H = 128;
@@ -238,7 +238,7 @@ export function wallTexture(style) {
       }
       g.fillStyle = '#2d6fc4';
       g.fillRect(0, 0, W, 18);
-      // 蓝色栏杆格
+      // blue railing grid
       g.strokeStyle = '#3a82d6';
       g.lineWidth = 5;
       for (let x = 0; x < W; x += 64) {
@@ -265,7 +265,7 @@ export function wallTexture(style) {
       g.fillRect(0, 0, W, 20);
       g.fillStyle = '#e8c547';
       g.fillRect(0, 20, W, 4);
-      // 象形符号
+      // hieroglyphs
       g.fillStyle = 'rgba(80,45,20,0.55)';
       for (let x = 30; x < W; x += 120) {
         g.beginPath();
@@ -350,7 +350,7 @@ export function groundTexture(type) {
   });
 }
 
-// 建筑立面：窗户网格
+// building facade: window grid
 export function facadeTexture(kind) {
   return cached('facade-' + kind, () => {
     const W = 256, H = 512;
@@ -491,7 +491,7 @@ export function chevronTexture(bg = '#ffd000', fg = '#1a1a1a') {
   });
 }
 
-// 加速带：蓝色霓虹箭头（11城原画中的蓝色箭头）
+// boost pad: blue neon arrows (the blue arrows in the 11 City key art)
 export function boostPadTexture(color = '#27c7ff') {
   return cached('boost' + color, () => {
     const [c, g] = mk(256, 512);

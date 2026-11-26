@@ -2,14 +2,14 @@ import * as THREE from 'three';
 import { softDotTexture, textTexture } from './textures.js';
 
 export const CAR_SKINS = [
-  { id: 'red', name: '烈焰战神', body: 0xe0262b, accent: 0xffc93a, glow: 0xff5a1f, rim: 0xd9d9d9 },
-  { id: 'blue', name: '冰蓝幻影', body: 0x1f6ff2, accent: 0x6ff3ff, glow: 0x27c7ff, rim: 0xe6f2ff },
-  { id: 'purple', name: '紫电魅影', body: 0x7b3df0, accent: 0xff6fd8, glow: 0xc26bff, rim: 0xf0e0ff },
-  { id: 'yellow', name: '黄金闪电', body: 0xffc21a, accent: 0x1b1b1b, glow: 0xffe066, rim: 0x2b2b2b },
-  { id: 'white', name: '白鲸号', body: 0xf3f5f8, accent: 0x2a7bff, glow: 0x5ab0ff, rim: 0x9aa7b8 },
-  { id: 'pink', name: '粉红甜心', body: 0xff7eb6, accent: 0xffffff, glow: 0xff9ed0, rim: 0xffffff },
-  { id: 'green', name: '翡翠之星', body: 0x19b86a, accent: 0xe8ff5a, glow: 0x6dff9e, rim: 0xe8ffe8 },
-  { id: 'black', name: '暗夜猎手', body: 0x1b1d22, accent: 0xff2d55, glow: 0xff2d55, rim: 0x707782 },
+  { id: 'red', name: 'Blaze Warlord', body: 0xe0262b, accent: 0xffc93a, glow: 0xff5a1f, rim: 0xd9d9d9 },
+  { id: 'blue', name: 'Frost Phantom', body: 0x1f6ff2, accent: 0x6ff3ff, glow: 0x27c7ff, rim: 0xe6f2ff },
+  { id: 'purple', name: 'Violet Spectre', body: 0x7b3df0, accent: 0xff6fd8, glow: 0xc26bff, rim: 0xf0e0ff },
+  { id: 'yellow', name: 'Golden Lightning', body: 0xffc21a, accent: 0x1b1b1b, glow: 0xffe066, rim: 0x2b2b2b },
+  { id: 'white', name: 'White Whale', body: 0xf3f5f8, accent: 0x2a7bff, glow: 0x5ab0ff, rim: 0x9aa7b8 },
+  { id: 'pink', name: 'Pink Sweetheart', body: 0xff7eb6, accent: 0xffffff, glow: 0xff9ed0, rim: 0xffffff },
+  { id: 'green', name: 'Emerald Star', body: 0x19b86a, accent: 0xe8ff5a, glow: 0x6dff9e, rim: 0xe8ffe8 },
+  { id: 'black', name: 'Night Hunter', body: 0x1b1d22, accent: 0xff2d55, glow: 0xff2d55, rim: 0x707782 },
 ];
 
 function profileShape(pts) {
@@ -20,7 +20,7 @@ function profileShape(pts) {
   return s;
 }
 
-// 侧面轮廓挤出：shape 的 x = 车身纵向（+ 为车头），挤出方向 = 车宽
+// side-profile extrusion: shape x = car longitudinal axis (+ = nose), extrusion direction = car width
 function extrudeSide(shape, width, bevel) {
   const g = new THREE.ExtrudeGeometry(shape, {
     depth: width - bevel * 2,
@@ -39,7 +39,7 @@ function extrudeSide(shape, width, bevel) {
 let sharedGeo = null;
 function geos() {
   if (sharedGeo) return sharedGeo;
-  // 车身：低趴跑车，带轮拱
+  // body: low-slung sports car with wheel arches
   const body = new THREE.Shape();
   body.moveTo(-2.18, 0.34);
   body.lineTo(-1.92, 0.3);
@@ -62,7 +62,7 @@ function geos() {
   ]);
   const cabinGeo = extrudeSide(cabin, 1.46, 0.12);
 
-  // 侧裙
+  // side skirts
   const skirt = profileShape([[-1.9, 0.3], [0.84, 0.3], [0.84, 0.42], [-1.9, 0.42]]);
   const skirtGeo = extrudeSide(skirt, 2.08, 0.03);
 
@@ -78,7 +78,7 @@ function geos() {
 export function buildCar(skin, { name = null, isPlayer = false } = {}) {
   const G = geos();
   const car = new THREE.Group();
-  const root = new THREE.Group(); // 车身（用于侧倾/俯仰/漂移甩尾）
+  const root = new THREE.Group(); // body (used for lean / pitch / drift tail-swing)
   car.add(root);
 
   const paint = new THREE.MeshPhysicalMaterial({
@@ -102,13 +102,13 @@ export function buildCar(skin, { name = null, isPlayer = false } = {}) {
   const skirt = new THREE.Mesh(G.skirtGeo, accent);
   root.add(skirt);
 
-  // 车顶赛车条纹
+  // roof racing stripe
   const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 1.5), accent);
   stripe.position.set(0, 0.84, 1.45);
   stripe.rotation.x = 0.1;
   root.add(stripe);
 
-  // 尾翼
+  // rear wing
   const wing = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.07, 0.46), accent);
   wing.position.set(0, 1.36, -1.95);
   wing.rotation.x = -0.12;
@@ -125,14 +125,14 @@ export function buildCar(skin, { name = null, isPlayer = false } = {}) {
     root.add(plate);
   }
 
-  // 车灯
+  // headlights
   for (const sx of [-0.62, 0.62]) {
     const hl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.12), headM);
     hl.position.set(sx, 0.64, 2.3);
     hl.rotation.x = -0.5;
     root.add(hl);
   }
-  // 贯穿式尾灯 + 两侧灯组
+  // full-width tail light + side clusters
   const tl = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.07, 0.08), tailM);
   tl.position.set(0, 0.78, -2.39);
   root.add(tl);
@@ -141,21 +141,21 @@ export function buildCar(skin, { name = null, isPlayer = false } = {}) {
     t2.position.set(sx, 0.74, -2.39);
     root.add(t2);
   }
-  // 后扩散器
+  // rear diffuser
   const diff = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.16, 0.3), dark);
   diff.position.set(0, 0.36, -2.3);
   root.add(diff);
-  // 前格栅
+  // front grille
   const grille = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 0.1), dark);
   grille.position.set(0, 0.42, 2.4);
   root.add(grille);
-  // 侧面霓虹灯条
+  // side neon strips
   for (const sx of [-1.05, 1.05]) {
     const n = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 2.2), neonM);
     n.position.set(sx, 0.46, -0.5);
     root.add(n);
   }
-  // 排气管
+  // exhausts
   const exhausts = [];
   for (const sx of [-0.42, 0.42]) {
     const ex = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.3, 12), rimM);
@@ -165,7 +165,7 @@ export function buildCar(skin, { name = null, isPlayer = false } = {}) {
     exhausts.push(new THREE.Vector3(sx, 0.4, -2.56));
   }
 
-  // 底盘光
+  // underglow
   const glowMat = new THREE.MeshBasicMaterial({
     color: skin.glow, map: softDotTexture(), transparent: true, opacity: 0.85,
     blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
@@ -175,7 +175,7 @@ export function buildCar(skin, { name = null, isPlayer = false } = {}) {
   under.position.y = 0.06;
   car.add(under);
 
-  // 车轮
+  // wheels
   const wheels = [];
   const wheelPos = [[-0.93, 1.38], [0.93, 1.38], [-0.93, -1.38], [0.93, -1.38]];
   for (const [x, z] of wheelPos) {
@@ -198,7 +198,7 @@ export function buildCar(skin, { name = null, isPlayer = false } = {}) {
     wheels.push({ steer, spin, front: z > 0, x, z });
   }
 
-  // 氮气尾焰（两个锥体，加色混合）
+  // nitro flames (two cones, additive blending)
   const flameMatOuter = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x3aa0ff).multiplyScalar(2.2), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   const flameMatInner = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.5, 2.5, 2.5), transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   const flames = [];
@@ -217,7 +217,7 @@ export function buildCar(skin, { name = null, isPlayer = false } = {}) {
     flames.push(fg);
   }
 
-  // 名字标签
+  // name tag
   let tag = null;
   if (name) {
     const tex = textTexture(name, { w: 512, h: 96, fg: '#ffffff', font: 'bold 56px "PingFang SC","Microsoft YaHei",sans-serif', stroke: 'rgba(0,0,0,0.75)' });
@@ -227,7 +227,7 @@ export function buildCar(skin, { name = null, isPlayer = false } = {}) {
     car.add(tag);
   }
 
-  // 护盾（道具：天使）
+  // shield (item: angel)
   const shield = new THREE.Mesh(
     new THREE.SphereGeometry(2.9, 24, 16),
     new THREE.MeshBasicMaterial({ color: 0xffe28a, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),

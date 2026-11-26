@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { clamp, wrapAngle } from './util.js';
 import { roadTexture, wallTexture, curbTexture, checkerTexture, boostPadTexture, tunnelTexture, groundTexture } from './textures.js';
 
-const TEX_LEN = 24; // 路面贴图沿路长度（米）
+const TEX_LEN = 24; // road texture length along the road (metres)
 const WALL_TEX_LEN = 16;
 
 export class Track {
@@ -62,7 +62,7 @@ export class Track {
       for (let k = -W; k <= W; k++) s += raw[(i + k + N) % N];
       this.curv[i] = s / (2 * W + 1);
     }
-    // 弯道外侧抬高（路面倾角）
+    // bank the outside of corners (road camber)
     const bk = new Float32Array(N);
     for (let i = 0; i < N; i++) bk[i] = clamp(this.curv[i] * 5.5, -0.13, 0.13);
     for (let i = 0; i < N; i++) {
@@ -70,7 +70,7 @@ export class Track {
       for (let k = -12; k <= 12; k++) s += bk[(i + k + N) % N];
       this.bank[i] = s / 25;
     }
-    // 竖直曲率（平滑后）：v²·κ > g 时车辆会腾空（跳台）
+    // vertical curvature (smoothed): when v^2 * k > g the car goes airborne (jumps)
     const sy = new Float32Array(N);
     for (let i = 0; i < N; i++) {
       let a = 0;
@@ -89,7 +89,7 @@ export class Track {
     this.bridge = new Uint8Array(N);
     if (cfg.isBridge) for (let i = 0; i < N; i++) this.bridge[i] = cfg.isBridge(this.px[i], this.pz[i], this.py[i]) ? 1 : 0;
 
-    // 空间哈希，用于地形压平 / 摆放物件避让
+    // spatial hash, used for terrain flattening / prop placement avoidance
     this.cell = 16;
     this.grid = new Map();
     for (let i = 0; i < N; i++) {
@@ -109,7 +109,7 @@ export class Track {
 
   _key(cx, cz) { return cx * 73856093 ^ cz * 19349663; }
 
-  // 距离 (x,z) 最近的赛道采样点（maxDist 内），返回 {dist,i} 或 null
+  // nearest track sample to (x,z) within maxDist; returns {dist,i} or null
   nearest(x, z, maxDist = 60) {
     const r = Math.ceil(maxDist / this.cell);
     const cx = Math.floor(x / this.cell), cz = Math.floor(z / this.cell);
@@ -127,7 +127,7 @@ export class Track {
     return bi < 0 ? null : { dist: Math.sqrt(best), i: bi };
   }
 
-  // 遍历 maxDist 内所有采样点
+  // iterate all samples within maxDist
   forEachNear(x, z, maxDist, fn) {
     const r = Math.ceil(maxDist / this.cell);
     const cx = Math.floor(x / this.cell), cz = Math.floor(z / this.cell);
@@ -144,7 +144,7 @@ export class Track {
       }
   }
 
-  // 沿赛道距离 d 处的中心线状态
+  // centreline state at distance d along the track
   sample(d, out = this._tmp) {
     const L = this.length;
     d = ((d % L) + L) % L;
@@ -169,7 +169,7 @@ export class Track {
     return out;
   }
 
-  // 投影世界坐标到赛道；hint 为上次的采样序号（局部搜索），-1 表示全局搜索
+  // project a world position onto the track; hint = last sample index (local search), -1 = global search
   project(x, y, z, hint, out) {
     const N = this.N;
     let bi = 0, best = Infinity;
@@ -187,7 +187,7 @@ export class Track {
         if (d2 < best) { best = d2; bi = i; }
       }
     }
-    // 在 bi 前后两段上精确投影
+    // exact projection onto the two segments around bi
     let i = bi;
     let j = (i + 1) % N;
     let ex = this.px[j] - this.px[i], ez = this.pz[j] - this.pz[i];
@@ -208,7 +208,7 @@ export class Track {
 
   surfaceY(s, lat) { return s.y + lat * Math.sin(s.bank); }
 
-  // 前方一段距离内的最大曲率（带符号：取绝对值最大的那个）
+  // max curvature over a distance ahead (signed: the one with the largest absolute value)
   curvAhead(d, range) {
     const N = this.N;
     const i0 = Math.floor((((d % this.length) + this.length) % this.length) / this.ds);
@@ -221,13 +221,13 @@ export class Track {
     return m;
   }
 
-  // ---------- 网格构建 ----------
+  // ---------- mesh building ----------
   build(theme, groundFn) {
     const group = new THREE.Group();
     const N = this.N, hw = this.halfW;
     const rows = N + 1;
 
-    // 路面
+    // road surface
     {
       const pos = new Float32Array(rows * 2 * 3), uv = new Float32Array(rows * 2 * 2);
       for (let r = 0; r < rows; r++) {
@@ -264,7 +264,7 @@ export class Track {
       group.add(mesh);
     }
 
-    // 护栏 + 路基（外侧面延伸到路面下方，桥段看起来是实心的）
+    // guardrails + roadbed (outer face extends below the road so bridge sections look solid)
     {
       const th = 0.6, H = this.wallH, base = 1.6;
       const posW = [], uvW = [], idxW = [];
@@ -278,10 +278,10 @@ export class Track {
           const latIn = side * hw, latOut = side * (hw + th);
           const yIn = this.py[i] + latIn * sb, yOut = this.py[i] + latOut * sb;
           const v = (side > 0 ? -1 : 1) * (r * this.ds) / WALL_TEX_LEN;
-          // 内侧面 (底, 顶)
+          // inner face (bottom, top)
           push(posW, this.px[i] + this.rx[i] * latIn, yIn - 0.05, this.pz[i] + this.rz[i] * latIn);
           push(posW, this.px[i] + this.rx[i] * latIn, yIn + H, this.pz[i] + this.rz[i] * latIn);
-          // 顶面外沿
+          // top outer edge
           push(posW, this.px[i] + this.rx[i] * latOut, yOut + H, this.pz[i] + this.rz[i] * latOut);
           uvW.push(v, 0, v, 1, v, 1);
         }
@@ -295,7 +295,7 @@ export class Track {
             idxW.push(a + 1, b + 1, a + 2, b + 1, b + 2, a + 2);
           }
         }
-        // 外侧路基面
+        // outer roadbed face
         const startD = posD.length / 3;
         for (let r = 0; r < rows; r++) {
           const i = r % N;
@@ -311,7 +311,7 @@ export class Track {
           else idxD.push(a, b, a + 1, b, b + 1, a + 1);
         }
       }
-      // 路基底面
+      // roadbed underside
       const startB = posD.length / 3;
       for (let r = 0; r < rows; r++) {
         const i = r % N;
@@ -344,7 +344,7 @@ export class Track {
       group.add(deck);
     }
 
-    // 弯心路肩（红白）
+    // apex kerbs (red/white)
     {
       const pos = [], uv = [], idx = [];
       const cw = 1.3;
@@ -370,7 +370,7 @@ export class Track {
           run = null;
         };
         for (let i = 0; i < N; i++) {
-          // 左转 curv>0，弯心在左侧 (side=-1)
+          // left turn curv>0: apex on the left (side=-1)
           const inner = this.curv[i] * -side > 0.011;
           if (inner) (run ||= []).push(i);
           else flush();
@@ -397,14 +397,14 @@ export class Track {
       }
     }
 
-    // 起终点线
+    // start/finish line
     group.add(this.roadDecal(0, 0, hw * 2 - 0.6, 3.2, new THREE.MeshStandardMaterial({
       map: (() => { const t = checkerTexture(theme.checkerA || '#111', theme.checkerB || '#fff', 16, 2).clone(); t.needsUpdate = true; return t; })(),
       roughness: 0.6,
       polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
     })));
 
-    // 加速带
+    // boost pads
     this.boostPads = [];
     if (theme.boostPads) {
       const tex = boostPadTexture(theme.boostColor || '#27c7ff');
@@ -421,7 +421,7 @@ export class Track {
       }
     }
 
-    // 隧道
+    // tunnel
     if (theme.tunnels)
       for (const tn of theme.tunnels) {
         let d0 = tn.from ? this.dAt(tn.from[0], tn.from[1]) : tn.f0 * this.length;
@@ -430,16 +430,16 @@ export class Track {
         group.add(this.buildTunnel(d0, d1, theme));
       }
 
-    // 路肩人行道（桥段不铺）
+    // kerb-side pavement (not on bridge sections)
     if (theme.shoulder) group.add(this.buildShoulders(theme.shoulder));
-    // 桥墩
+    // bridge piers
     if (groundFn) group.add(this.buildPillars(groundFn, theme));
 
     this.group = group;
     return group;
   }
 
-  // 贴在路面上的四边形（沿路跟随曲率，按采样细分）
+  // a quad stuck to the road surface (follows curvature along the road, subdivided per sample)
   roadDecal(d, lat, width, length, material) {
     const segs = Math.max(2, Math.ceil(length / 1.5));
     const pos = [], uv = [], idx = [];
@@ -510,7 +510,7 @@ export class Track {
     outer.castShadow = true;
     outer.receiveShadow = true;
     grp.add(outer);
-    // 洞口门框
+    // tunnel portal frame
     for (const dd of [d0, d1]) {
       this.sample(dd, s);
       const frame = new THREE.Mesh(
@@ -585,7 +585,7 @@ export class Track {
       const gy = groundFn(x, z);
       const top = y - 1.6;
       if (top - gy < 1.2) continue;
-      // 立交处下方有另一段赛道时不放
+      // skip when another track section runs underneath a flyover
       let blocked = false;
       this.forEachNear(x, z, this.halfW + 6, (j) => {
         const di = Math.abs(j - i);

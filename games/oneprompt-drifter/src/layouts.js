@@ -1,5 +1,5 @@
-// 赛道中心线控制点 [x, z, y]（单位：米），闭合 Catmull-Rom 曲线
-// 布局按 QQ飞车对应地图的风格与节奏设计：起步直道、连续弯、发卡弯、桥梁、隧道、跳台
+// Track centreline control points [x, z, y] (metres), a closed Catmull-Rom curve
+// Layouts follow the style and rhythm of the matching QQ Speed maps: launch straight, flowing corners, hairpins, bridges, tunnels, jumps
 export const LAYOUTS = {
   city: {
     width: 26,
@@ -13,7 +13,7 @@ export const LAYOUTS = {
       [-262, -60, 4], [-300, -95, 1], [-370, -110, 0], [-400, -160, 0],
       [-370, -190, 0],
     ],
-    // 各类路段（按控制点区间外延，占整圈比例 0~1 在构建时计算）
+    // section types (extended by control-point ranges; lap proportions 0..1 computed at build time)
   },
   aegean: {
     width: 24,

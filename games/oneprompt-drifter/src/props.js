@@ -4,7 +4,7 @@ import { Batch, M } from './world.js';
 import * as TX from './textures.js';
 import { clamp } from './util.js';
 
-// ---------- 缓存 ----------
+// ---------- cache ----------
 const MATS = new Map();
 function mat(key, fn) {
   if (!MATS.has(key)) MATS.set(key, fn());
@@ -21,7 +21,7 @@ function geo(key, fn) {
   return GEOS.get(key);
 }
 
-// 距赛道中心线是否足够远
+// is it far enough from the track centreline
 export function isFree(track, x, z, r) { return !track.nearest(x, z, track.halfW + r); }
 
 function crowdTexture() {
@@ -52,7 +52,7 @@ function crowdTexture() {
   });
 }
 
-// ---------- 常用几何 ----------
+// ---------- common geometry ----------
 function treeGeos() {
   return geo('tree', () => {
     const trunk = new THREE.CylinderGeometry(0.22, 0.34, 3.2, 6);
@@ -134,7 +134,7 @@ function addLamp(b, x, y, z, faceRot) {
   b.add(head, glow(0xfff3c4, 3), M(x, y, z, faceRot), false);
 }
 
-// 广告牌（面向赛道）
+// billboard (faces the track)
 function addBillboard(parent, b, x, y, z, rot, tex, w = 12, h = 6, lift = 6) {
   const post = geo('bbPost', () => { const g = new THREE.BoxGeometry(0.5, 1, 0.5); g.translate(0, 0.5, 0); return g; });
   for (const sx of [-w * 0.32, w * 0.32]) {
@@ -154,10 +154,10 @@ function addBillboard(parent, b, x, y, z, rot, tex, w = 12, h = 6, lift = 6) {
   parent.add(back);
 }
 
-// 看台
+// grandstand
 function addGrandstand(parent, b, s, side, len, hw, groundAt, color = 0x2e6fd6, track = null) {
   if (track) {
-    // 看台占地内不能有别的赛道段
+    // no other track section may pass through the grandstand footprint
     const tmp = {};
     let blocked = false;
     for (let k = -len / 2; k <= len / 2 && !blocked; k += 8) {
@@ -202,7 +202,7 @@ function addGrandstand(parent, b, s, side, len, hw, groundAt, color = 0x2e6fd6, 
   parent.add(grp);
 }
 
-// 起点门楼（含倒计时灯）
+// start gate (with countdown lights)
 function buildStartGate(parent, track, style) {
   const s = track.sample(0, {});
   const hw = track.halfW + 1.4;
@@ -230,7 +230,7 @@ function buildStartGate(parent, track, style) {
     if (zz < 0) bn.rotation.y = Math.PI;
     grp.add(bn);
   }
-  // 倒计时灯
+  // countdown lights
   const lights = [];
   for (let k = 0; k < 4; k++) {
     const l = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), new THREE.MeshStandardMaterial({ color: 0x331111, emissive: 0x000000, emissiveIntensity: 3 }));
@@ -259,7 +259,7 @@ function buildStartGate(parent, track, style) {
       w.position.set(sd * 2, H + 3.8, -0.15);
       grp.add(w);
     }
-    // 两侧神像柱头
+    // statue capitals on both sides
     for (const sd of [-1, 1]) {
       const head = new THREE.Mesh(new THREE.ConeGeometry(1.4, 3, 4), std(0x3a62c9, { metalness: 0.3 }));
       head.position.set(sd * hw, H + 2.2, 0);
@@ -273,7 +273,7 @@ function buildStartGate(parent, track, style) {
   parent.add(grp);
   return {
     set(n) {
-      // n: 0 全灭, 1..3 红灯依次亮, 4 绿灯
+      // n: 0 all off, 1..3 red lights in sequence, 4 green
       lights.forEach((l, k) => {
         const on = n === 4 || k < n;
         l.material.color.setHex(n === 4 ? 0x22ff66 : on ? 0xff2222 : 0x331111);
@@ -283,7 +283,7 @@ function buildStartGate(parent, track, style) {
   };
 }
 
-// 漂浮吉祥物气球（11城原画里的小橘子气球）
+// floating mascot balloon (the Little Orange balloon from the 11 City key art)
 function buildMascotBalloon(color = 0xff9a1f) {
   const g = new THREE.Group();
   const head = new THREE.Mesh(new THREE.SphereGeometry(3, 24, 18), std(color, { roughness: 0.35 }));
@@ -309,7 +309,7 @@ function buildMascotBalloon(color = 0xff9a1f) {
   mouth.rotation.z = Math.PI;
   mouth.position.set(0, -0.6, 3.0);
   g.add(mouth);
-  // 垂下的条纹旗
+  // hanging striped flag
   const ribTex = geo('ribbonTex', () => {
     const c = document.createElement('canvas');
     c.width = 64; c.height = 512;
@@ -425,7 +425,7 @@ function buildWindmill() {
   return g;
 }
 
-// 白墙蓝顶小屋
+// white-walled, blue-roofed house
 function addAegeanHouse(b, x, y, z, w, h, d, rot, rnd) {
   const wallTex = TX.facadeTexture('aegean');
   const m = texMat('aegeanWall', wallTex, { roughness: 0.9 });
@@ -444,13 +444,13 @@ function addAegeanHouse(b, x, y, z, w, h, d, rot, rnd) {
     const cross = geo('cross', () => { const g = new THREE.BoxGeometry(0.15, 1.2, 0.15); g.translate(0, 0.6, 0); return g; });
     b.add(cross, std(0xf2f2f2), M(x, y + h + 0.5 + ds, z, rot));
   } else if (r < 0.45) {
-    // 屋顶小阁楼
+    // roof dormer
     const top = new THREE.BoxGeometry(w * 0.5, h * 0.45, d * 0.5);
     scaleBoxUV(top, w * 0.5, h * 0.45, d * 0.5, 9, 16);
     top.translate(w * 0.2, h + h * 0.225 + 0.5, -d * 0.15);
     b.add(top, m, M(x, y, z, rot));
   } else if (r < 0.6) {
-    // 蓝色栏杆露台 + 黄伞
+    // blue-railed terrace + yellow umbrella
     const um = geo('umb', () => { const g = new THREE.ConeGeometry(1.6, 0.8, 10); g.translate(0, 2.6, 0); return g; });
     b.add(um, std(0xffc93a), M(x + w * 0.2, y + h + 0.5, z, rot));
     const pole = geo('umbPole', () => { const g = new THREE.CylinderGeometry(0.05, 0.05, 2.4, 4); g.translate(0, 1.2, 0); return g; });
@@ -460,7 +460,7 @@ function addAegeanHouse(b, x, y, z, w, h, d, rot, rnd) {
 
 function scaleBoxUV(box, w, h, d, tw, th) {
   const uv = box.attributes.uv;
-  // 面顺序: +x, -x, +y, -y, +z, -z
+  // face order: +x, -x, +y, -y, +z, -z
   const dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
   for (let f = 0; f < 6; f++) {
     for (let v = 0; v < 4; v++) {
@@ -482,7 +482,7 @@ function addBuilding(b, x, y, z, w, h, d, rot, kind, roofColor = 0x8f96a3) {
   b.add(roof, std(roofColor), M(x, y, z, rot));
 }
 
-// ---------- 各地图 ----------
+// ---------- per-map props ----------
 export function buildProps(mapId, ctx) {
   const fn = { city: cityProps, aegean: aegeanProps, egypt: egyptProps, snow: snowProps, beach: aegeanProps }[mapId];
   return fn(ctx);
@@ -517,7 +517,7 @@ function commonTrackside(ctx, opts) {
       addBillboard(parent, batch, x, groundAt(x, z), z, s.hd + (side > 0 ? Math.PI / 2 + 0.35 : -Math.PI / 2 - 0.35), t);
     }, 60);
   }
-  // 急弯外侧箭头牌
+  // chevron boards on the outside of sharp corners
   if (opts.chevrons) {
     const tex = TX.chevronTexture(opts.chevronBg, opts.chevronFg);
     const mL = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.25, side: THREE.DoubleSide });
@@ -526,7 +526,7 @@ function commonTrackside(ctx, opts) {
       const c = track.curv[i];
       if (Math.abs(c) < 0.02 || i - last < 9) continue;
       last = i;
-      const side = c > 0 ? 1 : -1; // 左弯外侧在右
+      const side = c > 0 ? 1 : -1; // left corner: outside is on the right
       const s = track.sample(i * track.ds, {});
       const lat = side * (hw + 0.9);
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.6), mL);
@@ -540,17 +540,17 @@ function commonTrackside(ctx, opts) {
   }
 }
 
-// ======================= 11城 =======================
+// ======================= 11 City =======================
 function cityProps(ctx) {
   const { track, batch, rnd, groundAt, parent, updaters } = ctx;
   const hw = track.halfW;
   const B = track.bounds;
-  // 楼群
+  // tower blocks
   const kinds = ['glass', 'office', 'modern', 'glass'];
   for (let x = B.minX - 520; x < B.maxX + 520; x += 44)
     for (let z = B.minZ - 480; z < B.maxZ + 560; z += 44) {
       const px = x + (rnd() - 0.5) * 16, pz = z + (rnd() - 0.5) * 16;
-      if (Math.abs(pz) < 70) continue; // 河道
+      if (Math.abs(pz) < 70) continue; // river channel
       const north = pz > 60;
       if (rnd() > (north ? 0.8 : 0.45)) continue;
       const w = 14 + rnd() * 16, d = 14 + rnd() * 16;
@@ -564,7 +564,7 @@ function cityProps(ctx) {
         batch.add(ant, std(0xd0d4dc, { metalness: 0.7 }), M(px, groundAt(px, pz) + h + 0.8, pz));
       }
     }
-  // 地标：球顶大楼（原画右侧）
+  // landmark: dome-topped tower (right side of the key art)
   {
     const spot = findFree(track, rnd, 150, 470, 60, 40);
     if (spot) {
@@ -579,7 +579,7 @@ function cityProps(ctx) {
       parent.add(neck);
     }
   }
-  // 公园树木
+  // park trees
   for (let i = 0; i < 700; i++) {
     const x = B.minX - 300 + rnd() * (B.maxX - B.minX + 600);
     const z = B.minZ - 300 + rnd() * (B.maxZ - B.minZ + 600);
@@ -588,7 +588,7 @@ function cityProps(ctx) {
     if (z > 60 && rnd() < 0.6) continue;
     addTree(batch, x, groundAt(x, z), z, 0.8 + rnd() * 0.7, rnd() * 6, rnd() < 0.3 ? 0x6fbf4a : 0x3f9e4a);
   }
-  // 路边行道树
+  // street trees
   alongTrack(track, 26, (s) => {
     if (track.bridge[s.i]) return;
     for (const side of [-1, 1]) {
@@ -600,21 +600,21 @@ function cityProps(ctx) {
   commonTrackside(ctx, {
     lamps: true,
     billboards: [
-      TX.billboardTexture('SPEED', '极速飞车', '#ff6a00', '#ffc400'),
-      TX.billboardTexture('N2O', '氮气加速', '#1565c0', '#27c7ff'),
-      TX.billboardTexture('11城', 'CITY RACE', '#7b3df0', '#ff6fd8'),
-      TX.billboardTexture('DRIFT', '漂移集气', '#e53935', '#ff8a65'),
+      TX.billboardTexture('SPEED', 'KART RACER', '#ff6a00', '#ffc400'),
+      TX.billboardTexture('N2O', 'NITRO BOOST', '#1565c0', '#27c7ff'),
+      TX.billboardTexture('11 CITY', 'CITY RACE', '#7b3df0', '#ff6fd8'),
+      TX.billboardTexture('DRIFT', 'DRIFT CHARGE', '#e53935', '#ff8a65'),
     ],
   });
   addGrandstand(parent, batch, track.sample(track.length - 30, {}), -1, 60, hw, groundAt, 0x2e6fd6, track);
   addGrandstand(parent, batch, track.sample(40, {}), -1, 50, hw, groundAt, 0xe53935, track);
 
-  // 塔桥（东侧跨河）
+  // tower bridge (east side, crosses the river)
   buildTowerBridge(ctx, track.dAt(205, 0));
-  // 西侧拱桥
+  // west arch bridge
   buildArchBridge(ctx, track.dAt(-262, 0), 0x2a8cff);
 
-  // 飞艇与吉祥物气球
+  // airship and mascot balloons
   const blimp = buildBlimp();
   parent.add(blimp);
   const balloons = [];
@@ -630,7 +630,7 @@ function cityProps(ctx) {
     parent.add(b);
     balloons.push(b);
   }
-  // 帆船
+  // sailboats
   const boats = [];
   for (let i = 0; i < 9; i++) {
     const bt = buildSailboat(i % 3 ? 0xffffff : 0xffd54a);
@@ -656,7 +656,7 @@ function cityProps(ctx) {
       bt.rotation.z = Math.sin(t * 0.9 + bt.userData.v) * 0.05;
     }
   });
-  return buildStartGate(parent, track, { pillar: 0xf2f4f8, beam: 0x1d4fb0, text: 'START · 11城', bannerBg: '#1d4fb0', band: 0xe53935, metal: 0.3 });
+  return buildStartGate(parent, track, { pillar: 0xf2f4f8, beam: 0x1d4fb0, text: 'START · 11 CITY', bannerBg: '#1d4fb0', band: 0xe53935, metal: 0.3 });
 }
 
 function findFree(track, rnd, x, z, r, spread, tries = 60) {
@@ -688,13 +688,13 @@ function buildTowerBridge(ctx, d) {
       const pier = new THREE.Mesh(new THREE.BoxGeometry(7, 44 - baseY, 9), stone);
       pier.position.set(px, (44 + baseY) / 2, 0);
       tw.add(pier);
-      // 哥特窗
+      // gothic windows
       for (let k = 0; k < 4; k++) {
         const win = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.2, 1.6), glass);
         win.position.set(px - side * 3.55, 16 + k * 6.5, 0);
         tw.add(win);
       }
-      // 角楼尖塔
+      // corner spires
       for (const cz of [-3.8, 3.8])
         for (const cx of [-2.8, 2.8]) {
           const t = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 8, 10), stoneDark);
@@ -707,12 +707,12 @@ function buildTowerBridge(ctx, d) {
           fin.position.set(px + cx, 56.3, cz);
           tw.add(fin);
         }
-      // 圆顶
+      // dome
       const dome = new THREE.Mesh(new THREE.SphereGeometry(3.4, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), roofM);
       dome.position.set(px, 44, 0);
       tw.add(dome);
     }
-    // 桥门上方连接体 + 尖拱
+    // connector above the bridge gate + pointed arch
     const gate = new THREE.Mesh(new THREE.BoxGeometry(hw * 2 + 2, 9, 7), stone);
     gate.position.set(0, 17.5, 0);
     tw.add(gate);
@@ -732,7 +732,7 @@ function buildTowerBridge(ctx, d) {
     grp.add(tw);
     towers.push(tw);
   }
-  // 高空人行廊桥（两条）+ 桁架
+  // high pedestrian skybridges (two) + trusses
   const s0 = track.sample(d - 28, {}), s1 = track.sample(d + 28, {});
   const len = Math.hypot(s1.x - s0.x, s1.z - s0.z);
   const mid = track.sample(d, {});
@@ -743,7 +743,7 @@ function buildTowerBridge(ctx, d) {
     walk.castShadow = true;
     grp.add(walk);
   }
-  // 悬索（从塔顶垂向两岸）
+  // suspension cables (from the tower tops down to both banks)
   const cableM = std(0x7f8fb8, { metalness: 0.6 });
   for (const side of [-1, 1]) {
     for (const [dd, dir] of [[d - 28, -1], [d + 28, 1]]) {
@@ -791,7 +791,7 @@ function buildArchBridge(ctx, d, color) {
     arch.castShadow = true;
     parent.add(arch);
   }
-  // 拱顶横梁
+  // arch-top crossbeams
   for (const t of [0.35, 0.5, 0.65]) {
     const s = track.sample(d - 50 + t * 100, {});
     const beam = new THREE.Mesh(new THREE.BoxGeometry((hw + 1.2) * 2, 0.8, 0.8), m);
@@ -801,12 +801,12 @@ function buildArchBridge(ctx, d, color) {
   }
 }
 
-// ======================= 情迷爱琴海 =======================
+// ======================= Aegean Coast =======================
 function aegeanProps(ctx) {
   const { track, batch, rnd, groundAt, parent, updaters } = ctx;
   const hw = track.halfW;
   const B = track.bounds;
-  // 房屋
+  // houses
   let n = 0;
   for (let i = 0; i < 2600 && n < 420; i++) {
     const x = B.minX - 260 + rnd() * (B.maxX - B.minX + 520);
@@ -819,7 +819,7 @@ function aegeanProps(ctx) {
     addAegeanHouse(batch, x, gy, z, w, h, d, rot, rnd);
     n++;
   }
-  // 教堂
+  // church
   for (let k = 0; k < 4; k++) {
     const spot = findFree(track, rnd, -200 + k * 160, 60 + (k % 2) * 180, 16, 90);
     if (!spot) continue;
@@ -839,7 +839,7 @@ function aegeanProps(ctx) {
     parent.add(bdome);
     for (const o of [body, dome, bell, bdome]) { o.castShadow = true; o.receiveShadow = true; }
   }
-  // 风车（山脊）
+  // windmill (on the ridge)
   const mills = [];
   for (let k = 0; k < 6; k++) {
     const spot = findFree(track, rnd, -150 + k * 90, 390 + rnd() * 30, 12, 30);
@@ -850,7 +850,7 @@ function aegeanProps(ctx) {
     parent.add(w);
     mills.push(w);
   }
-  // 柏树与橄榄树
+  // cypresses and olive trees
   const cyp = geo('cypress', () => { const g = new THREE.SphereGeometry(1, 8, 6); g.scale(1.1, 4.2, 1.1); g.translate(0, 4.6, 0); return g; });
   for (let i = 0; i < 520; i++) {
     const x = B.minX - 260 + rnd() * (B.maxX - B.minX + 520);
@@ -860,7 +860,7 @@ function aegeanProps(ctx) {
     if (rnd() < 0.55) batch.add(cyp, flat(0x2f5a2c), M(x, gy, z, 0, 0.7 + rnd() * 0.6));
     else addTree(batch, x, gy, z, 0.6 + rnd() * 0.4, rnd() * 6, 0x8a9a5b);
   }
-  // 三角梅花丛 + 花盆（贴着护栏外侧）
+  // bougainvillea bushes + flower pots (against the outside of the guardrail)
   const bush = geo('bush', () => new THREE.IcosahedronGeometry(1.4, 1));
   const pot = geo('pot', () => { const g = new THREE.CylinderGeometry(0.55, 0.4, 0.9, 10); g.translate(0, 0.45, 0); return g; });
   const potPlant = geo('potPlant', () => { const g = new THREE.IcosahedronGeometry(0.6, 1); g.translate(0, 1.3, 0); return g; });
@@ -883,10 +883,10 @@ function aegeanProps(ctx) {
   }, 5);
   commonTrackside(ctx, {
     chevrons: true, chevronBg: '#ffd000', chevronFg: '#1a1a1a',
-    billboards: [TX.billboardTexture('AEGEAN', '情迷爱琴海', '#1d63c9', '#5ab0ff'), TX.billboardTexture('SPEED', '极速飞车', '#ff8a00', '#ffd54a')],
+    billboards: [TX.billboardTexture('AEGEAN', 'AEGEAN COAST', '#1d63c9', '#5ab0ff'), TX.billboardTexture('SPEED', 'KART RACER', '#ff8a00', '#ffd54a')],
     bbStep: 260,
   });
-  // 海滩遮阳伞
+  // beach umbrellas
   const umb = geo('beachUmb', () => { const g = new THREE.ConeGeometry(2.2, 1.0, 12); g.translate(0, 3.2, 0); return g; });
   const umbPole = geo('beachPole', () => { const g = new THREE.CylinderGeometry(0.06, 0.06, 3, 5); g.translate(0, 1.5, 0); return g; });
   for (let x = -320; x < 260; x += 16 + rnd() * 10) {
@@ -897,7 +897,7 @@ function aegeanProps(ctx) {
     batch.add(umb, std([0xffc93a, 0xff6a6a, 0x3aa0ff][(rnd() * 3) | 0]), M(x, gy, z));
     batch.add(umbPole, std(0xdddddd), M(x, gy, z));
   }
-  // 灯塔 + 礁石
+  // lighthouse + rocks
   {
     const x = 360, z = -300;
     const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(22, 1), flat(0x9a8f7c));
@@ -937,7 +937,7 @@ function aegeanProps(ctx) {
   return buildStartGate(parent, track, { pillar: 0xf7f5f0, beam: 0xf7f5f0, text: 'START · AEGEAN', bannerBg: '#2a64c0', band: 0x2a64c0 });
 }
 
-// ======================= 法老金字塔 =======================
+// ======================= Pharaoh's Pyramid =======================
 function egyptProps(ctx) {
   const { track, batch, rnd, groundAt, parent } = ctx;
   const hw = track.halfW;
@@ -972,7 +972,7 @@ function egyptProps(ctx) {
     cap.rotation.y = p.rotation.y;
     parent.add(cap);
   }
-  // 内场 SPEED 金字塔
+  // infield SPEED pyramid
   {
     const spot = findFree(track, rnd, 150, 60, 60, 50) || [150, 60];
     const [x, z] = spot;
@@ -993,7 +993,7 @@ function egyptProps(ctx) {
       parent.add(pl);
     }
   }
-  // 方尖碑沿直道
+  // obelisks along the straight
   const obel = geo('obelisk', () => { const g = new THREE.CylinderGeometry(0.9, 1.5, 16, 4); g.rotateY(Math.PI / 4); g.translate(0, 8, 0); return g; });
   const obelTop = geo('obeliskTop', () => { const g = new THREE.ConeGeometry(1.25, 2, 4); g.rotateY(Math.PI / 4); g.translate(0, 17, 0); return g; });
   alongTrack(track, 36, (s) => {
@@ -1007,7 +1007,7 @@ function egyptProps(ctx) {
       batch.add(obelTop, std(0xf2c440, { metalness: 0.8, roughness: 0.3 }), M(x, gy, z, s.hd));
     }
   }, 8);
-  // 神殿柱廊
+  // temple colonnade
   const colG = geo('col', () => { const g = new THREE.CylinderGeometry(1.4, 1.6, 12, 12); g.translate(0, 6, 0); return g; });
   const capG = geo('colCap', () => { const g = new THREE.CylinderGeometry(2.2, 1.4, 2, 12); g.translate(0, 13, 0); return g; });
   for (const dd of [track.dAt(0, -140), track.dAt(0, -262)]) {
@@ -1023,7 +1023,7 @@ function egyptProps(ctx) {
       }
     }
   }
-  // 有翼狮身像（起点两侧，参考原画）
+  // winged sphinxes (both sides of the start, from the key art)
   const sgate = track.sample(22, {});
   for (const side of [-1, 1]) {
     const lat = side * (hw + 7);
@@ -1033,7 +1033,7 @@ function egyptProps(ctx) {
     sp.rotation.y = sgate.hd + Math.PI + side * 0.5;
     parent.add(sp);
   }
-  // 棕榈与绿洲
+  // palms and oases
   const oases = ctx.oases || [];
   for (const [ox, oz, r] of oases) {
     for (let k = 0; k < 26; k++) {
@@ -1057,7 +1057,7 @@ function egyptProps(ctx) {
       if (isFree(track, x, z, 4) && rnd() < 0.45) addPalm(batch, x, groundAt(x, z), z, 0.9 + rnd() * 0.4, rnd() * 6);
     }
   }, 15);
-  // 仙人掌/岩石
+  // cacti / rocks
   const rock = geo('rockE', () => new THREE.IcosahedronGeometry(2, 0));
   for (let i = 0; i < 260; i++) {
     const x = B.minX - 400 + rnd() * (B.maxX - B.minX + 800);
@@ -1067,7 +1067,7 @@ function egyptProps(ctx) {
   }
   commonTrackside(ctx, {
     chevrons: true, chevronBg: '#5b3f9e', chevronFg: '#f3e3b5',
-    billboards: [TX.billboardTexture('PHARAOH', '法老金字塔', '#5b3f9e', '#e8c547'), TX.billboardTexture('SPEED', '沙漠飞跃', '#e0861f', '#ffd54a')],
+    billboards: [TX.billboardTexture('PHARAOH', "PHARAOH'S PYRAMID", '#5b3f9e', '#e8c547'), TX.billboardTexture('SPEED', 'DESERT LEAP', '#e0861f', '#ffd54a')],
     bbStep: 240,
   });
   return buildStartGate(parent, track, { pillar: 0xe0c08a, beam: 0xe0c08a, text: 'START · PHARAOH', bannerBg: '#5b3f9e', band: 0x3a62c9, pylon: true, sunDisk: true, h: 12 });
@@ -1095,7 +1095,7 @@ function buildSphinx() {
   const head = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.6, 2.2), stone);
   head.position.set(0, 8.2, 2.4);
   g.add(head);
-  // 头巾（蓝金条纹）
+  // headdress (blue-gold stripes)
   const nemes = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 2.4, 3.6, 4, 1), gold);
   nemes.rotation.y = Math.PI / 4;
   nemes.position.set(0, 8.1, 2.0);
@@ -1109,7 +1109,7 @@ function buildSphinx() {
   const face = new THREE.Mesh(new THREE.BoxGeometry(1.7, 2, 0.4), stone);
   face.position.set(0, 8.0, 3.45);
   g.add(face);
-  // 翅膀
+  // wings
   for (const sd of [-1, 1]) {
     const w = new THREE.Shape();
     w.moveTo(0, 0);
@@ -1128,7 +1128,7 @@ function buildSphinx() {
   return g;
 }
 
-// ======================= 雪地大冒险 =======================
+// ======================= Snow Adventure =======================
 function snowProps(ctx) {
   const { track, batch, rnd, groundAt, parent, updaters } = ctx;
   const hw = track.halfW;
@@ -1148,12 +1148,12 @@ function snowProps(ctx) {
   }, 9);
   commonTrackside(ctx, {
     lamps: true, lampStep: 60,
-    billboards: [TX.billboardTexture('SPEED', '雪地大冒险', '#1e4fb0', '#39c5ff'), TX.billboardTexture('Victory', '冲刺吧！', '#c62828', '#ff7a59')],
+    billboards: [TX.billboardTexture('SPEED', 'SNOW ADVENTURE', '#1e4fb0', '#39c5ff'), TX.billboardTexture('Victory', 'GO FOR IT!', '#c62828', '#ff7a59')],
     bbStep: 200,
   });
   addGrandstand(parent, batch, track.sample(track.length - 40, {}), 1, 70, hw, groundAt, 0xc62828, track);
   addGrandstand(parent, batch, track.sample(30, {}), -1, 60, hw, groundAt, 0x1e4fb0, track);
-  // 奖杯（原画中央）
+  // trophy (centre of the key art)
   {
     const s = track.sample(70, {});
     const lat = hw + 22;
@@ -1191,7 +1191,7 @@ function snowProps(ctx) {
     parent.add(grp);
     updaters.push((dt, t) => { star.rotation.y = t * 1.2; });
   }
-  // 雪人
+  // snowman
   for (let k = 0; k < 12; k++) {
     const s = track.sample(rnd() * track.length, {});
     const side = rnd() < 0.5 ? -1 : 1;
@@ -1209,7 +1209,7 @@ function snowProps(ctx) {
     const hat = geo('hat', () => { const g = new THREE.CylinderGeometry(0.5, 0.5, 0.8, 10); g.translate(0, 5.6, 0); return g; });
     batch.add(hat, std(0xc62828), M(x, gy, z));
   }
-  // 小木屋
+  // log cabin
   for (let k = 0; k < 16; k++) {
     const spot = findFree(track, rnd, B.cx + (rnd() - 0.5) * 700, B.cz + (rnd() - 0.5) * 700, 16, 20);
     if (!spot) continue;
@@ -1227,7 +1227,7 @@ function snowProps(ctx) {
     roof.translate(0, h + 1.6, 0);
     batch.add(roof, std(0xf4f8ff), M(x, gy, z, rot));
   }
-  // 热气球
+  // hot-air balloon
   const balloons = [];
   const pal = [['#ff5252', '#ffd740'], ['#40c4ff', '#ffffff'], ['#69f0ae', '#ff80ab'], ['#b388ff', '#ffd740'], ['#ff9800', '#ffffff'], ['#e040fb', '#40c4ff']];
   for (let k = 0; k < 7; k++) {
@@ -1243,7 +1243,7 @@ function snowProps(ctx) {
   updaters.push((dt, t) => {
     for (const b of balloons) { b.position.y = b.userData.by + Math.sin(t * 0.5 + b.userData.p) * 3; b.rotation.y = t * 0.1 + b.userData.p; }
   });
-  // 雪花
+  // snowflakes
   if (ctx.quality !== 'low') {
     const count = 3000;
     const pos = new Float32Array(count * 3);

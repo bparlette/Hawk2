@@ -1,11 +1,11 @@
-// 全部音效与背景音乐都由 WebAudio 实时合成，无外部资源
+// All sound effects and music are synthesised live with WebAudio — no external assets
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
 
 const SONGS = [
-  { name: '极速都市', bpm: 128, root: 57, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], lead: [0, 7, 12, 7, 10, 7, 3, 7], bassPat: [1, 0, 1, 1, 0, 1, 1, 0], style: 0 },
-  { name: '爱琴海之风', bpm: 118, root: 62, prog: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [7, 11, 14]], lead: [12, 11, 7, 4, 7, 11, 12, 14], bassPat: [1, 0, 0, 1, 1, 0, 1, 0], style: 1 },
-  { name: '法老的试炼', bpm: 132, root: 55, prog: [[0, 3, 7], [1, 5, 8], [0, 3, 7], [-2, 1, 5]], lead: [0, 1, 4, 5, 7, 8, 7, 4], bassPat: [1, 1, 0, 1, 1, 0, 1, 1], style: 2 },
-  { name: '冰雪狂飙', bpm: 140, root: 60, prog: [[0, 4, 7], [7, 11, 14], [9, 12, 16], [5, 9, 12]], lead: [7, 12, 16, 12, 14, 12, 11, 7], bassPat: [1, 0, 1, 0, 1, 1, 1, 0], style: 3 },
+  { name: 'Velocity City', bpm: 128, root: 57, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], lead: [0, 7, 12, 7, 10, 7, 3, 7], bassPat: [1, 0, 1, 1, 0, 1, 1, 0], style: 0 },
+  { name: 'Aegean Wind', bpm: 118, root: 62, prog: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [7, 11, 14]], lead: [12, 11, 7, 4, 7, 11, 12, 14], bassPat: [1, 0, 0, 1, 1, 0, 1, 0], style: 1 },
+  { name: "Pharaoh's Trial", bpm: 132, root: 55, prog: [[0, 3, 7], [1, 5, 8], [0, 3, 7], [-2, 1, 5]], lead: [0, 1, 4, 5, 7, 8, 7, 4], bassPat: [1, 1, 0, 1, 1, 0, 1, 1], style: 2 },
+  { name: 'Blizzard Rush', bpm: 140, root: 60, prog: [[0, 4, 7], [7, 11, 14], [9, 12, 16], [5, 9, 12]], lead: [7, 12, 16, 12, 14, 12, 11, 7], bassPat: [1, 0, 1, 0, 1, 1, 1, 0], style: 3 },
 ];
 
 export class GameAudio {
@@ -38,13 +38,13 @@ export class GameAudio {
     this.music.gain.value = 0.32;
     this.music.connect(this.master);
 
-    // 噪声缓冲
+    // noise buffer
     const len = ctx.sampleRate * 2;
     this.noise = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
 
-    // 引擎：锯齿 + 方波，低通
+    // engine: sawtooth + square wave, low-passed
     this.engGain = ctx.createGain();
     this.engGain.gain.value = 0;
     this.engFilter = ctx.createBiquadFilter();
@@ -63,7 +63,7 @@ export class GameAudio {
     this.eng1.start();
     this.eng2.start();
 
-    // 漂移胎噪
+    // drift tyre noise
     this.skidSrc = ctx.createBufferSource();
     this.skidSrc.buffer = this.noise;
     this.skidSrc.loop = true;
@@ -77,7 +77,7 @@ export class GameAudio {
     this.skidSrc.connect(bp).connect(this.skidGain).connect(this.sfx);
     this.skidSrc.start();
 
-    // 氮气持续呼啸
+    // sustained nitro whoosh
     this.windSrc = ctx.createBufferSource();
     this.windSrc.buffer = this.noise;
     this.windSrc.loop = true;
@@ -97,7 +97,7 @@ export class GameAudio {
   setEngine(speedRatio, throttle, boosting, drifting, active) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    // 模拟换挡：每档转速在 0.35~1 之间循环
+    // simulated gear shifts: revs cycle between 0.35 and 1 per gear
     const gears = 6;
     const g = Math.min(gears - 1, Math.floor(speedRatio * gears * 0.999));
     const inGear = speedRatio * gears - g;
@@ -114,7 +114,7 @@ export class GameAudio {
 
   silence() { this.setEngine(0, 0, false, false, false); }
 
-  // ---------- 音效 ----------
+  // ---------- sound effects ----------
   tone(freq, dur, type = 'sine', vol = 0.3, slide = 0, delay = 0) {
     if (!this.ctx || !this.sfxOn) return;
     const t = this.ctx.currentTime + delay;
@@ -190,7 +190,7 @@ export class GameAudio {
     }
   }
 
-  // ---------- 背景音乐（前瞻调度的步进音序器）----------
+  // ---------- background music (lookahead-scheduled step sequencer) ----------
   setSong(i) {
     this.song = ((i % SONGS.length) + SONGS.length) % SONGS.length;
     this.step = 0;
@@ -209,8 +209,8 @@ export class GameAudio {
   schedule() {
     if (!this.ctx || !this.playing || !this.musicOn) return;
     const song = SONGS[this.song];
-    const spb = 60 / song.bpm / 4; // 16 分音符
-    // 标签页在后台时定时器被节流，回来后不要把积压的音符一次性补发
+    const spb = 60 / song.bpm / 4; // 16th notes
+    // when the tab is backgrounded timers get throttled — don't dump the backlog of notes all at once on return
     if (this.nextNoteTime < this.ctx.currentTime - 0.2) this.nextNoteTime = this.ctx.currentTime + 0.05;
     while (this.nextNoteTime < this.ctx.currentTime + 0.12) {
       this.playStep(song, this.step, this.nextNoteTime, spb);
@@ -225,7 +225,7 @@ export class GameAudio {
     const s16 = step % 16;
     const chord = song.prog[bar];
     const root = song.root;
-    // 底鼓
+    // kick drum
     if (s16 % 4 === 0) {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
@@ -237,20 +237,20 @@ export class GameAudio {
       o.start(t);
       o.stop(t + 0.2);
     }
-    // 军鼓 / 拍手
+    // snare / clap
     if (s16 === 4 || s16 === 12) this.musicNoise(t, 0.12, 1800, 0.35, 'bandpass');
-    // 踩镲
+    // hi-hat
     if (s16 % 2 === 1 || song.style === 3) this.musicNoise(t, 0.03, 8000, s16 % 4 === 2 ? 0.18 : 0.1, 'highpass');
-    // 贝斯
+    // bass
     const bi = Math.floor(s16 / 2);
     if (s16 % 2 === 0 && song.bassPat[bi % 8]) {
       const n = root - 24 + chord[0] + (bi % 4 === 3 ? 12 : 0);
       this.musicTone(t, NOTE(n), spb * 1.8, 'sawtooth', 0.22, 600);
     }
-    // 和弦垫（每小节）
+    // chord pad (one per bar)
     if (s16 === 0)
       for (const c of chord) this.musicTone(t, NOTE(root + c), spb * 15, song.style === 1 ? 'triangle' : 'sawtooth', 0.045, 1400, true);
-    // 琶音主旋律
+    // arpeggiated lead
     if (s16 % 2 === 0) {
       const li = (s16 / 2 + bar * 2) % song.lead.length;
       const n = root + 12 + chord[0] + song.lead[li];

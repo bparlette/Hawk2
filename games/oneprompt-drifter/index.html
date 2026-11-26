@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>飞车 3D · One-Prompt Drifter — 鹈鹕海滩与借来的车队</title>
-<meta name="description" content="浏览器里的 3D 竞速：还原 QQ飞车的 11城、情迷爱琴海、法老金字塔、雪地大冒险，支持漂移集气、小喷、双喷、氮气、道具赛。" />
+<title>Kart Racer 3D · One-Prompt Drifter — Pelican Beach & the Borrowed Fleet</title>
+<meta name="description" content="A 3D kart racer in the browser: 11 City, the Aegean Coast, Pharaoh's Pyramid and Snow Adventure, with drift boost charging, mini-boosts, double boosts, nitro and item races." />
 <style>
 :root{
   --blue:#1d6ff2; --cyan:#27c7ff; --orange:#ff8a00; --yellow:#ffd23a; --pink:#ff5fa8;
@@ -80,7 +80,7 @@ canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
 #songtip{position:absolute;right:250px;bottom:30px;font-size:13px;color:#fff;padding:6px 12px;opacity:0;transition:opacity .4s}
 #songtip.show{opacity:1}
 
-/* ---------- 触屏 ---------- */
+/* ---------- touch controls ---------- */
 #touch{position:fixed;inset:0;pointer-events:none}
 #touch .tb{pointer-events:auto;position:absolute;width:74px;height:74px;border-radius:50%;background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.35);
   display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;backdrop-filter:blur(4px)}
@@ -99,7 +99,7 @@ body.touch #clinks{top:16px;right:238px}
 #clinks svg{width:18px;height:18px;fill:currentColor}
 @media (max-width:860px){#clinks{top:150px}body.touch #clinks{top:16px;right:158px}}
 
-/* ---------- 菜单 ---------- */
+/* ---------- menu ---------- */
 .screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:safe center;overflow:auto;padding:18px 16px}
 #menu{background:linear-gradient(180deg,rgba(8,20,55,.35),rgba(8,20,55,.78) 70%,rgba(8,20,55,.92))}
 .mlinks{display:flex;gap:18px;justify-content:center;margin-top:10px}
@@ -181,18 +181,18 @@ table.res td.pos{font-family:var(--num);font-style:italic;color:var(--yellow);fo
 <div id="hud" class="hidden">
   <div id="rank" class="glass"></div>
   <div id="topc">
-    <div id="lapbox" class="glass"><div class="l" id="lap">1/3</div><div class="s">圈数 LAP</div></div>
-    <div id="timebox" class="glass"><div class="t" id="time">00:00.00</div><div class="s" id="best">最佳单圈 --:--.--</div></div>
+    <div id="lapbox" class="glass"><div class="l" id="lap">1/3</div><div class="s">LAP</div></div>
+    <div id="timebox" class="glass"><div class="t" id="time">00:00.00</div><div class="s" id="best">BEST LAP --:--.--</div></div>
     <div id="items" class="glass hidden">
       <div class="slot first" id="slot0"></div><div class="slot" id="slot1"></div>
-      <div class="hint">Ctrl 使用<br>Alt 换位</div>
+      <div class="hint">Ctrl USE<br>Alt SWAP</div>
     </div>
   </div>
   <div id="minimap" class="glass"><canvas id="mm" width="420" height="420"></canvas></div>
   <div id="bigrank"><span class="r" id="rk">1</span><span class="of" id="rkof">/6</span></div>
   <div id="speedo"><canvas id="sp" width="460" height="460"></canvas><div class="v" id="spd">0</div><div class="u">KM/H</div></div>
   <div id="gaugebox" class="glass">
-    <span class="lbl" id="gaugelbl">集气</span>
+    <span class="lbl" id="gaugelbl">BOOST</span>
     <div id="gauge"><i id="gaugefill"></i></div>
     <div class="n2o" id="n2o0">N₂O</div><div class="n2o" id="n2o1">N₂O</div>
   </div>
@@ -202,82 +202,82 @@ table.res td.pos{font-family:var(--num);font-style:italic;color:var(--yellow);fo
   <div id="finalcount" class="hidden"></div>
   <div id="songtip" class="glass"></div>
   <div id="keys" class="glass">
-    <div><b>↑</b>油门 <b>↓</b>刹车/倒车 <b>←→</b>转向</div>
-    <div><b>Shift</b>+方向 漂移（按住越久角度越大）</div>
-    <div>出弯车身回正瞬间点按 <b>↑</b> 或 <b>W</b> = 小喷</div>
-    <div><b>Ctrl</b> 氮气 / 道具（<b>空格</b>同效）<b>Alt</b> 道具换位</div>
-    <div>小喷 + 氮气 = 双喷 · 落地瞬间点 <b>↑</b> = 落地喷</div>
-    <div><b>R</b>复位 <b>C</b>视角 <b>M</b>音乐 <b>PgUp/PgDn</b>切歌 <b>Esc</b>暂停</div>
-    <div class="close"><b>H</b> 隐藏/显示此面板</div>
+    <div><b>↑</b>Throttle <b>↓</b>Brake/Reverse <b>←→</b>Steer</div>
+    <div><b>Shift</b>+direction Drift (hold longer for a wider angle)</div>
+    <div>As the car straightens out of a drift, tap <b>↑</b> or <b>W</b> = Mini-Boost</div>
+    <div><b>Ctrl</b> Nitro / Item (<b>Space</b> works too) <b>Alt</b> Swap item</div>
+    <div>Mini-Boost + Nitro = Double Boost · Tap <b>↑</b> the instant you land = Landing Boost</div>
+    <div><b>R</b> Reset <b>C</b> Camera <b>M</b> Music <b>PgUp/PgDn</b> Change song <b>Esc</b> Pause</div>
+    <div class="close"><b>H</b> Hide/show this panel</div>
   </div>
 </div>
 
-<div id="clinks"><a href="https://github.com/riba2534/claude-opus-5-5-demo" target="_blank" rel="noopener noreferrer" title="GitHub 源码" aria-label="GitHub 源码"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></a><a href="https://x.com/riba2534" target="_blank" rel="noopener noreferrer" title="X @riba2534" aria-label="X @riba2534"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg></a></div>
+<div id="clinks"><a href="https://github.com/riba2534/claude-opus-5-5-demo" target="_blank" rel="noopener noreferrer" title="GitHub source" aria-label="GitHub source"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></a><a href="https://x.com/riba2534" target="_blank" rel="noopener noreferrer" title="X @riba2534" aria-label="X @riba2534"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg></a></div>
 
 <div id="touch" class="hidden">
-  <div class="tb" id="t-left">◀</div><div class="tb" id="t-right">▶</div><div class="tb" id="t-brake">刹</div>
-  <div class="tb" id="t-drift">漂移</div><div class="tb" id="t-nitro">氮气</div><div class="tb" id="t-boost">小喷</div><div class="tb" id="t-swap">换位</div>
+  <div class="tb" id="t-left">◀</div><div class="tb" id="t-right">▶</div><div class="tb" id="t-brake">BRK</div>
+  <div class="tb" id="t-drift">DRIFT</div><div class="tb" id="t-nitro">NITRO</div><div class="tb" id="t-boost">BOOST</div><div class="tb" id="t-swap">SWAP</div>
 </div>
 
 <div id="menu" class="screen">
-  <div class="logo">飞车 3D</div>
-  <div class="sub">QQ飞车 同人还原 · 漂移 · 集气 · 小喷 · 双喷 · 氮气</div>
+  <div class="logo">KART RACER 3D</div>
+  <div class="sub">A QQ Speed fan tribute · Drift · Charge · Mini-Boost · Double Boost · Nitro</div>
   <div class="menu-grid">
     <div class="glass card">
-      <h3>选择赛道</h3>
+      <h3>Choose Track</h3>
       <div class="maps" id="maps"></div>
-      <h3 style="margin-top:14px">比赛模式</h3>
+      <h3 style="margin-top:14px">Race Mode</h3>
       <div class="opts" id="modes"></div>
     </div>
     <div class="glass card">
-      <h3>选择赛车</h3>
+      <h3>Choose Your Car</h3>
             <div class="skins" id="skins"></div>
       <div id="skinname"></div>
-      <h3 style="margin-top:12px">借来的车 · Hospital Escape / Scaggsville 车队</h3>
+      <h3 style="margin-top:12px">Borrowed Rides · Hospital Escape / Scaggsville Fleet</h3>
       <div class="cars" id="cars"></div>
       <div id="carname"></div>
-      <h3 style="margin-top:12px">圈数</h3>
+      <h3 style="margin-top:12px">Laps</h3>
       <div class="opts" id="laps"></div>
-      <h3 style="margin-top:12px">对手水平</h3>
+      <h3 style="margin-top:12px">Rival Skill</h3>
       <div class="opts" id="diff"></div>
-      <h3 style="margin-top:12px">画质</h3>
+      <h3 style="margin-top:12px">Graphics Quality</h3>
       <div class="opts" id="quality"></div>
     </div>
     <div class="glass card" style="grid-column:1/-1">
-      <h3>键位（还原端游默认）</h3>
+      <h3>Controls (classic PC layout)</h3>
       <div class="keylist">
-        <b>↑</b>加速　<b>↓</b>刹车/倒车　<b>←</b><b>→</b>转向　<b>Shift</b>+方向 漂移　<b>Ctrl</b> 氮气/道具　<b>Alt</b> 道具换位　<b>W</b> 小喷　<b>R</b> 复位　<b>C</b> 切换视角　<b>M</b> 音乐　<b>PgUp/PgDn</b> 切歌　<b>Esc</b> 暂停
+        <b>↑</b>Accelerate <b>↓</b>Brake/Reverse <b>←</b><b>→</b>Steer <b>Shift</b>+direction Drift <b>Ctrl</b> Nitro/Item <b>Alt</b> Swap item <b>W</b> Mini-Boost <b>R</b> Reset <b>C</b> Switch camera <b>M</b> Music <b>PgUp/PgDn</b> Change song <b>Esc</b> Pause
       </div>
-      <div class="tip">技巧：漂移时集气条增长，集满获得 1 个氮气（最多 2 个）。松开 Shift 后车身回正的瞬间点一下 ↑ 触发小喷（越早越好，出现“完美”）；
-        小喷与氮气叠加即“双喷”。倒计时“GO”出现瞬间按 ↑ 可以起步加速；跳台落地瞬间点 ↑ 触发落地喷。蓝色箭头是加速带。</div>
+      <div class="tip">Tips: drifting fills the boost gauge; a full gauge earns 1 nitro (max 2). The instant you release Shift and the car straightens, tap ↑ for a Mini-Boost (the earlier the better — hit "PERFECT");
+        Mini-Boost stacked with nitro is a "Double Boost". Tap ↑ the moment "GO" appears for a launch boost, and tap ↑ the instant you land a jump for a Landing Boost. Blue arrows are boost pads.</div>
     </div>
   </div>
-  <button class="go" id="start">开始比赛</button>
-  <div class="mlinks"><a href="https://github.com/riba2534/claude-opus-5-5-demo" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub 开源仓库</a><a href="https://x.com/riba2534" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>关注作者 X</a></div>
-  <div class="foot">非官方同人作品，致敬 QQ飞车。所有模型、贴图、音乐均为程序实时生成。</div>
+  <button class="go" id="start">Start Race</button>
+  <div class="mlinks"><a href="https://github.com/riba2534/claude-opus-5-5-demo" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub repo</a><a href="https://x.com/riba2534" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>Follow the author on X</a></div>
+  <div class="foot">An unofficial fan work, a tribute to QQ Speed. Every model, texture and song is generated procedurally in real time.</div>
 </div>
 
-<div id="loading" class="screen hidden"><div style="font-size:20px;font-weight:800;letter-spacing:3px" id="loadtxt">正在生成赛道…</div><div class="bar"><i></i></div></div>
+<div id="loading" class="screen hidden"><div style="font-size:20px;font-weight:800;letter-spacing:3px" id="loadtxt">Building track…</div><div class="bar"><i></i></div></div>
 
 <div id="pause" class="screen hidden">
   <div class="glass box">
-    <h2>暂停</h2>
+    <h2>Paused</h2>
     <div class="btns">
-      <button class="go" id="resume">继续比赛</button>
-      <button class="go sec" id="restart">重新开始</button>
-      <button class="go sec" id="quit">返回大厅</button>
+      <button class="go" id="resume">Resume Race</button>
+      <button class="go sec" id="restart">Restart</button>
+      <button class="go sec" id="quit">Back to Lobby</button>
     </div>
   </div>
 </div>
 
 <div id="result" class="screen hidden">
   <div class="glass box">
-    <h2 id="resTitle">比赛结束</h2>
+    <h2 id="resTitle">Race Finished</h2>
     <div class="stats" id="resStats"></div>
-    <table class="res"><thead><tr><th>名次</th><th>车手</th><th>总时间</th><th>最佳单圈</th></tr></thead><tbody id="resBody"></tbody></table>
+    <table class="res"><thead><tr><th>Place</th><th>Racer</th><th>Total Time</th><th>Best Lap</th></tr></thead><tbody id="resBody"></tbody></table>
     <div class="btns">
-      <button class="go" id="again">再来一局</button>
-      <button class="go sec" id="back">返回大厅</button>
+      <button class="go" id="again">Race Again</button>
+      <button class="go sec" id="back">Back to Lobby</button>
     </div>
   </div>
 </div>

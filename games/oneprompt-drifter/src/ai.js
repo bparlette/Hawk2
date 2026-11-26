@@ -1,7 +1,7 @@
 import { clamp, damp, wrapAngle } from './util.js';
 import { updateFlames, TUNE } from './vehicle.js';
 
-export const AI_NAMES = ['小橘子', '秋名山车神', '漂移少女', '氮气小王子', '风之子', '夜の车神', '闪电旋风', '小飞侠'];
+export const AI_NAMES = ['Little Orange', 'Mt. Akina God', 'Drift Girl', 'Nitro Prince', 'Child of the Wind', 'Night God', 'Lightning Whirlwind', 'Little Flyer'];
 
 export class AICar {
   constructor(track, model, name, skill, rnd) {
@@ -17,7 +17,7 @@ export class AICar {
   }
 
   reset(d, lat) {
-    this.dist = d; // 累计行驶距离（可为负：发车格在起点线后）
+    this.dist = d; // total distance driven (can be negative: the grid sits behind the start line)
     this.lat = lat;
     this.latV = 0;
     this.s = 0;
@@ -59,7 +59,7 @@ export class AICar {
     const cNow = tr.curvAhead(d, 8);
     const look = 18 + this.s * 1.25;
     const cAhead = tr.curvAhead(d, look);
-    // 过弯极限（含漂移），技术越好越敢压速
+    // cornering limit (drifting included) — the better the skill, the harder they push the speed
     const A = 16 + 30 * this.skill;
     const vCorner = Math.sqrt(A / Math.max(Math.abs(cAhead), 1e-4));
     let vt = Math.min(vmaxBase, vCorner + (this.nitroTime > 0 ? 6 : 0));
@@ -70,14 +70,14 @@ export class AICar {
     else this.s -= Math.min(this.s - vt, (spinning ? 50 : 30) * dt);
     this.s = Math.max(0, this.s);
 
-    // 直道上找机会放氮气
+    // look for a chance to fire nitro on straights
     this.nitroCd -= dt;
     if (active && this.nitroCd <= 0 && Math.abs(tr.curvAhead(d, 140)) < 0.006 && this.s > 35) {
       this.nitroTime = 2.6;
       this.nitroCd = (6 + this.rnd() * 8) / this.skill;
     }
 
-    // 赛车线：出入弯走内线
+    // racing line: take the inside in and out of corners
     const hw = tr.halfW - 2.2;
     const inside = -Math.sign(cAhead) * clamp(Math.abs(cAhead) * 45, 0, 1) * hw * 0.8;
     const target = clamp(inside + this.personal * hw * 0.8, -hw, hw);
@@ -94,7 +94,7 @@ export class AICar {
     this.x = s.x + s.rx * this.lat;
     this.z = s.z + s.rz * this.lat;
     const gy = s.y + this.lat * Math.sin(s.bank);
-    // 腾空
+    // airborne
     if (this.airborne) {
       this.vy -= TUNE.gravity * dt;
       this.y += this.vy * dt;
@@ -105,7 +105,7 @@ export class AICar {
       this.y = gy + this.vy * dt;
     } else this.y = gy;
 
-    // 视觉漂移：弯中甩尾
+    // visual drift: tail swings out mid-corner
     const wantDrift = Math.abs(cNow) > 0.012 && this.s > 26;
     this.drifting = wantDrift;
     this.driftDir = Math.sign(cNow);

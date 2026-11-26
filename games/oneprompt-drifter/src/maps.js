@@ -1,13 +1,13 @@
-// 四张地图的主题配置。视觉元素参考 QQ飞车官方地图原画：
-// 11城（塔桥、SPEED 飞艇、吉祥物气球、蓝色加速箭头）、情迷爱琴海（白墙蓝顶、石板路、三角梅）、
-// 法老金字塔（紫白格起点、有翼狮身像、太阳圆盘门楼）、雪地大冒险（雪松、奖杯、热气球、看台横幅）
+// Theme configs for the five maps. Visual elements reference the official QQ Speed map art:
+// 11 City (tower bridge, SPEED airship, mascot balloons, blue boost arrows), Aegean Coast (white walls, blue roofs, cobblestones, bougainvillea),
+// Pharaoh's Pyramid (purple-white chequered start, winged sphinx, sun-disc gate), Snow Adventure (pines, trophy, hot-air balloons, grandstand banners)
 export const MAPS = [
   {
     id: 'city',
-    name: '11城',
+    name: '11 City',
     en: 'CITY 11',
-    tag: '经典竞速 · 11 个弯道',
-    desc: '跨河塔桥、摩天楼群与蓝色霓虹加速带，节奏感极强的都市赛道。',
+    tag: 'Classic racing · 11 corners',
+    desc: 'A river-crossing tower bridge, skyscrapers and blue neon boost strips — a city circuit with a relentless rhythm.',
     layout: 'city',
     sky: { top: '#2f7fe0', horizon: '#cfeaff', bottom: '#8fb8d8', sun: [-0.45, 0.62, -0.55], sunColor: '#fff4dc', sunI: 2.6 },
     hemi: ['#d6ecff', '#6f8a5a', 1.1],
@@ -26,10 +26,10 @@ export const MAPS = [
   },
   {
     id: 'aegean',
-    name: '情迷爱琴海',
+    name: 'Aegean Coast',
     en: 'AEGEAN SEA',
-    tag: '山城爬坡 · 连续发卡弯',
-    desc: '白墙蓝顶的海岛小镇，石板路盘山而上，发卡弯考验连续漂移。',
+    tag: 'Hill climb · back-to-back hairpins',
+    desc: 'A white-walled, blue-roofed island town; cobblestone roads wind up the mountain and the hairpins test your drift chains.',
     layout: 'aegean',
     sky: { top: '#3a8ee6', horizon: '#e4f3ff', bottom: '#9cc6e6', sun: [0.5, 0.55, -0.45], sunColor: '#fff1d6', sunI: 2.7 },
     hemi: ['#e8f4ff', '#a39a7a', 1.15],
@@ -49,10 +49,10 @@ export const MAPS = [
   },
   {
     id: 'egypt',
-    name: '法老金字塔',
+    name: "Pharaoh's Pyramid",
     en: 'PHARAOH',
-    tag: '沙漠飞跃 · 神殿隧道',
-    desc: '穿过法老神殿，冲上沙丘跳台飞跃，落地瞬间来一记落地喷！',
+    tag: 'Desert leaps · temple tunnel',
+    desc: 'Blast through the pharaoh\'s temple, launch off the dune ramps and hit a Landing Boost the instant you touch down!',
     layout: 'egypt',
     sky: { top: '#3b86d8', horizon: '#fbe7c4', bottom: '#e9c99a', sun: [0.35, 0.5, 0.6], sunColor: '#fff0cf', sunI: 3.0 },
     hemi: ['#fff1d8', '#c49a5a', 1.05],
@@ -71,10 +71,10 @@ export const MAPS = [
   },
   {
     id: 'beach',
-    name: '鹈鹕海滩',
+    name: 'Pelican Beach',
     en: 'PELICAN BEACH',
-    tag: '落日海岸 · 长影沙滩',
-    desc: '从鹈鹕骑行借来的海滩：金色落日、Gerstner 海浪与岸边白沫，沿着海岸线一路向西漂移。',
+    tag: 'Sunset coast · long-shadow sands',
+    desc: 'The beach borrowed from the pelican ride: golden sunset, Gerstner waves and shoreline foam — drift west along the coast.',
     layout: 'aegean',
     sky: { top: '#3a6fc0', horizon: '#ffc896', bottom: '#6e5a48', sun: [-0.52, 0.185, -0.84], sunColor: '#ffc27e', sunI: 2.3 },
     hemi: ['#a9c2e6', '#6b5a40', 0.65],
@@ -91,10 +91,10 @@ export const MAPS = [
   },
   {
     id: 'snow',
-    name: '雪地大冒险',
+    name: 'Snow Adventure',
     en: 'SNOW ADVENTURE',
-    tag: '8 字立交 · 冰雪隧道',
-    desc: '雪松林与冰雪隧道，8 字形立交桥上下穿梭，终点看台为你欢呼。',
+    tag: 'Figure-8 flyover · ice tunnel',
+    desc: 'Pine forests and an ice tunnel, weaving over and under a figure-8 flyover while the finish grandstand cheers you on.',
     layout: 'snow',
     sky: { top: '#3f86d6', horizon: '#e2f0ff', bottom: '#c9ddf2', sun: [-0.3, 0.45, 0.7], sunColor: '#ffffff', sunI: 2.4 },
     hemi: ['#eef6ff', '#9fb4cc', 1.25],
@@ -116,6 +116,6 @@ export const MAPS = [
 ];
 
 export const MODES = [
-  { id: 'speed', name: '竞速模式', desc: '漂移集气、小喷、双喷，纯靠车技' },
-  { id: 'item', name: '道具模式', desc: '导弹、香蕉皮、天使、磁铁、氮气' },
+  { id: 'speed', name: 'Race Mode', desc: 'Drift to charge, mini-boosts, double boosts — pure driving skill' },
+  { id: 'item', name: 'Item Mode', desc: 'Missiles, banana peels, angels, magnets, nitro' },
 ];
