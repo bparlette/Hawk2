@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Wobble Run</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#1a1033;touch-action:none;overscroll-behavior:none;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#1a1033}
+canvas{display:block;touch-action:none}
+.ui{position:fixed;z-index:1100;color:#fff;pointer-events:none;text-shadow:0 2px 8px rgba(0,0,0,.45)}
+#hud{top:10px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:flex-start;font-weight:800;font-size:15px}
+#hud .pill{background:rgba(20,10,50,.55);border:2px solid rgba(255,255,255,.35);border-radius:999px;padding:6px 12px}
+#msg{top:38%;left:0;right:0;text-align:center;font-size:44px;font-weight:900;letter-spacing:1px;opacity:0;transition:opacity .15s}
+#sub{top:47%;left:0;right:0;text-align:center;font-size:17px;font-weight:700;opacity:0;transition:opacity .15s}
+#overlay{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(16,8,40,.72);color:#fff;text-align:center;padding:24px;touch-action:none}
+#overlay h1{font-size:46px;font-weight:900;color:#7CFFB2;letter-spacing:1px}
+#overlay h2{font-size:20px;margin:10px 0 4px;color:#FFD166}
+#overlay p{font-size:16px;line-height:1.5;max-width:320px;margin:8px 0}
+#overlay .big{font-size:19px;font-weight:800}
+button{pointer-events:auto;background:#FF5D8F;color:#fff;border:0;border-radius:999px;padding:14px 34px;font-size:20px;font-weight:900;box-shadow:0 6px 0 #b2335c;margin-top:16px;cursor:pointer}
+button:active{transform:translateY(3px);box-shadow:0 3px 0 #b2335c}
+#hint{bottom:14px;left:0;right:0;text-align:center;font-size:14px;font-weight:700;opacity:.9}
+</style></head>
+<body>
+<div id="wrap"><canvas id="c" width="390" height="844"></canvas></div>
+<div class="ui" id="hud"><div class="pill" id="hudLevel">LEVEL 1/5</div><div class="pill" id="hudScore">⭐ 0</div><div class="pill" id="hudTry">❤❤❤</div></div>
+<div class="ui" id="msg"></div><div class="ui" id="sub"></div>
+<div class="ui" id="hint">HOLD = squash wide &nbsp;•&nbsp; RELEASE = stretch tall</div>
+<div id="overlay"><h1>WOBBLE RUN</h1><h2>🟩 The jelly-morph gate runner 🟪</h2>
+<p class="big">Hold to SQUASH wide &amp; low.<br>Release to STRETCH tall &amp; thin.</p>
+<p>Match each gate's glowing silhouette as you pass through it. Near-exact = <b style="color:#FFD166">PERFECT!</b> Wrong shape = bounce back. 3 misses at one gate restarts the level.</p>
+<p>Clear all 5 levels. Gates get faster — and sneakier.</p>
+<button id="playBtn">▶ PLAY</button></div>
+<script>
+"use strict";
+const W=390,H=844,cv=document.getElementById('c'),ctx=cv.getContext('2d');
+// DPR fit
+function fit(){const s=Math.min(innerWidth/W,innerHeight/H);cv.style.width=(W*s)+'px';cv.style.height=(H*s)+'px';const d=Math.min(devicePixelRatio||1,2);cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0);}
+addEventListener('resize',fit);fit();
+// no zoom / gestures
+addEventListener('gesturestart',e=>e.preventDefault());addEventListener('dblclick',e=>e.preventDefault());
+document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// Gate types: center morph value + tolerance. morph 0=tall thin, 1=wide low, .5=mid blob
+const GT={tall:{c:0.08,tol:0.30,label:'TALL',col:'#4CC9F0'},mid:{c:0.5,tol:0.26,label:'MID',col:'#FFD166'},wide:{c:0.92,tol:0.30,label:'WIDE',col:'#FF5D8F'}};
+const LEVELS=[
+ {speed:150,gates:['wide','tall','wide','tall','mid']},
+ {speed:175,gates:['tall','wide','mid','wide','tall','mid']},
+ {speed:200,gates:['wide','mid','tall','wide','mid','tall','wide']},
+ {speed:230,gates:['mid','tall','wide','tall','mid','wide','tall','mid']},
+ {speed:265,gates:['wide','tall','mid','wide','tall','mid','wide','tall','wide']},
+];
+const GROUND=700, PX=104; // player x, ground y
+let state='menu',level=0,score=0,streak=0,best=0,timeStart=0,elapsed=0;
+let morph=0,morphV=0,holding=false,wob=0,wobV=0,bounce=0,bounceV=0;
+let gates=[],gateIdx=0,failsAtGate=0,dist=0,finishX=0,particles=[],callout='',calloutT=0,shake=0,runTime=0;
+let stats={passes:0,perfects:0,fails:0};
+const $=id=>document.getElementById(id);
+function buildLevel(li){
+  gates=[];const L=LEVELS[li];let x=560;
+  L.gates.forEach((t,i)=>{gates.push({type:t,x:x,done:false});x+=430;});
+  finishX=x+120;gateIdx=0;failsAtGate=0;dist=0;morph=0;morphV=0;bounce=0;particles=[];
+}
+function startLevel(li){level=li;buildLevel(li);state='play';timeStart=performance.now();$('overlay').style.display='none';hud();}
+function hud(){$('hudLevel').textContent='LEVEL '+(level+1)+'/5';$('hudScore').textContent='⭐ '+score+(streak>1?'  🔥x'+streak:'');$('hudTry').textContent='❤'.repeat(Math.max(0,3-failsAtGate))+'🖤'.repeat(Math.min(3,failsAtGate));}
+function showMsg(t,s,col){const m=$('msg');m.textContent=t;m.style.color=col||'#fff';m.style.opacity=1;const b=$('sub');b.textContent=s||'';b.style.opacity=s?1:0;calloutT=1.1;}
+function endOverlay(html){const o=$('overlay');o.innerHTML=html;o.style.display='flex';$('playBtn')&&$('playBtn').addEventListener('click',()=>startLevel(state==='win'?0:level));const b=o.querySelector('button');if(b)b.addEventListener('click',()=>startLevel(state==='win'?0:level));}
+function levelClear(){
+  const tBonus=Math.max(0,600-level*40-Math.floor(elapsed)*5);score+=500+tBonus;best=Math.max(best,score);
+  if(level>=4){state='win';endOverlay('<h1>🏆 YOU WIN!</h1><h2>Wobble champion!</h2><p class="big">Score: '+score+'</p><p>Perfect gates: '+stats.perfects+' • Gates passed: '+stats.passes+'</p><button>▶ PLAY AGAIN</button>');}
+  else{state='clear';endOverlay('<h1>🎉 LEVEL '+(level+1)+' CLEAR!</h1><h2>Time bonus +'+tBonus+'</h2><p class="big">Score: '+score+'</p><p>Get ready — faster gates ahead!</p><button>▶ LEVEL '+(level+2)+'</button>');
+    const b=document.querySelector('#overlay button');b.onclick=()=>startLevel(level+1);}
+  hud();
+}
+function gateCheck(g){
+  const gt=GT[g.type],err=Math.abs(morph-gt.c);
+  if(err<=gt.tol){
+    g.done=true;stats.passes++;
+    if(err<=0.09){stats.perfects++;streak++;score+=100+streak*25;showMsg('PERFECT!','+'+(100+streak*25)+'  streak x'+streak,'#FFD166');burst(PX,GROUND-60,gt.col,22);}
+    else{streak=0;score+=40;showMsg('NICE!','+40', '#7CFFB2');burst(PX,GROUND-60,gt.col,10);}
+    gateIdx++;failsAtGate=0;wobV+=6;
+  }else{
+    stats.fails++;streak=0;failsAtGate++;bounceV=-520;shake=9;wobV+=14;
+    showMsg('BOING!','Too '+(morph>gt.c?'WIDE':'TALL')+' — need '+gt.label+'!','#FF5D8F');
+    if(failsAtGate>=3){showMsg('3 MISSES!','Level restarts…','#FF5D8F');setTimeout(()=>{if(state==='pause')startLevel(level);},900);state='pause';}
+  }
+  hud();
+}
+function burst(x,y,col,n){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-0.5)*260,vy:-Math.random()*260-40,l:0.7+Math.random()*0.4,col,r:3+Math.random()*4});}
+// input: hold anywhere
+function down(e){if(e)e.preventDefault();holding=true;}
+function up(e){if(e)e.preventDefault();holding=false;}
+cv.addEventListener('pointerdown',down);addEventListener('pointerup',up);addEventListener('pointercancel',up);
+cv.addEventListener('touchstart',down,{passive:false});addEventListener('touchend',up);
+addEventListener('mousedown',down);addEventListener('mouseup',up);
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();holding=true;}});
+addEventListener('keyup',e=>{if(e.code==='Space')holding=false;});
+$('playBtn').addEventListener('click',()=>startLevel(0));
+$('playBtn').addEventListener('pointerdown',e=>{e.preventDefault();startLevel(0);});
+$('overlay').addEventListener('pointerdown',e=>{const b=e.target.closest?e.target.closest('button'):null;if(!b||b.id==='playBtn')return;e.preventDefault();if(state==='clear')startLevel(level+1);else startLevel(state==='win'?0:level);});
+
+let last=performance.now(),timeScale=1,skyGrad=null;
+function frame(now){
+  const dt=Math.min(0.033,(now-last)/1000)*timeScale;last=now;
+  if(state==='play'){
+    runTime+=dt;elapsed=(now-timeStart)/1000;
+    // morph spring toward target (hold=1 wide, release=0 tall) with overshoot wobble
+    const target=holding?1:0;
+    morphV+=(target-morph)*90*dt; morphV*=Math.pow(0.0001,dt); // damped spring-ish
+    // simpler stable spring:
+    morph+=(target-morph)*Math.min(1,dt*7);
+    wobV+=(-wob*140-wobV*9)*dt; wob+=wobV*dt;
+    // bounce physics
+    bounceV+=2600*dt; bounce+=bounceV*dt; if(bounce>0){bounce=0;bounceV=0;}
+    const sp=LEVELS[level].speed;
+    dist+=sp*dt;
+    gates.forEach(g=>g.x-=sp*dt); finishX-=sp*dt;
+    const g=gates[gateIdx];
+    if(g&&g.x<=PX&&!g.done){gateCheck(g); if(state==='play'&&!g.done){g.x=PX+190; /* push gate back for retry */}}
+    if(finishX<=PX+30){levelClear();}
+    if(calloutT>0){calloutT-=dt;if(calloutT<=0){$('msg').style.opacity=0;$('sub').style.opacity=0;}}
+    if(shake>0)shake=Math.max(0,shake-dt*30);
+  }
+  particles=particles.filter(p=>(p.l-=dt)>0);particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=500*dt;});
+  draw();
+  requestAnimationFrame(frame);
+}
+// jelly dims from morph: area roughly conserved
+function jellyDims(){
+  const w=54+morph*96 + wob*0.6;        // 54..150 wide
+  const h=138-morph*82 - wob*0.6;       // 138..56 tall
+  return {w:Math.max(34,w),h:Math.max(36,h)};
+}
+function drawGate(g){
+  const gt=GT[g.type],gw=54+gt.c*96,gh=138-gt.c*82,x=g.x;
+  ctx.save();
+  // posts
+  ctx.fillStyle='#2b1b52';ctx.fillRect(x-52,120,14,GROUND-120);ctx.fillRect(x+38,120,14,GROUND-120);
+  ctx.fillStyle=gt.col;ctx.fillRect(x-52,108,118,14);
+  // silhouette hole preview: draw gate slab with hole
+  ctx.fillStyle='rgba(30,16,66,0.92)';
+  ctx.beginPath();
+  ctx.rect(x-46,150,92,GROUND-150);
+  ctx.rect(x-gw/2,GROUND-gh,gw,gh); // hole via evenodd below
+  ctx.fill('evenodd');
+  // glowing silhouette outline
+  ctx.strokeStyle=gt.col;ctx.lineWidth=4;ctx.setLineDash([8,6]);ctx.strokeRect(x-gw/2,GROUND-gh,gw,gh);ctx.setLineDash([]);
+  ctx.fillStyle=gt.col;ctx.font='900 15px system-ui';ctx.textAlign='center';ctx.fillText(gt.label,x,142);
+  // distance telegraph
+  ctx.font='700 12px system-ui';ctx.fillStyle='rgba(255,255,255,.75)';
+  ctx.fillText(gt.label+' GATE',x,GROUND+52);
+  ctx.restore();
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const sx=shake?(Math.random()-0.5)*shake:0;
+  ctx.save();ctx.translate(sx,0);
+  // sky
+  if(!skyGrad){skyGrad=ctx.createLinearGradient(0,0,0,H);skyGrad.addColorStop(0,'#3b1d7a');skyGrad.addColorStop(0.6,'#7b2d8b');skyGrad.addColorStop(1,'#ff8c69');}ctx.fillStyle=skyGrad;ctx.fillRect(-10,0,W+20,H);
+  ctx.fillStyle='rgba(255,255,255,.85)';ctx.beginPath();ctx.arc(330,90,26,0,7);ctx.fill();
+  // hills
+  ctx.fillStyle='#4a2572';ctx.beginPath();ctx.moveTo(0,GROUND);for(let i=0;i<=W;i+=10)ctx.lineTo(i,GROUND-60-Math.sin((i+dist*0.3)*0.02)*22);ctx.lineTo(W,GROUND);ctx.fill();
+  // track
+  ctx.fillStyle='#241243';ctx.fillRect(-10,GROUND,W+20,H-GROUND);
+  ctx.fillStyle='#FFD166';for(let i=0;i<12;i++){const x=((i*64-(dist%64))+W)%W;ctx.fillRect(x,GROUND+16,34,7);}
+  ctx.fillStyle='rgba(255,255,255,.9)';ctx.font='700 13px system-ui';ctx.textAlign='left';
+  const g=gates[gateIdx];
+  if(state==='play'||state==='pause'){
+    // upcoming gates + finish
+    gates.forEach((gg,i)=>{if(i>=gateIdx)drawGate(gg);});
+    if(finishX<W+80){ctx.fillStyle='#fff';for(let r=0;r<6;r++)for(let c2=0;c2<2;c2++){ctx.fillStyle=(r+c2)%2?'#111':'#fff';ctx.fillRect(finishX+c2*12,190+r*12,12,12);}ctx.fillStyle='#111';ctx.fillRect(finishX-3,180,4,520);ctx.fillStyle='#FFD166';ctx.font='900 16px system-ui';ctx.textAlign='center';ctx.fillText('FINISH',finishX+12,168);}
+    // jelly
+    const {w,h}=jellyDims(),jx=PX+bounce*0.25,jy=GROUND;
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(jx,GROUND+10,w*0.55,9,0,0,7);ctx.fill();
+    const jg=ctx.createLinearGradient(jx-w/2,jy-h,jx+w/2,jy);jg.addColorStop(0,'rgba(124,255,178,.95)');jg.addColorStop(0.55,'rgba(46,230,160,.88)');jg.addColorStop(1,'rgba(16,180,130,.92)');
+    ctx.fillStyle=jg;ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=3;
+    ctx.beginPath();
+    const r=Math.min(20,w/2,h/2);
+    ctx.moveTo(jx-w/2+r,jy-h);
+    ctx.quadraticCurveTo(jx,jy-h-6-Math.sin(runTime*9)*2,jx+w/2-r,jy-h);
+    ctx.quadraticCurveTo(jx+w/2,jy-h+r,jx+w/2,jy-r);
+    ctx.quadraticCurveTo(jx+w/2,jy,jx+w/2-r,jy);
+    ctx.lineTo(jx-w/2+r,jy);ctx.quadraticCurveTo(jx-w/2,jy,jx-w/2,jy-r);
+    ctx.quadraticCurveTo(jx-w/2,jy-h+r,jx-w/2+r,jy-h);ctx.closePath();ctx.fill();ctx.stroke();
+    // gloss
+    ctx.fillStyle='rgba(255,255,255,.5)';ctx.beginPath();ctx.ellipse(jx-w*0.24,jy-h*0.72,w*0.13,h*0.09,-0.5,0,7);ctx.fill();
+    // face (squishes with morph)
+    const ey=jy-h*0.55,ex=w*0.2,es=1-morph*0.45;
+    ctx.fillStyle='#10231a';
+    ctx.beginPath();ctx.ellipse(jx-ex,ey,4.5,6*es+2,0,0,7);ctx.fill();
+    ctx.beginPath();ctx.ellipse(jx+ex,ey,4.5,6*es+2,0,0,7);ctx.fill();
+    ctx.strokeStyle='#10231a';ctx.lineWidth=3;ctx.beginPath();
+    if(stats&&bounce<-30){ctx.arc(jx,ey+16,7,0.15*Math.PI,0.85*Math.PI);} // o mouth-ish on bounce
+    else ctx.arc(jx,ey+8,w*0.16,0.1*Math.PI,0.9*Math.PI);
+    ctx.stroke();
+    // next-gate preview chip
+    if(g){const gt=GT[g.type];ctx.fillStyle='rgba(20,10,50,.65)';ctx.beginPath();ctx.roundRect(96,64,198,34,17);ctx.fill();ctx.fillStyle=gt.col;ctx.font='900 15px system-ui';ctx.textAlign='center';ctx.fillText('NEXT: '+gt.label+' GATE →',195,86);}
+  }
+  particles.forEach(p=>{ctx.globalAlpha=Math.max(0,p.l);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();ctx.globalAlpha=1;});
+  ctx.restore();
+}
+hud();
+window.__wobble={state:()=>({state,level,score,streak,morph:+morph.toFixed(3),holding,gateIdx,failsAtGate,passes:stats.passes,perfects:stats.perfects,fails:stats.fails,gateX:gates[gateIdx]?Math.round(gates[gateIdx].x):null,gateType:gates[gateIdx]?gates[gateIdx].type:null,finishX:Math.round(finishX)}),start:()=>startLevel(0),fast:(n)=>{timeScale=n;},dims:jellyDims};
+requestAnimationFrame(frame);
+</script></body></html>

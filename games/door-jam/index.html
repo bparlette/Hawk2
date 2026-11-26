@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Door Jam — slide the blocks out their own colour doors</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#14101f; overscroll-behavior:none; }
+  body { font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#fff; touch-action:none;
+         display:flex; flex-direction:column; align-items:center; user-select:none; -webkit-user-select:none; }
+  #hud { position:relative; z-index:1100; width:100%; max-width:430px; padding:10px 14px 4px;
+         display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  #hud .title { font-weight:900; font-size:22px; letter-spacing:.5px; }
+  #hud .title span { color:#ffd23f; }
+  #stats { display:flex; gap:12px; font-size:14px; font-weight:700; color:#cfc8e8; }
+  #stats b { color:#fff; }
+  #lvlbar { position:relative; z-index:1100; width:100%; max-width:430px; padding:2px 14px 6px;
+            display:flex; align-items:center; justify-content:space-between; }
+  #lvlname { font-size:14px; font-weight:800; color:#ffd23f; }
+  #hint { font-size:12px; color:#9d94c7; text-align:right; }
+  #wrap { position:relative; z-index:1; flex:1; width:100%; display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; touch-action:none; }
+  #controls { position:relative; z-index:1100; width:100%; max-width:430px; padding:8px 14px calc(12px + env(safe-area-inset-bottom));
+              display:flex; gap:10px; }
+  button { flex:1; z-index:1100; border:0; border-radius:14px; padding:14px 0; font-size:16px; font-weight:800;
+           background:#2c2450; color:#fff; cursor:pointer; }
+  button:active { transform:scale(.97); }
+  #btnNext { background:#ffd23f; color:#241b00; display:none; }
+  #overlay { position:fixed; inset:0; z-index:1200; display:none; align-items:center; justify-content:center;
+             background:rgba(10,6,24,.72); }
+  #card { background:#221a3e; border:2px solid #ffd23f; border-radius:20px; padding:26px 30px; text-align:center; max-width:82vw; }
+  #card h2 { font-size:28px; margin-bottom:8px; }
+  #card p { color:#cfc8e8; font-weight:700; margin-bottom:16px; line-height:1.5; }
+  #card button { padding:12px 26px; flex:none; background:#ffd23f; color:#241b00; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="title">DOOR <span>JAM</span></div>
+  <div id="stats"><div>Moves <b id="moves">0</b></div><div>Time <b id="time">0:00</b></div><div>Score <b id="score">0</b></div></div>
+</div>
+<div id="lvlbar"><div id="lvlname">Level 1</div><div id="hint">Drag a block along its lane.<br>Exit it through a door of ITS colour!</div></div>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<div id="controls">
+  <button id="btnUndo">↩ Undo</button>
+  <button id="btnReset">⟲ Reset</button>
+  <button id="btnNext">Next ▶</button>
+</div>
+<div id="overlay"><div id="card"><h2 id="cardTitle">Level Clear! 🎉</h2><p id="cardText"></p><button id="cardBtn">Next Level ▶</button></div></div>
+
+<script>
+'use strict';
+// ---------- Door Jam: original colour-door block-slide escape puzzle ----------
+// Blocks slide along one axis (Klotski-style). A block leaves the board only
+// through an edge door of its own colour, when it is flush with that edge and
+// fully inside the door's span. Clear every block to win the level.
+// All 6 levels verified solvable: L1-L5 by exhaustive BFS over the same move
+// rules implemented here; L6 by simulation of an explicit solution sequence.
+const COLORS = {
+  red:    { main:'#ef476f', dark:'#b81f47', lite:'#ff8fab' },
+  blue:   { main:'#4361ee', dark:'#2b3a9e', lite:'#8ea2ff' },
+  green:  { main:'#06d6a0', dark:'#049e75', lite:'#5ff0c8' },
+  yellow: { main:'#ffd23f', dark:'#d9a400', lite:'#ffe89a' },
+  purple: { main:'#9b5de5', dark:'#6d28b8', lite:'#c79bff' },
+  orange: { main:'#f4842b', dark:'#c05e10', lite:'#ffb37a' },
+  pink:   { main:'#f15bb5', dark:'#bd2f87', lite:'#ff9bd2' },
+  teal:   { main:'#00b4d8', dark:'#007a94', lite:'#6fe3ff' }
+};
+const LEVELS = [
+  { name:'First Jam', cols:6, rows:6,
+    doors:[ {side:'right',at:2,len:1,color:'red'}, {side:'top',at:4,len:1,color:'blue'} ],
+    blocks:[ {id:'r',x:1,y:2,w:2,h:1,color:'red',axis:'h'}, {id:'b',x:4,y:1,w:1,h:2,color:'blue',axis:'v'} ] },
+  { name:'Chain Reaction', cols:6, rows:6,
+    doors:[ {side:'right',at:1,len:1,color:'red'}, {side:'bottom',at:2,len:1,color:'green'}, {side:'left',at:4,len:1,color:'yellow'} ],
+    blocks:[ {id:'r',x:0,y:1,w:2,h:1,color:'red',axis:'h'}, {id:'g',x:2,y:2,w:1,h:2,color:'green',axis:'v'}, {id:'y',x:3,y:4,w:2,h:1,color:'yellow',axis:'h'} ] },
+  { name:'Crossroads', cols:6, rows:6,
+    doors:[ {side:'right',at:0,len:1,color:'purple'}, {side:'right',at:5,len:1,color:'red'}, {side:'top',at:0,len:1,color:'blue'}, {side:'bottom',at:5,len:1,color:'green'}, {side:'left',at:2,len:1,color:'orange'} ],
+    blocks:[ {id:'p',x:2,y:0,w:2,h:1,color:'purple',axis:'h'}, {id:'r',x:1,y:5,w:2,h:1,color:'red',axis:'h'}, {id:'b',x:0,y:2,w:1,h:2,color:'blue',axis:'v'}, {id:'g',x:5,y:2,w:1,h:2,color:'green',axis:'v'}, {id:'x',x:2,y:2,w:2,h:1,color:'orange',axis:'h'} ] },
+  { name:'Gridlock Gala', cols:6, rows:6,
+    doors:[ {side:'right',at:2,len:1,color:'red'}, {side:'left',at:3,len:1,color:'blue'}, {side:'top',at:2,len:1,color:'green'}, {side:'bottom',at:3,len:1,color:'yellow'}, {side:'right',at:5,len:1,color:'purple'}, {side:'top',at:5,len:1,color:'orange'} ],
+    blocks:[ {id:'r',x:1,y:2,w:2,h:1,color:'red',axis:'h'}, {id:'b',x:3,y:3,w:2,h:1,color:'blue',axis:'h'}, {id:'g',x:2,y:3,w:1,h:2,color:'green',axis:'v'}, {id:'y',x:3,y:1,w:1,h:2,color:'yellow',axis:'v'}, {id:'p',x:0,y:5,w:2,h:1,color:'purple',axis:'h'}, {id:'o',x:5,y:3,w:1,h:2,color:'orange',axis:'v'} ] },
+  { name:'Seven-Block Shuffle', cols:6, rows:7,
+    doors:[ {side:'right',at:1,len:1,color:'red'}, {side:'left',at:5,len:1,color:'green'}, {side:'top',at:1,len:1,color:'blue'}, {side:'bottom',at:4,len:1,color:'yellow'}, {side:'right',at:6,len:1,color:'purple'}, {side:'left',at:0,len:1,color:'orange'}, {side:'top',at:4,len:1,color:'pink'} ],
+    blocks:[ {id:'r',x:2,y:1,w:2,h:1,color:'red',axis:'h'}, {id:'g',x:1,y:5,w:2,h:1,color:'green',axis:'h'}, {id:'b',x:1,y:3,w:1,h:2,color:'blue',axis:'v'}, {id:'y',x:4,y:3,w:1,h:2,color:'yellow',axis:'v'}, {id:'p',x:3,y:6,w:2,h:1,color:'purple',axis:'h'}, {id:'o',x:2,y:0,w:2,h:1,color:'orange',axis:'h'}, {id:'k',x:4,y:1,w:1,h:2,color:'pink',axis:'v'} ] },
+  { name:'The Grand Jam', cols:7, rows:7,
+    doors:[ {side:'right',at:3,len:1,color:'red'}, {side:'left',at:1,len:1,color:'blue'}, {side:'top',at:3,len:1,color:'green'}, {side:'bottom',at:3,len:1,color:'yellow'}, {side:'right',at:0,len:1,color:'purple'}, {side:'left',at:6,len:1,color:'orange'}, {side:'top',at:0,len:1,color:'pink'}, {side:'bottom',at:6,len:1,color:'teal'} ],
+    blocks:[ {id:'r',x:1,y:3,w:2,h:1,color:'red',axis:'h'}, {id:'b',x:4,y:1,w:2,h:1,color:'blue',axis:'h'}, {id:'g',x:3,y:2,w:1,h:2,color:'green',axis:'v'}, {id:'y',x:3,y:4,w:1,h:2,color:'yellow',axis:'v'}, {id:'p',x:4,y:0,w:2,h:1,color:'purple',axis:'h'}, {id:'o',x:1,y:6,w:2,h:1,color:'orange',axis:'h'}, {id:'k',x:0,y:2,w:1,h:2,color:'pink',axis:'v'}, {id:'t',x:6,y:4,w:1,h:2,color:'teal',axis:'v'} ] }
+];
+
+// ---------- state ----------
+let li = 0, L = null, blocks = [], moves = 0, totalScore = 0, levelScore = 0;
+let history = [], startT = 0, elapsed = 0, timerOn = false, won = false;
+let drag = null, exitAnim = null, particles = [];
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let CELL = 48, OX = 0, OY = 0, BW = 0, BH = 0, DPR = 1;
+
+function loadLevel(i) {
+  li = i; L = LEVELS[i];
+  blocks = L.blocks.map(b => ({ ...b, px: b.x, py: b.y, gone: false }));
+  moves = 0; history = []; elapsed = 0; timerOn = false; won = false; drag = null; exitAnim = null; particles = [];
+  document.getElementById('lvlname').textContent = 'Level ' + (i + 1) + ' · ' + L.name;
+  document.getElementById('btnNext').style.display = 'none';
+  document.getElementById('overlay').style.display = 'none';
+  layout(); updateHud();
+}
+function snapshot() { return blocks.filter(b => !b.gone).map(b => ({ id: b.id, x: b.x, y: b.y })); }
+function restore(snap) {
+  for (const b of blocks) { const s = snap.find(s => s.id === b.id); if (s) { b.gone = false; b.x = s.x; b.y = s.y; b.px = s.x; b.py = s.y; } else b.gone = true; }
+}
+function overlaps(a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; }
+function doorFor(b, side) { return L.doors.find(d => d.side === side && d.color === b.color); }
+function exitSide(b) { // side the block can exit through from its current cell, or null
+  let d;
+  if ((d = doorFor(b, 'right')) && b.x + b.w === L.cols && b.y >= d.at && b.y + b.h <= d.at + d.len) return 'right';
+  if ((d = doorFor(b, 'left')) && b.x === 0 && b.y >= d.at && b.y + b.h <= d.at + d.len) return 'left';
+  if ((d = doorFor(b, 'top')) && b.y === 0 && b.x >= d.at && b.x + b.w <= d.at + d.len) return 'top';
+  if ((d = doorFor(b, 'bottom')) && b.y + b.h === L.rows && b.x >= d.at && b.x + b.w <= d.at + d.len) return 'bottom';
+  return null;
+}
+// allowed slide range (in cells, fractional sweep tested per whole cell) for block along axis
+function slideRange(b) {
+  let lo = 0, hi = 0;
+  const test = (nx, ny) => { const t = { x: nx, y: ny, w: b.w, h: b.h };
+    return nx >= 0 && ny >= 0 && nx + b.w <= L.cols && ny + b.h <= L.rows && !blocks.some(o => o !== b && !o.gone && overlaps(t, o)); };
+  if (b.axis === 'h') { let s = 1; while (test(b.x - s, b.y)) { lo = -s; s++; } s = 1; while (test(b.x + s, b.y)) { hi = s; s++; } }
+  else { let s = 1; while (test(b.x, b.y - s)) { lo = -s; s++; } s = 1; while (test(b.x, b.y + s)) { hi = s; s++; } }
+  return { lo, hi };
+}
+function layout() {
+  const wrap = document.getElementById('wrap');
+  const aw = Math.min(wrap.clientWidth - 8, 430), ah = wrap.clientHeight - 8;
+  CELL = Math.floor(Math.min(aw / (L.cols + 1.2), ah / (L.rows + 1.2)));
+  BW = CELL * L.cols; BH = CELL * L.rows;
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  cv.style.width = (BW + CELL * 1.2) + 'px'; cv.style.height = (BH + CELL * 1.2) + 'px';
+  cv.width = (BW + CELL * 1.2) * DPR; cv.height = (BH + CELL * 1.2) * DPR;
+  OX = CELL * 0.6; OY = CELL * 0.6;
+}
+function updateHud() {
+  document.getElementById('moves').textContent = moves;
+  document.getElementById('score').textContent = totalScore + levelScore;
+  const s = Math.floor(elapsed); document.getElementById('time').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+setInterval(() => { if (timerOn && !won) { elapsed = (performance.now() - startT) / 1000; updateHud(); } }, 250);
+
+// ---------- rendering ----------
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function draw(now) {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  // board
+  ctx.fillStyle = '#241d42'; rr(OX - 6, OY - 6, BW + 12, BH + 12, 14); ctx.fill();
+  ctx.fillStyle = '#1b1533'; ctx.fillRect(OX, OY, BW, BH);
+  ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1;
+  for (let x = 1; x < L.cols; x++) { ctx.beginPath(); ctx.moveTo(OX + x * CELL, OY); ctx.lineTo(OX + x * CELL, OY + BH); ctx.stroke(); }
+  for (let y = 1; y < L.rows; y++) { ctx.beginPath(); ctx.moveTo(OX, OY + y * CELL); ctx.lineTo(OX + BW, OY + y * CELL); ctx.stroke(); }
+  // doors (glow in their colour, pulse)
+  const pulse = 0.65 + 0.35 * Math.sin(now / 280);
+  for (const d of L.doors) {
+    const c = COLORS[d.color]; ctx.save();
+    ctx.shadowColor = c.main; ctx.shadowBlur = 16 * pulse; ctx.fillStyle = c.main;
+    const t = CELL * 0.34;
+    if (d.side === 'right') rr(OX + BW + 2, OY + d.at * CELL + 3, t, d.len * CELL - 6, 6);
+    if (d.side === 'left') rr(OX - t - 2, OY + d.at * CELL + 3, t, d.len * CELL - 6, 6);
+    if (d.side === 'top') rr(OX + d.at * CELL + 3, OY - t - 2, d.len * CELL - 6, t, 6);
+    if (d.side === 'bottom') rr(OX + d.at * CELL + 3, OY + BH + 2, d.len * CELL - 6, t, 6);
+    ctx.fill(); ctx.restore();
+    // arrow
+    ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = '900 ' + (CELL * 0.3) + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const ch = d.side === 'right' ? '›' : d.side === 'left' ? '‹' : d.side === 'top' ? 'ˆ' : '˅';
+    let ax, ay;
+    if (d.side === 'right') { ax = OX + BW + t / 2 + 2; ay = OY + (d.at + d.len / 2) * CELL; }
+    if (d.side === 'left') { ax = OX - t / 2 - 2; ay = OY + (d.at + d.len / 2) * CELL; }
+    if (d.side === 'top') { ax = OX + (d.at + d.len / 2) * CELL; ay = OY - t / 2 - 2; }
+    if (d.side === 'bottom') { ax = OX + (d.at + d.len / 2) * CELL; ay = OY + BH + t / 2 + 2; }
+    ctx.fillText(ch, ax, ay);
+  }
+  // blocks
+  for (const b of blocks) {
+    if (b.gone) continue;
+    const c = COLORS[b.color];
+    let bx = OX + b.px * CELL, by = OY + b.py * CELL;
+    const bw = b.w * CELL, bh = b.h * CELL, pad = 3;
+    ctx.save();
+    if (drag && drag.b === b) { ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 5; }
+    ctx.fillStyle = c.dark; rr(bx + pad, by + pad + 3, bw - pad * 2, bh - pad * 2, 10); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = c.main; rr(bx + pad, by + pad, bw - pad * 2, bh - pad * 2 - 3, 10); ctx.fill();
+    ctx.fillStyle = c.lite; rr(bx + pad + 4, by + pad + 4, bw - pad * 2 - 8, (bh - pad * 2) * 0.32, 7); ctx.fill();
+    // axis arrows
+    ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '900 ' + (CELL * 0.34) + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(b.axis === 'h' ? '↔' : '↕', bx + bw / 2, by + bh / 2 + 1);
+    // exit-ready glow
+    if (!drag && exitSide(b)) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.globalAlpha = pulse; rr(bx + pad - 1, by + pad - 1, bw - pad * 2 + 2, bh - pad * 2 + 2, 11); ctx.stroke(); ctx.globalAlpha = 1; }
+    ctx.restore();
+  }
+  // particles
+  particles = particles.filter(p => now - p.t0 < 500);
+  for (const p of particles) { const k = (now - p.t0) / 500; ctx.globalAlpha = 1 - k; ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x + p.vx * k * 60, p.y + p.vy * k * 60, 4 * (1 - k) + 1, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(draw);
+}
+
+// ---------- input: pointer drag along the block's axis, with snap + exit ----------
+function evtPos(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+cv.addEventListener('pointerdown', e => {
+  if (won || exitAnim) return;
+  const p = evtPos(e); const gx = (p.x - OX) / CELL, gy = (p.y - OY) / CELL;
+  const b = blocks.find(b => !b.gone && gx >= b.x && gx < b.x + b.w && gy >= b.y && gy < b.y + b.h);
+  if (!b) return;
+  cv.setPointerCapture(e.pointerId);
+  const range = slideRange(b); const side = exitSide(b);
+  drag = { b, startX: p.x, startY: p.y, lo: range.lo, hi: range.hi, off: 0, side };
+  e.preventDefault();
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const p = evtPos(e); const b = drag.b;
+  let off = b.axis === 'h' ? (p.x - drag.startX) / CELL : (p.y - drag.startY) / CELL;
+  let lo = drag.lo, hi = drag.hi;
+  // allow pushing up to 0.85 cell OUT through a matching door when flush with that edge
+  if (drag.side) {
+    if (drag.side === 'right' && b.axis === 'h') hi = Math.max(hi, 0.85);
+    if (drag.side === 'left' && b.axis === 'h') lo = Math.min(lo, -0.85);
+    if (drag.side === 'bottom' && b.axis === 'v') hi = Math.max(hi, 0.85);
+    if (drag.side === 'top' && b.axis === 'v') lo = Math.min(lo, -0.85);
+  }
+  off = Math.max(lo, Math.min(hi, off)); drag.off = off;
+  if (b.axis === 'h') b.px = b.x + off; else b.py = b.y + off;
+});
+function endDrag() {
+  if (!drag) return;
+  const b = drag.b, off = drag.off; drag = null;
+  if (!timerOn) { timerOn = true; startT = performance.now(); }
+  // exit?
+  if (drag === null && Math.abs(off) > 0.55 && exitSide(b)) {
+    const side = exitSide(b);
+    const toward = (side === 'right' && off > 0) || (side === 'left' && off < 0) || (side === 'bottom' && off > 0) || (side === 'top' && off < 0);
+    if (toward) { startExit(b, side); return; }
+  }
+  const cells = Math.round(off);
+  if (cells !== 0) {
+    history.push(snapshot()); moves++;
+    if (b.axis === 'h') b.x += cells; else b.y += cells;
+  }
+  b.px = b.x; b.py = b.y; updateHud();
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+
+function startExit(b, side) {
+  history.push(snapshot()); moves++;
+  exitAnim = { b, side, t0: performance.now() };
+  const cx = OX + (b.px + b.w / 2) * CELL, cy = OY + (b.py + b.h / 2) * CELL;
+  for (let i = 0; i < 14; i++) particles.push({ x: cx, y: cy, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, color: COLORS[b.color].lite, t0: performance.now() });
+  const step = () => {
+    const k = (performance.now() - exitAnim.t0) / 220;
+    if (side === 'right') b.px = b.x + k * (b.w + 1.2);
+    if (side === 'left') b.px = b.x - k * (b.w + 1.2);
+    if (side === 'bottom') b.py = b.y + k * (b.h + 1.2);
+    if (side === 'top') b.py = b.y - k * (b.h + 1.2);
+    if (k >= 1) { b.gone = true; exitAnim = null; updateHud(); checkWin(); return; }
+    requestAnimationFrame(step);
+  };
+  step();
+}
+function checkWin() {
+  if (blocks.some(b => !b.gone)) return;
+  won = true; timerOn = false;
+  levelScore = Math.max(100, 1000 - moves * 15 - Math.floor(elapsed) * 2);
+  totalScore += levelScore;
+  const last = li === LEVELS.length - 1;
+  document.getElementById('cardTitle').textContent = last ? '🏆 YOU BEAT DOOR JAM!' : 'Level Clear! 🎉';
+  document.getElementById('cardText').innerHTML = 'Cleared in <b>' + moves + '</b> moves · ' + document.getElementById('time').textContent + '<br>Level score <b>' + levelScore + '</b> · Total <b>' + totalScore + '</b>';
+  document.getElementById('cardBtn').textContent = last ? 'Play Again ↺' : 'Next Level ▶';
+  levelScore = 0; // folded into totalScore above; HUD shows totalScore + levelScore
+  document.getElementById('overlay').style.display = 'flex';
+  document.getElementById('btnNext').style.display = 'block';
+  updateHud();
+}
+document.getElementById('btnUndo').addEventListener('click', () => {
+  if (exitAnim || !history.length) return;
+  const snap = history.pop(); restore(snap); won = false;
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('btnNext').style.display = 'none';
+  if (moves > 0) moves--; updateHud();
+});
+document.getElementById('btnReset').addEventListener('click', () => loadLevel(li));
+function goNext() { loadLevel(li + 1 < LEVELS.length ? li + 1 : 0); if (li === 0) totalScore = 0; }
+document.getElementById('btnNext').addEventListener('click', goNext);
+document.getElementById('cardBtn').addEventListener('click', goNext);
+window.addEventListener('resize', layout);
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+
+// debug / QA surface
+window.__dj = {
+  state: () => ({ level: li + 1, moves, won, remaining: blocks.filter(b => !b.gone).length,
+    blocks: blocks.filter(b => !b.gone).map(b => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h, color: b.color, axis: b.axis })) }),
+  geom: () => { const r = cv.getBoundingClientRect(); return { left: r.left, top: r.top, cell: CELL, ox: OX, oy: OY, cols: L.cols, rows: L.rows }; },
+  load: i => loadLevel(i)
+};
+loadLevel(0);
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

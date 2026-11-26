@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Ragdoll Room</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#7ec8e3;touch-action:none;overscroll-behavior:none;font-family:'Trebuchet MS','Segoe UI',system-ui,sans-serif;-webkit-user-select:none;user-select:none}
+  #game{position:fixed;inset:0;display:block;touch-action:none}
+  .ui{position:fixed;z-index:1100}
+  #hud{top:calc(8px + env(safe-area-inset-top));left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
+  #title{background:#fff;border:3px solid #26324a;border-radius:14px;padding:5px 12px;font-weight:900;color:#26324a;font-size:19px;box-shadow:0 3px 0 #26324a;letter-spacing:.5px}
+  #title small{display:block;font-size:10px;font-weight:700;color:#e2543e;letter-spacing:1.5px}
+  #scoreBox{background:#26324a;border:3px solid #fff;border-radius:14px;padding:5px 12px;color:#ffd23f;font-weight:900;font-size:19px;text-align:right;box-shadow:0 3px 0 rgba(0,0,0,.25);min-width:104px}
+  #scoreBox small{display:block;color:#9fd8ef;font-size:10px;letter-spacing:1.5px}
+  #callout{top:24%;left:0;right:0;text-align:center;pointer-events:none;opacity:0;transform:scale(.6) rotate(-3deg);transition:opacity .12s,transform .12s}
+  #callout.show{opacity:1;transform:scale(1) rotate(-3deg)}
+  #callout .big{display:inline-block;background:#ffd23f;border:4px solid #26324a;border-radius:18px;padding:8px 20px;font-size:30px;font-weight:900;color:#26324a;box-shadow:0 5px 0 #26324a}
+  #callout .pts{display:block;font-size:17px;color:#e2543e;margin-top:2px}
+  #hint{top:calc(74px + env(safe-area-inset-top));left:0;right:0;text-align:center;pointer-events:none;color:#fff;font-weight:800;font-size:14px;text-shadow:0 2px 0 rgba(38,50,74,.55)}
+  #bar{bottom:calc(10px + env(safe-area-inset-bottom));left:0;right:0;display:flex;justify-content:center;gap:10px}
+  .btn{pointer-events:auto;border:3px solid #26324a;border-radius:16px;background:#fff;color:#26324a;font-family:inherit;font-weight:900;font-size:14px;padding:11px 13px;box-shadow:0 4px 0 #26324a;cursor:pointer;touch-action:none}
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #26324a}
+  .btn.on{background:#ffd23f}
+  #btnBall{background:#ff8fab;color:#26324a}
+  #btnBox{background:#8ecae6}
+  #btnSlow{background:#cdb4db}
+  #btnReset{background:#95d5b2}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="ui" id="hud">
+  <div id="title">RAGDOLL ROOM<small>FLING • BOUNCE • STACK</small></div>
+  <div id="scoreBox"><small>STYLE POINTS</small><span id="score">0</span></div>
+</div>
+<div class="ui" id="hint">👆 Drag any limb — fling the dummy!</div>
+<div class="ui" id="callout"><span class="big" id="calloutText">FULL SEND!</span><span class="pts" id="calloutPts">+500</span></div>
+<div class="ui" id="bar">
+  <button class="btn" id="btnBall">⚪ BALL</button>
+  <button class="btn" id="btnBox">🧊 BOX</button>
+  <button class="btn" id="btnSlow">🐌 SLO-MO</button>
+  <button class="btn" id="btnReset">↺ RESET</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script>
+(function(){
+'use strict';
+// ---- zoom / gesture guards ----
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('dblclick',e=>e.preventDefault());
+let lastTouch=0;
+document.addEventListener('touchend',e=>{const n=Date.now();if(n-lastTouch<350)e.preventDefault();lastTouch=n;},{passive:false});
+document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+const {Engine,Bodies,Body,Composite,Composites,Constraint,MouseConstraint,Mouse,Events,Vector}=Matter;
+const W=390,H=844;
+const canvas=document.getElementById('game');
+const ctx=canvas.getContext('2d');
+const DPR=Math.min(window.devicePixelRatio||1,2);
+canvas.width=W*DPR;canvas.height=H*DPR;
+canvas.style.width='100vw';canvas.style.height='100vh';
+ctx.scale(DPR,DPR);
+
+const engine=Engine.create({enableSleeping:false});
+engine.gravity.y=1;
+const world=engine.world;
+
+let score=0, props=[], dummy=null, statics=[], trampolines=[], slowmo=false;
+let airStart=null, airPeakSpin=0, lastCallout=0, totalRotation=0, lastHeadAngle=null;
+const scoreEl=document.getElementById('score');
+const calloutEl=document.getElementById('callout');
+const calloutText=document.getElementById('calloutText');
+const calloutPts=document.getElementById('calloutPts');
+
+function addScore(pts,label){
+  score+=pts; scoreEl.textContent=score;
+  const now=performance.now();
+  if(label && now-lastCallout>450){
+    lastCallout=now;
+    calloutText.textContent=label; calloutPts.textContent='+'+pts;
+    calloutEl.classList.add('show');
+    clearTimeout(addScore._t);
+    addScore._t=setTimeout(()=>calloutEl.classList.remove('show'),950);
+  }
+  window.__dbg.score=score; window.__dbg.lastCallout=label||window.__dbg.lastCallout;
+}
+
+// ---- room ----
+function buildRoom(){
+  const opt={isStatic:true,friction:0.6,restitution:0.2};
+  const wall={isStatic:true,friction:0.1,restitution:0.3};
+  statics=[
+    Bodies.rectangle(W/2,802,W+200,40,opt),                 // floor (top at 782, above button bar)
+    Bodies.rectangle(-15,H/2,30,H*2,wall),                   // left
+    Bodies.rectangle(W+15,H/2,30,H*2,wall),                  // right
+    Bodies.rectangle(W/2,-30,W+200,40,wall),                 // ceiling
+    // ramps
+    Bodies.rectangle(70,560,190,16,{...opt,angle:0.42,label:'ramp'}),
+    Bodies.rectangle(325,430,170,16,{...opt,angle:-0.38,label:'ramp'}),
+    Bodies.rectangle(195,250,150,16,{...opt,angle:0.12,label:'shelf'}),
+    // springboard base (visual pivot handled by trampoline pad)
+    Bodies.rectangle(300,764,110,14,{...opt,label:'board'}),
+  ];
+  trampolines=[
+    Bodies.rectangle(88,772,120,18,{isStatic:true,restitution:1.6,friction:0,label:'trampoline',plugin:{kind:'tramp'}}),
+    Bodies.rectangle(300,748,110,14,{isStatic:true,restitution:1.4,friction:0,label:'trampoline',plugin:{kind:'spring'}}),
+  ];
+  Composite.add(world,[...statics,...trampolines]);
+}
+
+// ---- ragdoll (after Matter.js ragdoll example structure, MIT) ----
+function makeRagdoll(x,y){
+  const g=Matter.Body.nextGroup(true);
+  const opt={collisionFilter:{group:g},friction:0.55,frictionAir:0.012,restitution:0.25,chamfer:{radius:8}};
+  const head=Bodies.circle(x,y-62,17,{...opt,label:'head',density:0.0008});
+  const chest=Bodies.rectangle(x,y-28,30,38,{...opt,label:'chest'});
+  const pelvis=Bodies.rectangle(x,y+2,28,20,{...opt,label:'pelvis'});
+  const uaL=Bodies.rectangle(x-24,y-38,12,28,{...opt,label:'arm'}), uaR=Bodies.rectangle(x+24,y-38,12,28,{...opt,label:'arm'});
+  const faL=Bodies.rectangle(x-30,y-12,11,26,{...opt,label:'arm'}), faR=Bodies.rectangle(x+30,y-12,11,26,{...opt,label:'arm'});
+  const thL=Bodies.rectangle(x-9,y+28,13,30,{...opt,label:'leg'}), thR=Bodies.rectangle(x+9,y+28,13,30,{...opt,label:'leg'});
+  const shL=Bodies.rectangle(x-10,y+58,12,28,{...opt,label:'leg'}), shR=Bodies.rectangle(x+10,y+58,12,28,{...opt,label:'leg'});
+  const C=(a,b,ax,ay,bx,by,st=0.55)=>Constraint.create({bodyA:a,bodyB:b,pointA:{x:ax,y:ay},pointB:{x:bx,y:by},stiffness:st,damping:0.12,length:2});
+  const cons=[
+    C(head,chest,0,12,0,-16,0.7),
+    C(chest,pelvis,0,16,0,-8,0.8),
+    C(chest,uaL,-13,-12,-2,-12), C(chest,uaR,13,-12,2,-12),
+    C(uaL,faL,0,13,0,-11), C(uaR,faR,0,13,0,-11),
+    C(pelvis,thL,-7,8,0,-13), C(pelvis,thR,7,8,0,-13),
+    C(thL,shL,0,14,0,-12), C(thR,shR,0,14,0,-12),
+  ];
+  const parts=[head,chest,pelvis,uaL,uaR,faL,faR,thL,thR,shL,shR];
+  Composite.add(world,[...parts,...cons]);
+  return {parts,head,chest,pelvis,cons};
+}
+
+// ---- props ----
+function spawnBall(){
+  const b=Bodies.circle(60+Math.random()*270,110,17,{restitution:0.92,friction:0.05,frictionAir:0.005,label:'ball'});
+  b.plugin={kind:'ball',color:['#ff595e','#ffca3a','#8ac926','#1982c4','#ff8fab'][props.length%5]};
+  props.push(b); Composite.add(world,b); capProps(); return b;
+}
+function spawnBox(){
+  const b=Bodies.rectangle(60+Math.random()*270,110,34,34,{restitution:0.35,friction:0.5,label:'box',chamfer:{radius:4}});
+  b.plugin={kind:'box',color:['#8ecae6','#ffb703','#95d5b2','#f4a261'][props.length%4]};
+  props.push(b); Composite.add(world,b); capProps(); return b;
+}
+function capProps(){ while(props.length>14){ Composite.remove(world,props.shift()); } }
+
+function resetRoom(){
+  props.forEach(p=>Composite.remove(world,p)); props=[];
+  if(dummy){ dummy.parts.forEach(p=>Composite.remove(world,p)); dummy.cons.forEach(c=>Composite.remove(world,c)); }
+  dummy=makeRagdoll(195,150);
+  airStart=null; totalRotation=0; lastHeadAngle=null;
+  window.__dbg.dummyAlive=true;
+}
+
+// ---- input: drag / fling any body ----
+const mouse=Mouse.create(canvas);
+mouse.pixelRatio=DPR;
+const mc=MouseConstraint.create(engine,{mouse,constraint:{stiffness:0.25,angularStiffness:0.02,damping:0.08,render:{visible:false}}});
+Composite.add(world,mc);
+// release velocity is Matter's own (drag velocity carries into the fling)
+
+// ---- trampoline boost + bounce scoring ----
+Events.on(engine,'collisionStart',ev=>{
+  for(const pair of ev.pairs){
+    const a=pair.bodyA,b=pair.bodyB;
+    const tramp=(a.label==='trampoline')?a:((b.label==='trampoline')?b:null);
+    const other=tramp?(tramp===a?b:a):null;
+    if(tramp&&other&&!other.isStatic){
+      const boost=tramp.plugin.kind==='spring'?-17:-20;
+      const nowMs=performance.now();
+      if(other.velocity.y>1 && nowMs-(tramp._lastBoost||0)>240){
+        tramp._lastBoost=nowMs;
+        Body.setVelocity(other,{x:other.velocity.x*1.05,y:boost});
+        Body.setAngularVelocity(other,other.angularVelocity+ (Math.random()<0.5?-0.18:0.18));
+        if(dummy&&dummy.parts.includes(other)) addScore(150, tramp.plugin.kind==='spring'?'SPRINGBOARD!':'BOING!');
+        window.__dbg.bounces++;
+      }
+    }
+  }
+});
+
+// ---- style tracking: airtime + flips ----
+function trackStyle(){
+  if(!dummy) return;
+  const chest=dummy.chest;
+  const airborne = chest.position.y < 620 && Math.abs(chest.velocity.y)>2.2 && chest.speed>4;
+  const now=performance.now();
+  if(airborne){
+    if(!airStart){ airStart=now; airPeakSpin=0; }
+    totalRotation+=Math.abs(chest.angularVelocity);
+    if(Math.abs(chest.angularVelocity)>airPeakSpin) airPeakSpin=Math.abs(chest.angularVelocity);
+  } else if(airStart){
+    const airMs=now-airStart;
+    if(airMs>650){
+      let pts=Math.min(250,Math.round(airMs/10)*5), label=null;
+      if(totalRotation>26){ pts+=500; label='FULL SEND!'; }
+      else if(totalRotation>15){ pts+=300; label='DOUBLE FLIP!'; }
+      else if(totalRotation>7){ pts+=150; label='FLIP!'; }
+      else if(chest.speed>9){ pts+=120; label='BIG AIR!'; }
+      else { label='AIR TIME!'; }
+      addScore(pts,label);
+      window.__dbg.flings++;
+    }
+    airStart=null; totalRotation=0;
+  }
+  window.__dbg.headPos={x:Math.round(dummy.head.position.x),y:Math.round(dummy.head.position.y)};
+  window.__dbg.chestSpeed=+chest.speed.toFixed(2);
+}
+
+// ---- drawing ----
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function drawBody(b){
+  const {x,y}=b.position, a=b.angle;
+  ctx.save(); ctx.translate(x,y); ctx.rotate(a);
+  const kind=b.plugin&&b.plugin.kind;
+  if(b.label==='head'){
+    ctx.fillStyle='#ffd9a0'; ctx.beginPath(); ctx.arc(0,0,17,0,7); ctx.fill();
+    ctx.strokeStyle='#26324a'; ctx.lineWidth=2.5; ctx.stroke();
+    // dopey face
+    ctx.fillStyle='#26324a';
+    ctx.beginPath(); ctx.arc(-6,-3,2.4,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(6,-3,2.4,0,7); ctx.fill();
+    ctx.strokeStyle='#26324a'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(1,6,5,0.3,Math.PI-0.6); ctx.stroke();
+    ctx.fillStyle='#e2543e'; ctx.fillRect(-17,-19,34,6); // cap band
+  } else if(b.label==='chest'){
+    ctx.fillStyle='#e2543e'; rr(-15,-19,30,38,9); ctx.fill(); ctx.strokeStyle='#26324a'; ctx.lineWidth=2.5; ctx.stroke();
+    ctx.fillStyle='#ffd23f'; ctx.beginPath(); ctx.arc(0,0,6,0,7); ctx.fill();
+  } else if(b.label==='pelvis'){
+    ctx.fillStyle='#1982c4'; rr(-14,-10,28,20,7); ctx.fill(); ctx.strokeStyle='#26324a'; ctx.lineWidth=2.5; ctx.stroke();
+  } else if(b.label==='arm'){
+    ctx.fillStyle='#ffd9a0'; rr(-6,-14,12,28,6); ctx.fill(); ctx.strokeStyle='#26324a'; ctx.lineWidth=2; ctx.stroke();
+  } else if(b.label==='leg'){
+    ctx.fillStyle='#4361ee'; rr(-6.5,-15,13,30,6); ctx.fill(); ctx.strokeStyle='#26324a'; ctx.lineWidth=2; ctx.stroke();
+  } else if(kind==='ball'){
+    ctx.fillStyle=b.plugin.color; ctx.beginPath(); ctx.arc(0,0,17,0,7); ctx.fill(); ctx.strokeStyle='#26324a'; ctx.lineWidth=2.5; ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.65)'; ctx.beginPath(); ctx.arc(-6,-6,5,0,7); ctx.fill();
+  } else if(kind==='box'){
+    ctx.fillStyle=b.plugin.color; rr(-17,-17,34,34,4); ctx.fill(); ctx.strokeStyle='#26324a'; ctx.lineWidth=2.5; ctx.stroke();
+    ctx.strokeStyle='rgba(38,50,74,.5)'; ctx.beginPath(); ctx.moveTo(-17,-17); ctx.lineTo(17,17); ctx.moveTo(17,-17); ctx.lineTo(-17,17); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawStatic(b){
+  const vs=b.vertices; ctx.beginPath(); ctx.moveTo(vs[0].x,vs[0].y);
+  for(let i=1;i<vs.length;i++) ctx.lineTo(vs[i].x,vs[i].y);
+  ctx.closePath();
+  if(b.label==='trampoline'){
+    ctx.fillStyle= b.plugin.kind==='spring' ? '#ffca3a' : '#06d6a0';
+  } else if(b.label==='ramp'||b.label==='shelf'){ ctx.fillStyle='#f4a261'; }
+  else if(b.label==='board'){ ctx.fillStyle='#bc6c25'; }
+  else { ctx.fillStyle='rgba(0,0,0,0)'; }
+  if(b.label!=='trampoline'&&b.label!=='ramp'&&b.label!=='shelf'&&b.label!=='board') return;
+  ctx.fill(); ctx.strokeStyle='#26324a'; ctx.lineWidth=2.5; ctx.stroke();
+  if(b.label==='trampoline'){
+    ctx.fillStyle='#26324a'; ctx.font='900 11px Trebuchet MS'; ctx.textAlign='center';
+    ctx.fillText(b.plugin.kind==='spring'?'SPRING':'BOING!',b.position.x,b.position.y+4);
+  }
+}
+function draw(){
+  // toy-room backdrop
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#aee7ff'); grad.addColorStop(0.92,'#d8f3dc'); grad.addColorStop(0.921,'#e9c46a'); grad.addColorStop(1,'#e9c46a');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  for(let i=0;i<5;i++){ ctx.beginPath(); ctx.arc(40+i*85,90+((i*53)%120),16,0,7); ctx.fill(); }
+  ctx.fillStyle='#fff'; rr(120,120,150,74,10); ctx.fill(); ctx.strokeStyle='#26324a'; ctx.lineWidth=3; ctx.stroke();
+  ctx.fillStyle='#e2543e'; ctx.font='900 17px Trebuchet MS'; ctx.textAlign='center';
+  ctx.fillText('★ TOY ROOM ★',195,148);
+  ctx.fillStyle='#26324a'; ctx.font='700 11px Trebuchet MS';
+  ctx.fillText('no fail • just fling',195,168);
+  ctx.fillText('★ ★ ★',195,186);
+  statics.forEach(drawStatic);
+  trampolines.forEach(drawStatic);
+  props.forEach(drawBody);
+  if(dummy) dummy.parts.forEach(drawBody);
+}
+
+// ---- main loop (fixed-step-ish via Runner replacement for slow-mo control) ----
+let last=performance.now(), acc=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt=now-last; last=now;
+  if(dt>50)dt=50;
+  acc+=dt*(slowmo?0.35:1);
+  const step=1000/60;
+  let n=0;
+  while(acc>=step&&n<4){ Engine.update(engine,step); acc-=step; n++; trackStyle(); }
+  draw();
+}
+
+// ---- buttons ----
+document.getElementById('btnBall').addEventListener('click',()=>{spawnBall();});
+document.getElementById('btnBox').addEventListener('click',()=>{spawnBox();});
+const slowBtn=document.getElementById('btnSlow');
+document.getElementById('btnSlow').addEventListener('click',()=>{ slowmo=!slowmo; slowBtn.classList.toggle('on',slowmo); window.__dbg.slowmo=slowmo; });
+document.getElementById('btnReset').addEventListener('click',()=>{ resetRoom(); });
+
+// ---- debug / QA hooks ----
+window.__dbg={score:0,bounces:0,flings:0,lastCallout:null,slowmo:false,dummyAlive:false,headPos:null,chestSpeed:0,
+  state(){ return {score:this.score,bounces:this.bounces,flings:this.flings,lastCallout:this.lastCallout,slowmo:this.slowmo,headPos:this.headPos,chestSpeed:this.chestSpeed,props:props.length}; },
+  spawnBall, spawnBox, resetRoom,
+  flingDummy(){ if(dummy){ dummy.parts.forEach(p=>{ Body.setVelocity(p,{x:7+Math.random()*3,y:-15}); Body.setAngularVelocity(p,0.3); }); } },
+  dropOnTrampoline(){ if(dummy){ const t=trampolines[0]; dummy.parts.forEach((p,i)=>{ Body.setPosition(p,{x:t.position.x+(i%3)*14-14,y:300+Math.floor(i/3)*24}); Body.setVelocity(p,{x:0,y:6}); }); } }
+};
+
+buildRoom();
+resetRoom();
+spawnBall(); spawnBox();
+requestAnimationFrame(frame);
+window.__ready=true;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Unscrewed — Pin Puzzle</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#1d2733;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 90% at 50% 0%,#31445c,#141c26)}
+#cv{display:block;touch-action:none}
+.hud{position:fixed;top:0;left:50%;transform:translateX(-50%);width:min(100vw,390px);z-index:1100;pointer-events:none;padding:6px 10px 0}
+.hud .row{display:flex;justify-content:space-between;align-items:center;gap:6px}
+h1{font-size:21px;color:#ffd94d;letter-spacing:.5px;text-shadow:0 3px 0 #a86e00,0 5px 10px rgba(0,0,0,.5);font-weight:900;white-space:nowrap}
+.chip{background:rgba(10,16,24,.72);color:#fff;border:2px solid rgba(255,255,255,.25);border-radius:999px;padding:3px 9px;font-size:13px;font-weight:800;white-space:nowrap}
+.bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(100vw,390px);z-index:1100;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
+.bar button{flex:1;min-height:52px;border:none;border-radius:14px;font-size:16px;font-weight:900;color:#fff;cursor:pointer;box-shadow:0 4px 0 rgba(0,0,0,.35)}
+.bar button:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
+#undoBtn{background:#3f8cff}#restartBtn{background:#ff7847}#lvlBtn{background:#8a5cff}
+.hint{position:fixed;left:50%;transform:translateX(-50%);bottom:86px;width:min(94vw,370px);z-index:1100;text-align:center;color:#dfe9f5;font-size:14px;font-weight:700;background:rgba(10,16,24,.55);border-radius:10px;padding:6px 8px;pointer-events:none}
+.overlay{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;background:rgba(8,12,18,.72);padding:20px}
+.overlay.show{display:flex}
+.card{background:#fff7e6;border:4px solid #ffb52e;border-radius:22px;max-width:340px;width:100%;padding:24px 20px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.card h2{font-size:32px;color:#243447;margin-bottom:6px}
+.card p{font-size:16px;color:#4a5a6d;font-weight:700;line-height:1.45;margin-bottom:14px}
+.card .big{font-size:22px;color:#e07b00}
+.card button{display:block;width:100%;min-height:54px;margin-top:10px;border:none;border-radius:14px;font-size:18px;font-weight:900;color:#fff;cursor:pointer;background:#2fbf71;box-shadow:0 4px 0 rgba(0,0,0,.25)}
+.card button.alt{background:#3f8cff}.card button.warn{background:#ff7847}
+.stars{font-size:38px;letter-spacing:4px;color:#ffb52e;text-shadow:0 2px 0 #c47f00}
+</style></head><body>
+<div id="wrap"><canvas id="cv" width="390" height="844"></canvas></div>
+<div class="hud"><div class="row"><h1>UNSCREWED</h1><span class="chip" id="lvlChip">Level 1/6</span></div>
+<div class="row" style="margin-top:4px"><span class="chip" id="scoreChip">⭐ 0</span><span class="chip" id="moveChip">Moves 0</span><span class="chip" id="timeChip">⏱ 0s</span></div></div>
+<div class="hint" id="hint">Tap a screw to lift it, then tap a glowing spare hole to park it. Free every plate!</div>
+<div class="bar"><button id="undoBtn">↩ UNDO</button><button id="restartBtn">↻ RESTART</button><button id="lvlBtn">LEVELS ▸</button></div>
+<div class="overlay" id="winOv"><div class="card"><div class="stars" id="winStars">★★★</div><h2 id="winTitle">PLATE CLEAR!</h2><p id="winText"></p><button id="nextBtn">NEXT LEVEL ▸</button><button class="alt" id="replayBtn">↻ REPLAY</button></div></div>
+<div class="overlay" id="jamOv"><div class="card"><h2>🧱 JAMMED!</h2><p>Every spare hole is full and plates are still pinned. Undo your last move or restart the level.</p><button class="alt" id="jamUndoBtn">↩ UNDO LAST MOVE</button><button class="warn" id="jamRestartBtn">↻ RESTART LEVEL</button></div></div>
+<div class="overlay" id="lvlOv"><div class="card"><h2>Pick a Level</h2><p id="lvlList"></p><button class="alt" id="lvlCloseBtn">CLOSE</button></div></div>
+<script>
+'use strict';
+// ===== UNSCREWED — original pin/plate puzzle. Built fresh (see REPORT.md). =====
+// Level format: spares = tray holes. plates: shape rect|circle|bar, cx,cy,w,h,
+// pins: [x,y] or [x,y,blockedByPlateIndex], hidden: spare holes revealed on drop.
+// SOLVABILITY (by construction): freeing plates in listed order always works —
+// before each plate, empty spares >= its pin count (checked by QA BFS solver).
+const LEVELS=[
+{name:"First Loose Screws",spares:3,solution:[0,1],plates:[
+ {shape:'rect',cx:195,cy:300,w:210,h:92,color:'#5aa9ff',pins:[[128,300],[262,300]],hidden:[[195,300]]},
+ {shape:'rect',cx:195,cy:478,w:230,h:92,color:'#ff7847',pins:[[118,478],[272,478]],hidden:[[195,442],[195,514]]}]},
+{name:"Triple Stack",spares:2,solution:[0,1,2],plates:[
+ {shape:'bar',cx:195,cy:238,w:250,h:74,color:'#2fbf71',pins:[[118,238],[272,238]],hidden:[[165,238],[195,238],[228,238]]},
+ {shape:'rect',cx:195,cy:392,w:210,h:88,color:'#ffb52e',pins:[[122,392],[195,392],[268,392]],hidden:[[158,392],[232,392]]},
+ {shape:'circle',cx:195,cy:548,w:150,h:150,color:'#b07dff',pins:[[150,548],[240,548]],hidden:[]}]},
+{name:"Under Cover",spares:2,solution:[0,1,2],plates:[
+ {shape:'rect',cx:195,cy:252,w:270,h:78,color:'#ff5d8f',pins:[[92,252],[298,252]],hidden:[[150,252],[195,252],[240,252]]},
+ {shape:'rect',cx:195,cy:368,w:225,h:96,color:'#5aa9ff',pins:[[118,340,0],[150,398],[262,398]],hidden:[[195,368],[228,340]]},
+ {shape:'bar',cx:195,cy:540,w:240,h:80,color:'#2fbf71',pins:[[112,540],[278,540]],hidden:[]}]},
+{name:"Four-Plate Shuffle",spares:2,solution:[0,1,2,3],plates:[
+ {shape:'bar',cx:195,cy:222,w:240,h:68,color:'#ffb52e',pins:[[112,222],[278,222]],hidden:[[152,222],[195,222],[238,222]]},
+ {shape:'rect',cx:195,cy:330,w:215,h:84,color:'#5aa9ff',pins:[[118,306,0],[150,352],[262,352]],hidden:[[195,330],[228,306],[195,352]]},
+ {shape:'rect',cx:195,cy:462,w:215,h:84,color:'#ff7847',pins:[[122,462],[195,462],[268,462]],hidden:[[158,462],[232,462],[195,430]]},
+ {shape:'circle',cx:195,cy:600,w:130,h:130,color:'#b07dff',pins:[[158,600],[232,600]],hidden:[]}]},
+{name:"The Deep Bench",spares:3,solution:[0,1,2,3,4],plates:[
+ {shape:'rect',cx:195,cy:212,w:235,h:72,color:'#ff5d8f',pins:[[112,212],[195,212],[278,212]],hidden:[[152,212],[238,212]]},
+ {shape:'bar',cx:195,cy:318,w:250,h:66,color:'#2fbf71',pins:[[118,300,0],[272,336]],hidden:[[160,318],[195,318],[232,318]]},
+ {shape:'rect',cx:195,cy:424,w:210,h:78,color:'#5aa9ff',pins:[[122,424],[195,424],[268,424]],hidden:[[158,424],[195,400],[232,424]]},
+ {shape:'rect',cx:195,cy:530,w:210,h:78,color:'#ffb52e',pins:[[122,512,2],[195,548],[268,512]],hidden:[[158,530],[195,512],[232,530]]},
+ {shape:'circle',cx:195,cy:648,w:118,h:118,color:'#b07dff',pins:[[162,648],[228,648]],hidden:[]}]},
+{name:"Full Toolbox",spares:2,solution:[0,1,2,3,4,5],plates:[
+ {shape:'bar',cx:195,cy:200,w:250,h:60,color:'#5aa9ff',pins:[[118,200],[272,200]],hidden:[[158,200],[195,200],[232,200]]},
+ {shape:'rect',cx:195,cy:288,w:215,h:66,color:'#ff7847',pins:[[118,272,0],[195,304],[272,272]],hidden:[[155,288],[235,288]]},
+ {shape:'bar',cx:195,cy:376,w:250,h:60,color:'#2fbf71',pins:[[118,376],[272,376]],hidden:[[158,376],[195,376],[232,376]]},
+ {shape:'rect',cx:195,cy:464,w:215,h:66,color:'#ffb52e',pins:[[118,448,2],[195,480],[272,448]],hidden:[[155,464],[235,464]]},
+ {shape:'rect',cx:195,cy:552,w:215,h:66,color:'#ff5d8f',pins:[[122,552],[195,552],[268,552]],hidden:[[150,552],[195,536],[240,552]]},
+ {shape:'circle',cx:195,cy:656,w:104,h:104,color:'#b07dff',pins:[[166,656],[224,656]],hidden:[]}]},
+];
+const PIN_COLORS=['#ffd94d','#ff5d5d','#4dd2ff','#7dff6a','#ff9ff3','#ffa94d'];
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=390,H=844;let DPR=1,scale=1,offX=0,offY=0;
+function fit(){DPR=Math.min(2,devicePixelRatio||1);const s=Math.min(innerWidth/W,innerHeight/H);scale=s;cv.style.width=(W*s)+'px';cv.style.height=(H*s)+'px';cv.width=W*DPR;cv.height=H*DPR;}
+addEventListener('resize',fit);fit();
+// audio (synth clatter, no assets)
+let AC=null;function beep(f,d,type,g){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),v=AC.createGain();o.type=type||'square';o.frequency.value=f;v.gain.setValueAtTime(g||.12,AC.currentTime);v.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.connect(v).connect(AC.destination);o.start();o.stop(AC.currentTime+d);}catch(e){}}
+const pop=()=>beep(660,.07,'square',.10),clank=()=>{beep(180,.16,'triangle',.22);setTimeout(()=>beep(120,.2,'triangle',.18),60)},winSnd=()=>[523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.16,'square',.12),i*95));
+// state
+let li=0,plates=[],pins=[],holes=[],held=null,moves=0,score=0,totalScore=0,startT=0,elapsed=0,won=false,jammed=false,history=[],falling=[],parts=[],shake=0,msg='';
+let pinSeq=0;
+function loadLevel(i){
+ li=i;const L=LEVELS[i];plates=[];pins=[];holes=[];held=null;moves=0;won=false;jammed=false;history=[];falling=[];parts=[];startT=Date.now();elapsed=0;
+ // tray spare holes
+ for(let k=0;k<L.spares;k++)holes.push({id:'t'+k,x:195+(k-(L.spares-1)/2)*64,y:126,kind:'tray',occupiedBy:null,revealed:true});
+ L.plates.forEach((pd,pi)=>{
+   const pl={id:pi,...pd,rot:0,angVel:0,dropped:false,pivot:null};
+   plates.push(pl);
+   pd.hidden.forEach((h,hi)=>holes.push({id:'h'+pi+'_'+hi,x:h[0],y:h[1],kind:'board',occupiedBy:null,revealed:false,underPlate:pi}));
+   pd.pins.forEach((p,qi)=>{
+     const pin={id:'p'+(pinSeq++),plate:pi,x:p[0],y:p[1],homeX:p[0],homeY:p[1],blockedBy:(p.length>2?p[2]:null),color:PIN_COLORS[(pi+qi)%PIN_COLORS.length],loc:'plate',holeId:null,spin:0};
+     pins.push(pin);
+   });
+ });
+ document.getElementById('lvlChip').textContent='Level '+(i+1)+'/'+LEVELS.length;
+ document.getElementById('hint').textContent='Level '+(i+1)+': '+L.name+' — tap a screw, park it in a spare hole, drop every plate!';
+ hideOv();updateHUD();
+}
+function hideOv(){['winOv','jamOv','lvlOv'].forEach(id=>document.getElementById(id).classList.remove('show'));}
+function showOv(id){document.getElementById(id).classList.add('show');}
+function updateHUD(){document.getElementById('scoreChip').textContent='⭐ '+(totalScore+score);document.getElementById('moveChip').textContent='Moves '+moves;document.getElementById('timeChip').textContent='⏱ '+elapsed+'s';}
+function snapshot(){return JSON.stringify({plates:plates.map(p=>({dropped:p.dropped,rot:p.rot})),pins:pins.map(p=>({loc:p.loc,holeId:p.holeId,x:p.x,y:p.y})),holes:holes.map(h=>({occupiedBy:h.occupiedBy,revealed:h.revealed})),moves,score,heldId:held?held.id:null});}
+function restore(s){const d=JSON.parse(s);d.plates.forEach((pd,i)=>{plates[i].dropped=pd.dropped;plates[i].rot=pd.rot;plates[i].pivot=null;plates[i].angVel=0;});d.pins.forEach((pd,i)=>{Object.assign(pins[i],pd);});d.holes.forEach((hd,i)=>{Object.assign(holes[i],hd);});moves=d.moves;score=d.score;held=d.heldId?pins.find(p=>p.id===d.heldId):null;falling=[];won=false;jammed=false;hideOv();updateHUD();}
+function undo(){if(!history.length){beep(200,.1);return;}restore(history.pop());pop();document.getElementById('hint').textContent='Undone. The last screw is back where it was.';}
+function platePins(pl){return pins.filter(p=>p.plate===pl.id&&p.loc==='plate');}
+function isBlocked(pin){if(pin.blockedBy==null)return false;const b=plates[pin.blockedBy];return b&&!b.dropped;}
+function emptyHoles(){return holes.filter(h=>h.revealed&&!h.occupiedBy);}
+function checkDrop(pl){
+ const left=platePins(pl);
+ if(left.length===1){pl.pivot={x:left[0].x,y:left[0].y};pl.angVel=0.6;return;}
+ if(left.length>0||pl.dropped)return;
+ pl.dropped=true;score+=300;
+ falling.push({pl,x:pl.cx,y:pl.cy,vy:0,rot:0,vr:(Math.random()-.5)*2.4,alpha:1});
+ holes.forEach(h=>{if(h.underPlate===pl.id)h.revealed=true;});
+ for(let k=0;k<16;k++)parts.push({x:pl.cx+(Math.random()-.5)*pl.w,y:pl.cy,vx:(Math.random()-.5)*160,vy:-Math.random()*160-40,g:520,life:.6,c:pl.color,r:3+Math.random()*4});
+ shake=7;clank();updateHUD();
+ if(plates.every(p=>p.dropped)){winLevel();}
+ else setTimeout(checkJam,450);
+}
+function checkJam(){if(won||jammed)return;if(plates.every(p=>p.dropped))return;if(emptyHoles().length===0&&!held){jammed=true;showOv('jamOv');beep(140,.3,'sawtooth',.15);}}
+function winLevel(){won=true;elapsed=Math.floor((Date.now()-startT)/1000);const totalPins=pins.length;const timeBonus=Math.max(0,600-elapsed*5);const waste=Math.max(0,moves-totalPins);score+=timeBonus-waste*25;totalScore+=score;const stars=waste===0&&elapsed<90?3:(waste<=2?2:1);document.getElementById('winStars').textContent='★'.repeat(stars)+'☆'.repeat(3-stars);document.getElementById('winTitle').textContent=li>=LEVELS.length-1?'TOOLBOX MASTER!':'PLATE CLEAR!';document.getElementById('winText').innerHTML='Level '+(li+1)+' done in <span class="big">'+elapsed+'s</span> · '+moves+' moves<br>Score <span class="big">'+score+'</span> (time bonus +'+timeBonus+(waste?', wasted-move penalty −'+(waste*25):'')+')';winSnd();updateHUD();setTimeout(()=>showOv('winOv'),650);}
+function tapAt(x,y){
+ if(won||jammed)return;
+ // hole tap while holding
+ if(held){
+   const hole=holes.find(h=>h.revealed&&!h.occupiedBy&&Math.hypot(h.x-x,h.y-y)<34);
+   if(hole){history.push(snapshot());if(history.length>30)history.shift();
+     held.loc='hole';held.holeId=hole.id;held.x=hole.x;held.y=hole.y;hole.occupiedBy=held.id;const pl=plates[held.plate];held=null;moves++;score+=100;pop();updateHUD();document.getElementById('hint').textContent=platePins(pl).length===1?'It is hanging by ONE screw — one more and it drops!':'Parked! Keep unscrewing.';checkDrop(pl);setTimeout(checkJam,60);return;}
+   // tap original/home or itself -> put back is only via undo; tapping its plate spot cancels to hand? tapping held pin drops selection back
+   if(Math.hypot(held.x-x,held.y-y)<30){return;}
+ }
+ // pin tap: on plate
+ let pin=pins.find(p=>p.loc==='plate'&&Math.hypot(p.x-x,p.y-y)<26);
+ if(!pin)pin=pins.find(p=>p.loc==='hole'&&Math.hypot(p.x-x,p.y-y)<26);
+ if(pin){
+   if(held){document.getElementById('hint').textContent='Park the screw in your hand first — tap a glowing spare hole.';return;}
+   if(pin.loc==='plate'&&isBlocked(pin)){beep(180,.12,'sawtooth',.12);document.getElementById('hint').textContent='That screw is covered by another plate — free that plate first!';return;}
+   history.length; // lifting is free; snapshot taken on park
+   if(pin.loc==='hole'){const h=holes.find(hh=>hh.id===pin.holeId);if(h)h.occupiedBy=null;pin.holeId=null;}
+   held=pin;pin.loc='hand';pin.spin=0;pop();
+   document.getElementById('hint').textContent='Now tap a glowing spare hole to park the screw.';
+   return;
+ }
+ if(held){document.getElementById('hint').textContent='Tap a glowing spare hole — or UNDO if you are stuck.';}
+}
+// input
+function toGame(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();const p=toGame(e);tapAt(p.x,p.y);});
+cv.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('dblclick',e=>e.preventDefault());
+// buttons: pointerdown so CDP touch + real touch both work
+function btn(id,fn){const el=document.getElementById(id);el.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();fn();});el.addEventListener('click',e=>e.preventDefault());}
+btn('undoBtn',undo);btn('jamUndoBtn',undo);btn('restartBtn',()=>loadLevel(li));btn('jamRestartBtn',()=>loadLevel(li));
+btn('replayBtn',()=>loadLevel(li));
+btn('nextBtn',()=>loadLevel(Math.min(LEVELS.length-1,li+1)));
+btn('lvlBtn',()=>{const L=document.getElementById('lvlList');L.innerHTML=LEVELS.map((l,i)=>'<button data-lv="'+i+'" style="background:'+(i===li?'#2fbf71':'#3f8cff')+'">'+(i+1)+'. '+l.name+'</button>').join('');L.querySelectorAll('button').forEach(b=>b.addEventListener('pointerdown',e=>{e.preventDefault();loadLevel(+b.dataset.lv);}));showOv('lvlOv');});
+btn('lvlCloseBtn',hideOv);
+// ===== drawing =====
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawPlateShape(pl,dx,dy,alpha){
+ ctx.save();ctx.globalAlpha=alpha==null?1:alpha;
+ const x=pl.cx-w0(pl)/2+(dx||0),y=pl.cy-pl.h/2+(dy||0);
+ const g=ctx.createLinearGradient(x,y,x,y+pl.h);g.addColorStop(0,'#ffffff55');g.addColorStop(.18,pl.color);g.addColorStop(1,shade(pl.color,-38));
+ ctx.fillStyle=g;ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=3;
+ if(pl.shape==='circle'){ctx.beginPath();ctx.ellipse(pl.cx+(dx||0),pl.cy+(dy||0),pl.w/2,pl.h/2,0,0,7);ctx.fill();ctx.stroke();
+   ctx.beginPath();ctx.ellipse(pl.cx+(dx||0),pl.cy+(dy||0),pl.w/2-12,pl.h/2-12,0,0,7);ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=3;ctx.stroke();}
+ else{rr(x,y,pl.w,pl.h,pl.shape==='bar'?pl.h/2:16);ctx.fill();ctx.stroke();ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=2;rr(x+7,y+7,pl.w-14,pl.h-14,pl.shape==='bar'?pl.h/2-7:11);ctx.stroke();}
+ ctx.restore();
+}
+function w0(pl){return pl.w;}
+function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=(n>>16)+amt,g=((n>>8)&255)+amt,b=(n&255)+amt;r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));return '#'+((r<<16)|(g<<8)|b).toString(16).padStart(6,'0');}
+function drawScrew(x,y,color,spin,dim,big){
+ const r=big?17:14;ctx.save();ctx.translate(x,y);ctx.rotate(spin||0);
+ const g=ctx.createRadialGradient(-4,-4,2,0,0,r);g.addColorStop(0,'#fff');g.addColorStop(.25,color);g.addColorStop(1,shade(color,-45));
+ ctx.globalAlpha=dim?.45:1;ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fillStyle=g;ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle='rgba(0,0,0,.4)';ctx.stroke();
+ ctx.strokeStyle='rgba(0,0,0,.55)';ctx.lineWidth=3.4;ctx.beginPath();ctx.moveTo(-r*.55,0);ctx.lineTo(r*.55,0);ctx.moveTo(0,-r*.55);ctx.lineTo(0,r*.55);ctx.stroke();ctx.restore();
+}
+function plateTransform(pl){ // draw plate rotated around pivot if swinging
+ if(pl.pivot&&platePins(pl).length===1){ctx.save();ctx.translate(pl.pivot.x,pl.pivot.y);ctx.rotate(pl.rot);ctx.translate(-pl.pivot.x,-pl.pivot.y);}
+}
+function plateUntransform(pl){if(pl.pivot&&platePins(pl).length===1)ctx.restore();}
+function frame(t){
+ ctx.setTransform(DPR,0,0,DPR,0,0);ctx.clearRect(0,0,W,H);
+ if(shake>0){ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.85;if(shake<.4)shake=0;}
+ // pegboard
+ const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#8a5a2b');bg.addColorStop(1,'#6e451f');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+ ctx.fillStyle='rgba(0,0,0,.13)';for(let gx=24;gx<W;gx+=34)for(let gy=170;gy<740;gy+=34){ctx.beginPath();ctx.arc(gx,gy,3,0,7);ctx.fill();}
+ rr(10,150,W-20,600,20);ctx.strokeStyle='rgba(255,255,255,.22)';ctx.lineWidth=3;ctx.stroke();
+ // tray
+ rr(28,86,W-56,70,16);ctx.fillStyle='#3a2c1c';ctx.fill();ctx.strokeStyle='#c98d3f';ctx.lineWidth=3;ctx.stroke();
+ ctx.fillStyle='#ffd94d';ctx.font='900 11px system-ui';ctx.textAlign='center';ctx.fillText('S P A R E   H O L E S',W/2,100);
+ // holes: tray + revealed board holes (empty ones glow when holding)
+ holes.forEach(h=>{if(!h.revealed)return;const occ=h.occupiedBy;
+   ctx.beginPath();ctx.arc(h.x,h.y,15,0,7);ctx.fillStyle=occ?'#241a10':'#1c130a';ctx.fill();ctx.lineWidth=3;
+   if(held&&!occ){const pu=1+Math.sin(t/180)*.25;ctx.strokeStyle='#7dff6a';ctx.lineWidth=3.5;ctx.beginPath();ctx.arc(h.x,h.y,16*pu,0,7);ctx.stroke();}
+   else{ctx.strokeStyle='rgba(0,0,0,.5)';ctx.stroke();}
+ });
+ // plates in z order (later = on top), each followed by its own screws
+ plates.forEach(pl=>{if(pl.dropped)return;
+   // swing physics
+   if(pl.pivot&&platePins(pl).length===1){const a0=Math.atan2(pl.cy-pl.pivot.y,pl.cx-pl.pivot.x);const rest=Math.PI/2;let d=(a0+pl.rot)-rest;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;pl.angVel+=(-d*0.004- pl.angVel*0.012);pl.rot+=pl.angVel;}
+   plateTransform(pl);drawPlateShape(pl,0,0);plateUntransform(pl);
+   pins.filter(p=>p.plate===pl.id&&p.loc==='plate').forEach(p=>{
+     if(pl.pivot&&platePins(pl).length===1&&!(p.x===pl.pivot.x&&p.y===pl.pivot.y)){const dx=p.x-pl.pivot.x,dy=p.y-pl.pivot.y;const c=Math.cos(pl.rot),s=Math.sin(pl.rot);drawScrew(pl.pivot.x+dx*c-dy*s,pl.pivot.y+dx*s+dy*c,p.color,0,isBlocked(p));}
+     else drawScrew(p.x,p.y,p.color,0,isBlocked(p));
+   });
+ });
+ // parked screws in holes
+ pins.filter(p=>p.loc==='hole').forEach(p=>drawScrew(p.x,p.y,p.color,0,false));
+ // falling plates
+ falling=falling.filter(f=>f.alpha>0);
+ falling.forEach(f=>{f.vy+=1500*.016;f.y+=f.vy*.016;f.rot+=f.vr*.016;if(f.y>700)f.alpha-=.08;
+   ctx.save();ctx.translate(f.x,f.y);ctx.rotate(f.rot);ctx.translate(-f.pl.cx,-f.pl.cy);drawPlateShape(f.pl,0,0,Math.max(0,f.alpha));ctx.restore();});
+ // particles
+ parts=parts.filter(p=>p.life>0);parts.forEach(p=>{p.life-=.016;p.vy+=p.g*.016;p.x+=p.vx*.016;p.y+=p.vy*.016;ctx.globalAlpha=Math.max(0,p.life*1.6);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();ctx.globalAlpha=1;});
+ // held screw follows top-center hand slot with spin
+ if(held){held.spin+=.25;drawScrew(held.x,held.y-34,held.color,held.spin,false,true);ctx.fillStyle='#fff';ctx.font='900 12px system-ui';ctx.textAlign='center';ctx.fillText('IN HAND',held.x,held.y-58);}
+ // footer label
+ ctx.fillStyle='rgba(255,255,255,.75)';ctx.font='800 13px system-ui';ctx.textAlign='center';
+ ctx.fillText(plates.filter(p=>p.dropped).length+' / '+plates.length+' plates dropped',W/2,772);
+ if(!won&&startT)elapsed=Math.floor((Date.now()-startT)/1000);
+ if((frame.n=(frame.n||0)+1)%20===0)updateHUD();
+ requestAnimationFrame(frame);
+}
+loadLevel(0);requestAnimationFrame(frame);
+// debug / QA surface
+window.__unscrewed={state:()=>({level:li,moves,score,won,jammed,held:held?held.id:null,
+ plates:plates.map(p=>({id:p.id,dropped:p.dropped,pinsLeft:platePins(p).length,rot:+p.rot.toFixed(3)})),
+ pins:pins.map(p=>({id:p.id,plate:p.plate,x:p.x,y:p.y,loc:p.loc,blocked:isBlocked(p)})),
+ holes:holes.map(h=>({id:h.id,x:h.x,y:h.y,kind:h.kind,revealed:h.revealed,empty:h.revealed&&!h.occupiedBy})),
+ falling:falling.length}),
+ levels:LEVELS,loadLevel,tapAt,undo};
+</script></body></html>

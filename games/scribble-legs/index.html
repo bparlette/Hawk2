@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Scribble Legs — Draw Your Legs &amp; Race!</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#f4ecd8;touch-action:none;overscroll-behavior:none;
+    font-family:"Comic Sans MS","Segoe Print","Bradley Hand",cursive,sans-serif;-webkit-user-select:none;user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#e8dfc8}
+  #stage{position:relative;width:390px;height:844px;max-width:100vw;max-height:100vh}
+  canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  .ui{position:absolute;z-index:1100}
+  #hud{top:8px;left:8px;right:8px;display:flex;gap:6px;pointer-events:none}
+  .chip{background:#fffdf4;border:2.5px solid #2b2b2b;border-radius:12px;padding:4px 10px;font-weight:bold;color:#2b2b2b;
+    box-shadow:2px 2px 0 #2b2b2b;font-size:15px}
+  #posChip{font-size:19px;background:#ffe066}
+  #hint{top:64px;left:50%;transform:translateX(-50%) rotate(-1.5deg);background:#ff8fab;color:#fff;border:2.5px solid #2b2b2b;
+    border-radius:12px;padding:5px 12px;font-weight:bold;font-size:15px;box-shadow:2px 2px 0 #2b2b2b;white-space:nowrap;pointer-events:none}
+  #presets{bottom:238px;right:8px;display:flex;flex-direction:column;gap:6px}
+  .pbtn{width:52px;height:52px;border-radius:50%;border:2.5px solid #2b2b2b;background:#fffdf4;font-size:22px;cursor:pointer;
+    box-shadow:2px 2px 0 #2b2b2b;display:flex;align-items:center;justify-content:center}
+  .pbtn:active{transform:translate(2px,2px);box-shadow:none}
+  .pbtn small{position:absolute}
+  #presetsLabel{font-size:10px;text-align:center;color:#2b2b2b;font-weight:bold;background:#fffdf4;border:2px solid #2b2b2b;border-radius:8px;padding:2px}
+  #overlay{inset:0;display:flex;align-items:center;justify-content:center;background:rgba(43,43,43,.45)}
+  #card{background:#fffdf4;border:3.5px solid #2b2b2b;border-radius:20px;padding:22px 26px;text-align:center;max-width:320px;
+    box-shadow:5px 5px 0 #2b2b2b;transform:rotate(-1deg)}
+  #card h1{font-size:34px;color:#2b2b2b;margin-bottom:6px}
+  #card h2{font-size:22px;color:#e63946;margin-bottom:8px}
+  #card p{font-size:15px;color:#444;margin-bottom:12px;line-height:1.45}
+  .bigbtn{background:#51cf66;border:3px solid #2b2b2b;border-radius:14px;padding:10px 22px;font-size:19px;font-weight:bold;
+    font-family:inherit;color:#2b2b2b;cursor:pointer;box-shadow:3px 3px 0 #2b2b2b;margin:3px}
+  .bigbtn:active{transform:translate(3px,3px);box-shadow:none}
+  .bigbtn.alt{background:#ffe066}
+  #stars{font-size:34px;letter-spacing:4px;margin:4px 0}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+  <canvas id="game" width="390" height="844"></canvas>
+  <div class="ui" id="hud">
+    <div class="chip" id="posChip">1st</div>
+    <div class="chip" id="trackChip">Track 1</div>
+    <div class="chip" id="timeChip">0.0s</div>
+    <div class="chip" id="parChip">Par 45s</div>
+  </div>
+  <div class="ui" id="hint">✏️ Draw your legs in the pad below!</div>
+  <div class="ui" id="presets">
+    <div id="presetsLabel">QUICK<br>LEGS</div>
+    <button class="pbtn" id="btnRound" title="Round">●</button>
+    <button class="pbtn" id="btnSpiky" title="Spiky">✹</button>
+    <button class="pbtn" id="btnHook" title="Hook">🪝</button>
+    <button class="pbtn" id="btnClear" title="Clear pad">🧽</button>
+  </div>
+  <div class="ui hidden" id="overlay"><div id="card">
+    <h1 id="cardTitle">Scribble Legs</h1>
+    <h2 id="cardSub"></h2>
+    <div id="stars"></div>
+    <p id="cardText"></p>
+    <button class="bigbtn" id="cardMain">Race!</button>
+    <button class="bigbtn alt hidden" id="cardNext">Next Track →</button>
+  </div></div>
+</div></div>
+<script>
+"use strict";
+// ============ Scribble Legs — draw-your-legs racer (original, fresh build) ============
+const W=390,H=844, PAD={x:14,y:618,w:362,h:196}, LANE_H=118, PLAYER_LANE=1;
+const cv=document.getElementById('game'), ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v, lerp=(a,b,t)=>a+(b-a)*t;
+
+// ---------- Tracks: zones along x. kind: flat|ramp|stairs|gap|ledge ----------
+// y = ground height offset (0 = baseline, positive = higher ground / smaller screen y)
+function T(zones,par,name){let x=0;const zs=zones.map(z=>{const o={...z,x0:x,x1:x+z.len};x+=z.len;return o});return{zs,len:x,par,name,finish:x-160};}
+const TRACKS=[
+ T([{k:'flat',len:520},{k:'ramp',len:260,dy:50},{k:'flat',len:200},{k:'stairs',len:300,dy:90,steps:5},
+   {k:'flat',len:220},{k:'gap',len:110},{k:'flat',len:240},{k:'ramp',len:240,dy:-70},{k:'stairs',len:260,dy:60,steps:4},
+   {k:'flat',len:300},{k:'gap',len:90},{k:'flat',len:420}],45,"Notebook Dash"),
+ T([{k:'flat',len:420},{k:'stairs',len:340,dy:120,steps:6},{k:'flat',len:180},{k:'gap',len:130},{k:'flat',len:160},
+   {k:'ledge',len:200,dy:80},{k:'flat',len:200},{k:'stairs',len:300,dy:-100,steps:5},{k:'ramp',len:260,dy:80},
+   {k:'gap',len:110},{k:'flat',len:200},{k:'stairs',len:280,dy:70,steps:4},{k:'flat',len:380}],55,"Stair Scare"),
+ T([{k:'flat',len:380},{k:'gap',len:140},{k:'flat',len:150},{k:'stairs',len:360,dy:150,steps:7},{k:'flat',len:160},
+   {k:'ledge',len:220,dy:100},{k:'gap',len:120},{k:'flat',len:180},{k:'stairs',len:320,dy:110,steps:5},
+   {k:'ramp',len:280,dy:-120},{k:'gap',len:130},{k:'flat',len:200},{k:'stairs',len:300,dy:90,steps:5},{k:'flat',len:420}],65,"Doodle Summit"),
+];
+function groundAt(tr,x){ // returns {y: height offset, kind, inGap}
+  if(x<0)return{y:0,kind:'flat'};
+  let base=0;
+  for(const z of tr.zs){
+    if(x<=z.x1){
+      const t=(x-z.x0)/z.len;
+      if(z.k==='flat')return{y:base,kind:'flat'};
+      if(z.k==='ramp'||z.k==='ledge')return{y:base+(z.dy||0)*t,kind:z.k};
+      if(z.k==='stairs'){const s=z.steps||4;return{y:base+(z.dy||0)*Math.floor(t*s)/s,kind:'stairs'};}
+      if(z.k==='gap')return{y:base-95,kind:'gap',inGap:true};
+    }
+    if(z.k!=='gap')base+=z.dy||0; else if(z.k==='gap'){/*gap returns to same height*/}
+    if(z.k==='stairs'||z.k==='ramp'||z.k==='ledge'){} // dy already added
+  }
+  return{y:base,kind:'flat'};
+}
+// NOTE: dy accumulates for ramp/stairs/ledge; flat keeps base. (gap: pit, same exit height)
+
+// ---------- Shapes ----------
+// shape = array of {x,y} points relative to hub, max radius normalised to R
+const R=30;
+function shapeMetrics(pts){
+  let avg=0,mx=0,mn=1e9; const rs=pts.map(p=>Math.hypot(p.x,p.y));
+  rs.forEach(r=>{avg+=r;mx=Math.max(mx,r);mn=Math.min(mn,r)}); avg/=rs.length||1;
+  let varr=0; rs.forEach(r=>varr+=(r-avg)*(r-avg)); varr/=rs.length||1;
+  return{avgR:avg,maxR:mx,minR:mn,round:clamp(1-Math.sqrt(varr)/(avg||1),0,1),spike:mx/(avg||1)};
+}
+function supportDown(pts,ang){ // downward extent of rotated shape
+  let d=0; const c=Math.cos(ang),s=Math.sin(ang);
+  for(const p of pts){const y=p.x*s+p.y*c; if(y>d)d=y;}
+  return Math.max(d,6);
+}
+function supportFwd(pts,ang){
+  let f=0; const c=Math.cos(ang),s=Math.sin(ang);
+  for(const p of pts){const x=p.x*c-p.y*s; if(x>f)f=x;}
+  return Math.max(f,6);
+}
+function circleShape(n=18,r=R){const a=[];for(let i=0;i<n;i++){const t=i/n*Math.PI*2;a.push({x:Math.cos(t)*r,y:Math.sin(t)*r});}return a;}
+function starShape(spikes=7,rO=R,rI=R*0.45){const a=[];for(let i=0;i<spikes*2;i++){const t=i/(spikes*2)*Math.PI*2,r=i%2?rI:rO;a.push({x:Math.cos(t)*r,y:Math.sin(t)*r});}return a;}
+function hookShape(){const a=[];for(let i=0;i<=14;i++){const t=i/14*Math.PI*1.55-Math.PI*0.2;const r=R*(0.55+0.45*i/14);a.push({x:Math.cos(t)*r,y:Math.sin(t)*r});}
+  for(let i=6;i>=0;i--){const t=i/6*Math.PI*0.5+Math.PI*1.35;a.push({x:Math.cos(t)*R*0.5,y:Math.sin(t)*R*0.5});}return a;}
+
+// ---------- Racers ----------
+function makeRacer(name,color,shape,isPlayer,lane,skill){
+  return{name,color,shape,m:shapeMetrics(shape),isPlayer,lane,skill:skill||1,
+    x:30+lane*8,y:0,vy:0,ang:0,vx:0,finished:false,finTime:0,switchT:0,legPhase:Math.random()*6};
+}
+let trackIdx=0, racers=[], player=null, state='menu', raceT=0, camX=0, shake=0;
+let wins=0;
+
+function rivalShapeFor(kind){ // pre-scripted rival legs per terrain
+  if(kind==='stairs'||kind==='ledge')return starShape(6);
+  if(kind==='gap')return hookShape();
+  return circleShape(18,R*0.95);
+}
+function resetRace(){
+  const tr=TRACKS[trackIdx];
+  const pShape=player?player.shape:circleShape();
+  racers=[
+    makeRacer("Pip","#e63946",rivalShapeFor('flat'),false,0,0.92+trackIdx*0.03),
+    makeRacer("YOU","#2b2b2b",pShape,true,PLAYER_LANE,1),
+    makeRacer("Zig","#4361ee",rivalShapeFor('flat'),false,2,0.96+trackIdx*0.03),
+  ];
+  player=racers[1];
+  racers.forEach(r=>{r.y=groundYScreen(r,0);});
+  raceT=0; camX=0; state='racing';
+  $('trackChip').textContent='Track '+(trackIdx+1)+': '+tr.name;
+  $('parChip').textContent='Par '+tr.par+'s';
+  $('hint').textContent='✏️ Draw your legs in the pad below!';
+  $('overlay').classList.add('hidden');
+}
+function groundYScreen(r,x){ // screen-space ground y for racer's lane at world x
+  const tr=TRACKS[trackIdx]; const g=groundAt(tr,x);
+  const baseY=150+r.lane*LANE_H+120; return baseY-g.y;
+}
+// Physics step for one racer
+function stepRacer(r,dt){
+  if(r.finished)return;
+  const tr=TRACKS[trackIdx];
+  const g=groundAt(tr,r.x);
+  const m=r.m;
+  // Rival AI: swap pre-scripted legs to suit terrain ahead
+  if(!r.isPlayer){
+    r.switchT-=dt;
+    const ahead=groundAt(tr,r.x+70).kind;
+    if(r.switchT<=0 && groundAt(tr,r.x+40).kind!==r._lastKind){ r.shape=rivalShapeFor(ahead); r.m=shapeMetrics(r.shape); r.switchT=0.8; }
+    r._lastKind=g.kind;
+  }
+  // Base rolling speed from shape: round = fast on flat; size helps everywhere a bit
+  let speed=118*(0.55+0.45*(m.avgR/R))*r.skill;
+  const bounceAmp=(m.maxR-m.minR)/R; // 0 round .. ~1 spiky
+  if(g.kind==='flat'||g.kind==='ramp') speed*= (0.72+0.5*m.round);            // smooth round flies on flats
+  if(g.kind==='stairs') speed*= (0.34+0.85*clamp((m.spike-1)/0.9,0,1)+0.25*m.round); // spikes climb stairs
+  if(g.kind==='ledge')  speed*= (0.40+0.70*clamp((m.spike-1)/0.9,0,1)+0.2*m.round);
+  if(g.kind==='gap')    speed*= (0.30+0.55*clamp(m.maxR/R,0,1.15));           // long reach bridges gaps, else crawl pit
+  // Step wall check: rising step ahead taller than forward reach blocks/slows
+  const aheadY=groundAt(tr,r.x+supportFwd(r.shape,r.ang)+4).y;
+  const rise=aheadY-g.y;
+  if(rise>4){
+    const reach=m.maxR;
+    if(reach<rise*0.55) speed*=0.25; else if(reach<rise) speed*=0.6; // hooks/spikes haul you up
+  }
+  r.vx=lerp(r.vx,speed,1-Math.pow(0.0018,dt));
+  r.x+=r.vx*dt;
+  r.ang+= (r.vx/Math.max(m.avgR,10))*dt; // spin tied to speed & size
+  // Hub height: sits on shape's downward support; irregular shapes bounce
+  const sup=supportDown(r.shape,r.ang);
+  const gy=groundYScreen(r,r.x);
+  const targetY=gy-sup-14;
+  r.y=lerp(r.y,targetY,1-Math.pow(0.0000001,dt));
+  if(r.x>=tr.finish && !r.finished){r.finished=true;r.finTime=raceT;if(r.isPlayer)endRace();}
+}
+function positionOf(r){return 1+racers.filter(o=>o!==r&&(o.x>r.x)).length;}
+
+// ---------- Drawing pad ----------
+let drawing=false, stroke=[], currentShape=circleShape();
+function padPos(e){const r=cv.getBoundingClientRect();const sx=W/r.width,sy=H/r.height;
+  return{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy};}
+function inPad(p){return p.x>=PAD.x&&p.x<=PAD.x+PAD.w&&p.y>=PAD.y&&p.y<=PAD.y+PAD.h;}
+function applyStroke(){
+  if(stroke.length<4)return;
+  // centroid
+  let cx=0,cy=0; stroke.forEach(p=>{cx+=p.x;cy+=p.y}); cx/=stroke.length; cy/=stroke.length;
+  let pts=stroke.map(p=>({x:p.x-cx,y:p.y-cy}));
+  // resample to <= 40 pts
+  if(pts.length>40){const out=[];const step=pts.length/40;for(let i=0;i<40;i++)out.push(pts[Math.floor(i*step)]);pts=out;}
+  let mx=0; pts.forEach(p=>mx=Math.max(mx,Math.hypot(p.x,p.y)));
+  if(mx<8)return;
+  const sc=R/mx; pts.forEach(p=>{p.x*=sc;p.y*=sc});
+  currentShape=pts; player.shape=pts; player.m=shapeMetrics(pts);
+  $('hint').textContent='Nice legs! Redraw anytime!';
+}
+cv.addEventListener('pointerdown',e=>{const p=padPos(e); if(!inPad(p))return; drawing=true; stroke=[p]; cv.setPointerCapture(e.pointerId); e.preventDefault();});
+cv.addEventListener('pointermove',e=>{if(!drawing)return; const p=padPos(e); if(inPad(p)){const l=stroke[stroke.length-1]; if(!l||Math.hypot(p.x-l.x,p.y-l.y)>3)stroke.push(p);} e.preventDefault();});
+function endStroke(){if(!drawing)return; drawing=false; applyStroke(); stroke=[];}
+cv.addEventListener('pointerup',endStroke); cv.addEventListener('pointercancel',endStroke);
+$('btnRound').onclick=()=>{currentShape=circleShape();player.shape=currentShape;player.m=shapeMetrics(currentShape);$('hint').textContent='Round legs: fastest on flats!';};
+$('btnSpiky').onclick=()=>{currentShape=starShape(7);player.shape=currentShape;player.m=shapeMetrics(currentShape);$('hint').textContent='Spiky legs: climbs stairs & ledges!';};
+$('btnHook').onclick=()=>{currentShape=hookShape();player.shape=currentShape;player.m=shapeMetrics(currentShape);$('hint').textContent='Hook legs: grabs ledges, bridges gaps!';};
+$('btnClear').onclick=()=>{stroke=[];$('hint').textContent='Pad cleared — draw new legs!';};
+
+// ---------- Race flow ----------
+function endRace(){
+  state='done';
+  const pos=positionOf(player);
+  const tr=TRACKS[trackIdx];
+  const beatPar=raceT<=tr.par;
+  const stars=(pos===1?2:pos===2?1:0)+(beatPar?1:0);
+  if(pos===1)wins++;
+  $('cardTitle').textContent=pos===1?'🏆 YOU WIN!':pos===2?'🥈 2nd Place':'🥉 3rd Place';
+  $('cardSub').textContent=tr.name+' — '+raceT.toFixed(1)+'s (par '+tr.par+'s)';
+  $('stars').textContent='★★★'.slice(0,stars)+'☆☆☆'.slice(0,3-stars);
+  $('cardText').textContent=pos===1?'First to the flag! Your redraws did the talking.':(beatPar?'You beat par time! A better-timed redraw before the stairs could take 1st.':'Tip: round legs for flats, long spikes right before stairs, hooks for ledges & gaps.');
+  $('cardMain').textContent='Race Again';
+  $('cardNext').classList.toggle('hidden',!(trackIdx<TRACKS.length-1));
+  $('cardNext').textContent=trackIdx<TRACKS.length-1?'Next Track →':'';
+  if(trackIdx>=TRACKS.length-1){$('cardText').textContent+=' That was the final track — '+(wins>=2?'series champion! 🏆':'hit Race Again to retry the series.');}
+  $('overlay').classList.remove('hidden');
+}
+$('cardMain').onclick=()=>{if(state==='done'&&trackIdx>=TRACKS.length-1&&$('cardMain').textContent==='Race Again'){/* keep same track */} resetRace();};
+$('cardNext').onclick=()=>{trackIdx=Math.min(trackIdx+1,TRACKS.length-1); resetRace();};
+
+// ---------- Rendering ----------
+function drawTerrain(tr,lane){
+  const baseY=150+lane*LANE_H+120;
+  ctx.beginPath();
+  let started=false;
+  for(let sx=-10;sx<=W+10;sx+=6){
+    const wx=camX+sx; const g=groundAt(tr,wx);
+    const y=baseY-g.y;
+    if(!started){ctx.moveTo(sx,y);started=true;}else ctx.lineTo(sx,y);
+  }
+  ctx.strokeStyle='#2b2b2b';ctx.lineWidth=3;ctx.stroke();
+  ctx.lineTo(W+10,H);ctx.lineTo(-10,H);ctx.closePath();
+  ctx.fillStyle=lane===PLAYER_LANE?'#ffe9a8':'#dfe8d0';ctx.fill();
+  // hatch shading
+  ctx.save();ctx.globalAlpha=0.15;ctx.strokeStyle='#2b2b2b';ctx.lineWidth=1.5;
+  for(let sx=0;sx<W;sx+=26){const wx=camX+sx;const y=baseY-groundAt(tr,wx).y;ctx.beginPath();ctx.moveTo(sx,y+5);ctx.lineTo(sx-8,y+17);ctx.stroke();}
+  ctx.restore();
+  // finish flag
+  const fx=tr.finish-camX;
+  if(fx>-40&&fx<W+40){
+    const fy=baseY-groundAt(tr,tr.finish).y;
+    ctx.strokeStyle='#2b2b2b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(fx,fy);ctx.lineTo(fx,fy-64);ctx.stroke();
+    for(let i=0;i<4;i++)for(let j=0;j<3;j++){ctx.fillStyle=(i+j)%2?'#2b2b2b':'#fff';ctx.fillRect(fx+i*9,fy-64+j*9,9,9);}
+  }
+  // zone hints
+  ctx.font='bold 13px "Comic Sans MS",cursive';ctx.textAlign='center';
+  for(const z of tr.zs){
+    const zx=(z.x0+z.len/2)-camX; if(zx<-60||zx>W+60)continue;
+    const zy=baseY-groundAt(tr,z.x0+z.len/2).y;
+    if(z.k==='stairs'){ctx.fillStyle='#e63946';ctx.fillText('STAIRS! ✹ legs',zx,zy-78);}
+    if(z.k==='gap'){ctx.fillStyle='#4361ee';ctx.fillText('GAP! long legs',zx,zy-30);}
+    if(z.k==='ledge'){ctx.fillStyle='#e63946';ctx.fillText('LEDGE! 🪝 legs',zx,zy-88);}
+  }
+}
+function drawRacer(r){
+  const sx=r.x-camX, sy=r.y;
+  if(sx<-60||sx>W+60)return;
+  // spinning drawn legs (the shape, as ink)
+  ctx.save();ctx.translate(sx,sy+14);ctx.rotate(r.ang);
+  ctx.beginPath();
+  r.shape.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+  ctx.closePath();
+  ctx.fillStyle=r.isPlayer?'rgba(43,43,43,0.12)':'rgba(43,43,43,0.08)';ctx.fill();
+  ctx.strokeStyle=r.color;ctx.lineWidth=r.isPlayer?3.5:2.5;ctx.lineJoin='round';ctx.stroke();
+  ctx.restore();
+  // body: notebook doodle critter
+  ctx.save();ctx.translate(sx,sy-16);
+  ctx.fillStyle=r.isPlayer?'#ffe066':'#ffffff';
+  ctx.strokeStyle='#2b2b2b';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.roundRect(-17,-17,34,34,9);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#2b2b2b';
+  const blink=(raceT*1+r.lane)%4<0.15;
+  if(blink){ctx.fillRect(-9,-4,7,2);ctx.fillRect(3,-4,7,2);}
+  else{ctx.beginPath();ctx.arc(-5,-2,3,0,7);ctx.arc(6,-2,3,0,7);ctx.fill();}
+  ctx.strokeStyle='#2b2b2b';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,5,6,0.3,Math.PI-0.3);ctx.stroke();
+  ctx.restore();
+  // name tag
+  ctx.font='bold 12px "Comic Sans MS",cursive';ctx.textAlign='center';
+  ctx.fillStyle=r.color;ctx.fillText(r.name,sx,sy-44);
+  if(r.finished){ctx.font='bold 15px "Comic Sans MS",cursive';ctx.fillStyle='#2b2b2b';ctx.fillText('✓ '+r.finTime.toFixed(1)+'s',sx,sy-60);}
+}
+function drawPad(){
+  ctx.save();
+  ctx.fillStyle='#fffdf4';ctx.strokeStyle='#2b2b2b';ctx.lineWidth=3;
+  ctx.beginPath();ctx.roundRect(PAD.x,PAD.y,PAD.w,PAD.h,14);ctx.fill();ctx.stroke();
+  ctx.strokeStyle='rgba(67,97,238,0.25)';ctx.lineWidth=1;
+  for(let y=PAD.y+24;y<PAD.y+PAD.h-8;y+=24){ctx.beginPath();ctx.moveTo(PAD.x+8,y);ctx.lineTo(PAD.x+PAD.w-8,y);ctx.stroke();}
+  ctx.strokeStyle='rgba(230,57,70,0.35)';ctx.beginPath();ctx.moveTo(PAD.x+34,PAD.y+6);ctx.lineTo(PAD.x+34,PAD.y+PAD.h-6);ctx.stroke();
+  ctx.fillStyle='#2b2b2b';ctx.font='bold 14px "Comic Sans MS",cursive';ctx.textAlign='left';
+  ctx.fillText('✏️ DRAW YOUR LEGS HERE — redraw mid-race!',PAD.x+12,PAD.y+19);
+  // current shape preview, spinning slowly, centre of pad
+  const cxp=PAD.x+PAD.w-52,cyp=PAD.y+58;
+  ctx.save();ctx.translate(cxp,cyp);ctx.rotate(raceT*1.4);
+  ctx.beginPath();currentShape.forEach((p,i)=>i?ctx.lineTo(p.x*0.62,p.y*0.62):ctx.moveTo(p.x*0.62,p.y*0.62));ctx.closePath();
+  ctx.strokeStyle='#2b2b2b';ctx.lineWidth=2.5;ctx.stroke();ctx.restore();
+  ctx.fillStyle='#888';ctx.font='11px "Comic Sans MS",cursive';ctx.textAlign='center';ctx.fillText('your legs',cxp,cyp+34);
+  // live stroke
+  if(stroke.length>1){ctx.beginPath();stroke.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+    ctx.strokeStyle='#2b2b2b';ctx.lineWidth=4;ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();}
+  ctx.restore();
+}
+function render(){
+  ctx.clearRect(0,0,W,H);
+  // notebook paper
+  ctx.fillStyle='#fbf6e3';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(67,97,238,0.18)';ctx.lineWidth=1;
+  for(let y=28;y<600;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.strokeStyle='rgba(230,57,70,0.3)';ctx.beginPath();ctx.moveTo(30,0);ctx.lineTo(30,600);ctx.stroke();
+  const tr=TRACKS[trackIdx];
+  for(let lane=0;lane<3;lane++)drawTerrain(tr,lane);
+  // racers sorted so player drawn last (on top)
+  [...racers].sort((a,b)=>(a.isPlayer?1:0)-(b.isPlayer?1:0)).forEach(drawRacer);
+  // progress bar
+  ctx.fillStyle='#fffdf4';ctx.strokeStyle='#2b2b2b';ctx.lineWidth=2;
+  ctx.beginPath();ctx.roundRect(14,592,362,16,8);ctx.fill();ctx.stroke();
+  racers.forEach(r=>{const px=14+clamp(r.x/tr.finish,0,1)*362;
+    ctx.fillStyle=r.color;ctx.beginPath();ctx.arc(px,600,r.isPlayer?6:4.5,0,7);ctx.fill();
+    ctx.strokeStyle='#2b2b2b';ctx.lineWidth=1.5;ctx.stroke();});
+  drawPad();
+}
+// ---------- Main loop ----------
+let last=performance.now();
+function frame(now){
+  const dt=Math.min((now-last)/1000,0.05); last=now;
+  if(state==='racing'){
+    raceT+=dt;
+    racers.forEach(r=>stepRacer(r,dt));
+    const target=clamp(player.x-W*0.34,0,TRACKS[trackIdx].len-W+80);
+    camX=lerp(camX,target,0.12);
+    $('posChip').textContent=['','1st 🥇','2nd 🥈','3rd 🥉'][positionOf(player)];
+    $('timeChip').textContent=raceT.toFixed(1)+'s';
+  }
+  render();
+  requestAnimationFrame(frame);
+}
+// menu state
+player=makeRacer("YOU","#2b2b2b",circleShape(),true,PLAYER_LANE,1);
+racers=[makeRacer("Pip","#e63946",circleShape(),false,0,0.95),player,makeRacer("Zig","#4361ee",starShape(6),false,2,0.95)];
+racers.forEach((r,i)=>{r.x=60+i*30;});
+$('cardTitle').textContent='Scribble Legs';
+$('cardSub').textContent='Draw your legs. Race the doodles!';
+$('cardText').textContent='Draw ANY shape in the pad — it becomes your spinning legs! Round = fast on flats. Spiky = climbs stairs. Long hooks = ledges & gaps. Redraw mid-race to win. 3 tracks vs Pip & Zig!';
+$('cardMain').textContent='✏️ Start Racing!';
+$('overlay').classList.remove('hidden');
+requestAnimationFrame(frame);
+// menu racers idle-bob on track 1 terrain
+setInterval(()=>{if(state==='menu'){racers.forEach((r,i)=>{r.ang+=0.03;r.y=groundYScreen(r,r.x)+Math.sin(performance.now()/300+i)*2;});}},50);
+// zoom / gesture guards
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('dblclick',e=>e.preventDefault());
+let lastTouch=0;document.addEventListener('touchend',e=>{const n=Date.now();if(n-lastTouch<320)e.preventDefault();lastTouch=n;},{passive:false});
+document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+// debug / QA hook
+window.__dbg={get state(){return state},get playerX(){return player?player.x:0},get pos(){return player?positionOf(player):0},
+  get track(){return trackIdx},get raceT(){return raceT},get shape(){return currentShape.length},
+  get finished(){return player?player.finished:false},get camX(){return camX},
+  setShape(kind){if(kind==='round')$('btnRound').click();if(kind==='spiky')$('btnSpiky').click();if(kind==='hook')$('btnHook').click();},
+  start(){resetRace();}, next(){trackIdx=Math.min(trackIdx+1,2);resetRace();}};
+</script>
+</body>
+</html>
