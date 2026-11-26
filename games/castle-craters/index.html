@@ -670,6 +670,7 @@ function checkEnd(){
 }
 function finishGame(won){
   G.phase = won ? 'won' : 'lost';
+  updateHUD();   // final state on the bars (a dead core must read 0%, not stale)
   const foe = castleOf(1);
   const foeBlocksGone = G.blocks.filter(b=>b.side===1 && !b.core && !b.alive).length;
   document.getElementById('endtitle').textContent = won ? '🏆 VICTORY!' : '💀 THE SPIRE WINS';
