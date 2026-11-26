@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Crowd Math — Crowd Multiplier Runner</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#79c94f;touch-action:none;overscroll-behavior:none;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  #game{position:fixed;inset:0;display:block;touch-action:none}
+  .ui{position:fixed;z-index:1100;left:0;right:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(20,12,40,.82);color:#fff}
+  #titleScreen{inset:0}
+  #endScreen{inset:0;display:none}
+  .ui h1{font-size:44px;letter-spacing:1px;color:#ffd93b;text-shadow:0 3px 0 #e07b00,0 6px 14px rgba(0,0,0,.5);margin-bottom:10px}
+  .ui h2{font-size:38px;margin-bottom:8px}
+  .ui p{font-size:17px;line-height:1.45;max-width:320px;margin-bottom:18px;color:#f3efff}
+  .btn{pointer-events:auto;cursor:pointer;border:none;border-radius:999px;background:#ffd93b;color:#221133;font-size:22px;font-weight:800;padding:14px 38px;box-shadow:0 5px 0 #e07b00;margin:5px}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 #e07b00}
+  .btn.alt{background:#37d67a;color:#062b16;box-shadow:0 5px 0 #1d9e50}
+  #scoreLine{font-size:22px;font-weight:700}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="ui" id="titleScreen">
+  <h1>CROWD MATH</h1>
+  <p>Your crowd runs on its own — <b>drag left / right</b> to steer through the gates. Pick the better maths, grow huge, and outnumber the rival crowd at the finish!</p>
+  <button class="btn" id="startBtn">▶ RUN!</button>
+  <p style="font-size:13px;opacity:.8">One thumb. Nothing else.</p>
+</div>
+
+<div class="ui" id="endScreen">
+  <h2 id="endTitle">YOU WIN!</h2>
+  <p id="scoreLine">Score: 0</p>
+  <p id="endNote"></p>
+  <div>
+    <button class="btn alt" id="nextBtn">NEXT LEVEL →</button>
+    <button class="btn" id="retryBtn">↻ RETRY</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ---------- Crowd Math: original crowd-multiplier runner ----------
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize(){ DPR = Math.min(2, window.devicePixelRatio||1); W = window.innerWidth; H = window.innerHeight; cv.width = W*DPR; cv.height = H*DPR; cv.style.width = W+'px'; cv.style.height = H+'px'; ctx.setTransform(DPR,0,0,DPR,0,0); }
+window.addEventListener('resize', resize); resize();
+// block double-tap zoom / gestures
+document.addEventListener('gesturestart', e=>e.preventDefault());
+document.addEventListener('dblclick', e=>e.preventDefault());
+let lastTouchEnd=0; document.addEventListener('touchend', e=>{ const n=Date.now(); if(n-lastTouchEnd<350) e.preventDefault(); lastTouchEnd=n; }, {passive:false});
+
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+// ---------- Level / gate design ----------
+const GATE_TEMPLATES = [
+  [{t:'+15'},{t:'-10'}],
+  [{t:'+10'},{t:'x2'}],
+  [{t:'-20'},{t:'+25'}],
+  [{t:'SHRED'},{t:'+12'}],
+  [{t:'x2'},{t:'-15'}],
+  [{t:'+5'},{t:'+35'}],
+  [{t:'-5'},{t:'x2'}],
+  [{t:'+30'},{t:'SHRED'}],
+  [{t:'x3'},{t:'-25'}],
+  [{t:'-15'},{t:'+40'}],
+  [{t:'+20'},{t:'x2'}],
+  [{t:'SHRED'},{t:'+18'}],
+];
+function applyOp(count, op){
+  if(op==='SHRED') return Math.max(0, Math.floor(count*0.25));
+  if(op[0]==='+') return count + parseInt(op.slice(1),10);
+  if(op[0]==='-') return Math.max(0, count - parseInt(op.slice(1),10));
+  if(op[0]==='x') return count * parseInt(op.slice(1),10);
+  return count;
+}
+function opKind(op){ if(op==='SHRED') return 'shred'; if(op[0]==='x') return 'mult'; if(op[0]==='+') return 'plus'; return 'minus'; }
+
+const TRACK_LEN = 3300;           // ~55 s at SPEED
+const SPEED = 60;                 // units / second
+const GATE_SPACING = 275;
+
+const S = {
+  phase:'title', level:1, count:12, rival:40, playerX:0, dist:0,
+  gates:[], gateIdx:0, pop:0, floats:[], particles:[],
+  clashT:0, clashAcc:0, result:null, score:0, time:0, shake:0,
+  appliedLog:[],
+};
+function buildLevel(level){
+  S.level=level; S.count=12; S.playerX=0; S.dist=0; S.gateIdx=0;
+  S.floats=[]; S.particles=[]; S.result=null; S.score=0; S.clashT=0; S.clashAcc=0; S.appliedLog=[];
+  S.rival = level<=3 ? [40,90,160][level-1] : 160 + (level-3)*70;
+  S.gates=[];
+  const n = Math.floor((TRACK_LEN-300)/GATE_SPACING);
+  for(let i=0;i<n;i++){
+    const tpl = GATE_TEMPLATES[(i + (level-1)*3) % GATE_TEMPLATES.length];
+    // alternate sides so the good gate isn't always on the same side
+    const pair = ((i+level)%2===0) ? tpl : [tpl[1],tpl[0]];
+    S.gates.push({ dist: 300 + i*GATE_SPACING, left: pair[0].t, right: pair[1].t, passed:false });
+  }
+}
+buildLevel(1);
+
+function startGame(){ buildLevel(S.level); S.phase='run'; document.getElementById('titleScreen').style.display='none'; document.getElementById('endScreen').style.display='none'; }
+function showEnd(){
+  S.phase='end';
+  const win = S.result==='win';
+  document.getElementById('endTitle').textContent = win ? '🏆 YOU WIN!' : '💥 OUTNUMBERED!';
+  document.getElementById('endTitle').style.color = win ? '#37d67a' : '#ff5a5a';
+  document.getElementById('scoreLine').textContent = 'Score: ' + S.score + ' runners left';
+  document.getElementById('endNote').textContent = win ? 'Your crowd survived the clash! Level '+(S.level+1)+' brings a bigger rival crowd.' : 'The rival crowd had more runners. Pick the bigger gates and retry!';
+  document.getElementById('nextBtn').style.display = win ? '' : 'none';
+  document.getElementById('endScreen').style.display='flex';
+}
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('retryBtn').addEventListener('click', ()=>{ document.getElementById('endScreen').style.display='none'; startGame(); });
+document.getElementById('nextBtn').addEventListener('click', ()=>{ S.level++; document.getElementById('endScreen').style.display='none'; startGame(); });
+
+// ---------- Steering: one-thumb drag ----------
+let dragId=null, dragStartX=0, dragStartCrowd=0;
+cv.addEventListener('pointerdown', e=>{ if(dragId!==null) return; dragId=e.pointerId; dragStartX=e.clientX; dragStartCrowd=S.playerX; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e=>{ if(e.pointerId!==dragId) return; S.playerX = clamp(dragStartCrowd + (e.clientX-dragStartX)/(W*0.38), -1, 1); });
+const endDrag = e=>{ if(e.pointerId===dragId) dragId=null; };
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+// keyboard nudge for desktop testing convenience (drag remains primary)
+window.addEventListener('keydown', e=>{ if(e.key==='ArrowLeft') S.playerX=clamp(S.playerX-0.12,-1,1); if(e.key==='ArrowRight') S.playerX=clamp(S.playerX+0.12,-1,1); });
+
+// ---------- Update ----------
+function addFloat(text, x, y, color){ S.floats.push({text,x,y,color,t:0}); }
+function poof(x,y,color){ for(let i=0;i<7;i++){ const a=Math.random()*Math.PI*2, sp=30+Math.random()*70; S.particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-30,t:0,color,r:3+Math.random()*5}); } }
+
+function update(dt){
+  S.time+=dt; if(S.pop>0) S.pop=Math.max(0,S.pop-dt*3);
+  for(const f of S.floats){ f.t+=dt; f.y-=46*dt; }
+  S.floats = S.floats.filter(f=>f.t<1.1);
+  for(const p of S.particles){ p.t+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=160*dt; }
+  S.particles = S.particles.filter(p=>p.t<0.55);
+  if(S.shake>0) S.shake=Math.max(0,S.shake-dt*2.2);
+
+  if(S.phase==='run'){
+    S.dist += SPEED*dt;
+    // gates
+    while(S.gateIdx < S.gates.length && S.gates[S.gateIdx].dist <= S.dist){
+      const g = S.gates[S.gateIdx]; g.passed=true;
+      const side = S.playerX < 0 ? 'left' : 'right';
+      const op = side==='left' ? g.left : g.right;
+      const before = S.count;
+      S.count = clamp(applyOp(S.count, op), 0, 300);
+      S.appliedLog.push({op, side, before, after:S.count});
+      S.pop = 1; if(opKind(op)==='minus'||opKind(op)==='shred') S.shake=1;
+      const col = opKind(op)==='plus' ? '#37d67a' : opKind(op)==='mult' ? '#ffd93b' : '#ff5a5a';
+      addFloat(op==='SHRED' ? 'SHREDDED!' : (op[0]==='+'||op[0]==='x' ? op : op), W/2 + S.playerX*W*0.22, H*0.52, col);
+      if(S.count < before) for(let i=0;i<5;i++) poof(W/2+S.playerX*W*0.22+(Math.random()-0.5)*70, H*0.68+(Math.random()-0.5)*40, '#ff3355');
+      S.gateIdx++;
+    }
+    if(S.count<=0){ S.result='lose'; S.score=0; showEnd(); }
+    else if(S.dist >= TRACK_LEN){ S.phase='clash'; S.clashT=0; S.clashAcc=0; }
+  } else if(S.phase==='clash'){
+    S.clashT+=dt; S.clashAcc+=dt;
+    // runners pair off and poof, ~14 pairs per second
+    while(S.clashAcc > 0.07){
+      S.clashAcc-=0.07;
+      if(S.count>0 && S.rival>0){
+        S.count--; S.rival--;
+        const cxp = W/2 + (Math.random()-0.5)*90, cyp = H*0.60 + (Math.random()-0.5)*50;
+        poof(cxp, cyp, Math.random()<0.5 ? '#ff3355' : '#3388ff');
+      }
+    }
+    if(S.count<=0 || S.rival<=0){
+      S.result = S.count > S.rival ? 'win' : (S.rival>0 && S.count<=0 ? 'lose' : 'win');
+      if(S.count<=0 && S.rival<=0) S.result='lose';
+      if(S.rival<=0 && S.count>0) S.result='win';
+      S.score = Math.max(0, S.count);
+      showEnd();
+    }
+  }
+}
+
+// ---------- Drawing ----------
+function proj(d){ // d = units ahead of crowd, 0..330
+  const z = clamp(d/330, 0, 1);
+  const horizon = H*0.30, crowdY = H*0.78;
+  return { y: lerp(crowdY, horizon, Math.pow(z,1.6)), scale: lerp(1, 0.12, z), z };
+}
+function roadHalfAt(y){ const horizon=H*0.30, crowdY=H*0.78; const t=clamp((y-horizon)/(crowdY-horizon),0,1); return lerp(W*0.10, W*0.46, Math.pow(t,1.4)); }
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function drawRunner(x, y, s, color, phase){
+  const bob = Math.sin(S.time*11 + phase)*2.2*s;
+  // legs
+  ctx.strokeStyle='rgba(20,20,40,.85)'; ctx.lineWidth=Math.max(1.5,3*s); ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-3.5*s, y+6*s+bob*0.4); ctx.moveTo(x,y); ctx.lineTo(x+3.5*s, y+6*s-bob*0.4); ctx.stroke();
+  // capsule body
+  ctx.fillStyle=color; roundRect(x-5*s, y-13*s+bob, 10*s, 14*s, 5*s); ctx.fill();
+  // head
+  ctx.fillStyle='#ffd9b3'; ctx.beginPath(); ctx.arc(x, y-16.5*s+bob, 4.2*s, 0, Math.PI*2); ctx.fill();
+}
+function drawCrowd(cx, baseY, count, color, seedBase, spread){
+  const shown = Math.min(count, 300);
+  const cols = shown<=20?5 : shown<=60?8 : shown<=140?11 : 14;
+  const sp = spread * (shown<=60?1 : shown<=140?0.72 : 0.52);
+  for(let i=shown-1;i>=0;i--){
+    const row = Math.floor(i/cols), col = i%cols;
+    const x = cx + (col-(cols-1)/2)*sp + Math.sin(i*12.9898)*3;
+    const y = baseY - row*sp*0.62;
+    const s = clamp(1 - row*0.045, 0.45, 1) * (H/844)*1.15;
+    drawRunner(x, y, s, color, seedBase + i*0.7);
+  }
+}
+function drawGate(g){
+  const d = g.dist - S.dist; if(d<0 || d>330) return;
+  const p = proj(d); const half = roadHalfAt(p.y); const cx = W/2;
+  const gateW = half; // each arch spans one half of the road
+  const archH = 120*p.scale + 26, archW = gateW;
+  const kinds = {plus:'#1fae5f', mult:'#e8a400', minus:'#d43a3a', shred:'#22222e'};
+  for(const side of [-1,1]){
+    const op = side<0 ? g.left : g.right;
+    const gx = cx + side*gateW/2;
+    const col = kinds[opKind(op)];
+    ctx.globalAlpha = clamp(1.4 - p.z, 0.25, 1);
+    // posts
+    ctx.fillStyle=col; ctx.fillRect(gx-archW/2, p.y-archH, Math.max(2,7*p.scale), archH); ctx.fillRect(gx+archW/2-Math.max(2,7*p.scale), p.y-archH, Math.max(2,7*p.scale), archH);
+    // banner
+    const bh = Math.max(16, 44*p.scale);
+    roundRect(gx-archW/2, p.y-archH, archW, bh, 6); ctx.fillStyle=col; ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2; ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.font='800 '+Math.max(11, 34*p.scale)+'px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(op==='SHRED'?'✂ SHRED':op, gx, p.y-archH+bh/2+1);
+    // lane tint on road
+    ctx.fillStyle = opKind(op)==='plus'||opKind(op)==='mult' ? 'rgba(60,255,140,.10)' : 'rgba(255,60,60,.12)';
+    ctx.fillRect(gx-archW/2, p.y-4, archW, 5);
+    ctx.globalAlpha=1;
+  }
+}
+function draw(){
+  ctx.save();
+  if(S.shake>0) ctx.translate((Math.random()-0.5)*10*S.shake, (Math.random()-0.5)*8*S.shake);
+  const horizon=H*0.30, crowdY=H*0.78;
+  // sky + grass
+  const sky=ctx.createLinearGradient(0,0,0,horizon); sky.addColorStop(0,'#7ec8ff'); sky.addColorStop(1,'#d8f3ff');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,horizon);
+  ctx.fillStyle='#79c94f'; ctx.fillRect(0,horizon,W,H-horizon);
+  // road trapezoid
+  ctx.fillStyle='#5b5f6e'; ctx.beginPath();
+  ctx.moveTo(W/2-roadHalfAt(crowdY), H); ctx.lineTo(W/2+roadHalfAt(crowdY), H);
+  ctx.lineTo(W/2+roadHalfAt(horizon), horizon); ctx.lineTo(W/2-roadHalfAt(horizon), horizon); ctx.closePath(); ctx.fill();
+  // moving lane stripes
+  ctx.fillStyle='rgba(255,255,255,.75)';
+  for(let i=0;i<14;i++){ let d = ((i*48 - (S.dist%48)) + 330) % 330; const p=proj(d); const wdt=Math.max(1,5*p.scale); ctx.fillRect(W/2-wdt/2, p.y, wdt, Math.max(2,16*p.scale)); }
+  // finish line
+  const fd = TRACK_LEN - S.dist;
+  if(S.phase==='run' && fd>0 && fd<330){ const p=proj(fd); const half=roadHalfAt(p.y); for(let i=0;i<8;i++){ ctx.fillStyle=i%2?'#111':'#fff'; ctx.fillRect(W/2-half + i*(2*half/8), p.y-3, 2*half/8, Math.max(3,8*p.scale)); } }
+  // gates far-to-near
+  for(let i=S.gates.length-1;i>=0;i--) if(!S.gates[i].passed) drawGate(S.gates[i]);
+  // rival crowd (visible near finish / in clash)
+  if(S.phase==='clash' || (S.phase==='run' && fd<300)){
+    const ry = S.phase==='clash' ? H*0.52 : proj(Math.max(fd,10)).y - 10;
+    const rcx = W/2, rcount = S.phase==='clash' ? S.rival : S.rival;
+    drawCrowd(rcx, ry, rcount, '#3388ff', 3.1, 15);
+    // rival bubble
+    bubble(rcx, ry-118*(H/844), S.rival, '#3388ff');
+  }
+  // player crowd
+  const pcx = W/2 + S.playerX*W*0.30;
+  drawCrowd(pcx, crowdY+34, S.phase==='clash'?S.count:S.count, '#ff3355', 0, 17);
+  // count bubble overhead (BIG, live)
+  bubble(pcx, crowdY-128*(H/844), S.count, '#ff3355');
+  // particles
+  for(const p of S.particles){ ctx.globalAlpha=1-p.t/0.55; ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); }
+  ctx.globalAlpha=1;
+  // floats
+  for(const f of S.floats){ ctx.globalAlpha=1-f.t/1.1; ctx.font='800 34px system-ui,sans-serif'; ctx.textAlign='center'; ctx.fillStyle=f.color; ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.lineWidth=5; ctx.strokeText(f.text,f.x,f.y); ctx.fillText(f.text,f.x,f.y); }
+  ctx.globalAlpha=1;
+  // HUD: level + progress
+  ctx.fillStyle='rgba(15,10,35,.78)'; roundRect(10,10,150,40,12); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='800 19px system-ui,sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText('LEVEL '+S.level, 22, 31);
+  const prog = S.phase==='run' ? clamp(S.dist/TRACK_LEN,0,1) : 1;
+  ctx.fillStyle='rgba(15,10,35,.78)'; roundRect(W-120,10,110,40,12); ctx.fill();
+  ctx.fillStyle='#ffd93b'; ctx.fillRect(W-110, 24, 90*prog, 12);
+  ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.strokeRect(W-110,24,90,12);
+  if(S.phase==='title'){ ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='700 16px system-ui,sans-serif'; ctx.textAlign='center'; }
+  ctx.restore();
+}
+function bubble(x,y,count,color){
+  const scale = 1 + S.pop*0.35;
+  ctx.save(); ctx.translate(x,y); ctx.scale(scale,scale);
+  ctx.fillStyle=color; ctx.beginPath(); ctx.arc(0,0,30,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-8,24); ctx.lineTo(8,24); ctx.lineTo(0,40); ctx.closePath(); ctx.fillStyle=color; ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='800 30px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(String(count), 0, 2);
+  ctx.restore();
+}
+
+const SPEED_MULT = clamp(parseFloat(new URLSearchParams(location.search).get('speed'))||1, 1, 12);
+let last=performance.now();
+function frame(now){ const dt=Math.min(0.05,(now-last)/1000)*SPEED_MULT; last=now; if(S.phase==='run'||S.phase==='clash') update(dt); else { S.time+=dt; for(const f of S.floats){f.t+=dt;} } draw(); requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+
+// QA / automation hook
+window.__crowdmath = {
+  state(){ const g = S.gates[S.gateIdx]; return { phase:S.phase, level:S.level, count:S.count, rival:S.rival, playerX:S.playerX, dist:Math.round(S.dist), score:S.score, result:S.result, applied:S.appliedLog.slice(), nextGate: g?{dist:g.dist,left:g.left,right:g.right,in:Math.round(g.dist-S.dist)}:null }; },
+  start(){ startGame(); },
+};
+</script>
+</body>
+</html>

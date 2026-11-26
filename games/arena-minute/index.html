@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Arena Minute — Junkyard Horde</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#070a14;touch-action:none;overscroll-behavior:none;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#eaf6ff}
+#game{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud{position:fixed;top:0;left:0;right:0;z-index:1100;pointer-events:none;padding:calc(8px + env(safe-area-inset-top)) 10px 8px;background:linear-gradient(180deg,rgba(4,6,16,.92),rgba(4,6,16,.55) 75%,transparent)}
+.hudrow{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.pill{background:rgba(10,16,34,.88);border:1px solid #2ee6ff66;border-radius:999px;padding:5px 10px;font-weight:800;font-size:14px;white-space:nowrap;box-shadow:0 0 12px #00d9ff22}
+.pill.scrap{color:#ffe66d;border-color:#ffe66d66}.pill.wave{color:#7dffcb}
+#hpwrap{margin-top:7px;height:18px;background:#1a0f1e;border:1px solid #ff4d6d88;border-radius:999px;overflow:hidden;position:relative}
+#hpfill{height:100%;width:100%;background:linear-gradient(90deg,#ff2e63,#ff7a59,#ffd166);transition:width .15s}
+#hptext{position:absolute;inset:0;text-align:center;font-size:12px;font-weight:900;line-height:18px;text-shadow:0 1px 3px #000}
+#timerwrap{margin-top:6px;height:8px;background:#10182e;border-radius:99px;overflow:hidden;border:1px solid #ffffff22}
+#timerfill{height:100%;width:100%;background:#2ee6ff}
+#joy{position:fixed;z-index:1150;width:110px;height:110px;border-radius:50%;border:2px solid #2ee6ff88;background:radial-gradient(circle,rgba(46,230,255,.08),rgba(46,230,255,.18));display:none;pointer-events:none;transform:translate(-50%,-50%)}
+#stick{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#bffbff,#1597b8);transform:translate(-50%,-50%);box-shadow:0 4px 14px #0009}
+.overlay{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;background:rgba(3,5,12,.88);text-align:center}
+.overlay.hidden{display:none}
+h1{font-size:42px;line-height:.95;letter-spacing:.5px;color:#ffe66d;text-shadow:0 0 22px #ff9f1c88,0 3px 0 #7a2b00}
+.sub{margin-top:10px;font-size:16px;line-height:1.45;color:#cfefff;max-width:330px}
+.bigbtn{margin-top:22px;pointer-events:auto;border:0;border-radius:16px;padding:16px 28px;font-size:20px;font-weight:900;background:linear-gradient(180deg,#ffe66d,#ff9f1c);color:#231200;box-shadow:0 6px 0 #9a4d00,0 10px 24px #000a;cursor:pointer;min-width:230px}
+.bigbtn:active{transform:translateY(3px);box-shadow:0 3px 0 #9a4d00}
+.bigbtn.green{background:linear-gradient(180deg,#7dffcb,#12b76a);color:#032012;box-shadow:0 6px 0 #065f36,0 10px 24px #000a}
+.scorebox{margin-top:14px;font-size:18px;font-weight:800;color:#fff;background:#10182e;border:1px solid #2ee6ff55;border-radius:14px;padding:12px 18px;line-height:1.5}
+#shop{justify-content:flex-start;padding-top:calc(18px + env(safe-area-inset-top));overflow-y:auto}
+#shop h2{font-size:30px;color:#7dffcb;text-shadow:0 0 18px #12b76a66}
+#shopscrap{margin:8px 0 4px;font-size:17px;font-weight:900;color:#ffe66d}
+.shopgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:360px;margin-top:12px}
+.card{pointer-events:auto;text-align:left;border:2px solid #2ee6ff66;background:linear-gradient(180deg,#16213f,#0b1122);border-radius:16px;padding:12px 11px;color:#eaf6ff;cursor:pointer;min-height:132px;display:flex;flex-direction:column;gap:5px}
+.card:active{transform:scale(.98)}
+.card .icon{font-size:30px;line-height:1}
+.card .name{font-weight:900;font-size:16px;line-height:1.1}
+.card .desc{font-size:12.5px;line-height:1.35;color:#b9d9ea;flex:1}
+.card .price{font-weight:900;color:#ffe66d;font-size:15px}
+.card.cant{opacity:.45}.card.owned{border-color:#7dffcb}
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:1250;background:#10182eee;border:1px solid #ffe66d88;color:#ffe66d;font-weight:900;padding:9px 14px;border-radius:999px;display:none;pointer-events:none;font-size:14px;white-space:nowrap}
+.hint{position:fixed;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom));z-index:1100;text-align:center;color:#9fc7dd;font-size:12.5px;pointer-events:none;text-shadow:0 1px 4px #000}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="hud">
+  <div class="hudrow">
+    <span class="pill wave" id="wavepill">WAVE 1/6</span>
+    <span class="pill" id="timerpill">⏱ 30.0</span>
+    <span class="pill scrap" id="scrappill">⚙ 0</span>
+    <span class="pill" id="killpill">💀 0</span>
+  </div>
+  <div id="hpwrap"><div id="hpfill"></div><div id="hptext">HP 100 / 100</div></div>
+  <div id="timerwrap"><div id="timerfill"></div></div>
+</div>
+<div id="joy"><div id="stick"></div></div>
+<div class="hint" id="hint">Drag anywhere on the LEFT half to move — guns fire on their own</div>
+
+<div class="overlay" id="startscreen">
+  <h1>ARENA<br>MINUTE</h1>
+  <p class="sub">Survive <b>six 30-second waves</b> in the neon junkyard. Your little bot auto-fires — you just drive. Grab the scrap from every kill, spend it between waves, and bolt on so many guns you can barely see the bot.</p>
+  <button class="bigbtn" id="startbtn">▶ START WAVE 1</button>
+  <p class="sub" style="font-size:13px">Move: floating joystick (left half) · Fire / aim / pickup: automatic</p>
+</div>
+
+<div class="overlay hidden" id="shop">
+  <h2>⚙ SCRAP SHOP</h2>
+  <div id="shopscrap">⚙ 0 scrap</div>
+  <p class="sub" style="margin-top:2px;font-size:13.5px">Wave cleared! Bolt something on. Every weapon you buy is <b>visibly bolted onto your bot</b>.</p>
+  <div class="shopgrid" id="shopgrid"></div>
+  <button class="bigbtn green" id="nextbtn">▶ NEXT WAVE</button>
+</div>
+
+<div class="overlay hidden" id="endscreen">
+  <h1 id="endtitle">RUN OVER</h1>
+  <p class="sub" id="endsub"></p>
+  <div class="scorebox" id="endscore"></div>
+  <button class="bigbtn" id="retrybtn">↻ RETRY RUN</button>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+// Arena Minute — original one-screen horde arena with between-wave shop.
+// Vanilla JS + 2D canvas, no libraries. QA hook: window.__arena
+const SPEED = Math.max(1, Math.min(20, parseFloat(new URLSearchParams(location.search).get('speed')||'1')||1));
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+let W=390,H=844,DPR=1;
+function resize(){ DPR=Math.min(2,devicePixelRatio||1); W=innerWidth; H=innerHeight; cv.width=W*DPR; cv.height=H*DPR; cv.style.width=W+'px'; cv.style.height=H+'px'; ctx.setTransform(DPR,0,0,DPR,0,0); }
+addEventListener('resize',resize); resize();
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('dblclick',e=>e.preventDefault());
+let lastTouch=0; document.addEventListener('touchend',e=>{const n=Date.now(); if(n-lastTouch<350) e.preventDefault(); lastTouch=n;},{passive:false});
+
+// ---------- state ----------
+const WAVE_TIME=30, MAX_WAVE=6;
+let phase='title'; // title | fight | shop | won | lost
+let wave=1, timeLeft=WAVE_TIME, elapsed=0;
+let kills=0, scrap=0, banked=0, score=0, harvest=0;
+let spawnT=0, shake=0, flash=0;
+const hero={x:195,y:470,r:20,hp:100,maxhp:100,speed:235,damage:1,magnet:95,armor:0,regen:0, vx:0,vy:0, face:1, hurtT:0};
+// weapons: each entry is a physical gun bolted on the hero
+let weapons=[]; // {kind, level, cd}
+function addWeapon(kind){ weapons.push({kind,level:1,cd:Math.random()*0.2}); }
+addWeapon('blaster');
+let enemies=[], bullets=[], scraps=[], parts=[], beams=[];
+const MAXE=70;
+
+// ---------- joystick (gamepress standard: left-half floating anchor, pointerId isolation) ----------
+const joyEl=document.getElementById('joy'), stickEl=document.getElementById('stick');
+let joyId=null, joyOX=0, joyOY=0, joyDX=0, joyDY=0;
+function joyStart(e){ if(phase!=='fight') return; if(e.clientX>W*0.62) return; joyId=e.pointerId; joyOX=e.clientX; joyOY=e.clientY; joyDX=joyDY=0; joyEl.style.display='block'; joyEl.style.left=joyOX+'px'; joyEl.style.top=joyOY+'px'; stickEl.style.transform='translate(-50%,-50%)'; cv.setPointerCapture&&cv.setPointerCapture(e.pointerId); }
+function joyMove(e){ if(e.pointerId!==joyId) return; let dx=e.clientX-joyOX, dy=e.clientY-joyOY; const d=Math.hypot(dx,dy), max=46; if(d>max){dx=dx/d*max; dy=dy/d*max;} joyDX=dx/max; joyDY=dy/max; stickEl.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`; }
+function joyEnd(e){ if(e.pointerId!==joyId) return; joyId=null; joyDX=joyDY=0; joyEl.style.display='none'; }
+cv.addEventListener('pointerdown',joyStart); cv.addEventListener('pointermove',joyMove); cv.addEventListener('pointerup',joyEnd); cv.addEventListener('pointercancel',joyEnd);
+
+// ---------- enemies ----------
+const ETYPES={
+ mite:{r:13,hp:1,speed:62,dmg:8,scrap:1,color:'#ff5d8f',score:1},
+ dart:{r:10,hp:1,speed:118,dmg:6,scrap:1,color:'#ffb020',score:1},
+ brute:{r:24,hp:6,speed:36,dmg:16,scrap:4,color:'#9b5cff',score:1},
+};
+function spawnEnemy(){
+ if(enemies.length>=MAXE) return;
+ const roll=Math.random(); let kind='mite';
+ const bruteChance=wave>=2?0.08+wave*0.02:0, dartChance=0.22+wave*0.03;
+ if(roll<bruteChance) kind='brute'; else if(roll<bruteChance+dartChance) kind='dart';
+ const t=ETYPES[kind], side=Math.floor(Math.random()*4); let x,y;
+ if(side===0){x=Math.random()*W;y=86;} else if(side===1){x=Math.random()*W;y=H-14;} else if(side===2){x=8;y=110+Math.random()*(H-140);} else {x=W-8;y=110+Math.random()*(H-140);}
+ const hpScale=1+(wave-1)*0.45+(kind==='brute'?(wave-1)*0.8:0);
+ enemies.push({kind,x,y,r:t.r,hp:Math.round(t.hp*hpScale),maxhp:Math.round(t.hp*hpScale),speed:t.speed*(0.9+Math.random()*0.25+(wave-1)*0.05),dmg:t.dmg,scrap:t.scrap,color:t.color,hitT:0,orbT:0,wob:Math.random()*6.28});
+}
+function nearest(x,y,maxD){ let best=null,bd=maxD; for(const e of enemies){ const d=Math.hypot(e.x-x,e.y-y); if(d<bd){bd=d;best=e;} } return best; }
+
+// ---------- combat ----------
+function fireBullet(x,y,ang,spd,dmg,pierce,color,size){ if(bullets.length<420) bullets.push({x,y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,dmg,pierce: pierce||0,color:color||'#aef7ff',size:size||4,life:0.9}); }
+function weaponTick(w,dt){
+ w.cd-=dt;
+ // orbit blades are passive (handled in enemy update)
+ if(w.kind==='orbit') return;
+ const range=w.kind==='zapper'?240:340;
+ const target=nearest(hero.x,hero.y,range);
+ if(!target) return;
+ if(w.cd>0) return;
+ const ang=Math.atan2(target.y-hero.y,target.x-hero.x);
+ if(w.kind==='blaster'){ w.cd=0.34; fireBullet(hero.x,hero.y,ang,520,1*hero.damage); }
+ else if(w.kind==='twin'){ w.cd=0.20; fireBullet(hero.x,hero.y,ang,540,1*hero.damage); }
+ else if(w.kind==='spread'){ w.cd=0.62; for(let i=-2;i<=2;i++) fireBullet(hero.x,hero.y,ang+i*0.16,480,1*hero.damage,0,'#ffd166',4); }
+ else if(w.kind==='cannon'){ w.cd=0.95; fireBullet(hero.x,hero.y,ang,430,3*hero.damage,1,'#ff7a59',8); }
+ else if(w.kind==='zapper'){ w.cd=0.55; target.hp-=1*hero.damage; target.hitT=0.12; beams.push({x1:hero.x,y1:hero.y,x2:target.x,y2:target.y,life:0.09}); if(target.hp<=0) killEnemy(target); }
+}
+function killEnemy(e){
+ e.dead=true; kills++;
+ for(let i=0;i<e.scrap;i++) scraps.push({x:e.x+(Math.random()*20-10),y:e.y+(Math.random()*20-10),vx:Math.random()*60-30,vy:Math.random()*60-30});
+ for(let i=0;i<7;i++) parts.push({x:e.x,y:e.y,vx:Math.random()*160-80,vy:Math.random()*160-80,life:0.35,color:e.color,size:2+Math.random()*3});
+}
+function hurtHero(dmg){
+ const real=Math.max(1,dmg-hero.armor); hero.hp-=real; hero.hurtT=0.25; shake=Math.min(9,shake+4); flash=0.12;
+ if(hero.hp<=0){ hero.hp=0; phase='lost'; showEnd(false); }
+ updateHUD();
+}
+
+// ---------- shop ----------
+const SHOP_POOL=[
+ {id:'twin', icon:'🔫', name:'Bolt-On Twin Gun', desc:'Another gun, bolted on. Fast single shots at the nearest critter.', base:14, kind:'weapon', wkind:'twin'},
+ {id:'spread', icon:'🌟', name:'Spread Scattergun', desc:'A fat 5-pellet fan. Shreds crowds up close and mid-range.', base:22, kind:'weapon', wkind:'spread'},
+ {id:'zapper', icon:'⚡', name:'Arc Zapper', desc:'Lightning turret: instant zaps, no travel time. Never misses.', base:26, kind:'weapon', wkind:'zapper'},
+ {id:'cannon', icon:'💥', name:'Junk Cannon', desc:'Slow, huge piercing shells that punch through a whole line.', base:30, kind:'weapon', wkind:'cannon'},
+ {id:'orbit', icon:'🪚', name:'Orbit Saw Blade', desc:'A buzz-saw on a chain, circling you forever. Touch = shred.', base:24, kind:'weapon', wkind:'orbit'},
+ {id:'plating', icon:'🛡️', name:'Extra Plating', desc:'+25 max HP and heal 25 right now. Rivets included.', base:15, kind:'stat', apply(){hero.maxhp+=25; hero.hp=Math.min(hero.maxhp,hero.hp+25);}},
+ {id:'boots', icon:'🥾', name:'Turbo Treads', desc:'+14% move speed. Outrun the swarm, kite the brutes.', base:12, kind:'stat', apply(){hero.speed*=1.14;}},
+ {id:'amp', icon:'🔋', name:'Damage Amp', desc:'+25% damage on EVERY gun you own, present and future.', base:20, kind:'stat', apply(){hero.damage*=1.25;}},
+ {id:'magnet', icon:'🧲', name:'Scrap Magnet+', desc:'+55 pickup radius. Scrap flies to you from across the pile.', base:11, kind:'stat', apply(){hero.magnet+=55;}},
+ {id:'vest', icon:'🦺', name:'Padded Vest', desc:'+2 armour — every enemy hit does 2 less damage (min 1).', base:16, kind:'stat', apply(){hero.armor+=2;}},
+ {id:'regen', icon:'🩹', name:'Patch Kit Bot', desc:'Regenerate +0.8 HP every second, forever.', base:18, kind:'stat', apply(){hero.regen+=0.8;}},
+ {id:'repair', icon:'❤️', name:'Full Repair', desc:'Heal 45 HP right now. The cheap way to survive the next wave.', base:10, kind:'stat', apply(){hero.hp=Math.min(hero.maxhp,hero.hp+45);}},
+];
+let shopItems=[], ownedCount={};
+function priceFor(item){ const n=ownedCount[item.id]||0; return Math.round(item.base*(1+n*0.55)*(1+(wave-1)*0.18)); }
+function rollShop(){
+ const pool=[...SHOP_POOL]; shopItems=[];
+ for(let i=0;i<4&&pool.length;i++){ const idx=Math.floor(Math.random()*pool.length); const item=pool.splice(idx,1)[0]; shopItems.push({item,price:priceFor(item),bought:false}); }
+ renderShop();
+}
+function renderShop(){
+ document.getElementById('shopscrap').textContent='⚙ '+scrap+' scrap  ·  Wave '+(wave+1)+' of '+MAX_WAVE+' next';
+ document.getElementById('nextbtn').textContent='▶ START WAVE '+(wave+1);
+ const grid=document.getElementById('shopgrid'); grid.innerHTML='';
+ shopItems.forEach((s,i)=>{
+   const b=document.createElement('button'); b.className='card'+(s.bought?' owned':'')+(scrap<s.price&&!s.bought?' cant':'');
+   b.innerHTML=`<span class="icon">${s.item.icon}</span><span class="name">${s.item.name}</span><span class="desc">${s.item.desc}</span><span class="price">${s.bought?'✓ BOLTED ON':'⚙ '+s.price+' scrap'}</span>`;
+   b.onclick=()=>buyItem(i); grid.appendChild(b);
+ });
+}
+function buyItem(i){
+ const s=shopItems[i]; if(!s||s.bought) return;
+ if(scrap<s.price){ toast('Not enough scrap!'); return; }
+ scrap-=s.price; s.bought=true; ownedCount[s.item.id]=(ownedCount[s.item.id]||0)+1;
+ if(s.item.kind==='weapon') addWeapon(s.item.wkind); else s.item.apply();
+ toast(s.item.name+' bolted on!'); renderShop(); updateHUD();
+}
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none',1600); }
+
+// ---------- flow ----------
+function startRun(){
+ wave=1; kills=0; scrap=0; banked=0; harvest=0; enemies=[]; bullets=[]; scraps=[]; parts=[]; beams=[];
+ hero.hp=hero.maxhp=100; hero.speed=235; hero.damage=1; hero.magnet=95; hero.armor=0; hero.regen=0; hero.x=W/2; hero.y=H*0.56;
+ weapons=[]; addWeapon('blaster'); ownedCount={};
+ startWave();
+}
+function startWave(){
+ phase='fight'; timeLeft=WAVE_TIME; spawnT=0; enemies=[]; bullets=[];
+ document.getElementById('startscreen').classList.add('hidden');
+ document.getElementById('shop').classList.add('hidden');
+ document.getElementById('endscreen').classList.add('hidden');
+ document.getElementById('hint').style.display='block';
+ updateHUD();
+}
+function endWave(){
+ banked=harvest; // score = kills + total harvest collected (banked at each wave end)
+ if(wave>=MAX_WAVE){ phase='won'; showEnd(true); return; }
+ phase='shop'; rollShop();
+ document.getElementById('shop').classList.remove('hidden');
+ document.getElementById('hint').style.display='none';
+}
+function finalScore(){ return kills + harvest; }
+function showEnd(won){
+ score=finalScore();
+ document.getElementById('endscreen').classList.remove('hidden');
+ document.getElementById('hint').style.display='none';
+ document.getElementById('endtitle').textContent=won?'🏆 YOU WIN!':'💀 RUN OVER';
+ document.getElementById('endtitle').style.color=won?'#7dffcb':'#ff5d8f';
+ document.getElementById('endsub').textContent=won?'Six waves survived. Your bot is now more gun than bot — exactly as planned.':'Your bot was scrapped on wave '+wave+'. The junkyard keeps the guns.';
+ document.getElementById('endscore').innerHTML=`SCORE ${score}<br>💀 Kills ${kills} · ⚙ Harvest banked ${banked}<br>🔫 Weapons bolted on: ${weapons.length}`;
+ updateHUD();
+}
+document.getElementById('startbtn').onclick=()=>startRun();
+document.getElementById('retrybtn').onclick=()=>startRun();
+document.getElementById('nextbtn').onclick=()=>{ wave++; startWave(); };
+
+// ---------- HUD ----------
+const el=id=>document.getElementById(id);
+function updateHUD(){
+ el('wavepill').textContent='WAVE '+Math.min(wave,MAX_WAVE)+'/'+MAX_WAVE;
+ el('timerpill').textContent='⏱ '+Math.max(0,timeLeft).toFixed(1);
+ el('scrappill').textContent='⚙ '+scrap;
+ el('killpill').textContent='💀 '+kills;
+ el('hpfill').style.width=Math.max(0,hero.hp/hero.maxhp*100)+'%';
+ el('hptext').textContent='HP '+Math.ceil(hero.hp)+' / '+hero.maxhp;
+ el('timerfill').style.width=Math.max(0,timeLeft/WAVE_TIME*100)+'%';
+}
+
+// ---------- update ----------
+let last=performance.now();
+function frame(now){
+ requestAnimationFrame(frame);
+ let dt=Math.min(0.05,(now-last)/1000); last=now; dt*=SPEED;
+ if(phase!=='fight'){ draw(); return; }
+ elapsed+=dt; timeLeft-=dt;
+ if(hero.regen>0) hero.hp=Math.min(hero.maxhp,hero.hp+hero.regen*dt);
+ // move
+ hero.vx=joyDX*hero.speed; hero.vy=joyDY*hero.speed;
+ hero.x=Math.max(22,Math.min(W-22,hero.x+hero.vx*dt)); hero.y=Math.max(104,Math.min(H-24,hero.y+hero.vy*dt));
+ if(joyDX) hero.face=joyDX>0?1:-1;
+ hero.hurtT=Math.max(0,hero.hurtT-dt);
+ // spawn
+ spawnT-=dt; const interval=Math.max(0.30,1.28-wave*0.13);
+ if(spawnT<=0 && timeLeft>1.2){ spawnT=interval; spawnEnemy(); if(wave>=4) spawnEnemy(); }
+ // weapons
+ for(const w of weapons) weaponTick(w,dt);
+ // bullets
+ for(const b of bullets){ b.x+=b.vx*dt; b.y+=b.vy*dt; b.life-=dt;
+   for(const e of enemies){ if(e.dead) continue; if(Math.hypot(e.x-b.x,e.y-b.y)<e.r+b.size){ e.hp-=b.dmg; e.hitT=0.1; if(b.pierce>0) b.pierce--; else b.life=0; if(e.hp<=0) killEnemy(e); break; } }
+ }
+ bullets=bullets.filter(b=>b.life>0&&b.x>-20&&b.x<W+20&&b.y>60&&b.y<H+20);
+ // orbit blades
+ const orbits=weapons.filter(w=>w.kind==='orbit');
+ // enemies
+ for(const e of enemies){
+   if(e.dead) continue;
+   const ang=Math.atan2(hero.y-e.y,hero.x-e.x);
+   e.x+=Math.cos(ang)*e.speed*dt; e.y+=Math.sin(ang)*e.speed*dt; e.hitT=Math.max(0,e.hitT-dt); e.orbT-=dt;
+   for(let oi=0;oi<orbits.length;oi++){ const bx=hero.x+Math.cos(elapsed*3.4+oi*2.1)*(hero.r+20), by=hero.y+Math.sin(elapsed*3.4+oi*2.1)*(hero.r+20); if(e.orbT<=0&&Math.hypot(e.x-bx,e.y-by)<e.r+11){ e.hp-=1*hero.damage; e.hitT=0.1; e.orbT=0.32; if(e.hp<=0) killEnemy(e); } }
+   if(!e.dead && Math.hypot(e.x-hero.x,e.y-hero.y)<e.r+hero.r-3){ hurtHero(e.dmg); e.dead=true; for(let i=0;i<6;i++) parts.push({x:e.x,y:e.y,vx:Math.random()*140-70,vy:Math.random()*140-70,life:0.3,color:e.color,size:3}); if(phase!=='fight') return; }
+ }
+ enemies=enemies.filter(e=>!e.dead);
+ // scrap magnet + pickup (automatic)
+ for(const s of scraps){ const d=Math.hypot(hero.x-s.x,hero.y-s.y); if(d<hero.magnet){ const a=Math.atan2(hero.y-s.y,hero.x-s.x), pull=340*(1-d/(hero.magnet+40))+120; s.x+=Math.cos(a)*pull*dt; s.y+=Math.sin(a)*pull*dt; } else { s.x+=s.vx*dt; s.y+=s.vy*dt; s.vx*=0.9; s.vy*=0.9; } if(d<hero.r+10){ s.got=true; scrap++; harvest++; } }
+ scraps=scraps.filter(s=>!s.got);
+ for(const p of parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt; }
+ parts=parts.filter(p=>p.life>0);
+ for(const b of beams) b.life-=dt; beams=beams.filter(b=>b.life>0);
+ shake=Math.max(0,shake-30*dt); flash=Math.max(0,flash-dt);
+ if(timeLeft<=0){ timeLeft=0; updateHUD(); endWave(); return; }
+ updateHUD(); draw();
+}
+requestAnimationFrame(frame);
+
+// ---------- draw ----------
+function draw(){
+ ctx.save();
+ if(shake>0) ctx.translate(Math.random()*shake-shake/2,Math.random()*shake-shake/2);
+ // junkyard floor
+ const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#0a1024'); g.addColorStop(1,'#131033'); ctx.fillStyle=g; ctx.fillRect(-10,-10,W+20,H+20);
+ ctx.strokeStyle='rgba(46,230,255,0.07)'; ctx.lineWidth=1;
+ for(let x=0;x<=W;x+=39){ ctx.beginPath(); ctx.moveTo(x,84); ctx.lineTo(x,H); ctx.stroke(); }
+ for(let y=84;y<=H;y+=39){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+ // junk piles (static decor, seeded positions)
+ ctx.fillStyle='#1c2547'; const piles=[[28,150],[330,180],[52,690],[318,640],[180,790],[300,420],[36,430]];
+ for(const [px,py] of piles){ ctx.beginPath(); ctx.ellipse(px,py,30,13,0,0,6.29); ctx.fill(); ctx.strokeStyle='#2ee6ff33'; ctx.stroke(); }
+ // arena rim
+ ctx.strokeStyle='#2ee6ff'; ctx.lineWidth=3; ctx.shadowColor='#2ee6ff'; ctx.shadowBlur=14; ctx.strokeRect(4,88,W-8,H-92); ctx.shadowBlur=0;
+ // scraps
+ for(const s of scraps){ ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(elapsed*3+s.x); ctx.fillStyle='#ffe66d'; ctx.shadowColor='#ffe66d'; ctx.shadowBlur=8; ctx.fillRect(-4,-4,8,8); ctx.restore(); }
+ // beams
+ for(const b of beams){ ctx.strokeStyle='#bffbff'; ctx.lineWidth=3; ctx.shadowColor='#2ee6ff'; ctx.shadowBlur=10; ctx.beginPath(); ctx.moveTo(b.x1,b.y1); ctx.lineTo((b.x1+b.x2)/2+(Math.random()*16-8),(b.y1+b.y2)/2+(Math.random()*16-8)); ctx.lineTo(b.x2,b.y2); ctx.stroke(); ctx.shadowBlur=0; }
+ // bullets
+ for(const b of bullets){ ctx.fillStyle=b.color; ctx.shadowColor=b.color; ctx.shadowBlur=7; ctx.beginPath(); ctx.arc(b.x,b.y,b.size,0,6.29); ctx.fill(); } ctx.shadowBlur=0;
+ // enemies
+ for(const e of enemies){
+   ctx.save(); ctx.translate(e.x,e.y+Math.sin(elapsed*6+e.wob)*1.5);
+   ctx.fillStyle=e.hitT>0?'#ffffff':e.color; ctx.shadowColor=e.color; ctx.shadowBlur=9;
+   if(e.kind==='mite'){ ctx.beginPath(); ctx.arc(0,0,e.r,0,6.29); ctx.fill(); ctx.fillStyle='#0a1024'; ctx.beginPath(); ctx.arc(-4,-2,2.6,0,6.29); ctx.arc(4,-2,2.6,0,6.29); ctx.fill(); ctx.strokeStyle=e.color; ctx.lineWidth=2; for(let l=-1;l<=1;l++){ ctx.beginPath(); ctx.moveTo(l*7,e.r-2); ctx.lineTo(l*9,e.r+5); ctx.stroke(); } }
+   else if(e.kind==='dart'){ ctx.rotate(Math.atan2(hero.y-e.y,hero.x-e.x)); ctx.beginPath(); ctx.moveTo(e.r+3,0); ctx.lineTo(-e.r,7); ctx.lineTo(-e.r,-7); ctx.closePath(); ctx.fill(); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(2,0,2.5,0,6.29); ctx.fill(); }
+   else { ctx.fillRect(-e.r,-e.r,e.r*2,e.r*2); ctx.fillStyle='#0a1024'; ctx.fillRect(-e.r+5,-6,10,5); ctx.fillRect(3,-6,10,5); ctx.strokeStyle='#ffe66d'; ctx.lineWidth=2; ctx.strokeRect(-e.r+3,-e.r+3,e.r*2-6,e.r*2-6); }
+   ctx.restore();
+   if(e.maxhp>1){ ctx.fillStyle='#000a'; ctx.fillRect(e.x-16,e.y-e.r-11,32,5); ctx.fillStyle='#7dffcb'; ctx.fillRect(e.x-16,e.y-e.r-11,32*Math.max(0,e.hp/e.maxhp),5); }
+ }
+ // hero + bolted-on weapon pile
+ const hx=hero.x, hy=hero.y;
+ // orbit blades
+ weapons.filter(w=>w.kind==='orbit').forEach((w,oi)=>{ const bx=hx+Math.cos(elapsed*3.4+oi*2.1)*(hero.r+20), by=hy+Math.sin(elapsed*3.4+oi*2.1)*(hero.r+20); ctx.save(); ctx.translate(bx,by); ctx.rotate(elapsed*14); ctx.fillStyle='#d9f7ff'; ctx.shadowColor='#2ee6ff'; ctx.shadowBlur=8; ctx.beginPath(); for(let t=0;t<6;t++){ ctx.rotate(1.047); ctx.moveTo(0,0); ctx.lineTo(11,-3); ctx.lineTo(11,3); } ctx.fill(); ctx.restore(); });
+ // guns bolted around the body — one visible gun per weapon owned
+ const gunKinds=weapons.filter(w=>w.kind!=='orbit');
+ gunKinds.forEach((w,i)=>{
+   const total=Math.max(1,gunKinds.length); const a=-2.4 + (i/(total))*4.8 + Math.sin(elapsed*1.3+i)*0.05;
+   // spread guns around the upper 270 degrees so the pile visibly grows
+   const ang=-Math.PI/2 + (total===1?0:(i-(total-1)/2)*0.62);
+   const gx=hx+Math.cos(ang)*(hero.r+3), gy=hy+Math.sin(ang)*(hero.r+3);
+   ctx.save(); ctx.translate(gx,gy); const tgt=nearest(hx,hy,400); const fa=tgt?Math.atan2(tgt.y-hy,tgt.x-hx):(hero.face>0?0:Math.PI); ctx.rotate(fa);
+   ctx.fillStyle= w.kind==='cannon'?'#ff7a59': w.kind==='zapper'?'#b98cff': w.kind==='spread'?'#ffd166':'#9adcff';
+   ctx.strokeStyle='#0a1024'; ctx.lineWidth=1.5;
+   if(w.kind==='cannon'){ ctx.fillRect(-4,-6,24,12); ctx.strokeRect(-4,-6,24,12); }
+   else if(w.kind==='spread'){ ctx.fillRect(-3,-7,18,5); ctx.fillRect(-3,2,18,5); ctx.strokeRect(-3,-7,18,5); ctx.strokeRect(-3,2,18,5); }
+   else if(w.kind==='zapper'){ ctx.fillRect(-3,-3,15,6); ctx.strokeRect(-3,-3,15,6); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(13,0,3.4,0,6.29); ctx.fill(); }
+   else { ctx.fillRect(-3,-3.5,17,7); ctx.strokeRect(-3,-3.5,17,7); }
+   ctx.restore();
+   // bolt
+   ctx.fillStyle='#ffe66d'; ctx.beginPath(); ctx.arc(gx,gy,2,0,6.29); ctx.fill();
+ });
+ // body
+ ctx.save(); ctx.translate(hx,hy);
+ const bg=ctx.createRadialGradient(-6,-8,4,0,0,hero.r+4); bg.addColorStop(0,'#e8fbff'); bg.addColorStop(0.6, hero.hurtT>0?'#ff8fa8':'#57c7e8'); bg.addColorStop(1,'#1668a0');
+ ctx.fillStyle=bg; ctx.shadowColor='#2ee6ff'; ctx.shadowBlur=16; ctx.beginPath(); ctx.arc(0,0,hero.r,0,6.29); ctx.fill(); ctx.shadowBlur=0;
+ ctx.strokeStyle='#dff9ff'; ctx.lineWidth=2; ctx.stroke();
+ // eye visor
+ ctx.fillStyle='#0a1024'; ctx.beginPath(); ctx.ellipse(0,-3,11,7.5,0,0,6.29); ctx.fill();
+ ctx.fillStyle='#2ee6ff'; ctx.beginPath(); ctx.arc(hero.face*3,-3,3.2,0,6.29); ctx.fill();
+ // antenna + feet
+ ctx.strokeStyle='#dff9ff'; ctx.beginPath(); ctx.moveTo(0,-hero.r); ctx.lineTo(0,-hero.r-8); ctx.stroke(); ctx.fillStyle='#ffe66d'; ctx.beginPath(); ctx.arc(0,-hero.r-10,3,0,6.29); ctx.fill();
+ ctx.fillStyle='#1668a0'; ctx.fillRect(-12,hero.r-2,9,5); ctx.fillRect(3,hero.r-2,9,5);
+ ctx.restore();
+ // particles
+ for(const p of parts){ ctx.globalAlpha=Math.max(0,p.life/0.35); ctx.fillStyle=p.color; ctx.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size); } ctx.globalAlpha=1;
+ if(flash>0){ ctx.fillStyle=`rgba(255,46,99,${flash*1.4})`; ctx.fillRect(0,0,W,H); }
+ ctx.restore();
+}
+updateHUD();
+
+// ---------- QA hook ----------
+window.__arena={
+ state(){ const nf=nearest(hero.x,hero.y,9999); return {phase,wave,timeLeft:+timeLeft.toFixed(2),kills,scrap,banked,score:finalScore(),hp:hero.hp,maxhp:hero.maxhp,weapons:weapons.map(w=>w.kind),weaponCount:weapons.length,enemies:enemies.length,hero:{x:Math.round(hero.x),y:Math.round(hero.y)},nearestFoe:nf?{x:Math.round(nf.x),y:Math.round(nf.y)}:null,shop:shopItems.map(s=>({id:s.item.id,price:s.price,bought:s.bought}))}; },
+ start(){ startRun(); },
+ buy(i){ buyItem(i); },
+ next(){ if(phase==='shop'){ wave++; startWave(); } },
+ giveScrap(n){ scrap+=n; updateHUD(); if(phase==='shop') renderShop(); },
+ hurt(n){ hurtHero(n); },
+ setHP(n){ hero.hp=n; updateHUD(); },
+};
+</script>
+</body>
+</html>

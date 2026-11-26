@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Turf Loop</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#fdf6ec; touch-action:none; overscroll-behavior:none;
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; -webkit-user-select:none; user-select:none; }
+  #game { position:fixed; inset:0; display:block; touch-action:none; }
+  .ui { position:fixed; z-index:1100; }
+  #hud { top:calc(env(safe-area-inset-top,0px) + 10px); left:0; right:0; text-align:center; pointer-events:none; }
+  #pct { font-size:64px; font-weight:900; color:#ff5d8f; line-height:1;
+    text-shadow:0 3px 0 #fff, 0 6px 14px rgba(0,0,0,.18); letter-spacing:-1px; }
+  #pct small { font-size:30px; }
+  #sub { font-size:14px; font-weight:700; color:#7a6a58; margin-top:2px; }
+  #feed { top:calc(env(safe-area-inset-top,0px) + 118px); left:0; right:0; text-align:center; pointer-events:none;
+    font-size:14px; font-weight:800; color:#4a3f30; text-shadow:0 1px 0 #fff; min-height:20px; }
+  #board { top:calc(env(safe-area-inset-top,0px) + 10px); right:10px; background:rgba(255,255,255,.75);
+    border-radius:12px; padding:8px 10px; font-size:12px; font-weight:700; color:#4a3f30; pointer-events:none; }
+  #board div { display:flex; align-items:center; gap:6px; margin:2px 0; }
+  .sw { width:12px; height:12px; border-radius:4px; display:inline-block; }
+  #stick { width:120px; height:120px; border-radius:50%; background:rgba(255,255,255,.35);
+    border:3px solid rgba(255,255,255,.8); display:none; pointer-events:none; transform:translate(-50%,-50%); }
+  #nub { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.9);
+    box-shadow:0 3px 8px rgba(0,0,0,.25); display:none; pointer-events:none; transform:translate(-50%,-50%); }
+  .screen { inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    background:rgba(253,246,236,.88); text-align:center; padding:24px; }
+  .screen h1 { font-size:52px; font-weight:900; color:#ff5d8f; letter-spacing:-1px; text-shadow:0 3px 0 #fff; }
+  .screen p { font-size:17px; font-weight:600; color:#5c4f3e; max-width:320px; line-height:1.45; }
+  .btn { pointer-events:auto; cursor:pointer; border:none; border-radius:999px; padding:16px 42px;
+    font-size:22px; font-weight:900; color:#fff; background:#ff5d8f; box-shadow:0 5px 0 #d63d6e, 0 10px 20px rgba(0,0,0,.2); }
+  .btn:active { transform:translateY(3px); box-shadow:0 2px 0 #d63d6e; }
+  #end { display:none; }
+  #endPct { font-size:72px; font-weight:900; color:#ff5d8f; line-height:1; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="ui" id="hud"><div id="pct">0.0<small>%</small></div><div id="sub">your turf — goal 25%</div></div>
+<div class="ui" id="feed"></div>
+<div class="ui" id="board"></div>
+<div class="ui" id="stick"></div><div class="ui" id="nub"></div>
+
+<div class="ui screen" id="start">
+  <h1>Turf Loop</h1>
+  <p>Steer with the left-half joystick (or WASD / arrows). Leave your turf to draw a trail — loop back home to claim everything inside. Don't let anyone cross your trail… and don't cross it yourself!</p>
+  <button class="btn" id="playBtn">PLAY</button>
+</div>
+<div class="ui screen" id="end">
+  <h1 id="endTitle">Splat!</h1>
+  <div id="endPct">0%</div>
+  <p id="endMsg"></p>
+  <button class="btn" id="againBtn">PLAY AGAIN</button>
+</div>
+
+<script>
+'use strict';
+// ---------- no-zoom / gesture guards ----------
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault(), { passive:false });
+let lastTap = 0;
+document.addEventListener('touchend', e => { const t = Date.now(); if (t - lastTap < 350) e.preventDefault(); lastTap = t; }, { passive:false });
+
+// ---------- board ----------
+const W = 64, H = 64, TOTAL = W * H;
+const owner = new Int16Array(TOTAL).fill(-1);       // -1 neutral, else player idx
+const trailOwner = new Int16Array(TOTAL).fill(-1); // cell -> player idx whose trail occupies it
+const cell = (x, y) => y * W + x;
+const inB = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
+
+const PLAYERS = [
+  { name:'YOU',   color:'#ff5d8f', dark:'#d63d6e', pat:'stripes' },
+  { name:'Bibo',  color:'#ffb020', dark:'#d18d00', pat:'dots' },
+  { name:'Pip',   color:'#38c172', dark:'#23955a', pat:'stars' },
+  { name:'Zaza',  color:'#4dabff', dark:'#2b7fd4', pat:'stripes' },
+  { name:'Momo',  color:'#a06bff', dark:'#7c43d6', pat:'dots' },
+  { name:'Kiki',  color:'#ff7a45', dark:'#d6531f', pat:'stars' },
+];
+const SPAWNS = [ [10,10],[53,10],[10,53],[53,53],[8,30],[55,30] ];
+
+const players = [];
+function makePlayer(i) {
+  const [sx, sy] = SPAWNS[i];
+  return { i, x: sx + 2.5, y: sy + 2.5, ang: i === 0 ? -Math.PI / 2 : Math.atan2(32 - (sy + 2.5), 32 - (sx + 2.5)), speed: i === 0 ? 7.4 : 6.4 + (i % 3) * .25,
+    alive: true, trail: [], homeX: sx + 2, homeY: sy + 2,
+    ai: i !== 0, mode:'out', target:null, think: Math.random() * .5, excursion: 0 };
+}
+function seedTurf(p) {
+  const [sx, sy] = SPAWNS[p.i];
+  for (let y = sy; y < sy + 5; y++) for (let x = sx; x < sx + 5; x++) owner[cell(x, y)] = p.i;
+}
+function countTurf(i) { let n = 0; for (let k = 0; k < TOTAL; k++) if (owner[k] === i) n++; return n; }
+const pctOf = i => countTurf(i) / TOTAL * 100;
+
+// ---------- board render cache ----------
+const BCELL = 16, boardCv = document.createElement('canvas');
+boardCv.width = W * BCELL; boardCv.height = H * BCELL;
+const bctx = boardCv.getContext('2d');
+function drawCellArt(x, y, i) {
+  const P = PLAYERS[i], px = x * BCELL, py = y * BCELL;
+  bctx.fillStyle = P.color; bctx.fillRect(px, py, BCELL, BCELL);
+  bctx.fillStyle = 'rgba(255,255,255,.35)';
+  if (P.pat === 'stripes') { if (((x + y) & 1) === 0) bctx.fillRect(px, py, BCELL, 5); }
+  else if (P.pat === 'dots') { bctx.beginPath(); bctx.arc(px + 8, py + 8, 3, 0, 7); bctx.fill(); }
+  else { // stars: tiny diamond
+    bctx.beginPath(); bctx.moveTo(px + 8, py + 3); bctx.lineTo(px + 11, py + 8); bctx.lineTo(px + 8, py + 13); bctx.lineTo(px + 5, py + 8); bctx.closePath(); bctx.fill();
+  }
+}
+function paintBoardAll() {
+  bctx.fillStyle = '#f3ead8'; bctx.fillRect(0, 0, boardCv.width, boardCv.height);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const o = owner[cell(x, y)]; if (o >= 0) drawCellArt(x, y, o); }
+}
+function claimCells(p, cells) { for (const c of cells) { owner[c] = p.i; drawCellArt(c % W, (c / W) | 0, p.i); } }
+
+// ---------- game state ----------
+let running = false, over = false, paused = false, feedT = null;
+const feedEl = document.getElementById('feed');
+function feed(msg) { feedEl.textContent = msg; clearTimeout(feedT); feedT = setTimeout(() => feedEl.textContent = '', 2600); }
+
+function reset() {
+  owner.fill(-1); trailOwner.fill(-1); players.length = 0;
+  for (let i = 0; i < 6; i++) { const p = makePlayer(i); players.push(p); seedTurf(p); }
+  paintBoardAll(); over = false; updateHUD();
+}
+function clearTrail(p) { for (const c of p.trail) if (trailOwner[c] === p.i) trailOwner[c] = -1; p.trail = []; }
+function die(p, why) {
+  if (!p.alive) return;
+  p.alive = false; clearTrail(p);
+  for (let k = 0; k < TOTAL; k++) if (owner[k] === p.i) { owner[k] = -1; }
+  paintBoardAll();
+  if (p.i === 0) { window.__deathWhy = why; endGame(false, why); }
+  else {
+    feed(PLAYERS[p.i].name + ' is out! ' + why);
+    if (players.slice(1).every(q => !q.alive)) endGame(true, 'Last block standing!');
+    updateHUD();
+  }
+}
+function closeLoop(p) {
+  const claimed = [...p.trail];
+  clearTrail(p);
+  for (const c of claimed) owner[c] = p.i; // trail becomes turf FIRST so the flood can't leak through it
+  // flood fill from borders through cells NOT owned by p; unreached cells get claimed
+  const seen = new Uint8Array(TOTAL), stack = [];
+  for (let x = 0; x < W; x++) { stack.push(cell(x, 0), cell(x, H - 1)); }
+  for (let y = 0; y < H; y++) { stack.push(cell(0, y), cell(W - 1, y)); }
+  while (stack.length) {
+    const c = stack.pop();
+    if (seen[c] || owner[c] === p.i) continue;
+    seen[c] = 1;
+    const x = c % W, y = (c / W) | 0;
+    if (x > 0) stack.push(c - 1); if (x < W - 1) stack.push(c + 1);
+    if (y > 0) stack.push(c - W); if (y < H - 1) stack.push(c + W);
+  }
+  for (let k = 0; k < TOTAL; k++) if (!seen[k] && owner[k] !== p.i) claimed.push(k);
+  claimCells(p, claimed);
+  if (p.i === 0) {
+    feed('Loop closed! +' + (claimed.length / TOTAL * 100).toFixed(1) + '%');
+    if (pctOf(0) >= 25) endGame(true, 'You claimed 25% of the board!');
+  }
+  updateHUD();
+}
+
+// ---------- AI ----------
+function nearestOwn(p) { // nearest own cell to the bot's exit point (safer return line)
+  const tx = p.exitX !== undefined ? p.exitX : p.x, ty = p.exitY !== undefined ? p.exitY : p.y;
+  let best = null, bd = 1e9;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (owner[cell(x, y)] === p.i) {
+    const d = (x - tx) ** 2 + (y - ty) ** 2; if (d < bd) { bd = d; best = { x: x + .5, y: y + .5 }; }
+  }
+  return best;
+}
+function aiThink(p, dt) {
+  // trail-shy: if any trail lies just ahead, head home now
+  const ax = (p.x + Math.cos(p.ang) * 2.5) | 0, ay = (p.y + Math.sin(p.ang) * 2.5) | 0;
+  if (inB(ax, ay) && trailOwner[cell(ax, ay)] >= 0 && p.trail.length) { p.mode = 'back'; p.target = nearestOwn(p); }
+  p.think -= dt; if (p.think > 0 && p.target) return;
+  p.think = .25 + Math.random() * .3;
+  const onOwn = owner[cell(p.x | 0, p.y | 0)] === p.i;
+  if (onOwn && p.trail.length === 0) {
+    p.mode = 'out'; p.excursion = 6 + Math.random() * 9;
+    const a = Math.atan2(H / 2 - p.y, W / 2 - p.x) + (Math.random() - .5) * 1.6;
+    const d = 9 + Math.random() * 12;
+    p.target = { x: Math.min(W - 3, Math.max(2, p.x + Math.cos(a) * d)), y: Math.min(H - 3, Math.max(2, p.y + Math.sin(a) * d)) };
+  } else if (p.mode === 'out') {
+    p.excursion -= .3;
+    if (p.excursion <= 0 || p.trail.length > 20) { p.mode = 'back'; p.target = nearestOwn(p); }
+    else if (p.target && Math.hypot(p.target.x - p.x, p.target.y - p.y) < 1.5) {
+      const a = Math.random() * Math.PI * 2;
+      p.target = { x: Math.min(W - 3, Math.max(2, p.x + Math.cos(a) * 8)), y: Math.min(H - 3, Math.max(2, p.y + Math.sin(a) * 8)) };
+    }
+  } else { p.target = nearestOwn(p); }
+}
+function steerTo(p, tx, ty, dt) {
+  const want = Math.atan2(ty - p.y, tx - p.x);
+  let d = want - p.ang;
+  while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+  const turn = 4.4 * dt;
+  p.ang += Math.max(-turn, Math.min(turn, d));
+}
+
+// ---------- movement / rules ----------
+function stepPlayer(p, dt) {
+  if (!p.alive) return;
+  if (p.ai) { aiThink(p, dt); if (p.target) steerTo(p, p.target.x, p.target.y, dt); }
+  const nx = p.x + Math.cos(p.ang) * p.speed * dt;
+  const ny = p.y + Math.sin(p.ang) * p.speed * dt;
+  if (nx < .6 || ny < .6 || nx > W - .6 || ny > H - .6) { // wall: turn bots, clamp player
+    if (p.ai) { p.ang = Math.atan2(H / 2 - p.y, W / 2 - p.x); p.mode = 'back'; p.target = nearestOwn(p); }
+    p.x = Math.min(W - .6, Math.max(.6, nx)); p.y = Math.min(H - .6, Math.max(.6, ny));
+  } else { p.x = nx; p.y = ny; }
+  const cx = p.x | 0, cy = p.y | 0, c = cell(cx, cy);
+  const t = trailOwner[c];
+  if (t >= 0 && t !== p.i) { // crossed someone else's trail -> they die
+    const victim = players[t];
+    if (victim && victim.alive) { if (victim.i === 0) { die(victim, PLAYERS[p.i].name + ' cut your trail!'); return; } die(victim, 'trail cut by ' + PLAYERS[p.i].name); }
+  }
+  if (owner[c] === p.i) { if (p.trail.length) closeLoop(p); return; }
+  // exposed ground:
+  if (t === p.i) { // own trail: the freshest ~10 cells are your neck — crossing older trail kills
+    const idx = p.trail.indexOf(c);
+    if (idx >= 0 && idx < p.trail.length - 10) { die(p, p.ai ? 'crossed its own trail' : 'You crossed your own trail!'); }
+    return;
+  }
+  if (p.trail.length === 0) { p.exitX = p.x; p.exitY = p.y; }
+  trailOwner[c] = p.i; p.trail.push(c);
+}
+
+// ---------- input: floating joystick (left half) + keyboard ----------
+let joyId = null, joyBase = { x: 0, y: 0 }, joyVec = { x: 0, y: 0 }, joyActive = false;
+const stickEl = document.getElementById('stick'), nubEl = document.getElementById('nub');
+const keys = {};
+addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (e.key.startsWith('Arrow')) e.preventDefault(); });
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+function keyAngle() {
+  let x = 0, y = 0;
+  if (keys['arrowleft'] || keys['a']) x -= 1; if (keys['arrowright'] || keys['d']) x += 1;
+  if (keys['arrowup'] || keys['w']) y -= 1; if (keys['arrowdown'] || keys['s']) y += 1;
+  return (x || y) ? Math.atan2(y, x) : null;
+}
+const cv = document.getElementById('game');
+function pt(e) { const t = [...e.changedTouches].find(t => t.identifier === joyId); return t; }
+cv.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) if (t.clientX < innerWidth / 2 && joyId === null) {
+    joyId = t.identifier; joyBase = { x: t.clientX, y: t.clientY }; joyVec = { x: 0, y: 0 }; joyActive = true;
+    stickEl.style.display = nubEl.style.display = 'block';
+    stickEl.style.left = joyBase.x + 'px'; stickEl.style.top = joyBase.y + 'px';
+    nubEl.style.left = joyBase.x + 'px'; nubEl.style.top = joyBase.y + 'px';
+  }
+}, { passive:false });
+cv.addEventListener('touchmove', e => {
+  e.preventDefault(); const t = pt(e); if (!t) return;
+  let dx = t.clientX - joyBase.x, dy = t.clientY - joyBase.y;
+  const m = Math.hypot(dx, dy), max = 48;
+  if (m > max) { dx *= max / m; dy *= max / m; }
+  joyVec = { x: dx / max, y: dy / max };
+  nubEl.style.left = (joyBase.x + dx) + 'px'; nubEl.style.top = (joyBase.y + dy) + 'px';
+}, { passive:false });
+const endTouch = e => { if (pt(e)) { joyId = null; joyActive = false; stickEl.style.display = nubEl.style.display = 'none'; } };
+cv.addEventListener('touchend', endTouch); cv.addEventListener('touchcancel', endTouch);
+// mouse fallback (desktop testing with drag)
+let mouseDown = false;
+cv.addEventListener('mousedown', e => { if (e.clientX < innerWidth / 2) { mouseDown = true; joyBase = { x: e.clientX, y: e.clientY }; joyActive = true; joyVec = { x: 0, y: 0 }; } });
+addEventListener('mousemove', e => { if (mouseDown) { joyVec = { x: (e.clientX - joyBase.x) / 48, y: (e.clientY - joyBase.y) / 48 }; const m = Math.hypot(joyVec.x, joyVec.y); if (m > 1) { joyVec.x /= m; joyVec.y /= m; } } });
+addEventListener('mouseup', () => { mouseDown = false; joyActive = false; });
+
+// ---------- HUD / screens ----------
+const pctEl = document.getElementById('pct'), boardEl = document.getElementById('board');
+function updateHUD() {
+  const p0 = pctOf(0);
+  pctEl.innerHTML = p0.toFixed(1) + '<small>%</small>';
+  boardEl.innerHTML = players.map(p =>
+    `<div><span class="sw" style="background:${PLAYERS[p.i].color}"></span>${PLAYERS[p.i].name} ${p.alive ? pctOf(p.i).toFixed(1) + '%' : 'OUT'}</div>`).join('');
+}
+function endGame(won, msg) {
+  if (over) return; over = true; running = false;
+  document.getElementById('endTitle').textContent = won ? 'You Win! 🏆' : 'Splat!';
+  document.getElementById('endTitle').style.color = won ? '#38c172' : '#ff5d8f';
+  document.getElementById('endPct').textContent = pctOf(0).toFixed(1) + '%';
+  document.getElementById('endMsg').textContent = msg;
+  document.getElementById('end').style.display = 'flex';
+}
+function startGame() {
+  reset();
+  document.getElementById('start').style.display = 'none';
+  document.getElementById('end').style.display = 'none';
+  running = true;
+}
+document.getElementById('playBtn').addEventListener('click', startGame);
+document.getElementById('againBtn').addEventListener('click', startGame);
+
+// ---------- render ----------
+const ctx = cv.getContext('2d');
+function resize() { cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio; }
+addEventListener('resize', resize); resize();
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  let dt = Math.min(.05, (now - last) / 1000); last = now;
+  const me = players[0];
+  if (running && me && !paused) {
+    const ka = keyAngle();
+    if (ka !== null) { let d = ka - me.ang; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; me.ang += Math.max(-9 * dt, Math.min(9 * dt, d)); }
+    else if (joyActive && Math.hypot(joyVec.x, joyVec.y) > .25) {
+      const want = Math.atan2(joyVec.y, joyVec.x);
+      let d = want - me.ang; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+      me.ang += Math.max(-9 * dt, Math.min(9 * dt, d));
+    }
+    for (const p of players) stepPlayer(p, dt);
+    if (!frame._hudT || now - frame._hudT > 150) { frame._hudT = now; updateHUD(); }
+  }
+  // draw
+  const vw = cv.width, vh = cv.height;
+  ctx.fillStyle = '#fdf6ec'; ctx.fillRect(0, 0, vw, vh);
+  if (!me) return;
+  const scale = vw / 24; // ~24 cells across
+  const camX = me.x * BCELL - vw / 2 / (scale / BCELL), camY = me.y * BCELL - vh / 2 / (scale / BCELL);
+  ctx.save();
+  ctx.scale(scale / BCELL, scale / BCELL);
+  ctx.translate(-camX, -camY);
+  // paper grid
+  ctx.drawImage(boardCv, 0, 0);
+  ctx.strokeStyle = 'rgba(120,100,70,.14)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x++) { ctx.moveTo(x * BCELL, 0); ctx.lineTo(x * BCELL, H * BCELL); }
+  for (let y = 0; y <= H; y++) { ctx.moveTo(0, y * BCELL); ctx.lineTo(W * BCELL, y * BCELL); }
+  ctx.stroke();
+  ctx.strokeStyle = '#c9b48a'; ctx.lineWidth = 6; ctx.strokeRect(0, 0, W * BCELL, H * BCELL);
+  // trails
+  for (const p of players) {
+    if (!p.alive || !p.trail.length) continue;
+    ctx.fillStyle = PLAYERS[p.i].color; ctx.globalAlpha = .75;
+    for (const c of p.trail) ctx.fillRect((c % W) * BCELL + 2, ((c / W) | 0) * BCELL + 2, BCELL - 4, BCELL - 4);
+    ctx.globalAlpha = 1;
+  }
+  // blocks
+  for (const p of players) {
+    if (!p.alive) continue;
+    const px = p.x * BCELL, py = p.y * BCELL, s = BCELL * 1.05;
+    ctx.save(); ctx.translate(px, py); ctx.rotate(p.ang);
+    ctx.fillStyle = PLAYERS[p.i].dark; roundRect(-s/2 + 2, -s/2 + 3, s, s, 6); ctx.fill();
+    ctx.fillStyle = PLAYERS[p.i].color; roundRect(-s/2, -s/2, s, s, 6); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(3, -4, 3.4, 0, 7); ctx.arc(3, 4, 3.4, 0, 7); ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(4.4, -4, 1.7, 0, 7); ctx.arc(4.4, 4, 1.7, 0, 7); ctx.fill();
+    ctx.restore();
+    if (p.i === 0) { ctx.fillStyle = '#333'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('YOU', px, py - 16); }
+  }
+  ctx.restore();
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+reset();
+requestAnimationFrame(frame);
+
+// debug / QA hook
+window.__turf = {
+  state: () => { const me = players[0]; return { running, over, pct: +pctOf(0).toFixed(2), alive: me ? me.alive : false,
+    x: me ? +me.x.toFixed(1) : 0, y: me ? +me.y.toFixed(1) : 0, trail: me ? me.trail.length : 0,
+    ang: me ? +me.ang.toFixed(2) : 0, joy: joyActive ? [+joyVec.x.toFixed(2), +joyVec.y.toFixed(2)] : null,
+    botsAlive: players.slice(1).filter(p => p.alive).length, deathWhy: window.__deathWhy || null }; },
+  start: startGame,
+  setPaused: v => { paused = !!v; },
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Don't Trust the Floor</title><link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#171722;font-family:system-ui,sans-serif;touch-action:none;overscroll-behavior:none}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+canvas{display:block;width:min(100vw,calc(100vh*390/844));height:min(100vh,calc(100vw*844/390));background:#f4f1ea;touch-action:none}
+#hud{position:fixed;top:0;left:50%;transform:translateX(-50%);width:min(100vw,calc(100vh*390/844));padding:14px 16px;display:flex;justify-content:space-between;z-index:1100;pointer-events:none;color:#171722;font-weight:800}
+#hud span{background:#fff;border:2px solid #171722;border-radius:999px;padding:5px 10px;box-shadow:2px 2px 0 #171722;font-size:14px}
+.btn{position:fixed;bottom:22px;z-index:1100;width:64px;height:64px;border-radius:50%;border:3px solid #171722;background:#fff;color:#171722;font-size:26px;font-weight:900;box-shadow:3px 3px 0 #171722;touch-action:none;user-select:none;display:flex;align-items:center;justify-content:center}
+#btnL{left:calc(50% - min(100vw,calc(100vh*390/844))/2 + 18px)}
+#btnR{left:calc(50% - min(100vw,calc(100vh*390/844))/2 + 94px)}
+#btnA{right:calc(50% - min(100vw,calc(100vh*390/844))/2 + 18px);background:#ffd23f;width:76px;height:76px;font-size:20px}
+.btn.on{background:#171722;color:#fff}
+#overlay{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;background:rgba(23,23,34,.88);color:#fff;text-align:center;padding:24px}
+#overlay.show{display:flex}
+#overlay .card{max-width:340px} #overlay h1{font-size:36px;line-height:1.05;margin:0 0 12px} #overlay p{font-size:18px;line-height:1.4}
+#again{margin-top:16px;background:#ffd23f;border:3px solid #fff;border-radius:999px;padding:12px 22px;font-size:18px;font-weight:900;cursor:pointer}
+#toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:1100;pointer-events:none;background:#171722;color:#fff;padding:7px 12px;border-radius:999px;font-weight:700;font-size:13px;opacity:0;transition:opacity .2s;white-space:nowrap}
+#toast.show{opacity:1}
+</style></head><body>
+<div id="wrap"><canvas id="c" width="390" height="844"></canvas></div>
+<div id="hud"><span id="roomHud">Room 1/10</span><span id="deathHud">💀 0</span><span id="scoreHud">Score 0</span></div>
+<div id="toast"></div>
+<div class="btn" id="btnL">◀</div><div class="btn" id="btnR">▶</div><div class="btn" id="btnA">A</div>
+<div id="overlay"><div class="card"><h1>You survived!<br>(barely)</h1><p id="finalScore"></p><p>The floor apologises. It is lying.</p><button id="again">Play again</button></div></div>
+<script>
+'use strict';
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=390,H=844,GROUND=700;
+const input={left:false,right:false,jump:false,jumpPressed:false};
+let roomIdx=0,deaths=0,cleared=0,freeze=0,poof=null,shake=0,finished=false;
+const player={x:30,y:GROUND-36,w:28,h:36,vx:0,vy:0,onGround:false,face:1,dead:false};
+let door,trap,trapT,platforms,spikes,msgTimer;
+const ROOMS=[
+ {accent:'#ff5a5f',title:'Warm-up. Totally safe.',trap:'drop',trigger:160},
+ {accent:'#ff9f1c',title:'Something slid in…',trap:'spikeSlide',trigger:140},
+ {accent:'#2ec4b6',title:'Mind your head.',trap:'ceiling',trigger:150},
+ {accent:'#e71d73',title:'The door is shy.',trap:'doorScoot',trigger:0},
+ {accent:'#8338ec',title:'That floor looks… drawn on.',trap:'fakeFloor',trigger:0},
+ {accent:'#3a86ff',title:'Boing is not optional.',trap:'spring',trigger:0},
+ {accent:'#06d6a0',title:'The bridge has commitment issues.',trap:'bridge',trigger:130},
+ {accent:'#ef476f',title:'The floor bites back.',trap:'spikePop',trigger:120},
+ {accent:'#118ab2',title:'Definitely the real door.',trap:'fakeDoor',trigger:0},
+ {accent:'#ffd166',title:'Everything. All at once.',trap:'combo',trigger:150},
+];
+function plat(x,y,w,h,kind){return{x,y,w,h,kind:kind||'solid',gone:false,dy:0}}
+function loadRoom(){
+ const r=ROOMS[roomIdx]; trap={type:r.trap,fired:false,t:0,doorMoved:false,fakeGone:false}; trapT=0; spikes=[]; poof=null; freeze=0;
+ player.x=28;player.y=GROUND-player.h;player.vx=0;player.vy=0;player.dead=false;
+ door={x:322,y:GROUND-64,w:44,h:64};
+ platforms=[plat(0,GROUND,390,144,'floor')];
+ if(r.trap==='drop'||r.trap==='combo'){platforms=[plat(0,GROUND,150,144,'floor'),plat(150,GROUND,90,144,'drop'),plat(240,GROUND,150,144,'floor')]; spikes=[{x:158,y:812,w:74,h:24}]; platforms.push(plat(150,836,90,8,'pitfloor'));}
+ if(r.trap==='fakeFloor'){platforms=[plat(0,GROUND,150,144,'floor'),plat(150,GROUND,90,144,'fake'),plat(240,GROUND,150,144,'floor')]; spikes=[{x:158,y:812,w:74,h:24}]; platforms.push(plat(150,836,90,8,'pitfloor'));}
+ if(r.trap==='spring'){platforms.push(plat(250,540,140,18,'solid')); door={x:322,y:540-64,w:44,h:64};}
+ if(r.trap==='bridge'){platforms=[plat(0,GROUND,110,144,'floor'),plat(280,GROUND,110,144,'floor')]; platforms.push(plat(150,GROUND,90,16,'bridge'));}
+ if(r.trap==='ceiling'){/* block drawn separately */}
+ updateHud(); toast(r.title);
+}
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('show');clearTimeout(msgTimer);msgTimer=setTimeout(()=>e.classList.remove('show'),1800);}
+function updateHud(){document.getElementById('roomHud').textContent='Room '+(roomIdx+1)+'/10';document.getElementById('deathHud').textContent='💀 '+deaths;document.getElementById('scoreHud').textContent='Score '+(cleared-deaths);}
+function die(){if(player.dead)return;player.dead=true;deaths++;poof={x:player.x+14,y:player.y+18,t:0};freeze=0.2;setTimeout(()=>{if(!finished)loadRoom();},450);updateHud();}
+function clearRoom(){cleared++;updateHud();if(roomIdx>=9){finished=true;document.getElementById('finalScore').textContent='Rooms cleared: 10 · Deaths: '+deaths+' · Score: '+(cleared-deaths);document.getElementById('overlay').classList.add('show');}else{roomIdx++;loadRoom();}}
+function rectsOverlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+let ceilY=-90,spikeX=430,popT=0;
+function resetTrapVars(){ceilY=-90;spikeX=430;popT=0;}
+const _load=loadRoom; loadRoom=function(){resetTrapVars();_load();};
+function update(dt){
+ if(finished||player.dead)return;
+ if(freeze>0){freeze-=dt;return;}
+ const r=ROOMS[roomIdx];
+ // trigger
+ if(!trap.fired&&r.trigger&&player.x>r.trigger){trap.fired=true;}
+ if(trap.fired)trap.t+=dt;
+ // trap effects
+ if(r.trap==='drop'&&trap.fired){const p=platforms.find(p=>p.kind==='drop');if(p){p.dy=Math.min(160,p.dy+dt*260);p.y=GROUND+p.dy;}}
+ if(r.trap==='combo'&&trap.fired){const p=platforms.find(p=>p.kind==='drop');if(p){p.dy=Math.min(160,p.dy+dt*260);p.y=GROUND+p.dy;} spikeX=Math.max(250,spikeX-dt*90);}
+ if(r.trap==='fakeFloor'){const p=platforms.find(p=>p.kind==='fake');if(p&&!p.gone&&player.onGround&&player.x+player.w>p.x&&player.x<p.x+p.w){trap.t+=dt;if(trap.t>0.22)p.gone=true;}}
+ if(r.trap==='ceiling'&&trap.fired&&ceilY<GROUND-60){ceilY+=dt*430;const block={x:185,y:ceilY,w:70,h:60};if(rectsOverlap(player,block))die();}
+ if(r.trap==='spikeSlide'&&trap.fired)spikeX=Math.max(210,spikeX-dt*150);
+ if(r.trap==='spikePop'&&trap.fired){popT=trap.t;}
+ if(r.trap==='doorScoot'&&!trap.doorMoved&&Math.abs(door.x-player.x)<95){trap.doorMoved=true;door.x=215;}
+ if(r.trap==='combo'&&trap.fired&&!trap.doorMoved&&door.x-player.x<70&&door.x-player.x>0){/* door stays in combo for fairness */}
+ if(r.trap==='bridge'&&trap.fired){const b=platforms.find(p=>p.kind==='bridge');if(b)b.x=150+Math.sin(trap.t*2.2)*55;}
+ // movement
+ player.vx=0; if(input.left){player.vx=-185;player.face=-1} if(input.right){player.vx=185;player.face=1}
+ if(input.jumpPressed&&player.onGround){player.vy=-540;player.onGround=false;}
+ input.jumpPressed=false;
+ player.vy+=1450*dt; if(player.vy>720)player.vy=720;
+ player.x+=player.vx*dt; player.y+=player.vy*dt;
+ player.x=Math.max(0,Math.min(W-player.w,player.x));
+ player.onGround=false;
+ for(const p of platforms){if(p.gone)continue; if(player.x+player.w>p.x&&player.x<p.x+p.w){const prevBottom=player.y+player.h-player.vy*dt; if(player.vy>=0&&prevBottom<=p.y+12&&player.y+player.h>=p.y){ // spring check
+   if(p.kind==='springPad'){player.vy=-820;player.onGround=false;}else{player.y=p.y-player.h;player.vy=0;player.onGround=true;}}}}
+ // spring pad as platform object
+ // spikes
+ let allSpikes=[...spikes];
+ if(r.trap==='spikeSlide'||r.trap==='combo')allSpikes.push({x:spikeX,y:GROUND-22,w:34,h:22});
+ if(r.trap==='spikePop'&&trap.fired){for(let i=0;i<3;i++){if(popT>i*0.45)allSpikes.push({x:130+i*70,y:GROUND-20,w:30,h:20});}}
+ spikes._cur=allSpikes;
+ for(const s of allSpikes){const hit={x:s.x+4,y:s.y+8,w:s.w-8,h:s.h-8};if(rectsOverlap(player,hit))die();}
+ if(player.y>H+40)die();
+ // spring zone (room6): pad on floor x 190-230
+ if(r.trap==='spring'&&player.onGround&&player.x+player.w>195&&player.x<230){player.vy=-860;player.onGround=false;}
+ // fake door
+ if(rectsOverlap(player,door)){
+   if(r.trap==='fakeDoor'&&!trap.fakeGone){trap.fakeGone=true;poof={x:door.x+22,y:door.y+32,t:0};door={x:36,y:GROUND-64,w:44,h:64};toast('Rude. The real one is behind you.');}
+   else clearRoom();
+ }
+}
+function drawSpikes(s){ctx.fillStyle='#171722';for(let x=s.x;x<s.x+s.w-8;x+=14){ctx.beginPath();ctx.moveTo(x,s.y+s.h);ctx.lineTo(x+7,s.y);ctx.lineTo(x+14,s.y+s.h);ctx.fill();}}
+function draw(){
+ const r=ROOMS[roomIdx];ctx.clearRect(0,0,W,H);
+ ctx.fillStyle='#f4f1ea';ctx.fillRect(0,0,W,H);
+ ctx.fillStyle=r.accent;ctx.fillRect(0,0,W,10);ctx.globalAlpha=.14;ctx.fillRect(0,430,W,414);ctx.globalAlpha=1;
+ ctx.fillStyle=r.accent;ctx.font='900 92px system-ui';ctx.globalAlpha=.1;ctx.fillText(String(roomIdx+1),292,190);ctx.globalAlpha=1;
+ // door
+ ctx.fillStyle=trap&&trap.fakeGone&&r.trap==='fakeDoor'?'#2ec4b6':'#171722';ctx.fillRect(door.x-5,door.y-5,door.w+10,door.h+5);
+ ctx.fillStyle='#ffd23f';ctx.fillRect(door.x,door.y,door.w,door.h);ctx.fillStyle='#171722';ctx.beginPath();ctx.arc(door.x+34,door.y+34,4,0,7);ctx.fill();
+ ctx.fillStyle='#171722';ctx.font='800 11px system-ui';ctx.fillText('EXIT',door.x+7,door.y-12);
+ for(const p of platforms){if(p.gone)continue;ctx.fillStyle=p.kind==='fake'?'#c9c2b4':(p.kind==='bridge'?'#171722':r.accent);if(p.kind==='pitfloor')continue;ctx.fillRect(p.x,p.y,p.w,p.kind==='floor'||p.kind==='drop'||p.kind==='fake'?18:p.h);if(p.kind==='floor'||p.kind==='drop'||p.kind==='fake'){ctx.fillStyle='rgba(0,0,0,.18)';ctx.fillRect(p.x,p.y+18,p.w,6);}}
+ // ceiling block
+ if(r.trap==='ceiling'){ctx.fillStyle='#171722';ctx.fillRect(185,ceilY,70,60);ctx.fillStyle='#ffd23f';ctx.font='900 13px system-ui';ctx.fillText('OOPS',196,ceilY+35);}
+ if(r.trap==='spring'){ctx.fillStyle='#e71d73';ctx.fillRect(195,GROUND-12,35,12);ctx.fillStyle='#171722';ctx.font='800 11px system-ui';ctx.fillText('SPRING',188,GROUND-20);}
+ const cur=spikes._cur||spikes; for(const s of cur)drawSpikes(s); if(trap.fired)for(const s of spikes)if(!cur.includes(s))drawSpikes(s);
+ // poof
+ if(poof){poof.t+=0.016;ctx.fillStyle='#171722';for(let i=0;i<8;i++){const a=i/8*6.28;ctx.beginPath();ctx.arc(poof.x+Math.cos(a)*poof.t*90,poof.y+Math.sin(a)*poof.t*90,7-poof.t*4,0,7);ctx.fill();}if(poof.t>0.5)poof=null;}
+ if(!player.dead){
+  ctx.fillStyle='#171722';ctx.fillRect(player.x,player.y,player.w,player.h);
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(player.x+(player.face>0?19:9),player.y+13,4,0,7);ctx.fill();
+  ctx.fillStyle='#ffd23f';ctx.fillRect(player.x-2,player.y-8,player.w+4,7);
+ }
+}
+let last=performance.now();
+function loop(now){const dt=Math.min(0.033,(now-last)/1000);last=now;update(dt);draw();requestAnimationFrame(loop);}
+loadRoom();requestAnimationFrame(loop);
+// input
+function bindBtn(id,key){const el=document.getElementById(id);const on=e=>{e.preventDefault();el.classList.add('on');if(key==='jump'){if(!input.jump)input.jumpPressed=true;input.jump=true}else input[key]=true};const off=e=>{e.preventDefault();el.classList.remove('on');input[key]=false};el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);el.addEventListener('pointercancel',off);el.addEventListener('pointerleave',off);el.addEventListener('touchstart',on,{passive:false});el.addEventListener('touchend',off,{passive:false});}
+bindBtn('btnL','left');bindBtn('btnR','right');bindBtn('btnA','jump');
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')input.left=true;if(e.key==='ArrowRight')input.right=true;if(e.key==='ArrowUp'||e.key===' '){if(!input.jump)input.jumpPressed=true;input.jump=true;e.preventDefault();}});
+addEventListener('keyup',e=>{if(e.key==='ArrowLeft')input.left=false;if(e.key==='ArrowRight')input.right=false;if(e.key==='ArrowUp'||e.key===' ')input.jump=false;});
+document.addEventListener('gesturestart',e=>e.preventDefault());document.addEventListener('dblclick',e=>e.preventDefault());
+document.addEventListener('touchmove',e=>{if(e.target===cv)e.preventDefault()},{passive:false});
+document.getElementById('again').onclick=()=>{roomIdx=0;deaths=0;cleared=0;finished=false;document.getElementById('overlay').classList.remove('show');loadRoom();};
+window.__dtf={state:()=>({room:roomIdx+1,deaths,cleared,score:cleared-deaths,finished,player:{x:Math.round(player.x),y:Math.round(player.y)},door:{x:door.x,y:door.y},trap:{type:trap.type,fired:trap.fired,t:+trap.t.toFixed(2)},dead:player.dead}),input};
+</script></body></html>

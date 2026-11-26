@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Skytrack — Marble Runner</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#1a1033;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;touch-action:none;overscroll-behavior:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hud{position:fixed;z-index:1200;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 0;display:flex;justify-content:space-between;pointer-events:none;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6);font-weight:800}
+.pill{background:rgba(20,10,40,.55);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:7px 12px;font-size:15px;backdrop-filter:blur(4px)}
+#msg{position:fixed;z-index:1300;left:50%;top:18%;transform:translateX(-50%);color:#fff;font-size:28px;font-weight:900;text-shadow:0 3px 12px rgba(0,0,0,.7);pointer-events:none;opacity:0;transition:opacity .3s;text-align:center}
+.overlay{position:fixed;z-index:1400;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:linear-gradient(180deg,rgba(40,16,80,.35),rgba(10,6,30,.72));color:#fff;text-align:center;padding:24px}
+.overlay h1{font-size:52px;letter-spacing:1px;text-shadow:0 4px 0 #ff7a18,0 8px 24px rgba(0,0,0,.6)}
+.overlay p{font-size:17px;line-height:1.45;max-width:320px;text-shadow:0 2px 8px rgba(0,0,0,.8)}
+.btn{pointer-events:auto;background:#ffcf3f;color:#231200;border:none;border-radius:999px;padding:16px 34px;font-size:20px;font-weight:900;box-shadow:0 6px 0 #c47f00,0 10px 24px rgba(0,0,0,.4);cursor:pointer}
+.btn:active{transform:translateY(3px)}
+.hidden{display:none!important}
+#hint{position:fixed;z-index:1200;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);left:0;right:0;text-align:center;color:#fff;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,.7);pointer-events:none;font-size:14px}
+</style></head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud"><div class="pill" id="hud-level">TRACK 1/4</div><div class="pill" id="hud-coins">🪙 0</div><div class="pill" id="hud-time">0.0s</div></div>
+<div id="msg"></div><div id="hint">DRAG to steer &nbsp;•&nbsp; TAP to hop gaps</div>
+<div class="overlay" id="start"><h1>SKYTRACK</h1><p>Steer a glossy marble along a narrow track high above a sea of clouds at sunrise.<br><br>Drag left / right to lean into turns. Tap to hop gaps. Dodge the swinging hammers, grab coins on the racing line, and reach the finish arch!</p><button class="btn" id="playBtn">▶ ROLL!</button><p style="font-size:13px;opacity:.85">4 hand-built tracks • checkpoints • fall = quick respawn</p></div>
+<div class="overlay hidden" id="finish"><h1 style="font-size:40px">FINISH! 🏁</h1><p id="finishText"></p><button class="btn" id="nextBtn">NEXT TRACK →</button></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+// Block zoom / gestures
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('dblclick',e=>e.preventDefault());
+document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
+let lastTouch=0; document.addEventListener('touchend',e=>{let n=Date.now(); if(n-lastTouch<350)e.preventDefault(); lastTouch=n;},{passive:false});
+
+// ---------- Track definitions ----------
+// Each track: pts = [x,z] centerline control points (z decreasing forward), width, gaps=[[s0,s1]], coins=[[s,lat]], hammers=[[s,lat]], checkpoints=[s]
+function makeTracks(){
+ const T=[];
+ T.push({name:"Sunrise Straight",width:7,speed:22,pts:[[0,0],[0,-40],[8,-80],[8,-120],[-6,-160],[-6,-200],[0,-240]],gaps:[[118,126]],coins:[[30,0],[55,1.5],[90,-1.5],[140,0],[180,1],[220,0]],hammers:[],checks:[0,100,170]});
+ T.push({name:"Cloud S-Curves",width:6.4,speed:24,pts:[[0,0],[0,-35],[-14,-70],[-14,-105],[12,-140],[12,-175],[-8,-210],[0,-245]],gaps:[[96,105],[180,188]],coins:[[40,-1],[75,0],[115,1.5],[150,-1.5],[200,0],[230,0]],hammers:[[130,0]],checks:[0,90,165]});
+ T.push({name:"Hammer Heights",width:6,speed:26,pts:[[0,0],[10,-35],[10,-75],[-12,-110],[-12,-150],[14,-185],[14,-220],[0,-255]],gaps:[[70,79],[160,169],[215,223]],coins:[[30,1],[90,-1],[125,0],[195,1.5],[235,0]],hammers:[[100,0],[145,-0.5],[200,0.5]],checks:[0,80,155,210]});
+ T.push({name:"Pendulum Peak",width:5.4,speed:28,pts:[[0,0],[-12,-30],[8,-65],[-14,-100],[14,-135],[-10,-170],[10,-205],[0,-240],[0,-275]],gaps:[[55,65],[120,130],[190,200],[240,249]],coins:[[25,0],[85,1],[155,-1],[220,0],[260,0]],hammers:[[80,0],[110,0],[175,0],[230,0]],checks:[0,70,140,205]});
+ return T;
+}
+const TRACKS=makeTracks();
+
+// Build sampled centerline
+function buildLine(def){
+ const pts=def.pts.map(p=>new THREE.Vector3(p[0],0,p[1]));
+ const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.08);
+ const N=Math.ceil(curve.getLength()/1.5);
+ const samples=curve.getSpacedPoints(N);
+ let cum=[0]; for(let i=1;i<samples.length;i++) cum.push(cum[i-1]+samples[i].distanceTo(samples[i-1]));
+ return {curve,samples,cum,total:cum[cum.length-1]};
+}
+function sampleAt(line,s){
+ s=Math.max(0,Math.min(line.total,s));
+ let lo=0,hi=line.cum.length-1; while(lo<hi){let m=(lo+hi)>>1; if(line.cum[m]<s) lo=m+1; else hi=m;}
+ const i=Math.max(1,lo), s0=line.cum[i-1], s1=line.cum[i], t=s1>s0?(s-s0)/(s1-s0):0;
+ const pos=line.samples[i-1].clone().lerp(line.samples[i],t);
+ const tan=line.samples[i].clone().sub(line.samples[i-1]); tan.y=0; tan.normalize();
+ const side=new THREE.Vector3(-tan.z,0,tan.x);
+ // curvature approx
+ const i2=Math.min(line.samples.length-1,i+2), i0=Math.max(0,i-3);
+ const t2=line.samples[i2].clone().sub(line.samples[i0]); 
+ return {pos,tan,side};
+}
+
+// ---------- Three setup ----------
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0xf7a56b,60,220);
+const camera=new THREE.PerspectiveCamera(68,1,0.1,600);
+function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+addEventListener('resize',resize); resize();
+// sky gradient via large sphere shader-ish: use scene background color + lights
+scene.background=new THREE.Color(0xff9e64);
+scene.add(new THREE.AmbientLight(0xffe0b3,0.9));
+const sun=new THREE.DirectionalLight(0xffd9a0,1.6); sun.position.set(30,40,-60); scene.add(sun);
+const sunMesh=new THREE.Mesh(new THREE.SphereGeometry(9,20,20),new THREE.MeshBasicMaterial({color:0xfff2b0,fog:false})); sunMesh.position.set(45,28,-260); scene.add(sunMesh);
+// cloud sea
+const cloudMat=new THREE.MeshLambertMaterial({color:0xffffff});
+const cloudGroup=new THREE.Group(); scene.add(cloudGroup);
+for(let i=0;i<140;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(6+Math.random()*14,10,8),cloudMat); m.scale.y=0.35; m.position.set((Math.random()-0.5)*260,-14-Math.random()*8,-Math.random()*320+30); cloudGroup.add(m);}
+// ball
+const ball=new THREE.Mesh(new THREE.SphereGeometry(0.95,32,24),new THREE.MeshPhysicalMaterial({color:0x2266ff,roughness:0.08,metalness:0.1,clearcoat:1,clearcoatRoughness:0.1}));
+ball.castShadow=false; scene.add(ball);
+const stripe=new THREE.Mesh(new THREE.TorusGeometry(0.96,0.09,8,32),new THREE.MeshBasicMaterial({color:0xffffff})); ball.add(stripe);
+// speed lines
+const lineMat=new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0.55});
+let speedLines; {const g=new THREE.BufferGeometry(); const p=new Float32Array(60*2*3); for(let i=0;i<60;i++){let x=(Math.random()-0.5)*10,y=Math.random()*5,z=-Math.random()*20; p.set([x,y,z,x,y,z-4],i*6);} g.setAttribute('position',new THREE.BufferAttribute(p,3)); speedLines=new THREE.LineSegments(g,lineMat); scene.add(speedLines);}
+
+let worldGroup=null, coinMeshes=[], hammerObjs=[];
+function clearWorld(){ if(worldGroup){scene.remove(worldGroup); worldGroup.traverse(o=>{if(o.geometry)o.geometry.dispose();});} coinMeshes=[]; hammerObjs=[]; }
+function buildWorld(def,line){
+ clearWorld(); worldGroup=new THREE.Group(); scene.add(worldGroup);
+ const inGap=s=>def.gaps.some(g=>s>g[0]&&s<g[1]);
+ const matSide=new THREE.MeshLambertMaterial({color:0x8a4bff});
+ const matTop=new THREE.MeshLambertMaterial({color:0xfff6e8});
+ const matEdge=new THREE.MeshBasicMaterial({color:0xffcf3f});
+ const step=3;
+ for(let s=0;s<line.total-step;s+=step){
+   if(inGap(s+step/2)) continue;
+   const a=sampleAt(line,s), b=sampleAt(line,s+step);
+   const mid=a.pos.clone().add(b.pos).multiplyScalar(0.5); mid.y=-0.35;
+   const len=a.pos.distanceTo(b.pos)+0.4;
+   const geo=new THREE.BoxGeometry(def.width,0.7,len);
+   const mesh=new THREE.Mesh(geo,matTop);
+   mesh.position.copy(mid);
+   mesh.lookAt(b.pos.x,-0.35,b.pos.z);
+   worldGroup.add(mesh);
+   // edge strips
+   [-1,1].forEach(sign=>{ const e=new THREE.Mesh(new THREE.BoxGeometry(0.35,0.85,len),matEdge); const p=mid.clone().add(a.side.clone().multiplyScalar(sign*(def.width/2-0.15))); e.position.copy(p); e.lookAt(b.pos.x+ a.side.x*sign*(def.width/2-0.15),-0.35,b.pos.z+ a.side.z*sign*(def.width/2-0.15)); worldGroup.add(e); });
+ }
+ // coins
+ const cg=new THREE.CylinderGeometry(0.62,0.62,0.16,20); const cm=new THREE.MeshPhysicalMaterial({color:0xffcf3f,metalness:0.8,roughness:0.25,emissive:0x664400});
+ def.coins.forEach((c,idx)=>{const sm=sampleAt(line,c[0]); const pos=sm.pos.clone().add(sm.side.clone().multiplyScalar(c[1])); pos.y=1.1; const m=new THREE.Mesh(cg,cm); m.rotation.x=Math.PI/2; m.position.copy(pos); m.userData={s:c[0],lat:c[1],taken:false,idx}; worldGroup.add(m); coinMeshes.push(m);});
+ // hammers: frame + pendulum
+ def.hammers.forEach(h=>{ const sm=sampleAt(line,h[0]); const base=sm.pos.clone(); base.y=0;
+   const grp=new THREE.Group(); grp.position.copy(base); grp.rotation.y=Math.atan2(sm.tan.x,sm.tan.z);
+   const postMat=new THREE.MeshLambertMaterial({color:0x333355});
+   [-1,1].forEach(sign=>{const post=new THREE.Mesh(new THREE.BoxGeometry(0.4,6.5,0.4),postMat); post.position.set(sign*(def.width/2+0.4),3.25,0); grp.add(post);});
+   const bar=new THREE.Mesh(new THREE.BoxGeometry(def.width+1.2,0.4,0.4),postMat); bar.position.y=6.4; grp.add(bar);
+   const pend=new THREE.Group(); pend.position.y=6.4; grp.add(pend);
+   const rod=new THREE.Mesh(new THREE.BoxGeometry(0.25,4.4,0.25),postMat); rod.position.y=-2.2; pend.add(rod);
+   const head=new THREE.Mesh(new THREE.BoxGeometry(2.6,1.5,1.5),new THREE.MeshLambertMaterial({color:0xff3355})); head.position.y=-4.6; pend.add(head);
+   worldGroup.add(grp); hammerObjs.push({s:h[0],lat:h[1],pend,grp,phase:Math.random()*6});
+ });
+ // finish arch
+ const fm=sampleAt(line,line.total-2); const arch=new THREE.Group(); arch.position.copy(fm.pos); arch.rotation.y=Math.atan2(fm.tan.x,fm.tan.z);
+ const am=new THREE.MeshBasicMaterial({color:0x22dd88});
+ [-1,1].forEach(sign=>{const p=new THREE.Mesh(new THREE.BoxGeometry(0.5,7,0.5),am); p.position.set(sign*(def.width/2+0.5),3.5,0); arch.add(p);});
+ const top=new THREE.Mesh(new THREE.BoxGeometry(def.width+1.6,0.6,0.6),am); top.position.y=7; arch.add(top); worldGroup.add(arch);
+ // checkpoint flags
+ def.checks.forEach(cs=>{ if(cs===0)return; const sm=sampleAt(line,cs); const f=new THREE.Mesh(new THREE.BoxGeometry(0.15,3,0.15),new THREE.MeshBasicMaterial({color:0xffffff})); f.position.copy(sm.pos).add(sm.side.clone().multiplyScalar(def.width/2)); f.position.y=1.5; worldGroup.add(f); const flag=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.7,0.05),new THREE.MeshBasicMaterial({color:0x22aaff})); flag.position.copy(f.position); flag.position.y=2.8; flag.position.x+=0.6; worldGroup.add(flag); });
+}
+
+// ---------- Game state ----------
+const S={playing:false,finished:false,level:0,def:null,line:null,s:0,lat:0,latVel:0,y:0,vy:0,grounded:true,coins:0,time:0,falls:0,checkpoint:0,steer:0,roll:0,dead:0,deadTimer:0,totalCoins:0};
+function loadLevel(idx){
+ S.level=idx; S.def=TRACKS[idx]; S.line=buildLine(S.def); buildWorld(S.def,S.line);
+ S.s=0;S.lat=0;S.latVel=0;S.y=0;S.vy=0;S.coins=0;S.time=0;S.checkpoint=0;S.finished=false;S.dead=0;
+ document.getElementById('hud-level').textContent='TRACK '+(idx+1)+'/4 • '+S.def.name;
+ updateHUD();
+}
+function updateHUD(){document.getElementById('hud-coins').textContent='🪙 '+S.coins; document.getElementById('hud-time').textContent=S.time.toFixed(1)+'s';}
+function showMsg(t,ms){const el=document.getElementById('msg'); el.textContent=t; el.style.opacity=1; setTimeout(()=>el.style.opacity=0,ms||1100);}
+function respawn(){ S.s=S.checkpoint; S.lat=0; S.latVel=0; S.y=0; S.vy=0; S.dead=0; showMsg('CHECKPOINT!',800); }
+function fall(){ if(S.dead)return; S.dead=1; S.falls++; S.deadTimer=0; showMsg('YOU FELL!',900); }
+function hop(){ if(S.grounded&&S.playing&&!S.dead){S.vy=9.8; S.grounded=false;} }
+function finish(){
+ S.finished=true; S.playing=false;
+ const ft=document.getElementById('finishText');
+ const isLast=S.level>=TRACKS.length-1;
+ ft.innerHTML='Track '+(S.level+1)+' cleared in <b>'+S.time.toFixed(1)+'s</b><br>Coins: '+S.coins+' / '+S.def.coins.length+' &nbsp;•&nbsp; Falls: '+S.falls+(isLast?'<br><br>🏆 You beat all 4 tracks!':'');
+ document.getElementById('nextBtn').textContent=isLast?'↻ PLAY AGAIN':'NEXT TRACK →';
+ document.getElementById('finish').classList.remove('hidden');
+}
+
+// input: drag steer, tap hop
+let pDown=false,pStartX=0,pStartT=0,pMoved=0,lastX=0;
+function ptrDown(x){pDown=true;pStartX=x;lastX=x;pStartT=performance.now();pMoved=0;}
+function ptrMove(x){ if(!pDown)return; const dx=x-lastX; lastX=x; pMoved+=Math.abs(dx); S.steer=Math.max(-1,Math.min(1,dx*0.045)); S.latVel+=dx*0.055; }
+function ptrUp(){ if(!pDown)return; pDown=false; const dt=performance.now()-pStartT; if(dt<260&&pMoved<12) hop(); S.steer=0; }
+canvas.addEventListener('pointerdown',e=>ptrDown(e.clientX));
+addEventListener('pointermove',e=>ptrMove(e.clientX));
+addEventListener('pointerup',ptrUp);
+canvas.addEventListener('touchstart',e=>{},{passive:true});
+addEventListener('keydown',e=>{ if(e.code==='ArrowLeft')S.latVel-=1.2; if(e.code==='ArrowRight')S.latVel+=1.2; if(e.code==='Space'){e.preventDefault();hop();} });
+
+document.getElementById('playBtn').onclick=()=>{document.getElementById('start').classList.add('hidden'); S.playing=true;};
+document.getElementById('nextBtn').onclick=()=>{document.getElementById('finish').classList.add('hidden'); loadLevel((S.level+1)%TRACKS.length); S.playing=true;};
+
+let last=performance.now();
+function loop(now){
+ requestAnimationFrame(loop);
+ let dt=Math.min(0.033,(now-last)/1000); last=now;
+ if(S.playing&&!S.finished){
+   S.time+=dt;
+   if(S.dead){ S.deadTimer+=dt; S.y-=9*dt; if(S.deadTimer>0.7) respawn(); }
+   else{
+     S.s+=S.def.speed*dt;
+     // drift in curves: compare tangent direction change
+     const a=sampleAt(S.line,S.s), b=sampleAt(S.line,Math.min(S.line.total,S.s+6));
+     const cross=a.tan.x*b.tan.z-a.tan.z*b.tan.x; // sign of turn
+     S.latVel += cross * S.def.speed * 0.055 * dt * 10 * 0.16;
+     S.latVel*=Math.pow(0.12,dt); // damping-ish (strong)
+     S.latVel=Math.max(-14,Math.min(14,S.latVel));
+     S.lat+=S.latVel*dt;
+     // gravity / hop
+     if(!S.grounded||S.y>0){ S.vy-=24*dt; S.y+=S.vy*dt; if(S.y<=0){S.y=0;S.vy=0;S.grounded=true;} }
+     const inGap=S.def.gaps.some(g=>S.s>g[0]&&S.s<g[1]);
+     const offTrack=Math.abs(S.lat)>S.def.width/2;
+     if((offTrack||inGap)&&S.grounded){ fall(); }
+     if(S.y<-8) { /* falling visual handled by dead */ }
+     // checkpoints
+     S.def.checks.forEach(c=>{if(S.s>=c&&c>S.checkpoint){S.checkpoint=c; showMsg('CHECKPOINT ✓',700);}});
+     // coins
+     coinMeshes.forEach(m=>{ if(!m.userData.taken && Math.abs(m.userData.s-S.s)<1.6 && Math.abs(m.userData.lat-S.lat)<1.3 && S.y<2.2){ m.userData.taken=true; m.visible=false; S.coins++; updateHUD(); } m.rotation.z+=dt*2; });
+     // hammers
+     hammerObjs.forEach(h=>{ const ang=Math.sin(now*0.0022+h.phase)*0.95; h.pend.rotation.z=ang; if(Math.abs(h.s-S.s)<1.4 && S.y<2.0){ const hx=Math.sin(ang)*-4.6; /* head lateral approx in track side dir */ if(Math.abs(hx-S.lat)<1.6 && Math.abs(ang)>0.35){ fall(); showMsg('HAMMERED!',900);} } });
+     if(S.s>=S.line.total-3) finish();
+   }
+   updateHUD();
+ } else {
+   hammerObjs.forEach(h=>{ h.pend.rotation.z=Math.sin(now*0.0022+h.phase)*0.95; });
+   coinMeshes.forEach(m=>{m.rotation.z+=dt*2;});
+ }
+ // render ball + camera
+ const sm=sampleAt(S.line,S.s);
+ const pos=sm.pos.clone().add(sm.side.clone().multiplyScalar(S.lat)); pos.y=0.95+S.y-(S.dead?Math.max(0,(S.deadTimer))*6:0);
+ if(S.dead) pos.y=0.95 - S.deadTimer*7;
+ ball.position.copy(pos);
+ S.roll+= (S.playing? S.def.speed*dt:0);
+ ball.rotation.set(0,0,0); ball.rotateOnWorldAxis(sm.side, S.roll/0.95); ball.rotateOnWorldAxis(sm.tan, -S.latVel*0.02);
+ const camPos=pos.clone().add(sm.tan.clone().multiplyScalar(-11)); camPos.y=5.2+S.y*0.4;
+ camera.position.lerp(camPos,0.18);
+ const look=pos.clone().add(sm.tan.clone().multiplyScalar(14)); look.y=1.2; camera.lookAt(look);
+ speedLines.position.copy(pos); speedLines.visible=S.playing&&S.def.speed>20;
+ renderer.render(scene,camera);
+}
+loadLevel(0);
+requestAnimationFrame(loop);
+
+window.__skytrack={
+ state:()=>({level:S.level,s:+S.s.toFixed(2),lat:+S.lat.toFixed(2),y:+S.y.toFixed(2),coins:S.coins,time:+S.time.toFixed(2),falls:S.falls,finished:S.finished,playing:S.playing,dead:S.dead,checkpoint:S.checkpoint,total:+S.line.total.toFixed(1),track:S.def.name}),
+ start:()=>{document.getElementById('start').classList.add('hidden'); S.playing=true;},
+ steer:v=>{S.latVel=v;},
+ setLat:v=>{S.lat=v;},
+ hop:()=>hop(),
+ loadLevel:i=>{loadLevel(i); S.playing=true; document.getElementById('start').classList.add('hidden'); document.getElementById('finish').classList.add('hidden');},
+ finishVisible:()=>!document.getElementById('finish').classList.contains('hidden')
+};
+})();
+</script></body></html>

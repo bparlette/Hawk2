@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Gate Cannon — Cannon-Gate Mob War</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#79c25a;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;touch-action:none}
+  .overlay{position:fixed;inset:0;z-index:1100;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(20,40,16,.55);color:#fff;text-align:center;padding:24px;box-sizing:border-box}
+  .overlay h1{font-size:44px;margin:0 0 6px;letter-spacing:1px;text-shadow:0 3px 0 #2c6e1e}
+  .overlay h2{font-size:34px;margin:0 0 8px}
+  .overlay p{font-size:17px;line-height:1.45;max-width:320px;margin:6px 0}
+  .overlay .big{font-size:22px;font-weight:800}
+  .btn{margin-top:18px;background:#ffb400;color:#231a00;border:0;border-radius:999px;padding:16px 42px;font-size:22px;font-weight:900;letter-spacing:.5px;box-shadow:0 5px 0 #b57e00;cursor:pointer;touch-action:manipulation}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 #b57e00}
+  .hidden{display:none!important}
+  .legend{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px}
+  .chip{border-radius:999px;padding:5px 12px;font-weight:900;font-size:15px;color:#fff}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas></div>
+
+<div id="startScreen" class="overlay">
+  <h1>🚪 GATE CANNON 💥</h1>
+  <p class="big">One thumb. One cannon. One mob war.</p>
+  <p><b>DRAG</b> left / right to aim your cannon.<br><b>HOLD</b> to fire a stream of blue runners.<br>Send them through <b>+10</b>, <b>×2</b> and <b>×3</b> gates to multiply your mob — dodge the spiky <b>TRAP</b> gates!</p>
+  <p>Your mob clashes with the red mob mid-lane. Survivors smash the enemy fort. First fort destroyed wins!</p>
+  <div class="legend">
+    <span class="chip" style="background:#2e9e4f">+10</span>
+    <span class="chip" style="background:#1f7ae0">×2</span>
+    <span class="chip" style="background:#e8a400">×3</span>
+    <span class="chip" style="background:#c22">⚠ TRAP</span>
+  </div>
+  <button class="btn" id="startBtn">▶ START — MATCH 1</button>
+</div>
+
+<div id="endScreen" class="overlay hidden">
+  <h2 id="endTitle">🏆 YOU WIN!</h2>
+  <p class="big" id="endScore">Score 0</p>
+  <p id="endDetail"></p>
+  <button class="btn" id="againBtn">↻ REMATCH</button>
+</div>
+
+<script>
+'use strict';
+// ---------- Gate Cannon: original cannon-gate mob war ----------
+// Drag horizontally to aim/slide the cannon, hold to fire. Runners stream
+// up the lane, multiply through gates, clash with the enemy mob, and the
+// survivors damage the enemy fort. First fort destroyed wins.
+const W = 390, H = 844;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let DPR = 1;
+function fit() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  const s = Math.min(window.innerWidth / W, window.innerHeight / H);
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = (W * s) + 'px'; cv.style.height = (H * s) + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', fit); fit();
+
+// gesture / zoom guards
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+let lastTouch = 0;
+document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 350) e.preventDefault(); lastTouch = n; }, { passive: false });
+document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+const Q = new URLSearchParams(location.search);
+const SPEED = Math.max(1, Math.min(8, parseFloat(Q.get('speed') || '1') || 1));
+let seed = (parseInt(Q.get('seed') || '7', 10) >>> 0) || 7;
+function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+let rng = mulberry(seed);
+
+const LANE_L = 34, LANE_R = 356, LANE_C = (LANE_L + LANE_R) / 2;
+const BASE_HP = 90;
+const CAP = 180;               // per-side on-screen runner cap
+const RUNNER_SPEED = 118;      // px/s upward (logical)
+const FIRE_RATE = 7;           // player runners / second while holding
+let fortCdBlue = 0, fortCdRed = 0;  // forts take at most 4 damage/sec (pacing)
+
+let level = 1;
+let phase = 'title';           // title | play | end
+let result = null;
+let playerHP = BASE_HP, enemyHP = BASE_HP;
+let peakMob = 0, damageDealt = 0, damageTaken = 0;
+let clashes = 0, fired = 0, enemyFired = 0, gateSpawned = 0, gateKills = 0;
+let gateLog = [];              // {side,type,label,spawned,killed,blueBefore,blueAfter}
+let timeLeft = 180, elapsed = 0;
+
+// gate rows: owner 'blue' rows sit in the lower half, 'red' rows upper half.
+let gates = [];
+const GATE_DEFS = {
+  add10: { label: '+10', color: '#2e9e4f', kind: 'add', n: 10 },
+  add5:  { label: '+5',  color: '#2e9e4f', kind: 'add', n: 5 },
+  mul2:  { label: '×2',  color: '#1f7ae0', kind: 'mul', n: 2 },
+  mul3:  { label: '×3',  color: '#e8a400', kind: 'mul', n: 3 },
+  trap:  { label: '⚠TRAP', color: '#c22222', kind: 'trap', n: 0 },
+  minus: { label: '-5',  color: '#7a3ea1', kind: 'minus', n: 5 },
+};
+function makeRow(owner, y, options) {
+  const keys = options.slice();
+  // shuffle
+  for (let i = keys.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = keys[i]; keys[i] = keys[j]; keys[j] = t; }
+  const segW = (LANE_R - LANE_L) / 3;
+  return { owner, y, segs: keys.map((k, i) => ({ key: k, x0: LANE_L + i * segW, x1: LANE_L + (i + 1) * segW, cx: LANE_L + (i + 0.5) * segW })) };
+}
+function buildGates() {
+  rng = mulberry(seed + level * 101);
+  const redBonus = level >= 2 ? 'add10' : 'add5';   // enemy gates improve on later matches
+  gates = [
+    makeRow('red', 196, ['mul2', 'trap', redBonus]),
+    makeRow('red', 316, ['add10', 'minus', 'mul2']),
+    makeRow('blue', 500, ['mul2', 'trap', 'add10']),
+    makeRow('blue', 620, ['add10', 'mul3', 'minus']),
+  ];
+  ensureSafePath('blue'); ensureSafePath('red');
+}
+// Guarantee one clean straight-line column per side: the first row's best
+// segment column must not be a trap/minus in the second row (swap keys if so).
+function segScore(k) { const d = GATE_DEFS[k]; return d.kind === 'mul' ? d.n * 10 : d.kind === 'add' ? d.n : -20; }
+function ensureSafePath(owner) {
+  const rows = gates.filter(r => r.owner === owner).sort((a, b) => owner === 'blue' ? b.y - a.y : a.y - b.y);
+  if (rows.length < 2) return;
+  let bestCol = 0, bs = -1e9;
+  rows[0].segs.forEach((s, i) => { const sc = segScore(s.key); if (sc > bs) { bs = sc; bestCol = i; } });
+  const second = rows[1].segs[bestCol];
+  if (segScore(second.key) < 0) {
+    let swapCol = 0, ss = -1e9;
+    rows[1].segs.forEach((s, i) => { const sc = segScore(s.key); if (sc > ss) { ss = sc; swapCol = i; } });
+    const t = rows[1].segs[bestCol].key; rows[1].segs[bestCol].key = rows[1].segs[swapCol].key; rows[1].segs[swapCol].key = t;
+  }
+}
+
+// pooled runners
+function makePool() { const p = []; for (let i = 0; i < CAP; i++) p.push({ alive: false, x: 0, y: 0, vx: 0, row: -1, wob: 0 }); return p; }
+const bluePool = makePool(), redPool = makePool();
+let blueCount = 0, redCount = 0;
+function spawn(pool, side, x, y, rowSeen) {
+  for (let i = 0; i < pool.length; i++) {
+    const r = pool[i];
+    if (!r.alive) {
+      r.alive = true; r.x = x; r.y = y; r.vx = (rng() - 0.5) * 14; r.row = rowSeen; r.wob = rng() * 6.28;
+      if (side === 'blue') blueCount++; else redCount++;
+      return r;
+    }
+  }
+  return null;
+}
+function kill(pool, side, r) {
+  if (!r.alive) return;
+  r.alive = false;
+  if (side === 'blue') blueCount--; else redCount--;
+}
+
+let particles = [];
+function poof(x, y, color, n) {
+  for (let i = 0; i < n && particles.length < 260; i++)
+    particles.push({ x, y, vx: (rng() - 0.5) * 90, vy: (rng() - 0.5) * 90, life: 0.45, color, r: 3 + rng() * 4 });
+}
+
+// player cannon
+let cannonX = LANE_C, firing = false, fireAcc = 0, pointerX = null;
+// enemy cannon AI
+let enemyX = LANE_C, enemyTargetX = LANE_C, enemyState = 'aim', enemyTimer = 1.0, enemyFireAcc = 0;
+
+function enemyBestX() {
+  // aim at the best segment of the FIRST red row its mob meets (the safe
+  // column then stays positive through the second red row too)
+  const row = gates.filter(r => r.owner === 'red').sort((a, b) => a.y - b.y)[0];
+  if (!row) return LANE_C;
+  let best = null, bestScore = -1e9;
+  for (const s of row.segs) { const sc = segScore(s.key); if (sc > bestScore) { bestScore = sc; best = s; } }
+  return best ? best.cx + (rng() - 0.5) * 18 : LANE_C;
+}
+
+function applyGate(side, pool, r, rowIdx) {
+  const row = gates[rowIdx];
+  const seg = row.segs.find(s => r.x >= s.x0 && r.x < s.x1) || row.segs[row.segs.length - 1];
+  const def = GATE_DEFS[seg.key];
+  const before = side === 'blue' ? blueCount : redCount;
+  let spawned = 0, killed = 0;
+  if (def.kind === 'add') {
+    // +N gates are a flat mob bonus, not per-runner: the segment recharges
+    // after each use so a stream can't multiply itself 11x per runner.
+    if (elapsed < (seg.cdUntil || 0)) return true;
+    seg.cdUntil = elapsed + 1.1;
+    for (let i = 0; i < def.n; i++) if (spawn(pool, side, seg.cx + (rng() - 0.5) * 44, r.y + (side === 'blue' ? 12 : -12), r.row)) spawned++;
+  } else if (def.kind === 'mul') {
+    const extra = def.n - 1;
+    for (let i = 0; i < extra; i++) if (spawn(pool, side, r.x + (rng() - 0.5) * 22, r.y + (side === 'blue' ? 10 : -10), r.row)) spawned++;
+  } else if (def.kind === 'trap') {
+    kill(pool, side, r); killed = 1; poof(r.x, r.y, '#c22222', 7);
+  } else if (def.kind === 'minus') {
+    kill(pool, side, r); killed = 1;
+    // shred up to n-1 nearby friends of the same side
+    let extra = def.n - 1;
+    for (const o of pool) { if (extra <= 0) break; if (o.alive && o !== r && Math.abs(o.x - r.x) < 40 && Math.abs(o.y - r.y) < 40) { kill(pool, side, o); killed++; extra--; poof(o.x, o.y, '#7a3ea1', 3); } }
+  }
+  if (side === 'blue') { gateSpawned += spawned; gateKills += killed; }
+  gateLog.push({ side, type: seg.key, label: def.label, spawned, killed, countBefore: before, countAfter: side === 'blue' ? blueCount : redCount, t: +elapsed.toFixed(2) });
+  if (gateLog.length > 40) gateLog.shift();
+  return seg.key !== 'trap' && seg.key !== 'minus'; // false if runner died
+}
+
+function reset(nextLevel) {
+  level = nextLevel;
+  rng = mulberry(seed + level * 101);
+  buildGates();
+  for (const r of bluePool) r.alive = false;
+  for (const r of redPool) r.alive = false;
+  blueCount = 0; redCount = 0; particles = [];
+  playerHP = BASE_HP; enemyHP = BASE_HP;
+  peakMob = 0; damageDealt = 0; damageTaken = 0;
+  clashes = 0; fired = 0; enemyFired = 0; gateSpawned = 0; gateKills = 0; gateLog = [];
+  timeLeft = 180; elapsed = 0;
+  fortCdBlue = 0; fortCdRed = 0;
+  cannonX = LANE_C; enemyX = LANE_C; enemyTargetX = enemyBestX();
+  enemyState = 'aim'; enemyTimer = 0.8; firing = false; fireAcc = 0; enemyFireAcc = 0;
+  result = null; phase = 'play';
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('endScreen').classList.add('hidden');
+}
+
+function endMatch(won) {
+  phase = 'end'; result = won ? 'win' : 'lose'; firing = false;
+  const score = peakMob + damageDealt * 2;
+  const el = document.getElementById('endScreen');
+  document.getElementById('endTitle').textContent = won ? '🏆 YOU WIN!' : '💥 YOUR FORT FELL!';
+  document.getElementById('endScore').textContent = 'Score ' + score + '  ·  Peak mob ' + peakMob;
+  document.getElementById('endDetail').textContent = won
+    ? 'Enemy fort destroyed! Damage dealt: ' + damageDealt + '. Next match: the red cannon fires faster and its gates get better…'
+    : 'The red mob smashed your fort. Damage you dealt: ' + damageDealt + '. Rematch at the same level — aim for the ×3 gate!';
+  document.getElementById('againBtn').textContent = won ? '▶ NEXT MATCH ' + (level + 1) : '↻ REMATCH';
+  el.classList.remove('hidden');
+  game.score = score;
+}
+
+const game = { score: 0 };
+
+function update(dt) {
+  if (phase !== 'play') return;
+  elapsed += dt; timeLeft -= dt;
+  if (timeLeft <= 0) { endMatch(enemyHP < playerHP); return; }
+
+  // player cannon follows pointer x
+  if (pointerX !== null) cannonX += (Math.max(LANE_L + 16, Math.min(LANE_R - 16, pointerX)) - cannonX) * Math.min(1, dt * 14);
+  if (firing) {
+    fireAcc += dt * FIRE_RATE;
+    while (fireAcc >= 1) {
+      fireAcc -= 1;
+      if (spawn(bluePool, 'blue', cannonX + (rng() - 0.5) * 10, H - 118, 0)) fired++;
+    }
+  }
+  if (blueCount > peakMob) peakMob = blueCount;
+
+  // enemy AI: aim -> fire pulse -> pause
+  const eRate = 6.4 + (level - 1) * 1.2;
+  enemyTimer -= dt;
+  if (enemyState === 'aim') {
+    enemyX += (enemyTargetX - enemyX) * Math.min(1, dt * 3.2);
+    if (enemyTimer <= 0) { enemyState = 'fire'; enemyTimer = 1.5; }
+  } else if (enemyState === 'fire') {
+    enemyFireAcc += dt * eRate;
+    while (enemyFireAcc >= 1) { enemyFireAcc -= 1; if (spawn(redPool, 'red', enemyX + (rng() - 0.5) * 10, 118, 0)) enemyFired++; }
+    if (enemyTimer <= 0) { enemyState = 'pause'; enemyTimer = 0.9; enemyTargetX = enemyBestX(); }
+  } else {
+    if (enemyTimer <= 0) { enemyState = 'aim'; enemyTimer = 0.55; }
+  }
+
+  // move runners + gates + bases
+  for (let sideIdx = 0; sideIdx < 2; sideIdx++) {
+    const side = sideIdx === 0 ? 'blue' : 'red';
+    const pool = side === 'blue' ? bluePool : redPool;
+    const dir = side === 'blue' ? -1 : 1;
+    for (const r of pool) {
+      if (!r.alive) continue;
+      const prevY = r.y;
+      r.y += dir * RUNNER_SPEED * dt;
+      r.x += r.vx * dt + Math.sin(elapsed * 6 + r.wob) * 6 * dt;
+      // past their own gates, mobs converge on the lane centre so the two
+      // streams actually meet and clash mid-lane
+      const inClashZone = side === 'blue' ? r.y < 462 : r.y > 382;
+      if (inClashZone) r.x += (LANE_C - r.x) * Math.min(1, dt * 0.9);
+      r.vx *= (1 - dt * 1.6);
+      if (r.x < LANE_L + 7) r.x = LANE_L + 7;
+      if (r.x > LANE_R - 7) r.x = LANE_R - 7;
+      // gate rows for this side
+      for (let gi = 0; gi < gates.length; gi++) {
+        const row = gates[gi];
+        if (row.owner !== side) continue;
+        const crossed = dir < 0 ? (prevY > row.y && r.y <= row.y) : (prevY < row.y && r.y >= row.y);
+        // r.row is a bitmap of gate rows already triggered by this runner
+        if (crossed && !(r.row & (1 << gi))) {
+          r.row |= (1 << gi);
+          if (!applyGate(side, pool, r, gi)) break;
+        }
+      }
+      if (!r.alive) continue;
+      // reach enemy base?
+      if (side === 'blue' && r.y <= 84) { kill(pool, side, r); if (elapsed >= fortCdRed) { enemyHP--; damageDealt++; fortCdRed = elapsed + 0.25; } poof(r.x, 84, '#ffb400', 5); }
+      else if (side === 'red' && r.y >= H - 84) { kill(pool, side, r); if (elapsed >= fortCdBlue) { playerHP--; damageTaken++; fortCdBlue = elapsed + 0.25; } poof(r.x, H - 84, '#ffb400', 5); }
+    }
+  }
+
+  // clashes: blue vs red proximity -> both die
+  for (const b of bluePool) {
+    if (!b.alive) continue;
+    for (const e of redPool) {
+      if (!e.alive) continue;
+      const dx = b.x - e.x, dy = b.y - e.y;
+      if (dx * dx + dy * dy < 15 * 15) { kill(bluePool, 'blue', b); kill(redPool, 'red', e); clashes++; poof(b.x, b.y, '#fff2a8', 4); break; }
+    }
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; if (p.life <= 0) particles.splice(i, 1); }
+
+  if (enemyHP <= 0) endMatch(true);
+  else if (playerHP <= 0) endMatch(false);
+}
+
+// ---------- drawing ----------
+function fort(x, y, w, h, color, dark) {
+  ctx.fillStyle = dark; ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
+  ctx.fillStyle = color; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = dark;
+  for (let i = 0; i < 5; i++) ctx.fillRect(x + 4 + i * (w / 5), y - 12, w / 7, 12);
+  ctx.fillStyle = '#fff'; ctx.fillRect(x + w / 2 - 9, y + h / 2 - 12, 18, 24);
+  ctx.fillStyle = dark; ctx.fillRect(x + w / 2 - 2, y + h / 2 - 12, 4, 24);
+}
+function hpBar(x, y, w, frac, color) {
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(x - 2, y - 2, w + 4, 14);
+  ctx.fillStyle = '#ddd'; ctx.fillRect(x, y, w, 10);
+  ctx.fillStyle = color; ctx.fillRect(x, y, Math.max(0, w * frac), 10);
+}
+function drawGate(row) {
+  for (const s of row.segs) {
+    const def = GATE_DEFS[s.key];
+    const isTrap = def.kind === 'trap';
+    ctx.fillStyle = def.color;
+    ctx.fillRect(s.x0 + 2, row.y - 20, 7, 40);
+    ctx.fillRect(s.x1 - 9, row.y - 20, 7, 40);
+    const big = s.key === 'mul3';
+    ctx.fillRect(s.x0 + 2, row.y - (big ? 30 : 24), s.x1 - s.x0 - 4, big ? 22 : 18);
+    if (isTrap) { // spikes under the arch
+      ctx.beginPath();
+      for (let x = s.x0 + 8; x < s.x1 - 4; x += 12) { ctx.moveTo(x, row.y + 20); ctx.lineTo(x + 6, row.y + 6); ctx.lineTo(x + 12, row.y + 20); }
+      ctx.fillStyle = '#8f1616'; ctx.fill();
+    }
+    ctx.fillStyle = '#fff';
+    ctx.font = '900 ' + (big ? 19 : 15) + 'px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(def.label, s.cx, row.y - (big ? 19 : 15));
+  }
+}
+function runner(x, y, color, dark) {
+  ctx.fillStyle = dark; ctx.beginPath(); ctx.ellipse(x, y + 5, 6, 4, 0, 0, 6.29); ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.ellipse(x, y, 6.5, 9, 0, 0, 6.29); ctx.fill();   // capsule body
+  ctx.beginPath(); ctx.arc(x, y - 10, 4.6, 0, 6.29); ctx.fill();        // head
+  ctx.fillStyle = '#fff'; ctx.fillRect(x - 4, y - 3, 8, 3);             // belt stripe
+}
+function banner(cx, cy, n, color) {
+  if (n <= 0) return;
+  ctx.font = '900 17px system-ui';
+  const tw = ctx.measureText(String(n)).width + 22;
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.roundRect(cx - tw / 2, cy - 13, tw, 26, 13); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(n), cx, cy + 1);
+}
+function centroid(pool) { let x = 0, y = 0, n = 0; for (const r of pool) if (r.alive) { x += r.x; y += r.y; n++; } return n ? { x: x / n, y: y / n } : null; }
+
+function draw() {
+  // toy battlefield: grass + bright lane
+  ctx.fillStyle = '#79c25a'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#a8dc8f'; for (let i = 0; i < 26; i++) ctx.fillRect((i * 67) % W, (i * 131) % H, 16, 6);
+  ctx.fillStyle = '#f2d492'; ctx.fillRect(LANE_L - 8, 64, LANE_R - LANE_L + 16, H - 128);
+  ctx.fillStyle = '#e8c87e'; ctx.fillRect(LANE_L - 8, 64, 5, H - 128); ctx.fillRect(LANE_R + 3, 64, 5, H - 128);
+  ctx.strokeStyle = 'rgba(255,255,255,.65)'; ctx.lineWidth = 3; ctx.setLineDash([14, 14]);
+  ctx.beginPath(); ctx.moveTo(LANE_C, 70); ctx.lineTo(LANE_C, H - 70); ctx.stroke(); ctx.setLineDash([]);
+
+  for (const row of gates) drawGate(row);
+
+  // forts + HP
+  fort(LANE_L + 30, 18, LANE_R - LANE_L - 60, 44, '#e05252', '#9e2b2b');
+  fort(LANE_L + 30, H - 62, LANE_R - LANE_L - 60, 44, '#4a90e2', '#2b5c9e');
+  hpBar(LANE_L + 30, 70, LANE_R - LANE_L - 60, enemyHP / BASE_HP, '#e05252');
+  hpBar(LANE_L + 30, H - 84, LANE_R - LANE_L - 60, playerHP / BASE_HP, '#4a90e2');
+  ctx.fillStyle = '#fff'; ctx.font = '900 13px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText('ENEMY FORT ' + Math.max(0, enemyHP) + ' HP', LANE_C, 79 + 5 - 12);
+  ctx.fillText('YOUR FORT ' + Math.max(0, playerHP) + ' HP', LANE_C, H - 75 + 5);
+
+  // enemy cannon (top, points down)
+  ctx.save(); ctx.translate(enemyX, 108); ctx.fillStyle = '#9e2b2b'; ctx.fillRect(-17, -12, 34, 22);
+  ctx.fillStyle = '#c22'; ctx.fillRect(-6, 8, 12, 20); ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(-12, 12, 6, 0, 6.29); ctx.arc(12, 12, 6, 0, 6.29); ctx.fill(); ctx.restore();
+  // player cannon (bottom, points up)
+  ctx.save(); ctx.translate(cannonX, H - 108); ctx.fillStyle = '#2b5c9e'; ctx.fillRect(-17, -10, 34, 22);
+  ctx.fillStyle = '#1f7ae0'; ctx.fillRect(-6, -28, 12, 20);
+  if (firing && phase === 'play') { ctx.fillStyle = '#ffb400'; ctx.beginPath(); ctx.arc(0, -34, 6 + Math.random() * 3, 0, 6.29); ctx.fill(); }
+  ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(-12, 12, 6, 0, 6.29); ctx.arc(12, 12, 6, 0, 6.29); ctx.fill(); ctx.restore();
+
+  // runners
+  for (const r of redPool) if (r.alive) runner(r.x, r.y, '#e05252', '#9e2b2b');
+  for (const r of bluePool) if (r.alive) runner(r.x, r.y, '#4a90e2', '#2b5c9e');
+  // particles
+  for (const p of particles) { ctx.globalAlpha = Math.max(0, p.life * 2); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.29); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  // count banners over each mob centroid
+  const bc = centroid(bluePool), rc = centroid(redPool);
+  if (bc) banner(bc.x, bc.y - 34, blueCount, '#1f7ae0');
+  if (rc) banner(rc.x, rc.y + 34, redCount, '#c22');
+
+  // HUD
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.roundRect(6, 6, 150, 30, 8); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = '900 15px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('⏱ ' + Math.max(0, Math.ceil(timeLeft)) + 's  ·  Lv ' + level, 14, 22);
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.roundRect(W - 156, 6, 150, 30, 8); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'right';
+  ctx.fillText('🔵 ' + blueCount + '  vs  🔴 ' + redCount, W - 14, 22);
+  if (phase === 'play' && elapsed < 4) {
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); ctx.roundRect(45, H - 190, 300, 34, 10); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = '900 16px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('DRAG to aim — HOLD to fire! 👆', LANE_C, H - 172);
+  }
+}
+
+// ---------- input ----------
+function toGameX(clientX) {
+  const rect = cv.getBoundingClientRect();
+  return (clientX - rect.left) / rect.width * W;
+}
+cv.addEventListener('pointerdown', e => { e.preventDefault(); pointerX = toGameX(e.clientX); firing = true; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e => { if (pointerX !== null) pointerX = toGameX(e.clientX); });
+const stopFire = () => { firing = false; pointerX = null; };
+cv.addEventListener('pointerup', stopFire);
+cv.addEventListener('pointercancel', stopFire);
+window.addEventListener('keydown', e => { if (e.code === 'ArrowLeft') pointerX = (pointerX ?? cannonX) - 18; if (e.code === 'ArrowRight') pointerX = (pointerX ?? cannonX) + 18; if (e.code === 'Space') { firing = true; e.preventDefault(); } });
+window.addEventListener('keyup', e => { if (e.code === 'Space') firing = false; });
+
+document.getElementById('startBtn').addEventListener('click', () => reset(1));
+document.getElementById('againBtn').addEventListener('click', () => reset(result === 'win' ? level + 1 : level));
+
+// main loop
+let last = performance.now();
+function frame(now) {
+  let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt * SPEED);
+  draw();
+  requestAnimationFrame(frame);
+}
+buildGates();
+requestAnimationFrame(frame);
+
+// QA hook
+window.__gatecannon = {
+  state: () => ({ phase, result, level, blue: blueCount, red: redCount, playerHP, enemyHP, peakMob, damageDealt, damageTaken, clashes, fired, enemyFired, gateSpawned, gateKills, score: peakMob + damageDealt * 2, elapsed: +elapsed.toFixed(2), cannonX: Math.round(cannonX), enemyX: Math.round(enemyX), gates: gates.map(r => ({ owner: r.owner, y: r.y, segs: r.segs.map(s => ({ key: s.key, label: GATE_DEFS[s.key].label, cx: Math.round(s.cx), x0: Math.round(s.x0), x1: Math.round(s.x1) })) })), gateLog: gateLog.slice() }),
+  start: (lv) => reset(lv || 1),
+};
+</script>
+</body>
+</html>

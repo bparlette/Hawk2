@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Flip Ridge</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#1b1035;touch-action:none;overscroll-behavior:none;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-user-select:none;user-select:none}
+  #game{position:fixed;inset:0;display:block}
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;top:0;left:0;right:0;z-index:1200;pointer-events:none;padding:calc(10px + env(safe-area-inset-top)) 14px 0}
+  #distRow{display:flex;justify-content:space-between;align-items:flex-start}
+  #distBox{color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.55)}
+  #dist{font-size:44px;font-weight:900;line-height:1;letter-spacing:.5px}
+  #distUnit{font-size:18px;font-weight:800;opacity:.85}
+  #scoreBox{text-align:right;color:#ffe066;text-shadow:0 2px 8px rgba(0,0,0,.55)}
+  #scoreLabel{font-size:11px;font-weight:800;letter-spacing:2px;opacity:.9}
+  #score{font-size:28px;font-weight:900;line-height:1.05}
+  #best{font-size:12px;font-weight:700;color:#fff;opacity:.8}
+  #fuelWrap{margin-top:10px;background:rgba(0,0,0,.38);border:2px solid rgba(255,255,255,.75);border-radius:999px;height:22px;overflow:hidden;position:relative}
+  #fuelBar{height:100%;width:100%;border-radius:999px;background:linear-gradient(90deg,#ff4757,#ffa502 55%,#2ed573);transition:width .12s linear}
+  #fuelLabel{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;letter-spacing:3px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+  #fuelWrap.low{animation:blink .5s infinite alternate;border-color:#ff4757}
+  @keyframes blink{from{box-shadow:0 0 0 rgba(255,71,87,0)}to{box-shadow:0 0 18px rgba(255,71,87,.95)}}
+  #callout{position:fixed;top:26%;left:0;right:0;z-index:1250;text-align:center;pointer-events:none;
+    font-size:40px;font-weight:900;color:#ffe066;text-shadow:0 3px 0 #e67e22,0 6px 18px rgba(0,0,0,.6);
+    opacity:0;transform:scale(.6) rotate(-4deg)}
+  #callout.pop{animation:pop 1.4s ease-out forwards}
+  @keyframes pop{0%{opacity:0;transform:scale(.6) rotate(-4deg)}15%{opacity:1;transform:scale(1.15) rotate(-4deg)}30%{transform:scale(1) rotate(-4deg)}75%{opacity:1}100%{opacity:0;transform:scale(1.05) rotate(-4deg) translateY(-14px)}}
+  #hint{position:fixed;top:17%;left:0;right:0;z-index:1150;text-align:center;pointer-events:none;color:#fff;
+    font-size:17px;font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.65);opacity:.95;padding:0 30px}
+  /* ---------- Pedals ---------- */
+  .pedal{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));z-index:1200;width:118px;height:118px;border-radius:50%;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;cursor:pointer;touch-action:none;
+    border:4px solid rgba(255,255,255,.55);box-shadow:0 8px 24px rgba(0,0,0,.45),inset 0 -8px 0 rgba(0,0,0,.22)}
+  .pedal .pname{font-size:21px;font-weight:900;letter-spacing:1px}
+  .pedal .parrow{font-size:26px;line-height:1}
+  .pedal.on{transform:scale(.93);filter:brightness(1.35)}
+  #brake{left:16px;background:radial-gradient(circle at 35% 30%,#ff6b81,#d63031 70%)}
+  #gas{right:16px;background:radial-gradient(circle at 35% 30%,#55efc4,#00b894 70%)}
+  /* ---------- Overlays ---------- */
+  .overlay{position:fixed;inset:0;z-index:1300;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(16,8,38,.72);color:#fff;text-align:center;padding:24px;backdrop-filter:blur(2px)}
+  .overlay h1{font-size:52px;font-weight:900;letter-spacing:1px;color:#ffe066;text-shadow:0 4px 0 #e67e22,0 8px 24px rgba(0,0,0,.6)}
+  .overlay h2{font-size:40px;font-weight:900;color:#ff6b81;text-shadow:0 3px 0 #a93226,0 8px 24px rgba(0,0,0,.6)}
+  .overlay p{margin-top:12px;font-size:17px;font-weight:600;line-height:1.45;max-width:320px;opacity:.95}
+  .overlay .final{margin-top:14px;font-size:22px;font-weight:900;color:#ffe066}
+  .bigbtn{margin-top:26px;pointer-events:auto;background:linear-gradient(180deg,#2ed573,#00b894);color:#fff;border:3px solid rgba(255,255,255,.7);
+    font-size:24px;font-weight:900;letter-spacing:1px;padding:16px 46px;border-radius:999px;cursor:pointer;touch-action:none;
+    box-shadow:0 8px 24px rgba(0,0,0,.5),inset 0 -5px 0 rgba(0,0,0,.2)}
+  .bigbtn:active{transform:scale(.95)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="distRow">
+    <div id="distBox"><span id="dist">0</span> <span id="distUnit">m</span></div>
+    <div id="scoreBox"><div id="scoreLabel">SCORE</div><div id="score">0</div><div id="best">BEST 0 m</div></div>
+  </div>
+  <div id="fuelWrap"><div id="fuelBar"></div><div id="fuelLabel">FUEL</div></div>
+</div>
+<div id="callout"></div>
+<div id="hint">Hold <b style="color:#55efc4">GAS</b> to climb the ridge.<br>Flip in the air for bonus points — land on your wheels!</div>
+
+<div class="pedal" id="brake"><span class="parrow">◀</span><span class="pname">BRAKE</span></div>
+<div class="pedal" id="gas"><span class="pname">GAS</span><span class="parrow">▶</span></div>
+
+<div class="overlay" id="startScreen">
+  <h1>FLIP RIDGE</h1>
+  <p>Two pedals. Endless ridge.<br>Hold <b>GAS</b> to drive, tap <b>BRAKE</b> to balance in the air. Land a clean backflip for <b>+250</b>. Grab fuel cans and coins — and whatever you do, don't land on your roof.</p>
+  <button class="bigbtn" id="startBtn">▶ DRIVE</button>
+</div>
+
+<div class="overlay hidden" id="overScreen">
+  <h2 id="overTitle">WRECKED!</h2>
+  <p id="overReason">You landed on your roof.</p>
+  <div class="final" id="finalStats"></div>
+  <button class="bigbtn" id="retryBtn">↻ RETRY</button>
+</div>
+
+<script>
+'use strict';
+/* ================= Flip Ridge — original two-pedal hill physics ================= */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+}
+window.addEventListener('resize', resize); resize();
+
+/* Block double-tap zoom + browser gestures */
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouchEnd <= 350) e.preventDefault(); lastTouchEnd = n; }, { passive:false });
+document.addEventListener('touchmove', e => e.preventDefault(), { passive:false });
+
+/* ================= Terrain: sum of sines, endless ================= */
+const PX_PER_M = 50;
+function groundY(x){
+  // world coords: y grows downward; smaller y = higher ground
+  const ramp = Math.min(1, Math.max(0, (x - 200) / 900)); // gentle start
+  const h = (118*Math.sin(x*0.0016) + 84*Math.sin(x*0.0043 + 1.7) + 42*Math.sin(x*0.0113 + 0.5) + 15*Math.sin(x*0.031 + 2.1)) * ramp
+          + 26*Math.sin(x*0.0007 + 3.0) * ramp;
+  return -h;
+}
+function groundSlope(x){
+  const d = 4; return (groundY(x + d) - groundY(x - d)) / (2 * d); // dy/dx (negative = uphill to the right)
+}
+
+/* ================= Pickups (deterministic by index) ================= */
+function hash(n){ let s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+const collectedCoins = new Set(), collectedFuel = new Set();
+function coinAt(i){ // coin clusters every ~260px
+  const base = 900 + i * 260 + hash(i) * 90;
+  return base;
+}
+function fuelAt(i){ return 1500 + i * 2400 + hash(i + 999) * 500; }
+
+/* ================= Game state ================= */
+const S = {
+  mode: 'title', // title | play | over
+  x: 120, y: 0, vx: 0, vy: 0, angle: 0, angVel: 0,
+  fuel: 100, dist: 0, bonus: 0, coins: 0, flips: 0,
+  airborne: false, airRot: 0, airTime: 0,
+  squashF: 0, squashR: 0, wheelSpin: 0,
+  overReason: '', time: 0, startX: 120,
+  best: +(localStorage.getItem('flipRidgeBest') || 0)
+};
+S.y = groundY(S.x) - 34;
+
+const input = { gas:false, brake:false };
+
+function reset(){
+  S.x = S.startX; S.vx = 0; S.vy = 0; S.angle = 0; S.angVel = 0;
+  S.y = groundY(S.x) - 34;
+  S.fuel = 100; S.dist = 0; S.bonus = 0; S.coins = 0; S.flips = 0;
+  S.airborne = false; S.airRot = 0; S.airTime = 0; S.time = 0;
+  if (typeof surfV !== 'undefined') surfV = 0;
+  collectedCoins.clear(); collectedFuel.clear();
+  document.getElementById('hint').style.display = 'block';
+}
+function score(){ return Math.floor(S.dist) + S.bonus + S.coins * 5; }
+
+function gameOver(reason){
+  if (S.mode !== 'play') return;
+  S.mode = 'over'; S.overReason = reason;
+  const d = Math.floor(S.dist);
+  if (d > S.best){ S.best = d; localStorage.setItem('flipRidgeBest', String(d)); }
+  document.getElementById('overTitle').textContent = reason.indexOf('fuel') >= 0 ? 'OUT OF FUEL!' : 'WRECKED!';
+  document.getElementById('overReason').textContent = reason;
+  document.getElementById('finalStats').textContent = d + ' m  •  SCORE ' + score() + '  •  ' + S.flips + ' flip' + (S.flips === 1 ? '' : 's');
+  document.getElementById('overScreen').classList.remove('hidden');
+  updateHUD();
+}
+function startGame(){
+  reset();
+  S.mode = 'play';
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('overScreen').classList.add('hidden');
+}
+
+/* ================= Physics =================
+   Stable two-state model: grounded = speed along the terrain slope;
+   airborne = ballistic flight with pedal pitch control.            */
+const WHEEL_R = 17, WHEEL_BASE = 46, GRAV = 1500, RIDE_H = 34;
+let surfV = 0; // speed along the surface while grounded
+function normAng(a){ while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; }
+function step(dt){
+  if (S.mode !== 'play') return;
+  S.time += dt;
+  const sub = 3, h = dt / sub;
+  for (let k = 0; k < sub; k++){
+    const theta = Math.atan(groundSlope(S.x)); // surface angle (negative = uphill)
+    if (!S.airborne){
+      /* --- grounded --- */
+      if (input.gas) surfV += 640 * h * (1 + Math.max(0, -Math.sin(theta)) * 0.9);
+      if (input.brake) surfV -= 560 * h;
+      surfV += 980 * Math.sin(theta) * h;      // gravity along slope (uphill slows, downhill speeds)
+      surfV *= (1 - 0.22 * h);                  // rolling drag
+      if (!input.gas && !input.brake) surfV *= (1 - 0.25 * h);
+      surfV = Math.max(-160, Math.min(880, surfV));
+      const prevY = S.y;
+      S.x += Math.cos(theta) * surfV * h;
+      if (S.x < S.startX){ S.x = S.startX; surfV = Math.max(0, surfV); }
+      const targetY = groundY(S.x) - RIDE_H;
+      // chassis angle eases onto the slope
+      S.angle += normAng(theta - S.angle) * Math.min(1, 11 * h);
+      S.angVel = 0;
+      const aheadX = S.x + surfV * 0.30;
+      const projY = groundY(S.x) + groundSlope(S.x) * (aheadX - S.x);
+      const ridgeDrops = surfV > 260 && groundY(aheadX) > projY + 55;
+      if ((targetY - prevY > 9 && surfV > 140) || ridgeDrops){
+        /* crest launch: ground fell away — go ballistic */
+        S.airborne = true; S.airTime = 0; S.airRot = 0;
+        S.vx = Math.cos(S.angle) * surfV;
+        S.vy = Math.sin(S.angle) * surfV;
+        S.y = prevY;
+      } else {
+        S.y = targetY;
+        S.vx = Math.cos(theta) * surfV; S.vy = Math.sin(theta) * surfV;
+        const impact = Math.min(1, Math.abs(targetY - prevY) / 9);
+        S.squashF = S.squashR = 0.25 + impact * 0.6;
+      }
+      S.wheelSpin += (surfV / WHEEL_R) * h;
+    } else {
+      /* --- airborne --- */
+      S.airTime += h;
+      if (input.gas)   S.angVel -= 3.8 * h;   // gas = pitch back (backflip)
+      if (input.brake) S.angVel += 3.8 * h;   // brake = pitch forward
+      S.angVel = Math.max(-7.5, Math.min(7.5, S.angVel));
+      S.angVel *= (1 - 0.1 * h);
+      S.airRot += S.angVel * h;
+      S.angle += S.angVel * h;
+      S.vy += GRAV * h;
+      S.x += S.vx * h; S.y += S.vy * h;
+      if (S.x < S.startX){ S.x = S.startX; S.vx = Math.max(0, S.vx); }
+      S.wheelSpin += (S.vx / WHEEL_R) * h;
+      S.squashF = S.squashR = 0;
+      const gy = groundY(S.x) - RIDE_H;
+      if (S.y >= gy && S.vy > 0){
+        /* touchdown — judge by angle vs slope */
+        const diff = Math.abs(normAng(S.angle - theta));
+        if (diff > 2.0){ gameOver('You landed on your roof. The ridge wins this one.'); return; }
+        if (S.airTime > 0.25 && Math.abs(S.airRot) >= Math.PI * 1.75){
+          const full = Math.max(1, Math.round(Math.abs(S.airRot) / (Math.PI * 2)));
+          const pts = full * 250;
+          S.bonus += pts; S.flips += full;
+          showCallout((S.airRot < 0 ? 'BACKFLIP' : 'FRONTFLIP') + ' +' + pts);
+        }
+        S.y = gy;
+        surfV = S.vx * Math.cos(theta) + S.vy * Math.sin(theta);
+        if (diff > 1.1) surfV *= 0.55; // sloppy landing costs speed
+        S.angle = theta + normAng(S.angle - theta) * 0.35;
+        S.angVel = 0; S.airborne = false; S.airRot = 0; S.airTime = 0;
+        S.squashF = S.squashR = 1; // landing squash
+      }
+      /* roof-first contact while tumbling low */
+      if (Math.abs(normAng(S.angle)) > 2.35 && S.y > groundY(S.x) - RIDE_H - 14 && S.vy > -100){
+        gameOver('You landed on your roof. The ridge wins this one.'); return;
+      }
+    }
+  }
+  S.dist = Math.max(0, (S.x - S.startX) / PX_PER_M);
+
+  /* fuel: constant drain, more on gas, more uphill */
+  let drain = 2.1;
+  if (input.gas && S.mode === 'play'){
+    drain += 2.4;
+    const slope = groundSlope(S.x);
+    if (slope < 0) drain += -slope * 14; // uphill burns more
+  }
+  S.fuel -= drain * dt;
+  if (S.fuel <= 0){ S.fuel = 0; gameOver('Out of fuel — the tank ran dry on the ridge.'); }
+
+  /* pickups */
+  const ci = Math.floor((S.x - 900) / 260);
+  for (let i = Math.max(0, ci - 1); i <= ci + 1; i++){
+    if (collectedCoins.has(i)) continue;
+    for (let j = 0; j < 3; j++){
+      const cx = coinAt(i) + j * 34, cy = groundY(cx) - 30;
+      if (Math.abs(cx - S.x) < 42 && Math.abs(cy - S.y) < 52){ collectedCoins.add(i); S.coins += 3; showCallout('COINS +15'); break; }
+    }
+  }
+  const fi = Math.round((S.x - 1500) / 2400);
+  for (let i = Math.max(0, fi - 1); i <= fi + 1; i++){
+    if (collectedFuel.has(i)) continue;
+    const fx = fuelAt(i), fy = groundY(fx) - 26;
+    if (Math.abs(fx - S.x) < 46 && Math.abs(fy - S.y) < 56){ collectedFuel.add(i); S.fuel = Math.min(100, S.fuel + 45); showCallout('FUEL +45'); }
+  }
+  if (S.dist > 12) document.getElementById('hint').style.display = 'none';
+  updateHUD();
+}
+
+/* ================= HUD / callouts ================= */
+const el = id => document.getElementById(id);
+function updateHUD(){
+  el('dist').textContent = Math.floor(S.dist);
+  el('score').textContent = score();
+  el('best').textContent = 'BEST ' + S.best + ' m';
+  el('fuelBar').style.width = Math.max(0, S.fuel) + '%';
+  el('fuelWrap').classList.toggle('low', S.fuel < 25 && S.mode === 'play');
+}
+let calloutTimer = null;
+function showCallout(txt){
+  const c = el('callout');
+  c.textContent = txt;
+  c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
+  clearTimeout(calloutTimer); calloutTimer = setTimeout(() => c.classList.remove('pop'), 1450);
+}
+
+/* ================= Drawing ================= */
+function draw(){
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // dusk sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#2b1055'); sky.addColorStop(0.45, '#7597de');
+  sky.addColorStop(0.72, '#ff9a76'); sky.addColorStop(1, '#ff6b6b');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  // sun low on horizon
+  const sunX = W * 0.78, sunY = H * 0.52;
+  const sg = ctx.createRadialGradient(sunX, sunY, 8, sunX, sunY, 120);
+  sg.addColorStop(0, 'rgba(255,230,150,.95)'); sg.addColorStop(0.25, 'rgba(255,180,90,.55)'); sg.addColorStop(1, 'rgba(255,150,80,0)');
+  ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sunX, sunY, 120, 0, 7); ctx.fill();
+  ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(sunX, sunY, 34, 0, 7); ctx.fill();
+  // stars up top
+  ctx.fillStyle = 'rgba(255,255,255,.75)';
+  for (let i = 0; i < 40; i++){
+    const sx = (hash(i * 3) * 997 + i * 61) % W, sy = hash(i * 7) * H * 0.3;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+  const camX = S.x - W * 0.36, camY = S.y - H * 0.56;
+  // distant ridge (parallax)
+  ctx.fillStyle = 'rgba(43,16,85,.45)';
+  ctx.beginPath(); ctx.moveTo(0, H);
+  for (let sx = 0; sx <= W; sx += 10){
+    const wx = (S.x * 0.35) + sx * 2.2;
+    ctx.lineTo(sx, H * 0.66 + groundY(wx) * 0.5 - camY * 0.15);
+  }
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+
+  const toScreen = (wx, wy) => [wx - camX, wy - camY];
+  // main ridge silhouette
+  ctx.beginPath();
+  let first = true;
+  for (let sx = -10; sx <= W + 10; sx += 7){
+    const wx = camX + sx, wy = groundY(wx);
+    const [px, py] = toScreen(wx, wy);
+    if (first){ ctx.moveTo(px, py); first = false; } else ctx.lineTo(px, py);
+  }
+  ctx.lineTo(W + 10, H + 10); ctx.lineTo(-10, H + 10); ctx.closePath();
+  const tg = ctx.createLinearGradient(0, H * 0.35, 0, H);
+  tg.addColorStop(0, '#3d2b63'); tg.addColorStop(1, '#150a2e');
+  ctx.fillStyle = tg; ctx.fill();
+  // ridge crest highlight
+  ctx.beginPath(); first = true;
+  for (let sx = -10; sx <= W + 10; sx += 7){
+    const wx = camX + sx; const [px, py] = toScreen(wx, groundY(wx));
+    if (first){ ctx.moveTo(px, py); first = false; } else ctx.lineTo(px, py);
+  }
+  ctx.strokeStyle = '#ffb37e'; ctx.lineWidth = 3; ctx.stroke();
+
+  // pickups
+  const ci = Math.floor((camX - 900) / 260);
+  for (let i = Math.max(0, ci - 1); i <= ci + 6; i++){
+    if (collectedCoins.has(i)) continue;
+    for (let j = 0; j < 3; j++){
+      const cx = coinAt(i) + j * 34, cy = groundY(cx) - 30 + Math.sin(S.time * 3 + j) * 3;
+      const [px, py] = toScreen(cx, cy);
+      if (px < -30 || px > W + 30) continue;
+      ctx.fillStyle = '#ffd32a'; ctx.strokeStyle = '#e1a100'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(px, py, 11, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#b97e00'; ctx.font = '900 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('$', px, py + 1);
+    }
+  }
+  const fi = Math.floor((camX - 1500) / 2400);
+  for (let i = Math.max(0, fi); i <= fi + 2; i++){
+    if (i < 0 || collectedFuel.has(i)) continue;
+    const fx = fuelAt(i), fy = groundY(fx) - 26 + Math.sin(S.time * 2.4 + i) * 3;
+    const [px, py] = toScreen(fx, fy);
+    if (px < -40 || px > W + 40) continue;
+    ctx.fillStyle = '#e84118'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(px - 14, py - 17, 28, 34, 5); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = '900 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('FUEL', px, py + 1);
+    ctx.fillStyle = '#e84118'; ctx.fillRect(px + 8, py - 23, 8, 7);
+  }
+
+  drawBuggy(camX, camY);
+}
+function drawBuggy(camX, camY){
+  const [px, py] = [S.x - camX, S.y - camY];
+  ctx.save(); ctx.translate(px, py); ctx.rotate(S.angle);
+  // wheels (spin + suspension squash offsets)
+  for (const [sign, sq] of [[-1, S.squashR], [1, S.squashF]]){
+    const wx = sign * WHEEL_BASE, wy = 14 - sq * 6;
+    // suspension arm
+    ctx.strokeStyle = '#dfe6e9'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(sign * 22, 2); ctx.lineTo(wx, wy); ctx.stroke();
+    ctx.save(); ctx.translate(wx, wy); ctx.rotate(S.wheelSpin);
+    ctx.fillStyle = '#1e272e'; ctx.beginPath(); ctx.arc(0, 0, WHEEL_R, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#f5f6fa'; ctx.lineWidth = 3.5;
+    for (let k = 0; k < 3; k++){ ctx.beginPath(); ctx.moveTo(0, 0); const a = k * Math.PI * 2 / 3; ctx.lineTo(Math.cos(a) * (WHEEL_R - 2), Math.sin(a) * (WHEEL_R - 2)); ctx.stroke(); }
+    ctx.fillStyle = '#ffd32a'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+  const squash = 1 - Math.max(S.squashF, S.squashR) * 0.16;
+  ctx.scale(1, squash);
+  // body — one bold colour
+  ctx.fillStyle = '#ff9f1a';
+  ctx.beginPath(); ctx.roundRect(-52, -16, 104, 22, 9); ctx.fill();
+  ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.roundRect(-52, 0, 104, 7, 3); ctx.fill();
+  // roll cage + seat
+  ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(-26, -14); ctx.lineTo(-12, -34); ctx.lineTo(20, -34); ctx.lineTo(30, -14); ctx.stroke();
+  // driver helmet
+  ctx.fillStyle = '#0984e3'; ctx.beginPath(); ctx.arc(-2, -26, 10, 0, 7); ctx.fill();
+  ctx.fillStyle = '#dfe6e9'; ctx.fillRect(-2, -29, 10, 5);
+  // nose stripe
+  ctx.fillStyle = '#fff'; ctx.fillRect(34, -13, 12, 6);
+  ctx.restore();
+}
+
+/* ================= Loop ================= */
+let last = performance.now();
+function frame(now){
+  let dt = Math.min(0.033, (now - last) / 1000); last = now;
+  step(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+updateHUD();
+
+/* ================= Input: pedals + keys ================= */
+function bindPedal(id, key){
+  const node = el(id);
+  const on = e => { e.preventDefault(); input[key] = true; node.classList.add('on'); if (S.mode === 'title') startGame(); };
+  const off = e => { e.preventDefault(); input[key] = false; node.classList.remove('on'); };
+  node.addEventListener('pointerdown', on);
+  node.addEventListener('pointerup', off);
+  node.addEventListener('pointercancel', off);
+  node.addEventListener('pointerleave', off);
+  node.addEventListener('touchstart', on, { passive:false });
+  node.addEventListener('touchend', off, { passive:false });
+  node.addEventListener('contextmenu', e => e.preventDefault());
+}
+bindPedal('gas', 'gas');
+bindPedal('brake', 'brake');
+el('startBtn').addEventListener('click', startGame);
+el('retryBtn').addEventListener('click', startGame);
+const KEYMAP = { ArrowRight:'gas', ArrowDown:'brake', KeyD:'gas', KeyA:'brake' };
+window.addEventListener('keydown', e => {
+  const k = KEYMAP[e.code];
+  if (k){ input[k] = true; el(k).classList.add('on'); if (S.mode === 'title') startGame(); e.preventDefault(); }
+  if ((e.code === 'Space' || e.code === 'Enter') && S.mode !== 'play') startGame();
+});
+window.addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k){ input[k] = false; el(k).classList.remove('on'); } });
+
+/* QA / debug hook */
+window.__flip = { state: () => ({ mode:S.mode, x:S.x, y:S.y, dist:S.dist, fuel:S.fuel, score:score(), angle:S.angle, airborne:S.airborne, coins:S.coins, flips:S.flips, vx:S.vx }),
+                  start: startGame, input };
+</script>
+</body>
+</html>

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Sky Pack — hold to fly</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#1a1226; touch-action:none; overscroll-behavior:none; }
+  #game { position:fixed; inset:0; display:block; touch-action:none; }
+  #hud {
+    position:fixed; top:0; left:0; right:0; z-index:1200; pointer-events:none;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 0 16px;
+    font-family:'Arial Black', Arial, sans-serif; color:#fff;
+    text-shadow:0 3px 0 rgba(0,0,0,.45);
+  }
+  #dist { font-size:44px; line-height:1; }
+  #dist small { font-size:16px; vertical-align:top; }
+  #coinbox { font-size:30px; line-height:1.2; color:#ffd94d; text-align:right; }
+  #mode {
+    position:fixed; top:110px; left:50%; transform:translateX(-50%); z-index:1200; pointer-events:none;
+    font-family:'Arial Black', Arial, sans-serif; font-size:20px; color:#b8f4ff;
+    text-shadow:0 2px 0 rgba(0,0,0,.5); display:none; text-align:center;
+  }
+  #hint {
+    position:fixed; bottom:calc(env(safe-area-inset-bottom,0px) + 26px); left:0; right:0; z-index:1200; pointer-events:none;
+    text-align:center; font-family:Arial, sans-serif; font-weight:bold; font-size:17px; color:#ffe9b0;
+    text-shadow:0 2px 0 rgba(0,0,0,.6);
+  }
+  #over {
+    position:fixed; inset:0; z-index:1300; display:none; align-items:center; justify-content:center;
+    background:rgba(10,4,20,.45); touch-action:none;
+  }
+  #over .card {
+    background:#2b1a44; border:4px solid #ffd94d; border-radius:18px; padding:26px 34px; text-align:center;
+    font-family:'Arial Black', Arial, sans-serif; color:#fff; box-shadow:0 12px 0 rgba(0,0,0,.4);
+  }
+  #over h1 { font-size:34px; color:#ff6b6b; margin-bottom:8px; }
+  #over p { font-size:20px; margin:4px 0; }
+  #over .tap { margin-top:14px; font-size:16px; color:#ffd94d; animation:blink 0.8s steps(2) infinite; }
+  @keyframes blink { 50% { opacity:0.25; } }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud"><div id="dist">0<small> m</small></div><div id="coinbox">🪙 0</div></div>
+<div id="mode"></div>
+<div id="hint">HOLD to fly · RELEASE to fall</div>
+<div id="over"><div class="card"><h1>WIPEOUT!</h1><p id="finalDist">0 m</p><p id="finalCoins">🪙 0</p><div class="tap">TAP TO FLY AGAIN</div></div></div>
+<script>
+'use strict';
+// ============ SKY PACK — original hold-to-fly jetpack altitude dodger ============
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+const distEl = document.getElementById('dist'), coinEl = document.getElementById('coinbox');
+const modeEl = document.getElementById('mode'), hintEl = document.getElementById('hint');
+const overEl = document.getElementById('over');
+const finalDist = document.getElementById('finalDist'), finalCoins = document.getElementById('finalCoins');
+
+let W = 390, H = 844, DPR = 1;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  floorY = H - 96; ceilY = 108;
+}
+let floorY = 748, ceilY = 108;
+window.addEventListener('resize', resize);
+
+// ---- world state ----
+const HERO_X = 92, HERO_R = 15;
+let hero, hazards, coinList, pickups, parts, sparks, scrollX, distM, coins, holding, dead, deadT, skidX, mode, modeT, started, lastSpawnX, lastGapY, nextPickupAt, time;
+let limbs; // ragdoll limb angles
+
+function reset() {
+  hero = { y: H * 0.45, vy: 0, tilt: 0 };
+  hazards = []; coinList = []; pickups = []; parts = []; sparks = [];
+  scrollX = 0; distM = 0; coins = 0; holding = false;
+  dead = false; deadT = 0; skidX = HERO_X;
+  mode = 'normal'; modeT = 0; started = false; time = 0;
+  lastSpawnX = W + 1050; nextPickupAt = 260; lastGapY = H * 0.45; // opening runway: first hazard ~28m in
+  limbs = { a1: 0.4, a2: -0.5, l1: 0.3, l2: -0.4, spin: 0 };
+  overEl.style.display = 'none'; modeEl.style.display = 'none';
+  hintEl.style.display = 'block';
+}
+reset();
+
+function speed() { return 265 + Math.min(255, distM * 0.55); } // gentle ramp
+
+// ---- spawning: hazards with coin arcs threading their gaps ----
+function spawnPattern(x) {
+  const kind = ['laser', 'zapper', 'missile', 'laser2'][Math.floor(Math.random() * 4)];
+  let gapY = ceilY + 90 + Math.random() * (floorY - ceilY - 180);
+  // fairness: consecutive gaps never jump more than 330px — always a makeable transit
+  gapY = Math.max(ceilY + 90, Math.min(floorY - 90, Math.max(lastGapY - 330, Math.min(lastGapY + 330, gapY))));
+  lastGapY = gapY;
+  if (kind === 'laser' || kind === 'laser2') {
+    const gapH = kind === 'laser' ? 168 : 138;
+    hazards.push({ type: 'laser', x, gapY, gapH, warn: 1.1, phase: Math.random() * 6 });
+    addCoinArc(x - 130, gapY, 7, 46);
+  } else if (kind === 'zapper') {
+    const len = 100 + Math.random() * 50, horiz = Math.random() < 0.5;
+    hazards.push({ type: 'zapper', x, y: gapY, len, horiz, phase: Math.random() * 6 });
+    addCoinArc(x - 150, gapY + (horiz ? (Math.random() < 0.5 ? -95 : 95) : 0), 7, 46);
+    if (!horiz) addCoinArc(x + 90, gapY, 5, 40);
+  } else { // missile comes at hero height-ish, telegraphed
+    hazards.push({ type: 'missile', x: x + 260, y: Math.max(ceilY + 50, Math.min(floorY - 50, hero.y + (Math.random() * 160 - 80))), warn: 1.2, phase: 0 });
+    addCoinArc(x - 120, gapY, 7, 46);
+  }
+  return (300 + Math.random() * 170) * Math.sqrt(speed() / 265); // spacing scales with speed: reaction time stays ~constant
+}
+function addCoinArc(cx, cy, n, r) {
+  for (let i = 0; i < n; i++) {
+    const t = (i / (n - 1)) * Math.PI;
+    coinList.push({ x: cx + (i - (n - 1) / 2) * 34, y: cy - Math.sin(t) * r + r * 0.4, got: false, ph: i * 0.6 });
+  }
+}
+function spawnPickup(x) {
+  const type = Math.random() < 0.5 ? 'spring' : 'bubble';
+  pickups.push({ type, x, y: ceilY + 90 + Math.random() * (floorY - ceilY - 180), ph: 0 });
+}
+
+// ---- input: one thumb, hold / release ----
+function press() {
+  if (dead) { if (deadT > 0.55) reset(); return; }
+  holding = true; started = true; hintEl.style.display = 'none';
+}
+function release() { holding = false; }
+window.addEventListener('pointerdown', (e) => { e.preventDefault(); press(); }, { passive: false });
+window.addEventListener('pointerup', (e) => { e.preventDefault(); release(); }, { passive: false });
+window.addEventListener('pointercancel', release);
+window.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+document.addEventListener('dblclick', (e) => e.preventDefault());
+window.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); press(); } });
+window.addEventListener('keyup', (e) => { if (e.code === 'Space') release(); });
+
+// ---- update ----
+function die() {
+  if (dead) return;
+  dead = true; deadT = 0; holding = false;
+  for (let i = 0; i < 22; i++) sparks.push({ x: HERO_X, y: hero.y, vx: (Math.random() - 0.7) * 320, vy: (Math.random() - 0.5) * 380, life: 0.5 + Math.random() * 0.5 });
+}
+function circleRect(cx, cy, r, rx, ry, rw, rh) {
+  const nx = Math.max(rx, Math.min(cx, rx + rw)), ny = Math.max(ry, Math.min(cy, ry + rh));
+  return (cx - nx) * (cx - nx) + (cy - ny) * (cy - ny) < r * r;
+}
+function update(dt) {
+  time += dt;
+  const sp = speed();
+  if (!dead) {
+    if (started) { scrollX += sp * dt; distM = scrollX / 46; }
+    // flight physics — mode changes the feel
+    let grav = 1500, thrust = -3050;
+    if (mode === 'bubble') { grav = 620; thrust = -1250; }
+    if (!started) { hero.y = H * 0.45 + Math.sin(time * 2.2) * 8; hero.vy = 0; }
+    else {
+      if (holding) hero.vy += thrust * dt;
+      hero.vy += grav * dt;
+    }
+    hero.vy = Math.max(-560, Math.min(640, hero.vy));
+    hero.y += hero.vy * dt;
+    if (mode === 'spring' && modeT > 0) { /* handled at pickup moment */ }
+    if (modeT > 0) { modeT -= dt; if (modeT <= 0) { mode = 'normal'; modeEl.style.display = 'none'; } }
+    if (hero.y < ceilY + HERO_R) { hero.y = ceilY + HERO_R; hero.vy = Math.max(0, hero.vy); }
+    if (hero.y > floorY - HERO_R) { hero.y = floorY - HERO_R; hero.vy = Math.min(0, hero.vy); }
+    hero.tilt = Math.max(-0.45, Math.min(0.6, hero.vy / 900));
+
+    // move world objects
+    const dx = started ? sp * dt : 0;
+    for (const h of hazards) {
+      h.x -= dx; if (h.type === 'missile') h.x -= 190 * dt;
+      if (h.warn > 0) h.warn -= dt;
+      h.phase += dt * 9;
+    }
+    for (const c of coinList) { c.x -= dx; c.ph += dt * 5; }
+    for (const p of pickups) { p.x -= dx; p.ph += dt * 3; }
+    hazards = hazards.filter((h) => h.x > -340);
+    coinList = coinList.filter((c) => c.x > -40 && !c.got);
+    pickups = pickups.filter((p) => p.x > -60);
+
+    // spawn patterns on an ahead-pointer so spacing stays 300-470px of world
+    if (started) {
+      lastSpawnX -= dx;
+      while (lastSpawnX < W + 650) lastSpawnX += spawnPattern(lastSpawnX);
+      if (distM > nextPickupAt) { spawnPickup(W + 330); nextPickupAt = distM + 240 + Math.random() * 160; }
+    }
+
+    // coin pickup
+    for (const c of coinList) {
+      if (!c.got && Math.abs(c.x - HERO_X) < 30 && Math.abs(c.y - hero.y) < 34) {
+        c.got = true; coins++;
+        for (let i = 0; i < 5; i++) parts.push({ x: HERO_X, y: hero.y, vx: (Math.random() - 0.5) * 160, vy: -Math.random() * 160, life: 0.4, col: '#ffd94d' });
+      }
+    }
+    // vehicle pickups
+    for (const p of pickups) {
+      if (Math.abs(p.x - HERO_X) < 40 && Math.abs(p.y - hero.y) < 44) {
+        p.x = -999;
+        if (p.type === 'spring') { hero.vy = -880; mode = 'spring'; modeT = 0.7; modeEl.textContent = '🌀 SPRING POD — BOING!'; }
+        else { mode = 'bubble'; modeT = 5; modeEl.textContent = '🫧 BUBBLE GLIDER — floaty!'; }
+        modeEl.style.display = 'block';
+        if (p.type === 'spring') setTimeout(() => { if (mode === 'spring') { mode = 'normal'; modeEl.style.display = 'none'; } }, 750);
+      }
+    }
+    // hazard collisions (only once warned-in beams are live)
+    for (const h of hazards) {
+      if (h.type === 'laser') {
+        if (h.warn > 0) continue;
+        const top = ceilY, bot = floorY, g0 = h.gapY - h.gapH / 2, g1 = h.gapY + h.gapH / 2;
+        if (circleRect(HERO_X, hero.y, HERO_R - 3, h.x - 5, top, 10, Math.max(0, g0 - top))) die();
+        if (circleRect(HERO_X, hero.y, HERO_R - 3, h.x - 5, g1, 10, Math.max(0, bot - g1))) die();
+      } else if (h.type === 'zapper') {
+        const hw = h.horiz ? h.len / 2 : 9, hh = h.horiz ? 9 : h.len / 2;
+        if (circleRect(HERO_X, hero.y, HERO_R - 3, h.x - hw, h.y - hh, hw * 2, hh * 2)) die();
+      } else if (h.type === 'missile') {
+        if (h.warn <= 0 && Math.abs(h.x - HERO_X) < 34 && Math.abs(h.y - hero.y) < 22) die();
+      }
+    }
+  } else {
+    // ---- ragdoll skid: the comedy beat ----
+    deadT += dt;
+    hero.vy += 1700 * dt; hero.y += hero.vy * dt;
+    if (hero.y > floorY - 12) {
+      hero.y = floorY - 12;
+      hero.vy = 0;
+      skidX -= Math.max(0, 240 - deadT * 130) * dt; // skids and slows
+      limbs.spin += dt * 7; limbs.a1 = Math.sin(limbs.spin) * 1.5; limbs.a2 = Math.cos(limbs.spin * 1.3) * 1.6;
+      limbs.l1 = Math.sin(limbs.spin * 0.8 + 2) * 1.4; limbs.l2 = Math.cos(limbs.spin * 1.1 + 1) * 1.5;
+      if (Math.random() < 0.35) sparks.push({ x: skidX, y: floorY - 4, vx: 60 + Math.random() * 120, vy: -Math.random() * 130, life: 0.35 });
+      if (deadT > 0.9 && overEl.style.display !== 'flex') {
+        finalDist.textContent = Math.floor(distM) + ' m';
+        finalCoins.textContent = '🪙 ' + coins;
+        overEl.style.display = 'flex';
+      }
+    }
+  }
+  for (const s of sparks) { s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 500 * dt; s.life -= dt; }
+  sparks = sparks.filter((s) => s.life > 0);
+  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; p.life -= dt; }
+  parts = parts.filter((p) => p.life > 0);
+  distEl.innerHTML = Math.floor(distM) + '<small> m</small>';
+  coinEl.textContent = '🪙 ' + coins;
+}
+
+// ---- drawing ----
+function drawBackground() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#3a2358'); g.addColorStop(0.55, '#7a3b5e'); g.addColorStop(1, '#c65f3d');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // dusk sun + skyline windows through lab glass
+  ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(W * 0.78, ceilY + 120, 44, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(30,16,48,0.55)';
+  const off = -(scrollX * 0.25) % 90;
+  for (let x = off - 90; x < W + 90; x += 90) { const bh = 90 + ((x * 37) % 60 + 60) % 60; ctx.fillRect(x, floorY - bh - 130, 62, bh + 130); }
+  // warehouse-lab interior: ceiling rail + floor
+  ctx.fillStyle = '#241534'; ctx.fillRect(0, 0, W, ceilY);
+  ctx.fillStyle = '#31204a'; ctx.fillRect(0, floorY, W, H - floorY);
+  ctx.fillStyle = '#ffd94d'; for (let x = -((scrollX) % 64); x < W; x += 64) ctx.fillRect(x, floorY + 6, 34, 7);
+  ctx.fillStyle = '#57407c'; for (let x = -((scrollX * 0.9) % 120); x < W; x += 120) ctx.fillRect(x, ceilY - 16, 70, 10);
+  // shelves / tanks silhouettes mid-ground
+  ctx.fillStyle = 'rgba(20,10,36,0.5)';
+  const off2 = -(scrollX * 0.55) % 210;
+  for (let x = off2 - 210; x < W + 210; x += 210) {
+    ctx.fillRect(x, floorY - 120, 16, 120); ctx.fillRect(x + 84, floorY - 120, 16, 120);
+    ctx.fillRect(x, floorY - 120, 100, 12); ctx.fillRect(x, floorY - 66, 100, 10);
+    ctx.beginPath(); ctx.arc(x + 150, floorY - 42, 30, 0, 7); ctx.fill(); ctx.fillRect(x + 120, floorY - 42, 60, 42);
+  }
+}
+function drawWarning(x, y, label) {
+  ctx.save(); ctx.translate(x, y);
+  const blink = Math.sin(time * 14) > -0.2;
+  ctx.fillStyle = blink ? '#ffd94d' : '#c9a227';
+  ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(19, 14); ctx.lineTo(-19, 14); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#241534'; ctx.font = '900 22px Arial'; ctx.textAlign = 'center'; ctx.fillText('!', 0, 10);
+  ctx.font = 'bold 11px Arial'; ctx.fillStyle = '#ffd94d'; ctx.fillText(label, 0, 30);
+  ctx.restore();
+}
+function drawHazards() {
+  for (const h of hazards) {
+    if (h.x < -360 || h.x > W + 420) {
+      if (h.x > W && h.x < W + 420) { // telegraph off-screen hazards at the edge
+        const wy = h.type === 'missile' ? h.y : (h.gapY || h.y || H / 2);
+        drawWarning(W - 30, Math.max(ceilY + 30, Math.min(floorY - 30, wy)), h.type === 'missile' ? 'MISSILE' : 'DANGER');
+      }
+      continue;
+    }
+    if (h.type === 'laser') {
+      const g0 = h.gapY - h.gapH / 2, g1 = h.gapY + h.gapH / 2;
+      // emitters
+      ctx.fillStyle = '#151021'; ctx.fillRect(h.x - 13, ceilY, 26, 22); ctx.fillRect(h.x - 13, floorY - 22, 26, 22);
+      ctx.fillStyle = '#ff4757'; ctx.beginPath(); ctx.arc(h.x, ceilY + 24, 6, 0, 7); ctx.arc(h.x, floorY - 24, 6, 0, 7); ctx.fill();
+      if (h.warn > 0) {
+        drawWarning(h.x, ceilY + 58, 'LASER');
+        ctx.strokeStyle = 'rgba(255,71,87,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([6, 8]);
+        ctx.beginPath(); ctx.moveTo(h.x, ceilY + 22); ctx.lineTo(h.x, g0); ctx.moveTo(h.x, g1); ctx.lineTo(h.x, floorY - 22); ctx.stroke(); ctx.setLineDash([]);
+      } else {
+        const flick = 5 + Math.sin(h.phase) * 1.6;
+        const grad = ctx.createLinearGradient(h.x - 6, 0, h.x + 6, 0);
+        grad.addColorStop(0, 'rgba(255,71,87,0)'); grad.addColorStop(0.5, '#ff6b81'); grad.addColorStop(1, 'rgba(255,71,87,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(h.x - flick, ceilY + 20, flick * 2, Math.max(0, g0 - ceilY - 20));
+        ctx.fillRect(h.x - flick, g1, flick * 2, Math.max(0, floorY - 20 - g1));
+        ctx.fillStyle = '#fff'; ctx.fillRect(h.x - 1.6, ceilY + 20, 3.2, Math.max(0, g0 - ceilY - 20)); ctx.fillRect(h.x - 1.6, g1, 3.2, Math.max(0, floorY - 20 - g1));
+      }
+    } else if (h.type === 'zapper') {
+      const hw = h.horiz ? h.len / 2 : 0, hh = h.horiz ? 0 : h.len / 2;
+      ctx.fillStyle = '#151021';
+      ctx.beginPath(); ctx.arc(h.x - hw, h.y - hh, 11, 0, 7); ctx.arc(h.x + hw, h.y + hh, 11, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffe600'; ctx.beginPath(); ctx.arc(h.x - hw, h.y - hh, 5, 0, 7); ctx.arc(h.x + hw, h.y + hh, 5, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#8be9ff'; ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.beginPath();
+      const segs = 6;
+      for (let i = 0; i <= segs; i++) {
+        const t = i / segs, jx = (i > 0 && i < segs) ? (Math.sin(h.phase + i * 2.4) * 7) : 0;
+        const px = h.x - hw + (hw * 2) * t + (h.horiz ? 0 : jx), py = h.y - hh + (hh * 2) * t + (h.horiz ? jx : 0);
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.6; ctx.stroke();
+      if (h.x > W - 130) drawWarning(h.x, h.y - 52, 'ZAPPER');
+    } else if (h.type === 'missile') {
+      if (h.warn > 0) { drawWarning(W - 30, h.y, 'MISSILE'); continue; }
+      ctx.save(); ctx.translate(h.x, h.y);
+      ctx.fillStyle = '#dfe6ee'; ctx.beginPath(); ctx.ellipse(0, 0, 30, 10, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ff4757'; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-44, -9); ctx.lineTo(-44, 9); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#3742fa'; ctx.beginPath(); ctx.arc(8, -2, 5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffa502'; ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(44 + Math.sin(h.phase * 3) * 5, -5); ctx.lineTo(44, 0); ctx.lineTo(44 + Math.sin(h.phase * 3) * 5, 5); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+function drawCoins() {
+  for (const c of coinList) {
+    if (c.x < -30 || c.x > W + 30) continue;
+    const sq = Math.abs(Math.sin(c.ph)) * 0.55 + 0.45;
+    ctx.save(); ctx.translate(c.x, c.y); ctx.scale(sq, 1);
+    ctx.fillStyle = '#ffd94d'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, 7); ctx.fill();
+    ctx.fillStyle = '#f0b429'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ffd94d'; ctx.font = '900 11px Arial'; ctx.textAlign = 'center'; ctx.fillText('¢', 0, 4);
+    ctx.restore();
+  }
+}
+function drawPickups() {
+  for (const p of pickups) {
+    if (p.x < -40 || p.x > W + 60) continue;
+    const bob = Math.sin(p.ph) * 6;
+    ctx.save(); ctx.translate(p.x, p.y + bob);
+    if (p.type === 'spring') {
+      ctx.fillStyle = '#2ed573'; ctx.beginPath(); ctx.arc(0, 0, 24, 0, 7); ctx.fill();
+      ctx.fillStyle = '#7bed9f'; ctx.beginPath(); ctx.arc(0, -4, 17, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath();
+      ctx.moveTo(-10, 8); ctx.lineTo(-3, -2); ctx.lineTo(3, 6); ctx.lineTo(10, -6); ctx.stroke();
+      ctx.fillStyle = '#063'; ctx.font = '900 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('POD', 0, 20);
+    } else {
+      ctx.fillStyle = 'rgba(139,233,255,0.4)'; ctx.beginPath(); ctx.arc(0, 0, 27, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#dff6ff'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.arc(-9, -10, 6, 0, 7); ctx.fill();
+      ctx.fillStyle = '#0a4d68'; ctx.font = '900 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('GLIDE', 0, 22);
+    }
+    ctx.restore();
+  }
+}
+function drawHero() {
+  const x = dead ? skidX : HERO_X, y = hero.y;
+  ctx.save(); ctx.translate(x, y);
+  if (!dead) {
+    ctx.rotate(hero.tilt);
+    // jetpack flame
+    if (holding && started) {
+      const fl = 26 + Math.random() * 16;
+      ctx.fillStyle = '#ffa502'; ctx.beginPath(); ctx.moveTo(-20, 2); ctx.lineTo(-20 - fl, 7); ctx.lineTo(-20, 13); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ffe600'; ctx.beginPath(); ctx.moveTo(-20, 4); ctx.lineTo(-20 - fl * 0.6, 7); ctx.lineTo(-20, 10); ctx.closePath(); ctx.fill();
+    }
+    // pack
+    ctx.fillStyle = '#57606f'; ctx.fillRect(-24, -8, 10, 22); ctx.fillStyle = '#ff6b81'; ctx.fillRect(-24, -8, 10, 6);
+    // legs
+    ctx.strokeStyle = '#2f3542'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 10); ctx.lineTo(8, 24); ctx.moveTo(0, 10); ctx.lineTo(-4, 25); ctx.stroke();
+    // body (bold silhouette hero, orange suit)
+    ctx.fillStyle = '#e84118'; ctx.beginPath(); ctx.ellipse(0, 0, 13, 16, 0, 0, 7); ctx.fill();
+    // arm
+    ctx.strokeStyle = '#e84118'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(4, -4); ctx.lineTo(16, 4); ctx.stroke();
+    // head + helmet
+    ctx.fillStyle = '#f5c396'; ctx.beginPath(); ctx.arc(3, -24, 10, 0, 7); ctx.fill();
+    ctx.fillStyle = '#00a8ff'; ctx.beginPath(); ctx.arc(3, -26, 10.5, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = 'rgba(190,240,255,0.85)'; ctx.fillRect(6, -27, 8, 6);
+  } else {
+    // floppy ragdoll lying/skidding on the floor
+    ctx.rotate(-Math.PI / 2 + Math.sin(limbs.spin) * 0.14);
+    ctx.strokeStyle = '#2f3542'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 10); ctx.lineTo(10 * Math.cos(limbs.l1), 10 + 13 * Math.abs(Math.sin(limbs.l1))); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 10); ctx.lineTo(10 * Math.cos(limbs.l2), 10 + 13 * Math.abs(Math.sin(limbs.l2))); ctx.stroke();
+    ctx.fillStyle = '#57606f'; ctx.fillRect(-24, -8, 10, 22);
+    ctx.fillStyle = '#e84118'; ctx.beginPath(); ctx.ellipse(0, 0, 13, 16, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#e84118'; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.moveTo(4, -4); ctx.lineTo(4 + 13 * Math.cos(limbs.a1), -4 + 13 * Math.sin(limbs.a1)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4, 2); ctx.lineTo(4 + 13 * Math.cos(limbs.a2), 2 + 13 * Math.sin(limbs.a2)); ctx.stroke();
+    ctx.fillStyle = '#f5c396'; ctx.beginPath(); ctx.arc(3, -24, 10, 0, 7); ctx.fill();
+    ctx.fillStyle = '#00a8ff'; ctx.beginPath(); ctx.arc(3, -26, 10.5, Math.PI, 0); ctx.fill();
+    // dizzy spiral eyes
+    ctx.strokeStyle = '#241534'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(1, -24, 3, limbs.spin, limbs.spin + 4); ctx.stroke();
+    ctx.beginPath(); ctx.arc(8, -24, 3, -limbs.spin, -limbs.spin + 4); ctx.stroke();
+  }
+  ctx.restore();
+  for (const s of sparks) { ctx.fillStyle = '#ffd94d'; ctx.fillRect(s.x, s.y, 4, 4); }
+  for (const p of parts) { ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, 7); ctx.fill(); }
+}
+function draw() { drawBackground(); drawCoins(); drawPickups(); drawHazards(); drawHero(); }
+
+// ---- main loop ----
+resize();
+const TS = Math.max(1, Math.min(4, parseInt(new URLSearchParams(location.search).get('ts') || '1', 10) || 1)); // QA time-scale hook
+let last = performance.now();
+function frame(now) {
+  let dt = (now - last) / 1000; last = now;
+  dt = Math.min(dt, 0.033);
+  for (let i = 0; i < TS; i++) update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// QA / debug hook
+window.__sky = {
+  state: () => ({ dist: Math.floor(distM), coins, dead, heroY: Math.round(hero.y), vy: Math.round(hero.vy), holding, mode, started, floorY, ceilY, hazards: hazards.length, coinCount: coinList.length,
+    hz: hazards.map((h) => ({ t: h.type, x: Math.round(h.x), gy: Math.round(h.gapY !== undefined ? h.gapY : h.y), gh: Math.round(h.gapH || 0), horiz: !!h.horiz, len: Math.round(h.len || 0), warn: +((h.warn || 0).toFixed(2)) })),
+    cn: coinList.slice(0, 14).map((c) => ({ x: Math.round(c.x), y: Math.round(c.y) })) }),
+  reset,
+};
+</script>
+</body>
+</html>

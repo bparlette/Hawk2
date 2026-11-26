@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Roll Riot</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#87ceeb;font-family:system-ui,sans-serif;touch-action:none;overscroll-behavior:none}
+#wrap{position:fixed;inset:0}
+canvas{display:block;width:100%;height:100%}
+.hud{position:fixed;top:0;left:0;right:0;z-index:1200;display:flex;justify-content:space-between;padding:10px 12px;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,.5);font-weight:800;font-size:15px;pointer-events:none}
+#msg{position:fixed;inset:0;z-index:1300;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(20,30,60,.72);color:#fff;text-align:center;padding:24px}
+#msg h1{font-size:42px;margin-bottom:10px}#msg p{font-size:17px;line-height:1.5;max-width:320px}
+#msg button{margin-top:18px;background:#ffcf3f;border:0;border-radius:999px;padding:14px 28px;font-size:18px;font-weight:900;cursor:pointer}
+.btn{position:fixed;z-index:1100;border-radius:50%;border:3px solid rgba(255,255,255,.8);color:#fff;font-weight:900;display:flex;align-items:center;justify-content:center;user-select:none;touch-action:none}
+#btnA{right:18px;bottom:28px;width:76px;height:76px;background:rgba(230,40,60,.85);font-size:22px}
+#btnL{left:14px;bottom:28px;width:64px;height:64px;background:rgba(0,0,0,.35);font-size:24px}
+#btnR{left:90px;bottom:28px;width:64px;height:64px;background:rgba(0,0,0,.35);font-size:24px}
+.btn.on{background:rgba(255,207,63,.9);color:#222}
+</style></head><body>
+<div id="wrap"><canvas id="c"></canvas></div>
+<div class="hud"><div id="hLevel">Level 1</div><div id="hScore">⭐ 0 · Score 0</div><div id="hLives">❤❤❤</div></div>
+<div id="msg"><h1>🏖️ Roll Riot</h1><p>Hold ◀ ▶ (or left / right side of the screen) to roll. Build speed downhill, bounce on springs, land on square grumps to squash them, grab stars and reach the flag!</p><button id="startBtn">▶ ROLL!</button><p style="font-size:13px;margin-top:12px">Keyboard: ← → / A D move · Space jump</p></div>
+<div class="btn" id="btnL">◀</div><div class="btn" id="btnR">▶</div><div class="btn" id="btnA">A</div>
+<script>
+"use strict";
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=390,H=844,DPR=1;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}addEventListener('resize',resize);resize();
+document.addEventListener('gesturestart',e=>e.preventDefault());document.addEventListener('dblclick',e=>e.preventDefault());
+let lastTap=0;document.addEventListener('touchend',e=>{const n=Date.now();if(n-lastTap<300)e.preventDefault();lastTap=n},{passive:false});
+
+// Levels: platforms [x,y,w,h], ground segments included
+const LEVELS=[
+{name:"Sunny Slope",spawn:[60,300],flag:1500,plats:[[0,420,420,400],[420,500,260,320],[680,420,300,400],[980,520,260,300],[1240,430,420,390]],springs:[[620,485]],spikes:[[1050,505,60]],water:[],enemies:[[760,380],[1100,480]],stars:[[300,360],[700,350],[1300,370]]},
+{name:"Spring Valley",spawn:[60,300],flag:1750,plats:[[0,420,340,400],[400,480,220,340],[680,380,220,440],[960,500,220,320],[1240,400,220,420],[1520,470,340,350]],springs:[[560,465],[900,365],[1180,485]],spikes:[[990,485,50]],water:[[340,700,60,140]],enemies:[[720,340],[1280,360],[1580,430]],stars:[[430,410],[850,310],[1450,330]]},
+{name:"Spike Ridge",spawn:[60,280],flag:2000,plats:[[0,400,300,420],[360,470,200,350],[620,360,200,460],[880,480,200,340],[1140,380,200,440],[1400,490,200,330],[1660,400,420,420]],springs:[[500,455],[820,345],[1340,365]],spikes:[[900,465,70],[1420,475,70],[1700,385,60]],water:[[300,700,60,140],[560,700,60,140]],enemies:[[650,320],[1180,340],[1750,360],[1850,360]],stars:[[380,400],[900,410],[1500,420],[1900,330]]},
+{name:"Riot Summit",spawn:[60,260],flag:2300,plats:[[0,380,280,440],[340,460,180,360],[580,340,180,480],[820,470,180,350],[1060,350,180,470],[1300,480,180,340],[1540,360,180,460],[1780,480,180,340],[2020,390,400,430]],springs:[[460,445],[760,325],[1240,335],[1720,345],[1960,465]],spikes:[[840,455,60],[1320,465,60],[1800,465,60],[2060,375,70]],water:[[280,700,60,140],[520,700,60,140],[1000,700,60,140],[1480,700,60,140]],enemies:[[610,300],[1090,310],[1570,320],[2080,350],[2200,350]],stars:[[360,390],[850,400],[1350,410],[1850,410],[2250,320]]}
+];
+let levelIdx=0,score=0,starsGot=0,lives=3,state='menu',timeStart=0,levelTime=0,poofs=[],camX=0;
+let P=null,enemies=[],stars=[];
+function loadLevel(i){const L=LEVELS[i];P={x:L.spawn[0],y:L.spawn[1],vx:0,vy:0,r:18,rot:0,ground:false,faceTilt:0};
+enemies=L.enemies.map(e=>({x:e[0],y:e[1],w:34,h:30,dir:1,baseX:e[0],dead:false,squash:0}));
+stars=L.stars.map(s=>({x:s[0],y:s[1],got:false}));lives=3;timeStart=performance.now();camX=0;poofs=[];updateHUD();}
+function updateHUD(){document.getElementById('hLevel').textContent='Level '+(levelIdx+1)+' · '+LEVELS[levelIdx].name;
+document.getElementById('hScore').textContent='⭐ '+starsGot+' · Score '+score;
+document.getElementById('hLives').textContent='❤'.repeat(Math.max(0,lives))||'—';}
+const input={left:false,right:false,jump:false};let jumpQueued=false;
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')input.left=true;if(e.key==='ArrowRight'||e.key==='d')input.right=true;if(e.key===' '||e.key==='ArrowUp'){if(!input.jump)jumpQueued=true;input.jump=true;e.preventDefault()}});
+addEventListener('keyup',e=>{if(e.key==='ArrowLeft'||e.key==='a')input.left=false;if(e.key==='ArrowRight'||e.key==='d')input.right=false;if(e.key===' '||e.key==='ArrowUp')input.jump=false});
+function bindBtn(id,key){const el=document.getElementById(id);const on=e=>{e.preventDefault();input[key]=true;if(key==='jump')jumpQueued=true;el.classList.add('on')};const off=e=>{e.preventDefault();input[key]=false;el.classList.remove('on')};
+el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);el.addEventListener('pointercancel',off);el.addEventListener('pointerleave',off);}
+bindBtn('btnL','left');bindBtn('btnR','right');bindBtn('btnA','jump');
+// hold left/right thirds as alternative
+cv.addEventListener('pointerdown',e=>{if(e.clientX<W*0.33)input.left=true;else if(e.clientX>W*0.66)input.right=true});
+cv.addEventListener('pointerup',()=>{input.left=false;input.right=false});
+function startGame(){levelIdx=0;score=0;starsGot=0;loadLevel(0);state='play';document.getElementById('msg').style.display='none'}
+document.getElementById('startBtn').addEventListener('click',()=>{if(state==='menu')startGame()});
+function die(){lives--;updateHUD();if(lives<=0){/* instant restart with fresh lives per spec: 3 lives per level, restart level */ }
+const L=LEVELS[levelIdx];P.x=L.spawn[0];P.y=L.spawn[1];P.vx=0;P.vy=0;if(lives<=0)lives=3;updateHUD();}
+function winLevel(){levelTime=(performance.now()-timeStart)/1000;const bonus=Math.max(0,Math.round(300-levelTime*5));score+=bonus+starsGot*0;updateHUD();state='won';
+const m=document.getElementById('msg');m.style.display='flex';
+if(levelIdx>=LEVELS.length-1){m.querySelector('h1').textContent='🏆 All Levels Cleared!';m.querySelector('p').textContent='You rolled through every riot! Final score: '+score+' (time bonus +'+bonus+'). Stars: '+starsGot;m.querySelector('button').textContent='▶ PLAY AGAIN';}
+else{m.querySelector('h1').textContent='🚩 Level '+(levelIdx+1)+' Done!';m.querySelector('p').textContent='Time bonus +'+bonus+' · Score '+score+'. Ready for level '+(levelIdx+2)+'?';m.querySelector('button').textContent='▶ NEXT LEVEL';}
+m.querySelector('button').onclick=()=>{if(levelIdx>=LEVELS.length-1){startGame()}else{levelIdx++;loadLevel(levelIdx);state='play';m.style.display='none'}};}
+let last=performance.now();
+function step(now){const dt=Math.min(0.033,(now-last)/1000);last=now;if(state==='play'&&P){physics(dt)}draw();requestAnimationFrame(step)}
+function physics(dt){const L=LEVELS[levelIdx];const accel=P.ground?1400:900;
+if(input.left)P.vx-=accel*dt;if(input.right)P.vx+=accel*dt;
+if(!input.left&&!input.right&&P.ground)P.vx*=Math.pow(0.12,dt);
+P.vx=Math.max(-620,Math.min(620,P.vx));P.vy+=1800*dt;
+if(jumpQueued){jumpQueued=false;if(P.ground){P.vy=-740;P.ground=false}}
+P.x+=P.vx*dt;P.y+=P.vy*dt;P.rot+=P.vx*dt/P.r;P.faceTilt=P.vx/620;
+P.ground=false;
+// circle vs platforms (AABB, resolve smallest axis, top landing primary)
+for(const pl of L.plats){const[px,py,pw,ph]=pl;const cx=Math.max(px,Math.min(P.x,px+pw)),cy=Math.max(py,Math.min(P.y,py+ph));const dx=P.x-cx,dy=P.y-cy;const d2=dx*dx+dy*dy;
+if(d2<P.r*P.r){ // coming from above?
+ if(P.vy>=0&&P.y<py+P.r+6&&P.x>px-4&&P.x<px+pw+4){P.y=py-P.r;P.vy=0;P.ground=true}
+ else if(P.y>py+ph){P.y=py+ph+P.r;P.vy=Math.max(0,P.vy)} else if(P.x<px){P.x=px-P.r;P.vx=Math.min(0,P.vx)}else{P.x=px+pw+P.r;P.vx=Math.max(0,P.vx)}}}
+// springs
+for(const s of L.springs){if(Math.abs(P.x-s[0])<26&&Math.abs(P.y+P.r-s[1])<22&&P.vy>=0){P.vy=-1120;P.ground=false}}
+// spikes
+for(const s of L.spikes){if(P.x>s[0]-6&&P.x<s[0]+s[2]+6&&P.y+P.r>s[1]-4&&P.y<s[1]+20){die();return}}
+for(const wtr of L.water){if(P.x>wtr[0]&&P.x<wtr[0]+wtr[2]&&P.y>wtr[1]){die();return}}
+if(P.y>H+400||P.y>900){die();return}
+// enemies
+for(const e of enemies){if(e.dead)continue;e.x+=e.dir*55*dt;if(Math.abs(e.x-e.baseX)>50)e.dir*=-1;
+const dx=P.x-e.x,dy=P.y-(e.y);if(Math.abs(dx)<36&&Math.abs(dy)<46){if(P.vy>80&&P.y<e.y-6){e.dead=true;e.squash=1;P.vy=-520;score+=100;starsGot+=0;poofs.push({x:e.x,y:e.y,t:0});updateHUD()}else{die();return}}}
+for(const s of stars){if(!s.got&&Math.hypot(P.x-s.x,P.y-s.y)<30){s.got=true;starsGot++;score+=50;updateHUD()}}
+if(P.x>=L.flag){winLevel();return}
+camX=Math.max(0,Math.min(L.flag+200-W*0.6,P.x-W*0.38));}
+function draw(){// sky + hills
+const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#7ec8f7');g.addColorStop(1,'#d8f3c5');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#8fd07a';for(let i=0;i<6;i++){const hx=((i*260-camX*0.3)%(W+300))-150;ctx.beginPath();ctx.arc(hx,H*0.62,130,Math.PI,0);ctx.fill()}
+ctx.fillStyle='#fff';ctx.font='28px sans-serif';ctx.fillText('☁️',((200-camX*0.2)%(W+100)),120);ctx.fillText('☁️',((600-camX*0.2)%(W+100)),80);
+if(!P){return}const L=LEVELS[levelIdx];const oy=H*0.18; // vertical offset so ground ~ visible
+ctx.save();ctx.translate(-camX,oy);
+// water
+ctx.fillStyle='#3aa7e0';for(const w of L.water)ctx.fillRect(w[0],w[1]-oy+40,w[2],200);
+// platforms toy hills
+for(const pl of L.plats){ctx.fillStyle='#5dbb4a';ctx.beginPath();ctx.roundRect(pl[0],pl[1],pl[2],pl[3],18);ctx.fill();ctx.fillStyle='#7ed36a';ctx.fillRect(pl[0],pl[1],pl[2],16);ctx.fillStyle='#8a5a2b';ctx.fillRect(pl[0],pl[1]+16,pl[2],8)}
+// springs
+for(const s of L.springs){ctx.fillStyle='#e33';ctx.fillRect(s[0]-24,s[1],48,14);ctx.fillStyle='#ffd23f';ctx.fillRect(s[0]-24,s[1],48,5)}
+// spikes
+ctx.fillStyle='#666';for(const s of L.spikes){for(let x=s[0];x<s[0]+s[2];x+=15){ctx.beginPath();ctx.moveTo(x,s[1]+15);ctx.lineTo(x+7,s[1]-8);ctx.lineTo(x+15,s[1]+15);ctx.fill()}}
+// stars
+ctx.font='26px sans-serif';for(const s of stars)if(!s.got)ctx.fillText('⭐',s.x-13,s.y+9);
+// flag
+ctx.fillStyle='#333';ctx.fillRect(L.flag,300,6,150);ctx.fillStyle='#e33';ctx.beginPath();ctx.moveTo(L.flag+6,300);ctx.lineTo(L.flag+46,314);ctx.lineTo(L.flag+6,328);ctx.fill();
+// enemies flat square grumps
+for(const e of enemies){if(e.dead)continue;ctx.fillStyle='#8e5bd6';ctx.beginPath();ctx.roundRect(e.x-17,e.y-15,34,30,6);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(e.x-10,e.y-8,7,7);ctx.fillRect(e.x+3,e.y-8,7,7);ctx.fillStyle='#111';ctx.fillRect(e.x-8,e.y-5,3,3);ctx.fillRect(e.x+5,e.y-5,3,3);ctx.fillStyle='#111';ctx.fillRect(e.x-7,e.y+7,14,3)}
+// poofs
+for(const p of poofs){ctx.font='22px sans-serif';ctx.fillText('💨',p.x-11,p.y)}
+// hero glossy striped beach ball
+ctx.save();ctx.translate(P.x,P.y);ctx.rotate(P.rot);
+const cols=['#e33','#fff','#ffd23f','#fff','#2a7de1','#fff'];for(let i=0;i<6;i++){ctx.fillStyle=cols[i];ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,P.r,i*Math.PI/3,(i+1)*Math.PI/3);ctx.fill()}
+ctx.restore();
+ctx.save();ctx.translate(P.x,P.y);ctx.rotate(P.faceTilt*0.35);
+// face (doesn't spin fully, tilts with momentum)
+ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-6,-3,4.5,0,7);ctx.arc(7,-3,4.5,0,7);ctx.fill();ctx.fillStyle='#111';const lx=P.faceTilt*2;ctx.beginPath();ctx.arc(-6+lx,-3,2.2,0,7);ctx.arc(7+lx,-3,2.2,0,7);ctx.fill();
+ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.beginPath();if(Math.abs(P.vx)>420)ctx.arc(0,7,6,0.15*Math.PI,0.85*Math.PI);else ctx.arc(0,4,6,0.1*Math.PI,0.9*Math.PI);ctx.stroke();
+// determined brows
+ctx.beginPath();ctx.moveTo(-11,-10);ctx.lineTo(-2,-7);ctx.moveTo(12,-10);ctx.lineTo(3,-7);ctx.stroke();
+ctx.restore();
+// gloss
+ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.ellipse(P.x-6,P.y-9,6,3.5,-0.6,0,7);ctx.fill();
+ctx.restore();
+poofs=poofs.filter(p=>(p.t+=0.016)<0.6);}
+loadLevel(0);requestAnimationFrame(step);
+window.__roll={state:()=>({state,level:levelIdx+1,lives,score,stars:starsGot,x:P?P.x:0,y:P?P.y:0,vx:P?P.vx:0,vy:P?P.vy:0,ground:P?P.ground:false,enemiesAlive:enemies.filter(e=>!e.dead).length,enemiesTotal:enemies.length,flag:LEVELS[levelIdx].flag}),start:startGame,input,player:()=>P};
+</script></body></html>

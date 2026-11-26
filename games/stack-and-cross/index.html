@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Stack &amp; Cross — Brick Bridge Race</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#1b6f9e;touch-action:none;overscroll-behavior:none;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  #game{position:fixed;inset:0;display:block;touch-action:none}
+  .ui{position:fixed;z-index:1100;pointer-events:none}
+  #hud{top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px}
+  #posBox{background:#fff;border:3px solid #17324a;border-radius:16px;padding:4px 14px;text-align:center;box-shadow:0 4px 0 rgba(0,0,0,.25)}
+  #posBig{font-size:40px;font-weight:900;line-height:1;color:#17324a}
+  #posLbl{font-size:11px;font-weight:800;letter-spacing:.12em;color:#5a7186}
+  #midBox{text-align:center}
+  #raceLbl{background:#17324a;color:#fff;font-weight:800;font-size:14px;border-radius:999px;padding:6px 14px}
+  #scoreLbl{margin-top:6px;background:rgba(255,255,255,.92);color:#17324a;font-weight:800;font-size:13px;border-radius:999px;padding:4px 12px}
+  #brickBox{background:#ff5964;border:3px solid #17324a;border-radius:16px;padding:6px 14px;text-align:center;color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.25);min-width:78px}
+  #brickCount{font-size:32px;font-weight:900;line-height:1}
+  #brickLbl{font-size:11px;font-weight:800;letter-spacing:.1em}
+  #hint{bottom:14px;left:0;right:0;text-align:center;color:#fff;font-weight:800;font-size:15px;text-shadow:0 2px 4px rgba(0,0,0,.45)}
+  .overlay{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,38,58,.55);padding:24px;text-align:center}
+  .card{background:#fffdf4;border:4px solid #17324a;border-radius:24px;padding:26px 22px;max-width:340px;width:100%;box-shadow:0 10px 0 rgba(0,0,0,.3)}
+  .card h1{font-size:38px;line-height:1.05;color:#17324a;font-weight:900}
+  .card h1 .amp{color:#ff5964}
+  .card p{margin:12px 0;color:#3c556b;font-size:16px;font-weight:600;line-height:1.4}
+  .card .big{font-size:22px;color:#17324a;font-weight:900}
+  .btn{pointer-events:auto;margin-top:16px;background:#ffb703;border:3px solid #17324a;border-radius:999px;color:#17324a;font-size:20px;font-weight:900;padding:13px 34px;cursor:pointer;box-shadow:0 5px 0 #17324a;font-family:inherit}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 #17324a}
+  .hidden{display:none!important}
+  .mini{font-size:13px!important;color:#7a8fa0!important}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="ui" id="hud">
+  <div id="posBox"><div id="posBig">1st</div><div id="posLbl">PLACE</div></div>
+  <div id="midBox"><div id="raceLbl">RACE 1</div><div id="scoreLbl">SCORE 0</div></div>
+  <div id="brickBox"><div id="brickCount">0</div><div id="brickLbl">🧱 STACK</div></div>
+</div>
+<div class="ui" id="hint">◀ DRAG TO STEER ▶</div>
+
+<div class="overlay" id="titleScr">
+  <div class="card">
+    <h1>STACK <span class="amp">&amp;</span> CROSS</h1>
+    <p>Run over <b style="color:#ff5964">red bricks</b> to stack them on your back. Spend the stack laying bridge steps across the water gaps. Two rivals race you — and they'll bump your stack off and steal loose bricks!</p>
+    <p class="big">First across the final gap wins!</p>
+    <button class="btn" id="startBtn">TAP TO RACE</button>
+    <p class="mini">One thumb: drag left / right to steer. You run on your own.</p>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endScr">
+  <div class="card">
+    <h1 id="endTitle">YOU WIN! 🏆</h1>
+    <p id="endText"></p>
+    <p class="big" id="endScore"></p>
+    <button class="btn" id="endBtn">NEXT RACE</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ---------- Stack & Cross: original brick-stack bridge race ----------
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+let W = 390, H = 844, DPR = 1;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize); resize();
+
+// block double-tap zoom + browser gestures
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+document.addEventListener('touchmove', e => e.preventDefault(), { passive:false });
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouchEnd < 350) e.preventDefault(); lastTouchEnd = n; }, { passive:false });
+
+// deterministic rng
+function mulberry(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const QS = new URLSearchParams(location.search);
+const SPEED = Math.max(1, Math.min(20, parseFloat(QS.get('speed') || '1') || 1)); // QA time multiplier
+
+const TRACK_HALF = 138;              // lateral half-width (world units = px at scale 1)
+const STEP_LEN = 20;                 // distance one bridge step covers
+const COLORS = [
+  { main:'#ff5964', dark:'#c92f3d', light:'#ff8b94', name:'RED' },     // player
+  { main:'#3a86ff', dark:'#1f5fc4', light:'#7db1ff', name:'BLUE' },
+  { main:'#ffb703', dark:'#c78d00', light:'#ffd34d', name:'GOLD' },
+];
+const ROOF_COLS = ['#ffd9a0','#b8e3c5','#f9c6d3','#bfe3f2','#e6d7f7','#ffe9a8'];
+
+let phase = 'title'; // title | race | won | lost
+let race = 1;
+let totalScore = 0;
+let world = null;
+let camDist = 0, shake = 0, raceTime = 0;
+
+function buildRace(r){
+  const rng = mulberry(1234 + r * 777);
+  const gapCount = r === 1 ? 2 : 3;
+  const gapBase = 100 + (r - 1) * 26;
+  const segs = []; // {type:'roof'|'gap', from, to}
+  let d = 0;
+  const roofLens = [430];
+  for (let i = 0; i < gapCount; i++) roofLens.push(400 + rng() * 110);
+  roofLens.push(300); // finish roof
+  for (let i = 0; i < roofLens.length; i++){
+    segs.push({ type:'roof', from:d, to:d + roofLens[i], col: ROOF_COLS[(i + r) % ROOF_COLS.length], idx:i });
+    d += roofLens[i];
+    if (i < gapCount){
+      const gl = gapBase + rng() * 40;
+      segs.push({ type:'gap', from:d, to:d + gl, idx:i });
+      d += gl;
+    }
+  }
+  const finishDist = d - 130;
+  // loose bricks on roofs (not on finish roof except a few)
+  const bricks = [];
+  for (const s of segs){
+    if (s.type !== 'roof') continue;
+    const isFinish = s.idx === roofLens.length - 1;
+    const n = isFinish ? 4 : 34;
+    for (let i = 0; i < n; i++){
+      // colour clusters: pick an owner, place 1 brick (clusters emerge from rng runs)
+      const owner = rng() < 0.66 ? 0 : (rng() < 0.5 ? 1 : 2);
+      bricks.push({
+        x: (rng() * 2 - 1) * (TRACK_HALF - 18),
+        d: s.from + 50 + rng() * (s.to - s.from - 90),
+        owner, taken:false, bob: rng() * 6.28,
+      });
+    }
+  }
+  bricks.sort((a,b) => a.d - b.d);
+  const rivalSpeed = [0, 0.88 + (r-1)*0.06, 0.84 + (r-1)*0.065];
+  const mk = (i, x) => ({
+    i, x, tx:x, d: 10 + i * 4, stack:0, banked:0, speedBase: i === 0 ? 156 : 148 * rivalSpeed[i],
+    stepAcc:0, stallT:0, bumpCd:0, finished:false, wob: rng() * 6.28, lane:x,
+  });
+  const racers = [mk(0, 0), mk(1, -72), mk(2, 72)];
+  return { segs, bricks, racers, finishDist, totalDist:d, steps:[], gapCount, rng,
+           playerDrops:0, bridgesLaid:0, bumps:0, winner:-1, supplyT:0 };
+}
+function segAt(d){ for (const s of world.segs) if (d >= s.from && d < s.to) return s; return world.segs[world.segs.length-1]; }
+function stepExists(d, x){
+  for (const st of world.steps) if (Math.abs(st.d - d) < STEP_LEN * 0.75 && Math.abs(st.x - x) < 34) return true;
+  return false;
+}
+
+// ---------- input: one-thumb drag ----------
+let dragging = false, dragX = 0;
+function ptrX(e){ return e.clientX; }
+cv.addEventListener('pointerdown', e => { dragging = true; dragX = ptrX(e); cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e => { if (dragging) dragX = ptrX(e); });
+cv.addEventListener('pointerup', () => dragging = false);
+cv.addEventListener('pointercancel', () => dragging = false);
+let keys = {};
+addEventListener('keydown', e => keys[e.key] = true);
+addEventListener('keyup', e => keys[e.key] = false);
+
+function startRace(r){
+  race = r; world = buildRace(r); camDist = 0; raceTime = 0; shake = 0;
+  phase = 'race';
+  document.getElementById('titleScr').classList.add('hidden');
+  document.getElementById('endScr').classList.add('hidden');
+  document.getElementById('raceLbl').textContent = 'RACE ' + r;
+}
+document.getElementById('startBtn').addEventListener('click', () => startRace(1));
+document.getElementById('endBtn').addEventListener('click', () => {
+  if (phase === 'won') startRace(race + 1); else startRace(race);
+});
+
+// ---------- race logic ----------
+function collectBricks(rc){
+  const rd = rc.i === 0 ? 27 : 22, rx = rc.i === 0 ? 30 : 21; // hero scoops a touch wider
+  for (const b of world.bricks){
+    if (b.taken) continue;
+    const dd = b.d - rc.d; if (dd < -30) continue; if (dd > 34) break;
+    if (Math.abs(dd) < rd && Math.abs(b.x - rc.x) < rx){
+      if (rc.i === 0 && b.owner !== 0) continue;      // hero stacks only own colour
+      b.taken = true; rc.stack++; rc.banked++;        // rivals steal ANY loose brick they reach first
+      if (rc.i === 0) world.lastCollect = raceTime;
+    }
+  }
+}
+function aiThink(rc, dt){
+  // target: nearest collectable brick ahead on a roof, else gap centre line, else finish
+  let best = null, bestScore = 1e9;
+  for (const b of world.bricks){
+    if (b.taken) continue;
+    const dd = b.d - rc.d; if (dd < -10 || dd > 320) continue;
+    // rivals hunt their own colour first; other colours are opportunistic steals only
+    const sc = Math.abs(dd) + Math.abs(b.x - rc.x) * 1.6 + (b.owner !== rc.i ? 150 : 0);
+    if (sc < bestScore){ bestScore = sc; best = b; }
+  }
+  const seg = segAt(rc.d + 30);
+  if (seg.type === 'gap') rc.tx = rc.lane * 0.4;                 // commit to crossing line
+  else if (best) rc.tx = best.x;
+  else rc.tx = rc.lane * 0.5;
+  rc.tx = Math.max(-TRACK_HALF + 16, Math.min(TRACK_HALF - 16, rc.tx));
+  const dx = rc.tx - rc.x;
+  rc.x += Math.max(-190 * dt, Math.min(190 * dt, dx * 6 * dt));
+}
+function updateRacer(rc, dt){
+  if (rc.finished) return;
+  rc.bumpCd = Math.max(0, rc.bumpCd - dt);
+  const ahead = segAt(rc.d + 6);
+  const inGap = ahead.type === 'gap';
+  let speed = rc.speedBase;
+  // gentle rubber-banding for rivals keeps the race close
+  if (rc.i !== 0){
+    const pd = world.racers[0].d;
+    if (rc.d < pd - 260) speed *= 1.06; else if (rc.d > pd + 180) speed *= 0.90;
+  }
+  let moving = true;
+  if (inGap){
+    // crossing: advance only over a laid step, or lay one from the stack
+    const probe = rc.d + 8;
+    if (stepExists(probe, rc.x)){
+      // walk on existing steps (anyone's) for free
+    } else {
+      rc.stepAcc += speed * dt;
+      if (rc.stepAcc >= STEP_LEN){
+        if (rc.stack > 0){
+          rc.stack--; rc.stepAcc = 0;
+          world.steps.push({ d: ahead.from + Math.floor((probe - ahead.from) / STEP_LEN) * STEP_LEN + STEP_LEN/2, x: rc.x, owner: rc.i });
+          if (rc.i === 0) world.bridgesLaid++;
+        } else { rc.stepAcc = STEP_LEN; moving = false; }
+      }
+      if (rc.stack === 0 && !stepExists(probe + STEP_LEN, rc.x) && rc.stepAcc >= STEP_LEN) moving = false;
+    }
+    speed *= 0.82; // careful steps
+  }
+  if (moving){
+    // don't run off the end of your own steps mid-gap with empty stack
+    if (inGap && rc.stack === 0 && !stepExists(rc.d + 26, rc.x) && !stepExists(rc.d + 8, rc.x)) moving = false;
+    else rc.d += speed * dt;
+  }
+  rc.stallT = moving ? 0 : rc.stallT + dt;
+  collectBricks(rc);
+  if (rc.d >= world.finishDist && !rc.finished){
+    rc.finished = true;
+    if (world.winner < 0){
+      world.winner = rc.i;
+      endRace(rc.i === 0);
+    }
+  }
+}
+function bumps(dt){
+  const p = world.racers[0];
+  for (let i = 1; i < 3; i++){
+    const r = world.racers[i];
+    if (Math.abs(r.d - p.d) < 30 && Math.abs(r.x - p.x) < 30 && p.bumpCd <= 0 && r.bumpCd <= 0){
+      p.bumpCd = 1.4; r.bumpCd = 1.4; world.bumps++;
+      const lost = Math.min(3, p.stack);
+      p.stack -= lost; shake = 8;
+      // lost bricks scatter loose behind the hero, re-collectable
+      for (let k = 0; k < lost; k++){
+        world.bricks.push({ x: Math.max(-TRACK_HALF+14, Math.min(TRACK_HALF-14, p.x + (Math.random()*2-1)*50)),
+          d: Math.max(10, p.d - 30 - Math.random()*60), owner:0, taken:false, bob: Math.random()*6.28 });
+      }
+      world.bricks.sort((a,b) => a.d - b.d);
+      p.x += (p.x < r.x ? -26 : 26);
+    }
+  }
+}
+function supplyDrops(dt){
+  // a stalled racer (empty stack at/in a gap) gets supply bricks dropped nearby so the race never hard-locks
+  world.supplyT -= dt; if (world.supplyT > 0) return;
+  for (const rc of world.racers){
+    if (rc.stallT > 0.6 && rc.stack < 3){
+      world.supplyT = 0.9;
+      world.bricks.push({ x: Math.max(-TRACK_HALF+14, Math.min(TRACK_HALF-14, rc.x + (Math.random()*2-1)*36)),
+        d: rc.d + 14 + Math.random()*20, owner: rc.i, taken:false, bob: 0 });
+      world.bricks.sort((a,b) => a.d - b.d);
+    }
+  }
+}
+function endRace(won){
+  const p = world.racers[0];
+  const pos = positionOf(0);
+  const bonus = pos === 1 ? 100 : pos === 2 ? 50 : 25;
+  const score = p.banked + bonus;
+  if (won) totalScore += score;
+  phase = won ? 'won' : 'lost';
+  document.getElementById('endTitle').textContent = won ? 'YOU WIN! 🏆' : (pos === 2 ? 'SO CLOSE — 2nd!' : 'RIVALS WIN!');
+  document.getElementById('endText').textContent = won
+    ? 'You crossed the final gap first! Bricks banked: ' + p.banked + ' · Bridge steps you laid: ' + world.bridgesLaid
+    : COLORS[world.winner].name + ' crossed first. You banked ' + p.banked + ' bricks and laid ' + world.bridgesLaid + ' bridge steps.';
+  document.getElementById('endScore').textContent = 'SCORE ' + score + (won ? '  ·  TOTAL ' + totalScore : '');
+  document.getElementById('scoreLbl').textContent = 'SCORE ' + totalScore;
+  document.getElementById('endBtn').textContent = won ? 'NEXT RACE ▶' : 'RETRY RACE ↻';
+  document.getElementById('endScr').classList.remove('hidden');
+}
+function positionOf(i){
+  const ds = world.racers.map(r => r.d).sort((a,b) => b - a);
+  return ds.indexOf(world.racers[i].d) + 1;
+}
+function update(dt){
+  if (phase !== 'race') return;
+  raceTime += dt;
+  const p = world.racers[0];
+  // player steering: drag maps screen x to track x
+  if (dragging){
+    const target = ((dragX / W) * 2 - 1) * (TRACK_HALF + 30);
+    p.tx = Math.max(-TRACK_HALF + 16, Math.min(TRACK_HALF - 16, target));
+  } else if (keys['ArrowLeft']) p.tx = p.x - 120;
+  else if (keys['ArrowRight']) p.tx = p.x + 120;
+  else p.tx = p.x;
+  const dx = p.tx - p.x;
+  p.x += Math.max(-260 * dt, Math.min(260 * dt, dx * 7 * dt));
+  for (const rc of world.racers){ if (rc.i !== 0) aiThink(rc, dt); updateRacer(rc, dt); }
+  bumps(dt); supplyDrops(dt);
+  camDist += (p.d - camDist) * Math.min(1, dt * 8);
+  shake = Math.max(0, shake - dt * 22);
+  // HUD
+  const ord = ['1st','2nd','3rd'];
+  document.getElementById('posBig').textContent = ord[positionOf(0) - 1];
+  document.getElementById('brickCount').textContent = p.stack;
+  document.getElementById('scoreLbl').textContent = 'SCORE ' + (totalScore + p.banked);
+  document.getElementById('hint').textContent = p.stack === 0 && segAt(p.d + 30).type === 'gap'
+    ? 'NO BRICKS! GRAB YOUR COLOUR FIRST!' : '◀ DRAG TO STEER ▶';
+}
+
+// ---------- rendering ----------
+// world -> screen: forward (d) goes UP screen; hero sits at 68% height.
+function sy(d){ return H * 0.68 - (d - camDist); }
+function sx(x){ return W / 2 + x; }
+function drawBrick(x, y, col, s, wob){
+  ctx.save(); ctx.translate(x, y); ctx.rotate(wob || 0);
+  ctx.fillStyle = col.dark; ctx.fillRect(-11*s, -5*s, 22*s, 10*s);
+  ctx.fillStyle = col.main; ctx.fillRect(-11*s, -7*s, 22*s, 8*s);
+  ctx.fillStyle = col.light; ctx.fillRect(-8*s, -6*s, 5*s, 3*s); ctx.fillRect(2*s, -6*s, 5*s, 3*s);
+  ctx.restore();
+}
+function drawRacer(rc, t){
+  const x = sx(rc.x), y = sy(rc.d);
+  if (y < -190 || y > H + 60) return;
+  const col = COLORS[rc.i];
+  const wobA = Math.sin(t * 3 + rc.wob) * Math.min(0.16, rc.stack * 0.012);
+  // comically tall wobbling stack BEHIND (below on screen = south of) hero, drawn first so hero overlaps its base
+  for (let i = 0; i < rc.stack; i++){
+    const off = Math.sin(wobA * (i + 1)) * (i * 0.9);
+    drawBrick(x + off, y + 16 + i * 9.5, col, 1, 0);
+  }
+  if (rc.stack > 0){ // shadow of tower
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(x, y + 22 + rc.stack * 9.5, 20, 6, 0, 0, 7); ctx.fill();
+  }
+  // body
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(x, y + 14, 17, 6, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = col.main; ctx.beginPath(); ctx.arc(x, y, 16, 0, 7); ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = col.dark; ctx.stroke();
+  // face (running up-screen: eyes near top)
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x - 6, y - 4, 4.4, 0, 7); ctx.arc(x + 6, y - 4, 4.4, 0, 7); ctx.fill();
+  ctx.fillStyle = '#17324a'; ctx.beginPath(); ctx.arc(x - 6, y - 5, 2.2, 0, 7); ctx.arc(x + 6, y - 5, 2.2, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#17324a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y + 3, 5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  // feet shuffle
+  ctx.fillStyle = col.dark;
+  const f = Math.sin(t * 14 + rc.wob) * 5;
+  ctx.fillRect(x - 13, y + 11 + Math.max(0, f), 9, 5); ctx.fillRect(x + 4, y + 11 + Math.max(0, -f), 9, 5);
+  if (rc.i === 0){ // hero marker
+    ctx.fillStyle = '#17324a'; ctx.beginPath();
+    ctx.moveTo(x, y - 30); ctx.lineTo(x - 7, y - 40); ctx.lineTo(x + 7, y - 40); ctx.closePath(); ctx.fill();
+  }
+}
+function draw(t){
+  // water
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#2a9dcc'); g.addColorStop(1, '#17719f');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 2;
+  for (let i = 0; i < 7; i++){
+    const wy = ((i * 137 + t * 22) % (H + 60)) - 30;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 26) ctx.lineTo(x, wy + Math.sin(x * 0.05 + t * 2 + i) * 4);
+    ctx.stroke();
+  }
+  if (!world){ requestAnimationFrame(draw); return; }
+  const shx = shake ? (Math.random()*2-1) * shake : 0;
+  ctx.save(); ctx.translate(shx, 0);
+  // segments
+  for (const s of world.segs){
+    const yTop = sy(s.to), yBot = sy(s.from);
+    if (yBot < -80 || yTop > H + 80) continue;
+    if (s.type === 'roof'){
+      const x0 = sx(-TRACK_HALF - 26), wdt = (TRACK_HALF + 26) * 2;
+      ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(x0 + 5, yTop + 7, wdt, yBot - yTop);
+      ctx.fillStyle = s.col; ctx.fillRect(x0, yTop, wdt, yBot - yTop);
+      ctx.fillStyle = '#fff3d6'; ctx.fillRect(x0, yTop, wdt, 7); // parapet lip
+      ctx.fillStyle = 'rgba(23,50,74,.16)'; ctx.fillRect(x0, yBot - 7, wdt, 7);
+      // toy rooftop dressing: skylights / vents, deterministic per segment
+      const rr = mulberry(s.idx * 31 + race * 7);
+      for (let k = 0; k < 5; k++){
+        const dx = x0 + 24 + rr() * (wdt - 70), dy = yTop + 26 + rr() * Math.max(10, (yBot - yTop - 70));
+        if (dy > yBot - 30) continue;
+        ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(dx, dy, 30, 20);
+        ctx.fillStyle = 'rgba(23,50,74,.35)'; ctx.fillRect(dx + 3, dy + 3, 24, 14);
+      }
+      if (s.idx === world.segs.filter(v=>v.type==='roof').length - 1){
+        // finish arch on last roof
+        const fy = sy(world.finishDist);
+        if (fy > -60 && fy < H + 60){
+          ctx.fillStyle = '#17324a'; ctx.fillRect(sx(-TRACK_HALF - 20), fy - 6, (TRACK_HALF + 20) * 2, 10);
+          for (let cx = -TRACK_HALF - 20; cx < TRACK_HALF + 20; cx += 20){
+            ctx.fillStyle = ((cx / 20) % 2 === 0) ? '#fff' : '#17324a';
+            ctx.fillRect(sx(cx), fy - 6, 10, 10);
+          }
+          ctx.fillStyle = '#17324a'; ctx.font = '900 22px system-ui'; ctx.textAlign = 'center';
+          ctx.fillText('🏁 FINISH', W / 2, fy - 16);
+        }
+      }
+    }
+  }
+  // bridge steps (in gaps)
+  for (const st of world.steps){
+    const y = sy(st.d); if (y < -30 || y > H + 30) continue;
+    drawBrick(sx(st.x), y, COLORS[st.owner], 1.55, 0);
+  }
+  // loose bricks
+  for (const b of world.bricks){
+    if (b.taken) continue;
+    const y = sy(b.d); if (y < -24 || y > H + 24) continue;
+    drawBrick(sx(b.x), y + Math.sin(raceTime * 4 + b.bob) * 2, COLORS[b.owner], 1, 0);
+  }
+  // racers sorted by d so lower (nearer camera) draw last
+  const sorted = [...world.racers].sort((a,b) => b.d - a.d);
+  for (const rc of sorted) drawRacer(rc, raceTime);
+  // progress bar (right edge)
+  const p = world.racers[0];
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(W - 14, 110, 6, H - 240);
+  world.racers.forEach((rc, i) => {
+    ctx.fillStyle = COLORS[i].main;
+    ctx.beginPath(); ctx.arc(W - 11, 110 + (H - 240) * (1 - rc.d / world.finishDist), 6, 0, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#17324a'; ctx.stroke();
+  });
+  ctx.restore();
+}
+// ---------- main loop ----------
+let lastTs = 0;
+function frame(ts){
+  const rawDt = Math.min(0.05, (ts - lastTs) / 1000 || 0.016); lastTs = ts;
+  if (phase === 'race') { const dt = rawDt * SPEED; let n = Math.max(1, Math.round(SPEED)); for (let i = 0; i < n; i++) update(dt / n); }
+  if (phase === 'title' && !world){ world = buildRace(1); camDist = 0; }
+  if (world && phase === 'title'){ camDist += rawDt * 14; if (camDist > 300) camDist = 0; } // title pan
+  draw(ts / 1000);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// QA hook
+window.__stack = {
+  state(){ const p = world ? world.racers[0] : null; return { phase, race, totalScore,
+    stack: p ? p.stack : 0, banked: p ? p.banked : 0, pos: world ? positionOf(0) : 0,
+    playerDist: p ? Math.round(p.d) : 0, finishDist: world ? world.finishDist : 0,
+    bridgesLaid: world ? world.bridgesLaid : 0, steps: world ? world.steps.length : 0,
+    bumps: world ? world.bumps : 0, winner: world ? world.winner : -1,
+    rivals: world ? world.racers.slice(1).map(r => ({ d: Math.round(r.d), stack: r.stack })) : [] }; },
+  start(r){ startRace(r || 1); },
+  steer(x){ dragging = true; dragX = x; },
+  unsteer(){ dragging = false; },
+  give(n){ if (world) world.racers[0].stack += n; },
+};
+</script>
+</body>
+</html>

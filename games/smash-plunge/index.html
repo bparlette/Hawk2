@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Smash Plunge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#16051f;touch-action:none;overscroll-behavior:none;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#fff}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.ui{position:fixed;z-index:1200;pointer-events:none;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+#hud{top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;text-align:center}
+#depth{font-size:56px;font-weight:900;line-height:1;color:#ffd23f}
+#sub{font-size:15px;font-weight:700;letter-spacing:.08em;margin-top:4px}
+#firewrap{margin:10px auto 0;width:180px;height:14px;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.5);border-radius:99px;overflow:hidden}
+#firebar{height:100%;width:0%;background:linear-gradient(90deg,#ff7b00,#ffd23f,#fff)}
+#firelabel{font-size:12px;font-weight:800;letter-spacing:.12em;margin-top:3px;color:#ffb3a0}
+#overlay{position:fixed;inset:0;z-index:1300;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:radial-gradient(ellipse at center,rgba(40,5,50,.25),rgba(10,0,20,.72));pointer-events:none}
+#overlay h1{font-size:52px;font-weight:900;line-height:.95;color:#ffd23f;text-shadow:0 4px 0 #e33,0 8px 24px rgba(0,0,0,.7)}
+#overlay p{margin-top:14px;font-size:18px;font-weight:650;max-width:320px;line-height:1.35}
+#overlay .small{font-size:14px;opacity:.85}
+button{pointer-events:auto;margin-top:22px;background:#ff5722;color:#fff;border:3px solid #ffd23f;border-radius:99px;padding:14px 34px;font-size:20px;font-weight:900;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.hidden{display:none!important}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="ui" id="hud"><div id="depth">0%</div><div id="sub">SCORE 0 &nbsp;•&nbsp; LEVEL 1</div><div id="firewrap"><div id="firebar"></div></div><div id="firelabel">HOLD TO CHARGE FIREBALL</div></div>
+<div id="overlay"><h1>SMASH<br>PLUNGE</h1><p>HOLD to plunge &amp; smash the coloured rings.</p><p class="small">RELEASE before a <b style="color:#ff5252">black segment</b> reaches the front — it will shatter you.<br><br>Smash 3 in one plunge to ignite a FIREBALL that burns through ONE black segment.</p><button id="btn">▶ START</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=390,H=844,DPR=1;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('dblclick',e=>e.preventDefault());
+document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// ---------- game ----------
+const PALETTE=['#ff2e88','#ff7b00','#ffd23f','#00d2ff','#7c4dff','#00e676','#ff4081'];
+let level=1,score=0,platforms=[],particles=[],state='title'; // title|play|dead|clear
+let ballY=0,camY=0,holding=false,holdTime=0,combo=0,fireball=false,fireUsed=false,bounce=0,shake=0,deadT=0,clearT=0,restP=null,wasFalling=false;
+const GAP=92, BASE_EXTRA=3;
+let total=0, smashed=0;
+function segTypes(nBlack){
+  const segs=[]; const n=8;
+  for(let i=0;i<n;i++) segs.push(PALETTE[(Math.random()*PALETTE.length)|0]);
+  // place black segments
+  let placed=0,guard=0;
+  while(placed<nBlack&&guard++<50){const i=(Math.random()*n)|0; if(segs[i]!=='#111'){segs[i]='#111';placed++;}}
+  return segs;
+}
+function build(lv){
+  total=14+lv*4; platforms=[]; smashed=0; combo=0; fireball=false; holding=false; holdTime=0;
+  for(let i=0;i<total;i++){
+    const blackChance = i<3?0: Math.min(3, 1+((Math.random()*(1+lv*0.35))|0));
+    platforms.push({y:(i+1)*GAP, segs:segTypes(i<3?0:blackChance), rot:Math.random()*Math.PI*2, speed:(Math.random()*0.5+0.35)*(Math.random()<0.5?-1:1), gone:false});
+  }
+  ballY=platforms[0].y-26; camY=0;
+}
+build(1);
+// front angle: ball sits at front of disc (bottom of ellipse in screen space) = PI/2 in our param
+function frontSeg(p){
+  // segment index under ball: ball fixed at angle PI/2 (front). segment span 2PI/8
+  let a=(Math.PI/2 - p.rot)%(Math.PI*2); if(a<0)a+=Math.PI*2;
+  return p.segs[Math.floor(a/(Math.PI*2/8))%8];
+}
+function burst(x,y,col,n,power){
+  for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=(Math.random()*220+60)*(power||1);
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-120,life:.5+Math.random()*.5,t:0,col,size:3+Math.random()*7,rot:Math.random()*6,vr:(Math.random()-.5)*12});}
+}
+function smash(p){
+  p.gone=true; smashed++; score++; combo++;
+  burst(W/2, p.y-camY, frontSeg(p)==='#111'?'#ff5722':p.segs[0], 22, 1.2);
+  burst(W/2, p.y-camY, '#ffd23f', 8, .8); shake=Math.min(10,shake+5);
+  if(combo>=3 && !fireball){ fireball=true; }
+  updateHUD();
+}
+function die(p){
+  state='dead'; deadT=0; holding=false;
+  burst(W/2, ballY-camY, '#ff7043', 30, 1.6); burst(W/2, ballY-camY,'#ffd23f',16,1.2);
+  showOverlay('SHATTERED!','You hit a black segment without a fireball.<br>Score '+score+' • Smashed '+smashed,'↻ RETRY');
+}
+function clearLevel(){
+  state='clear'; clearT=0; score+=10; holding=false;
+  burst(W/2, ballY-camY,'#ffd23f',40,1.6);
+  showOverlay('LEVEL '+level+' CLEAR!','You reached the tower base! +10 bonus.<br>Score '+score,'▶ LEVEL '+(level+1));
+}
+function showOverlay(h,p,b){const o=document.getElementById('overlay');o.classList.remove('hidden');o.querySelector('h1').innerHTML=h;o.querySelector('p').innerHTML=p;document.getElementById('btn').textContent=b;}
+function hideOverlay(){document.getElementById('overlay').classList.add('hidden');}
+function updateHUD(){
+  const d=Math.max(0,Math.min(100,Math.round(smashed/Math.max(1,total)*100)));
+  document.getElementById('depth').textContent=d+'%';
+  document.getElementById('sub').textContent='SCORE '+score+'  •  LEVEL '+level+'  •  SMASHED '+smashed;
+  document.getElementById('firebar').style.width=(fireball?100:Math.min(100,combo/3*100))+'%';
+  document.getElementById('firelabel').textContent=fireball?'🔥 FIREBALL READY — BURN ONE BLACK!':'HOLD TO CHARGE FIREBALL ('+combo+'/3)';
+}
+function startGame(){
+  if(state==='clear'){level++;}
+  if(state==='dead'||state==='title'){ /* keep score on retry? reset score on death */ if(state==='dead'){score=0;level=Math.max(1,level);} }
+  build(level); state='play'; hideOverlay(); updateHUD();
+}
+document.getElementById('btn').addEventListener('pointerdown',e=>{e.stopPropagation();});
+document.getElementById('btn').addEventListener('click',e=>{e.stopPropagation();startGame();});
+// input: hold anywhere
+function press(e){ if(state==='play'){holding=true; restP=null; wasFalling=true;} }
+function release(){ if(state==='play'){holding=false; combo=0; if(!fireball){} updateHUD();} }
+addEventListener('pointerdown',press);
+addEventListener('pointerup',release);
+addEventListener('pointercancel',release);
+addEventListener('mousedown',press);
+addEventListener('mouseup',release);
+addEventListener('touchstart',e=>{press(e);},{passive:true});
+addEventListener('touchend',release);
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault(); if(state!=='play')startGame(); else holding=true;}});
+addEventListener('keyup',e=>{if(e.code==='Space')holding=false;});
+
+// ---------- update ----------
+let last=performance.now(),paused=false;
+function tick(now){
+  if(paused)return;
+  const dt=Math.min(0.033,(now-last)/1000); last=now;
+  bounce+=dt*6;
+  if(state==='play'){
+    for(const p of platforms) if(!p.gone) p.rot+=p.speed*dt;
+    const targetCam = ballY - H*0.32; camY += (targetCam-camY)*Math.min(1,dt*10);
+    if(holding){
+      holdTime+=dt;
+      const prevY=ballY; ballY += 560*dt;
+      // flame trail
+      particles.push({x:W/2+(Math.random()-.5)*22,y:ballY-camY-10,vx:(Math.random()-.5)*40,vy:-160-Math.random()*120,life:.35,t:0,col:fireball?'#ff5722':'#ffb300',size:5+Math.random()*8,rot:0,vr:0});
+      // check platforms crossed
+      for(const p of platforms){
+        if(p.gone) continue;
+        if(prevY+26 <= p.y && ballY+26 >= p.y){
+          const f=frontSeg(p);
+          if(f==='#111'){
+            if(fireball){ fireball=false; smash(p); fireball=false; combo=0; updateHUD(); }
+            else { ballY=p.y-26; die(p); break; }
+          } else { smash(p); }
+        }
+      }
+      if(state==='play' && ballY >= (total+1)*GAP){ clearLevel(); }
+    } else {
+      holdTime=0;
+      // settle onto next platform below
+      let floorY=(total+1)*GAP-26, floorP=null;
+      for(const p of platforms){ if(!p.gone && p.y-26>=ballY-1){ floorY=p.y-26; floorP=p; break; } }
+      if(ballY < floorY){ wasFalling=true; ballY=Math.min(floorY, ballY+300*dt); }
+      else if(floorP){
+        if(wasFalling && restP!==floorP){ // landing moment: landing on black kills (unless fireball)
+          restP=floorP; wasFalling=false;
+          if(frontSeg(floorP)==='#111' && !fireball){ die(floorP); }
+          else { floorP.speed=0; /* landed platform locks — safe rest */ }
+        }
+        if(state==='play') ballY=floorY - Math.abs(Math.sin(bounce))*6;
+      } else if(ballY>=(total+1)*GAP-26){ clearLevel(); }
+    }
+  }
+  // particles
+  for(const pt of particles){pt.t+=dt;pt.x+=pt.vx*dt;pt.y+=pt.vy*dt;pt.vy+=500*dt;pt.rot+=(pt.vr||0)*dt;}
+  particles=particles.filter(p=>p.t<p.life);
+  if(shake>0)shake=Math.max(0,shake-dt*30);
+  draw();
+  requestAnimationFrame(tick);
+}
+// ---------- draw ----------
+function draw(){
+  const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#2b0a3d'); g.addColorStop(.6,'#4a0e2e'); g.addColorStop(1,'#16051f');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  const sx=(Math.random()-.5)*shake, sy=(Math.random()-.5)*shake;
+  ctx.save(); ctx.translate(sx,sy);
+  const cx=W/2, R=Math.min(150,W*0.38);
+  // central pole
+  ctx.fillStyle='rgba(255,255,255,.14)'; ctx.fillRect(cx-9,-20,18,H+40);
+  // base
+  const baseY=(total+1)*GAP-camY;
+  if(baseY>-80&&baseY<H+120){ ctx.fillStyle='#ffd23f'; ctx.beginPath(); ctx.ellipse(cx,baseY,R+26,30,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#b8860b'; ctx.beginPath(); ctx.ellipse(cx,baseY+8,R+26,30,0,0,Math.PI); ctx.fill(); ctx.fillStyle='#3d2400'; ctx.font='900 18px system-ui'; ctx.textAlign='center'; ctx.fillText('BASE',cx,baseY+6); }
+  // platforms (draw bottom-up for overlap)
+  for(let i=platforms.length-1;i>=0;i--){
+    const p=platforms[i]; if(p.gone)continue; const y=p.y-camY; if(y<-60||y>H+80)continue;
+    const n=8, span=Math.PI*2/n;
+    for(let s=0;s<n;s++){
+      const a0=p.rot+s*span, a1=a0+span;
+      ctx.beginPath(); ctx.moveTo(cx,y);
+      // ellipse wedge
+      for(let k=0;k<=6;k++){const a=a0+(a1-a0)*k/6; ctx.lineTo(cx+Math.cos(a)*R, y+Math.sin(a)*R*0.30);}
+      ctx.closePath();
+      const col=p.segs[s];
+      ctx.fillStyle=col; ctx.fill();
+      if(col==='#111'){ ctx.strokeStyle='#ff1744'; ctx.lineWidth=2.5; ctx.stroke(); }
+      else { ctx.strokeStyle='rgba(0,0,0,.25)'; ctx.lineWidth=1; ctx.stroke(); }
+    }
+    // rim + thickness
+    ctx.beginPath(); ctx.ellipse(cx,y,R,R*0.30,0,0,Math.PI); ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=5; ctx.stroke();
+    // front marker
+    ctx.fillStyle='rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(cx,y+R*0.30,4,0,Math.PI*2); ctx.fill();
+  }
+  // particles (shards)
+  for(const pt of particles){ ctx.save(); ctx.translate(pt.x,pt.y); ctx.rotate(pt.rot); ctx.globalAlpha=1-pt.t/pt.life; ctx.fillStyle=pt.col; ctx.fillRect(-pt.size/2,-pt.size/2,pt.size,pt.size*0.6); ctx.restore(); }
+  ctx.globalAlpha=1;
+  // ball
+  if(state!=='dead'){
+    const by=ballY-camY;
+    const bg=ctx.createRadialGradient(cx-6,by-8,2,cx,by,24);
+    if(fireball){bg.addColorStop(0,'#fff');bg.addColorStop(.4,'#ffd23f');bg.addColorStop(1,'#ff3d00');}
+    else {bg.addColorStop(0,'#ffe0b2');bg.addColorStop(.5,'#ff7b00');bg.addColorStop(1,'#d84315');}
+    ctx.fillStyle=bg; ctx.beginPath(); ctx.arc(cx,by,20,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=fireball?'#fff':'rgba(255,255,255,.5)'; ctx.lineWidth=2; ctx.stroke();
+    if(holding||fireball){ ctx.fillStyle='rgba(255,120,0,.85)'; ctx.beginPath(); ctx.moveTo(cx-12,by-18); ctx.quadraticCurveTo(cx,by-44-Math.random()*14,cx+12,by-18); ctx.fill(); }
+  }
+  ctx.restore();
+  if(state==='play'&&!holding){ ctx.fillStyle='rgba(255,255,255,.92)'; ctx.font='800 17px system-ui'; ctx.textAlign='center'; ctx.fillText('👆 HOLD TO PLUNGE',cx,H-46); }
+}
+updateHUD();
+requestAnimationFrame(tick);
+// QA hooks
+window.__sp={state:()=>({state,score,smashed,total,level,fireball,combo,ballY,front:(()=>{const p=platforms.find(x=>!x.gone&&x.y-26>=ballY-1);return p?frontSeg(p):null})()}),
+ start:()=>startGame(),
+ setHold:v=>{holding=!!v;},
+ forceSafe:()=>{for(const p of platforms){p.segs=p.segs.map(s=>s==='#111'?'#00e676':s);}},
+ forceBlackNext:()=>{const p=platforms.find(x=>!x.gone&&x.y>ballY+30); if(p){p.rot=0; /* set front seg black: front index from rot */ let a=(Math.PI/2-p.rot)%(Math.PI*2); if(a<0)a+=Math.PI*2; const idx=Math.floor(a/(Math.PI*2/8))%8; p.segs[idx]='#111'; p.speed=0;} },
+ giveFire:()=>{fireball=true; combo=3; updateHUD()},
+ freeze:()=>{paused=true; draw();},
+ resume:()=>{if(paused){paused=false; last=performance.now(); requestAnimationFrame(tick);}}
+};
+</script></body></html>
