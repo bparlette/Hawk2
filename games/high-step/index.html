@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>High Step — Heel-Stack Runway Runner</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#160a24;touch-action:none;overscroll-behavior:none}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 100% at 50% 0%,#3b1154 0%,#160a24 70%)}
+  canvas{display:block;touch-action:none}
+  .ui{position:fixed;z-index:1100;left:50%;transform:translateX(-50%);width:min(100vw,430px);pointer-events:none;font-family:"Avenir Next","Segoe UI",system-ui,sans-serif;color:#fff;text-align:center}
+  #hud{top:calc(env(safe-area-inset-top,0px) + 10px);display:flex;justify-content:space-between;padding:0 14px;align-items:flex-start}
+  .pill{background:rgba(20,6,36,.62);border:1.5px solid rgba(255,209,102,.75);border-radius:999px;padding:6px 13px;font-weight:800;font-size:15px;letter-spacing:.4px;box-shadow:0 2px 14px rgba(255,77,166,.35)}
+  .pill small{display:block;font-size:10px;font-weight:700;opacity:.75;letter-spacing:1.4px}
+  #prog{top:calc(env(safe-area-inset-top,0px) + 64px);width:min(72vw,300px);height:10px;background:rgba(255,255,255,.16);border-radius:99px;border:1px solid rgba(255,255,255,.35);overflow:hidden}
+  #progFill{height:100%;width:0%;background:linear-gradient(90deg,#ff4da6,#ffd166);border-radius:99px}
+  .overlay{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(16,4,30,.55);backdrop-filter:blur(2px);font-family:"Avenir Next","Segoe UI",system-ui,sans-serif;color:#fff;text-align:center;padding:24px}
+  .overlay h1{font-size:44px;font-weight:900;letter-spacing:1px;background:linear-gradient(180deg,#ffe9a8,#ff4da6);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 4px 30px rgba(255,77,166,.25)}
+  .overlay h2{font-size:30px;font-weight:900;color:#ffd166}
+  .overlay p{margin:12px 0 4px;font-size:16px;line-height:1.45;max-width:320px;color:#ffeefb}
+  .btn{pointer-events:auto;margin-top:18px;background:linear-gradient(180deg,#ff77bb,#e91e8c);color:#fff;border:2px solid #ffd166;border-radius:999px;padding:14px 38px;font-size:19px;font-weight:900;letter-spacing:.6px;cursor:pointer;box-shadow:0 6px 24px rgba(233,30,140,.55)}
+  .btn:active{transform:scale(.96)}
+  .hidden{display:none!important}
+  #toast{top:38%;font-size:26px;font-weight:900;color:#ffd166;text-shadow:0 2px 12px #000;opacity:0;transition:opacity .25s}
+  #hint{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);font-size:13px;font-weight:700;opacity:.85;text-shadow:0 1px 6px #000}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas></div>
+
+<div class="ui" id="hud">
+  <div class="pill"><small>RUNWAY</small><span id="hudLevel">1 / 4</span></div>
+  <div class="pill"><small>👠 STACK</small><span id="hudStack">0</span></div>
+  <div class="pill"><small>SCORE</small><span id="hudScore">0</span></div>
+</div>
+<div class="ui" id="prog"><div id="progFill"></div></div>
+<div class="ui" id="toast"></div>
+<div class="ui" id="hint">◀ drag to steer ▶ &nbsp;·&nbsp; collect heels, spend them on gaps &amp; stairs</div>
+
+<div class="overlay" id="ovStart">
+  <h1>HIGH STEP</h1>
+  <p>Strut the runway! Drag left &amp; right to grab sparkling <b>heel blocks</b> and stack yourself sky-high.</p>
+  <p>Gaps, stairs and limbo bars <b>spend</b> your stack — run dry at a gap and you stumble. Whatever height you keep becomes your podium!</p>
+  <button class="btn" id="btnStart">▶ START RUNWAY 1</button>
+</div>
+<div class="overlay hidden" id="ovWin">
+  <h2 id="winTitle">🏆 PODIUM!</h2>
+  <p id="winText"></p>
+  <button class="btn" id="btnNext">NEXT RUNWAY ▶</button>
+</div>
+<div class="overlay hidden" id="ovLose">
+  <h2>💫 STUMBLE!</h2>
+  <p id="loseText">Your stack ran out mid-gap. The runway forgives — strut again!</p>
+  <button class="btn" id="btnRetry">↻ TRY AGAIN</button>
+</div>
+
+<script>
+'use strict';
+// ============ HIGH STEP — original heel-stack runway runner ============
+// One verb: drag to steer. Collect heel blocks -> stack grows. Gaps/stairs/
+// limbo bars spend the stack. Finish stack height = podium height = score.
+const W = 390, H = 844;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let DPR = 1;
+function fit(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  const s = Math.min(innerWidth/W, innerHeight/H);
+  cv.width = W*DPR; cv.height = H*DPR;
+  cv.style.width = (W*s)+'px'; cv.style.height = (H*s)+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize', fit); fit();
+
+// Block double-tap zoom + gestures
+let lastTouch = 0;
+document.addEventListener('touchend', e=>{ const n=Date.now(); if(n-lastTouch<350) e.preventDefault(); lastTouch=n; }, {passive:false});
+document.addEventListener('gesturestart', e=>e.preventDefault());
+document.addEventListener('dblclick', e=>e.preventDefault());
+document.addEventListener('contextmenu', e=>e.preventDefault());
+
+// ---------- Level data ----------
+// x: -0.78..0.78 across runway. gap/stairs cost blocks; bar keeps only `keep`.
+function heels(z, xs, gap){ const a=[]; xs.forEach((x,i)=>a.push({type:'heel',z:z+i*(gap||2.2),x,taken:false})); return a; }
+const LEVELS = [
+  { name:'Pink Carpet', length:190, speed:13.5, items:[
+    ...heels(14,[-.4,-.4,-.4]), ...heels(26,[.35,.35,.35]),
+    {type:'gap',z:44,cost:3,len:7},
+    ...heels(58,[-.55,-.3,-.05,.2,.45]),
+    {type:'bar',z:76,keep:4},
+    ...heels(86,[.5,.5,.5,.5]),
+    {type:'stairs',z:104,cost:4},
+    ...heels(116,[-.45,-.2,.05,.3,.55,.55]),
+    {type:'gap',z:138,cost:5,len:8},
+    ...heels(154,[-.3,-.3,0,0,.3,.3,.55]),
+    {type:'stairs',z:172,cost:3},
+  ]},
+  { name:'Gold Hour', length:215, speed:14.5, items:[
+    ...heels(12,[.5,.5,.5,.5]),
+    {type:'gap',z:32,cost:4,len:7},
+    ...heels(46,[-.5,-.5,-.25,0,.25]),
+    {type:'bar',z:66,keep:3},
+    ...heels(76,[-.55,-.55,-.55,-.3,-.05]),
+    {type:'stairs',z:96,cost:5},
+    ...heels(110,[.55,.3,.05,-.2,-.45,-.45]),
+    {type:'gap',z:132,cost:6,len:8},
+    ...heels(148,[-.4,-.15,.1,.35,.6,.6,.6]),
+    {type:'bar',z:170,keep:5},
+    ...heels(180,[0,0,.25,.25,.5,.5]),
+    {type:'stairs',z:198,cost:4},
+  ]},
+  { name:'Neon Night', length:240, speed:15.5, items:[
+    ...heels(12,[-.55,-.55,-.3,-.05,.2]),
+    {type:'stairs',z:34,cost:4},
+    ...heels(48,[.55,.55,.3,.3,.05]),
+    {type:'gap',z:70,cost:6,len:8},
+    ...heels(86,[-.5,-.25,0,.25,.5,.5]),
+    {type:'bar',z:108,keep:4},
+    ...heels(118,[-.55,-.55,-.55,-.3,-.05,.2]),
+    {type:'gap',z:142,cost:7,len:9},
+    ...heels(160,[.45,.2,-.05,-.3,-.55,-.55,-.3]),
+    {type:'stairs',z:184,cost:6},
+    ...heels(198,[-.2,0,.2,.4,.6,.6,.4,.2]),
+    {type:'bar',z:222,keep:6},
+  ]},
+  { name:'Grand Finale', length:265, speed:16.5, items:[
+    ...heels(10,[0,-.3,.3,-.55,.55,-.3,.3]),
+    {type:'gap',z:32,cost:5,len:8},
+    ...heels(48,[-.55,-.55,-.3,-.05,.2,.45]),
+    {type:'stairs',z:72,cost:6},
+    ...heels(88,[.55,.3,.05,-.2,-.45,-.45,-.2]),
+    {type:'bar',z:112,keep:5},
+    ...heels(122,[-.4,-.15,.1,.35,.6,.6,.35,.1]),
+    {type:'gap',z:148,cost:8,len:9},
+    ...heels(166,[-.55,-.3,-.05,.2,.45,.45,.2,-.05]),
+    {type:'stairs',z:192,cost:7},
+    ...heels(208,[-.2,0,.2,.4,.55,.55,.35,.15,0]),
+    {type:'bar',z:234,keep:7},
+    ...heels(244,[.3,.3,.1,-.1,-.3,-.3]),
+  ]},
+];
+
+// ---------- State ----------
+const S = {
+  mode:'menu', // menu | run | win | lose
+  level:0, d:0, x:0, targetX:0, stack:2, score:0, totalScore:0,
+  items:[], fx:[], bridgeFx:[], t:0, walk:0, stumbleT:0, winT:0, speedMul:1,
+  spentFlash:0, collectFlash:0, lastEvent:'',
+};
+const BLOCK_H = 13; // px per stack block at player scale
+const HORIZON = 168, GROUND = 700, CX = W/2, VIEW = 95;
+
+function loadLevel(i){
+  S.level = i; S.d = 0; S.x = 0; S.targetX = 0; S.stack = 2;
+  S.items = LEVELS[i].items.map(o=>({...o, done:false}));
+  S.fx = []; S.bridgeFx = []; S.lastEvent='';
+  document.getElementById('hudLevel').textContent = (i+1)+' / '+LEVELS.length;
+}
+function startRun(){
+  document.getElementById('ovStart').classList.add('hidden');
+  document.getElementById('ovWin').classList.add('hidden');
+  document.getElementById('ovLose').classList.add('hidden');
+  S.mode = 'run';
+}
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.opacity = 1;
+  clearTimeout(toast._t); toast._t = setTimeout(()=>el.style.opacity=0, 900);
+}
+function stumble(why){
+  S.mode='lose'; S.stumbleT=0; S.lastEvent='stumble:'+why;
+  document.getElementById('loseText').textContent =
+    why==='gap' ? 'Your stack ran out mid-gap — the blocks became the bridge, but there weren\'t enough. Strut again!'
+    : 'The stairs needed more blocks than you had. Collect more heels before the climb!';
+  setTimeout(()=>document.getElementById('ovLose').classList.remove('hidden'), 650);
+}
+function winLevel(){
+  S.mode='win'; S.winT=0;
+  const kept = S.stack;
+  const pts = kept*kept*10 + kept*50; // steep: height pays quadratically
+  S.score += pts; S.totalScore = S.score; S.lastEvent='win:stack'+kept;
+  for(let i=0;i<70;i++) S.fx.push({type:'confetti',x:Math.random()*W,y:-20-Math.random()*200,vy:60+Math.random()*120,vx:-20+Math.random()*40,r:Math.random()*6.28,c:['#ff4da6','#ffd166','#7ef0ff','#c792ff'][i%4],life:3});
+  document.getElementById('winTitle').textContent = S.level>=LEVELS.length-1 ? '👑 GRAND FINALE PODIUM!' : '🏆 PODIUM!';
+  document.getElementById('winText').innerHTML =
+    'You kept <b>'+kept+' heel blocks</b> — podium height '+kept+'!<br>Podium bonus <b>+'+pts+'</b> · Total score <b>'+S.score+'</b>';
+  document.getElementById('btnNext').textContent = S.level>=LEVELS.length-1 ? '↻ PLAY AGAIN' : 'NEXT RUNWAY ▶';
+  setTimeout(()=>{ if(S.mode==='win') document.getElementById('ovWin').classList.remove('hidden'); }, 900);
+}
+
+// ---------- Input: one-thumb drag ----------
+let dragging=false, dragStartX=0, dragStartTarget=0;
+function ptrX(e){ const r=cv.getBoundingClientRect(); const cxp=(e.touches?e.touches[0].clientX:e.clientX); return (cxp-r.left)/r.width*W; }
+cv.addEventListener('pointerdown', e=>{ dragging=true; dragStartX=ptrX(e); dragStartTarget=S.targetX; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e=>{ if(!dragging) return; const dx=(ptrX(e)-dragStartX)/(W*0.36); S.targetX=Math.max(-0.82,Math.min(0.82, dragStartTarget+dx)); });
+['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev, ()=>dragging=false));
+addEventListener('keydown', e=>{ if(e.key==='ArrowLeft') S.targetX=Math.max(-0.82,S.targetX-0.18); if(e.key==='ArrowRight') S.targetX=Math.min(0.82,S.targetX+0.18); });
+document.getElementById('btnStart').onclick = ()=>{ loadLevel(0); S.score=0; startRun(); };
+document.getElementById('btnRetry').onclick = ()=>{ loadLevel(S.level); startRun(); };
+document.getElementById('btnNext').onclick = ()=>{ loadLevel((S.level+1)%LEVELS.length); startRun(); };
+
+// ---------- Update ----------
+function spend(n, kind, z){
+  // animate spent blocks dropping behind as bridge/steps
+  for(let i=0;i<n;i++) S.bridgeFx.push({z:z - i*0.7, x:S.x, delay:i*0.05, t:0});
+  S.stack -= n; S.spentFlash = 0.35;
+}
+function update(dt){
+  S.t += dt;
+  if(S.mode==='run'){
+    const L = LEVELS[S.level];
+    S.d += L.speed*S.speedMul*dt; S.walk += dt*11;
+    S.x += (S.targetX - S.x)*Math.min(1, dt*14);
+    // items
+    for(const it of S.items){
+      if(it.done) continue;
+      const rel = it.z - S.d;
+      if(it.type==='heel'){
+        if(rel<=0.6 && rel>-1.6 && Math.abs(it.x - S.x)<0.32){
+          it.done=true; S.stack++; S.collectFlash=0.25; S.lastEvent='collect:'+S.stack;
+          S.fx.push({type:'spark',x:CX+S.x*118,y:GROUND-120-S.stack*BLOCK_H,r:0,life:.4});
+          toast('👠 +1  STACK '+S.stack);
+        } else if(rel<-1.2) it.done=true;
+      } else if(rel<=0 && rel>-2){
+        it.done=true;
+        if(it.type==='gap'){
+          if(S.stack>=it.cost){ spend(it.cost,'gap',it.z); toast('🌉 BRIDGE −'+it.cost); S.lastEvent='gap:ok'; }
+          else { S.stack=0; stumble('gap'); }
+        } else if(it.type==='stairs'){
+          if(S.stack>=it.cost){ spend(it.cost,'stairs',it.z); toast('🪜 STAIRS −'+it.cost); S.lastEvent='stairs:ok'; }
+          else stumble('stairs');
+        } else if(it.type==='bar'){
+          if(S.stack>it.keep){ const lost=S.stack-it.keep; S.stack=it.keep; S.spentFlash=0.35; toast('🚧 LIMBO! −'+lost); S.lastEvent='bar:trim'+lost;
+            for(let i=0;i<lost;i++) S.fx.push({type:'knock',x:CX+S.x*118+(i%2?26:-26),y:GROUND-150-it.keep*BLOCK_H-i*8,vx:(i%2?90:-90),vy:-60,life:.7});
+          } else { toast('✨ LIMBO CLEAN!'); S.lastEvent='bar:clean'; }
+        }
+      }
+    }
+    if(S.d>=L.length && S.mode==='run') winLevel();
+    document.getElementById('hudStack').textContent = S.stack;
+    document.getElementById('hudScore').textContent = S.score + Math.floor(S.d);
+    document.getElementById('progFill').style.width = Math.min(100, S.d/L.length*100)+'%';
+  }
+  if(S.mode==='lose') S.stumbleT+=dt;
+  if(S.mode==='win') S.winT+=dt;
+  S.spentFlash=Math.max(0,S.spentFlash-dt); S.collectFlash=Math.max(0,S.collectFlash-dt);
+  for(const f of S.fx){ f.life-=dt; if(f.type==='confetti'){f.x+=f.vx*dt;f.y+=f.vy*dt;f.r+=dt*4;} if(f.type==='spark') f.r+=dt*90; if(f.type==='knock'){f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=300*dt;} }
+  S.fx = S.fx.filter(f=>f.life>0);
+  for(const b of S.bridgeFx) b.t+=dt;
+  S.bridgeFx = S.bridgeFx.filter(b=>b.t<1.4);
+}
+
+// ---------- Drawing ----------
+function proj(rel){ // rel metres ahead -> perspective
+  const s = 1/(1+Math.max(0,rel)*0.105);
+  return { s, y: HORIZON + (GROUND-HORIZON)*Math.pow(s,0.62) };
+}
+function sx(x, s){ return CX + x*150*s; }
+function drawHeel(x, y, sc, hue){
+  ctx.save(); ctx.translate(x,y); ctx.scale(sc,sc);
+  ctx.shadowColor='rgba(255,220,120,.9)'; ctx.shadowBlur=10;
+  // stiletto block: platform + heel spike + sparkle body
+  const g=ctx.createLinearGradient(0,-16,0,6);
+  g.addColorStop(0,'#ffe9a8'); g.addColorStop(.45,hue||'#ff4da6'); g.addColorStop(1,'#c2187a');
+  ctx.fillStyle=g;
+  ctx.beginPath(); // shoe silhouette
+  ctx.moveTo(-13,2); ctx.quadraticCurveTo(-14,-9,-4,-11); ctx.quadraticCurveTo(4,-12,9,-6);
+  ctx.lineTo(13,-2); ctx.quadraticCurveTo(13,3,7,3); ctx.lineTo(-6,3); ctx.quadraticCurveTo(-13,3,-13,2); ctx.fill();
+  ctx.fillRect(8,-2,3.4,10); // spike
+  ctx.fillRect(-13,2,26,3);  // sole block
+  ctx.shadowBlur=0; ctx.fillStyle='rgba(255,255,255,.9)';
+  ctx.beginPath(); ctx.arc(-4,-8,1.8,0,7); ctx.arc(5,-9,1.3,0,7); ctx.fill();
+  ctx.restore();
+}
+function drawWoman(cxPx, groundY, scale, stackH, opts){
+  opts=opts||{};
+  const bob = opts.still?0:Math.sin(S.walk)*2.2;
+  const legTop = groundY - stackH + bob*0.3;
+  ctx.save(); ctx.translate(cxPx, legTop); ctx.scale(scale,scale);
+  if(opts.fall){ ctx.rotate(Math.min(1,S.stumbleT*2.2)*0.9); ctx.translate(0, S.stumbleT*14); }
+  const sw = opts.still?0:Math.sin(S.walk)*7; // leg swing
+  ctx.strokeStyle='#f2b98a'; ctx.lineWidth=6; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-4,-52); ctx.lineTo(-5+sw,-3); ctx.moveTo(5,-52); ctx.lineTo(6-sw,-3); ctx.stroke(); // legs
+  ctx.fillStyle='#1b1b22'; // shoes on stack
+  ctx.fillRect(-11,-5,10,5); ctx.fillRect(2,-5,10,5);
+  // dress (glam magenta gown)
+  const dg=ctx.createLinearGradient(0,-96,0,-40); dg.addColorStop(0,'#ff77bb'); dg.addColorStop(1,'#d1006e');
+  ctx.fillStyle=dg; ctx.beginPath();
+  ctx.moveTo(-9,-94); ctx.quadraticCurveTo(-20,-58,-24,-38); ctx.quadraticCurveTo(0,-30,24,-38);
+  ctx.quadraticCurveTo(20,-58,9,-94); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#ffd166'; ctx.fillRect(-10,-66,20,4); // gold belt
+  // arms — one waving when winning
+  ctx.strokeStyle='#f2b98a'; ctx.lineWidth=5.5;
+  ctx.beginPath(); ctx.moveTo(-9,-90);
+  if(opts.win){ ctx.lineTo(-24,-112+Math.sin(S.t*6)*3); } else ctx.lineTo(-19,-64+sw*0.5);
+  ctx.moveTo(9,-90);
+  if(opts.win){ ctx.lineTo(24,-112+Math.cos(S.t*6)*3); } else ctx.lineTo(19,-64-sw*0.5);
+  ctx.stroke();
+  // head + hair
+  ctx.fillStyle='#5b2d16'; ctx.beginPath(); ctx.ellipse(0,-106,11,15,0,0,7); ctx.fill(); // hair back
+  ctx.fillStyle='#f7c79b'; ctx.beginPath(); ctx.arc(0,-104,8.6,0,7); ctx.fill();
+  ctx.fillStyle='#5b2d16'; ctx.beginPath(); ctx.ellipse(0,-111,9,5.5,0,Math.PI,0); ctx.fill(); // hair top
+  ctx.fillStyle='#ffd166'; ctx.beginPath(); ctx.arc(0,-114,3,0,7); ctx.fill(); // tiara gem base
+  ctx.fillStyle='#7ef0ff'; ctx.beginPath(); ctx.arc(0,-114,1.7,0,7); ctx.fill();
+  ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(-3,-104,1.1,0,7); ctx.arc(3,-104,1.1,0,7); ctx.fill();
+  ctx.strokeStyle='#b00050'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.arc(0,-100,3.4,0.15*Math.PI,0.85*Math.PI); ctx.stroke();
+  ctx.restore();
+}
+function drawStack(cxPx, groundY, n, scale){
+  for(let i=0;i<n;i++){
+    const y = groundY - i*BLOCK_H*scale;
+    ctx.save(); ctx.translate(cxPx, y); ctx.scale(scale,scale);
+    const g=ctx.createLinearGradient(0,-BLOCK_H,0,0);
+    g.addColorStop(0, i%2? '#ff8ac2':'#ffb3d9'); g.addColorStop(1, i%2? '#e91e8c':'#ff4da6');
+    ctx.fillStyle=g;
+    ctx.strokeStyle='rgba(255,209,102,.85)'; ctx.lineWidth=1.2;
+    roundRect(-17,-BLOCK_H+1,34,BLOCK_H-2,3); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.85)'; ctx.fillRect(-13,-BLOCK_H+4,3,3);
+    ctx.restore();
+  }
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function draw(){
+  // backdrop: glam night runway
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#2a0a44'); bg.addColorStop(.35,'#571b6e'); bg.addColorStop(.62,'#8e2a7a'); bg.addColorStop(1,'#3d0f52');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  // spotlights
+  for(let i=0;i<3;i++){
+    const bx=60+i*135, sway=Math.sin(S.t*0.7+i*2)*22;
+    const lg=ctx.createLinearGradient(bx,0,bx+sway,HORIZON+190);
+    lg.addColorStop(0,'rgba(255,240,180,.34)'); lg.addColorStop(1,'rgba(255,240,180,0)');
+    ctx.fillStyle=lg; ctx.beginPath(); ctx.moveTo(bx-7,0); ctx.lineTo(bx+7,0); ctx.lineTo(bx+sway+64,HORIZON+190); ctx.lineTo(bx+sway-64,HORIZON+190); ctx.fill();
+    ctx.fillStyle='#ffe9a8'; ctx.beginPath(); ctx.arc(bx,8,5,0,7); ctx.fill();
+  }
+  // crowd silhouettes + camera flashes
+  ctx.fillStyle='rgba(12,2,24,.85)';
+  for(let i=0;i<14;i++){ const x=(i*31+ (i%3)*7)%W; ctx.beginPath(); ctx.arc(x,HORIZON-16-((i*37)%14),8,0,7); ctx.fill(); ctx.fillRect(x-9,HORIZON-10-((i*37)%14),18,16); }
+  if(Math.random()<0.10){ ctx.fillStyle='rgba(255,255,255,.85)'; const fx2=Math.random()*W; ctx.beginPath(); ctx.arc(fx2,HORIZON-24,3.4,0,7); ctx.fill(); }
+  // runway (perspective trapezoid)
+  const near=proj(0), far=proj(VIEW);
+  ctx.fillStyle='#f7e7f3'; ctx.beginPath();
+  ctx.moveTo(sx(-1.05,far.s),far.y); ctx.lineTo(sx(1.05,far.s),far.y); ctx.lineTo(sx(1.05,near.s),H); ctx.lineTo(sx(-1.05,near.s),H); ctx.closePath(); ctx.fill();
+  const rg=ctx.createLinearGradient(0,HORIZON,0,H); rg.addColorStop(0,'rgba(255,77,166,.10)'); rg.addColorStop(1,'rgba(255,77,166,.34)');
+  ctx.fillStyle=rg; ctx.fill();
+  // carpet center stripe + edge lights (scrolling)
+  ctx.strokeStyle='rgba(233,30,140,.5)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(sx(-1.02,far.s),far.y); ctx.lineTo(sx(-1.02,near.s),H); ctx.moveTo(sx(1.02,far.s),far.y); ctx.lineTo(sx(1.02,near.s),H); ctx.stroke();
+  for(let k=0;k<16;k++){
+    const rel=((k*7 - (S.d%7) + 112)%112);
+    const p=proj(rel); if(p.s<0.02) continue;
+    ctx.fillStyle='#ffd166'; ctx.shadowColor='#ffd166'; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(sx(-1.04,p.s),p.y,3.2*p.s+0.7,0,7); ctx.arc(sx(1.04,p.s),p.y,3.2*p.s+0.7,0,7); ctx.fill(); ctx.shadowBlur=0;
+  }
+  const L=LEVELS[S.level];
+  // gaps first (holes in runway)
+  for(const it of S.items){
+    if(it.type!=='gap'||it.done&&S.d-it.z>it.len) continue;
+    const rel=it.z-S.d; if(rel>VIEW||rel<-it.len) continue;
+    const p1=proj(Math.max(0,rel)), p2=proj(Math.max(0,rel+it.len));
+    ctx.fillStyle='#170826';
+    ctx.beginPath(); ctx.moveTo(sx(-1.03,p2.s),p2.y); ctx.lineTo(sx(1.03,p2.s),p2.y); ctx.lineTo(sx(1.03,p1.s),p1.y); ctx.lineTo(sx(-1.03,p1.s),p1.y); ctx.fill();
+    ctx.fillStyle='#ffd166'; ctx.font='700 '+Math.max(9,15*p1.s)+'px sans-serif'; ctx.textAlign='center';
+    if(rel>-1) ctx.fillText('GAP −'+it.cost, CX, p2.y-4);
+    // bridge blocks already laid
+    for(const b of S.bridgeFx){ const br=b.z-S.d; if(br>=rel&&br<=rel+it.len){ const pb=proj(br); drawHeel(sx(b.x,pb.s), pb.y, Math.max(.3,pb.s*1.15), '#38b6ff'); } }
+  }
+  // distant items, far -> near
+  const vis=S.items.filter(it=>{const r=it.z-S.d; return r>-2&&r<VIEW;}).sort((a,b)=>b.z-a.z);
+  for(const it of vis){
+    const rel=it.z-S.d, p=proj(Math.max(0,rel)), x=sx(it.x,p.s);
+    if(it.type==='heel'&&!it.done){ drawHeel(x, p.y, Math.max(.28,p.s*1.25)); }
+    else if(it.type==='stairs'){
+      for(let st=0;st<it.cost;st++){ const ps=proj(Math.max(0,rel+st*0.9)); ctx.fillStyle=st%2?'#c792ff':'#9d6bff'; ctx.strokeStyle='#ffd166'; const wdt=310*ps.s; roundRect(CX-wdt/2, ps.y-13*ps.s, wdt, 13*ps.s, 3); ctx.fill(); ctx.stroke(); }
+      ctx.fillStyle='#fff'; ctx.font='800 '+Math.max(9,15*p.s)+'px sans-serif'; ctx.textAlign='center'; ctx.fillText('STAIRS −'+it.cost, CX, p.y-it.cost*11*p.s-8);
+    }
+    else if(it.type==='bar'){
+      const barY = p.y - 118*p.s - it.keep*BLOCK_H*p.s;
+      ctx.fillStyle='#ffd166'; ctx.fillRect(sx(-1.02,p.s), barY-7*p.s, (sx(1.02,p.s)-sx(-1.02,p.s)), 8*p.s+2);
+      ctx.fillStyle='#e91e8c'; for(let bx=sx(-1.02,p.s); bx<sx(1.02,p.s); bx+=26*p.s+6) ctx.fillRect(bx, barY-7*p.s, 12*p.s+3, 8*p.s+2);
+      ctx.fillStyle='#3a2b00'; ctx.fillRect(sx(-1.06,p.s)-3, barY-8*p.s, 5, p.y-barY); ctx.fillRect(sx(1.06,p.s)-2, barY-8*p.s, 5, p.y-barY);
+      ctx.fillStyle='#fff'; ctx.font='800 '+Math.max(9,14*p.s)+'px sans-serif'; ctx.textAlign='center'; ctx.fillText('LIMBO · KEEP ≤ '+it.keep, CX, barY-12*p.s);
+    }
+  }
+  // finish arch / podium zone
+  const finRel = L.length - S.d;
+  if(finRel<VIEW && S.mode!=='win'){
+    const p=proj(Math.max(0,finRel));
+    ctx.strokeStyle='#ffd166'; ctx.lineWidth=5*p.s+1;
+    ctx.beginPath(); ctx.moveTo(sx(-1.05,p.s),p.y); ctx.lineTo(sx(-1.05,p.s),p.y-120*p.s); ctx.lineTo(sx(1.05,p.s),p.y-120*p.s); ctx.lineTo(sx(1.05,p.s),p.y); ctx.stroke();
+    ctx.fillStyle='#ffd166'; ctx.font='900 '+Math.max(11,22*p.s)+'px sans-serif'; ctx.textAlign='center'; ctx.fillText('★ PODIUM ★', CX, p.y-128*p.s);
+  }
+
+  if(S.mode==='win'){
+    // podium scene: steps = stack kept (capped visually at 14)
+    const steps=Math.min(14,S.stack), baseY=716;
+    for(let i=0;i<steps;i++){
+      const wdt=250-i*13, y=baseY-i*BLOCK_H*1.7;
+      const g=ctx.createLinearGradient(0,y-20,0,y); g.addColorStop(0,'#ffe9a8'); g.addColorStop(1,'#d99a26');
+      ctx.fillStyle=g; roundRect(CX-wdt/2, y-20, wdt, 20, 4); ctx.fill();
+      ctx.strokeStyle='#fff2c4'; ctx.stroke();
+      ctx.fillStyle='#7a5200'; ctx.font='800 11px sans-serif'; ctx.textAlign='center'; ctx.fillText(String(i+1), CX, y-6);
+    }
+    const topY=baseY-steps*BLOCK_H*1.7-20;
+    drawWoman(CX, topY+16, 1.25, 0, {still:false, win:true});
+    ctx.fillStyle='#ffd166'; ctx.font='900 24px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('HEIGHT '+S.stack+'!', CX, topY-118);
+  } else {
+    // player: stack first (below feet), then woman standing on it
+    const px = CX + S.x*118;
+    const stackPx = S.stack*BLOCK_H;
+    if(S.collectFlash>0){ ctx.fillStyle='rgba(255,209,102,'+S.collectFlash*1.4+')'; ctx.beginPath(); ctx.arc(px,GROUND-stackPx-60,54,0,7); ctx.fill(); }
+    if(S.spentFlash>0){ ctx.fillStyle='rgba(255,60,60,'+S.spentFlash+')'; ctx.beginPath(); ctx.arc(px,GROUND-stackPx-60,58,0,7); ctx.fill(); }
+    drawStack(px, GROUND, S.stack, 1);
+    drawWoman(px, GROUND, 1, stackPx, {fall:S.mode==='lose'});
+    ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(px,GROUND+8,44,8,0,0,7); ctx.fill();
+  }
+  // fx
+  for(const f of S.fx){
+    if(f.type==='spark'){ ctx.strokeStyle='rgba(255,220,120,'+Math.max(0,f.life*2)+')'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,7); ctx.stroke(); }
+    if(f.type==='confetti'){ ctx.save(); ctx.translate(f.x,f.y); ctx.rotate(f.r); ctx.fillStyle=f.c; ctx.fillRect(-4,-2.5,8,5); ctx.restore(); }
+    if(f.type==='knock'){ ctx.save(); ctx.translate(f.x,f.y); ctx.rotate(f.life*5); drawHeel(0,0,.8,'#888'); ctx.restore(); }
+  }
+  // level name banner (first seconds)
+  if(S.mode==='run' && S.d<26){
+    ctx.fillStyle='rgba(20,6,36,.65)'; roundRect(CX-120,120,240,42,12); ctx.fill();
+    ctx.fillStyle='#ffd166'; ctx.font='900 19px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('RUNWAY '+(S.level+1)+': '+L.name.toUpperCase(), CX, 148);
+  }
+}
+
+// ---------- Loop ----------
+let lastT=performance.now();
+function frame(now){
+  let dt=(now-lastT)/1000; lastT=now;
+  dt=Math.min(dt,0.05);
+  update(dt); draw();
+  requestAnimationFrame(frame);
+}
+loadLevel(0);
+requestAnimationFrame(frame);
+
+// QA / debug hook
+window.__hs = {
+  state: ()=>({mode:S.mode, level:S.level, d:+S.d.toFixed(1), x:+S.x.toFixed(2), stack:S.stack, score:S.score, lastEvent:S.lastEvent, length:LEVELS[S.level].length}),
+  start: ()=>{ loadLevel(0); S.score=0; startRun(); },
+  setTarget: (x)=>{ S.targetX=Math.max(-0.82,Math.min(0.82,x)); },
+  slow: (f)=>{ S.speedMul=f; },
+  nextHeel: ()=>{ const h=S.items.find(i=>i.type==='heel'&&!i.done&&i.z>S.d-0.5); return h?{x:h.x, rel:+(h.z-S.d).toFixed(1)}:null; },
+  nextSpend: ()=>{ const h=S.items.find(i=>i.type!=='heel'&&!i.done&&i.z>S.d-0.5); return h?{type:h.type,x:0,rel:+(h.z-S.d).toFixed(1),cost:h.cost||h.keep}:null; },
+};
+</script>
+</body>
+</html>
