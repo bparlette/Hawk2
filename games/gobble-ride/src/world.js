@@ -10,6 +10,7 @@ import {
   makeStripeTexture,
 } from './textures.js';
 import { waveHeight, SEA_LEVEL } from './ocean.js';
+import { createPressMap } from './gppressmap.js';
 
 export const CHUNK = 72;
 const NCHUNK = 7;
@@ -330,6 +331,46 @@ function umbrellaGeometry() {
   return mergeGeometries(parts);
 }
 
+function grassTuftGeometry() {
+  // One tuft: 5 tapered blades fanning from a point. Vertex-colour gradient
+  // (dark olive base -> dry gold tip) matches the terrain harvest palette;
+  // per-tuft tint variation comes from instanceColor.
+  const pos = [];
+  const col = [];
+  const idx = [];
+  const base = C('#5c5a20');
+  const tipC = C('#cfa14e');
+  const cc = new THREE.Color();
+  const r = mulberry32(7);
+  let vc = 0;
+  for (let b = 0; b < 5; b++) {
+    const h = 0.4 + r() * 0.32;
+    const yaw = (b / 5) * TAU + r() * 0.9;
+    const lx = Math.cos(yaw) * (0.25 + r() * 0.35); // lean direction/amount
+    const lz = Math.sin(yaw) * (0.25 + r() * 0.35);
+    const px = -lz, pz = lx; // blade side axis (lean is never 0)
+    const levels = [
+      { t: 0, w: 0.045 },
+      { t: 0.55, w: 0.026 },
+      { t: 1, w: 0.003 },
+    ];
+    for (const { t, w } of levels) {
+      const cx = lx * t * t * 0.55, cy = h * t, cz = lz * t * t * 0.55;
+      pos.push(cx - px * w, cy, cz - pz * w, cx + px * w, cy, cz + pz * w);
+      cc.copy(base).lerp(tipC, Math.pow(t, 1.3));
+      col.push(cc.r, cc.g, cc.b, cc.r, cc.g, cc.b);
+    }
+    idx.push(vc, vc + 1, vc + 2, vc + 1, vc + 3, vc + 2, vc + 2, vc + 3, vc + 4, vc + 3, vc + 5, vc + 4);
+    vc += 6;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 // Shared static structures: guardrail, pavement, street lamps (identical per chunk)
 function guardrailGeometry() {
   const parts = [];
@@ -595,6 +636,110 @@ export function createWorld(scene, opts) {
     if (showSign) ch.plate.material = signMats[Math.abs(Math.floor(index / 2)) % signMats.length];
   }
 
+  // ---------- Press-map grass verges (gppressmap.js) ----------
+  // A strip of instanced tufts on the inland verge (z 3.9..10.6) that follows
+  // the rider. The press map lives in world coordinates: the bike stamps its
+  // shape into the cells it touches, and every other bent cell is a damped
+  // spring (k=70, c=5, Sandro Maglione's numbers) that swings back upright
+  // behind it. The patch recentres (fresh map) as the rider travels.
+  const GRASS_W = 76, GRASS_Z0 = 3.9, GRASS_Z1 = 10.6, GRASS_SP = 0.38;
+  let grassOrigin = -GRASS_W / 2;
+  let pm = createPressMap({ x: grassOrigin, z: GRASS_Z0, w: GRASS_W, d: GRASS_Z1 - GRASS_Z0 });
+  const grassMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true, side: THREE.DoubleSide });
+  addSway(grassMat, 0.05, 0.0);
+  const GCOLS = Math.floor(GRASS_W / GRASS_SP), GROWS = Math.floor((GRASS_Z1 - GRASS_Z0) / GRASS_SP);
+  const NTUFT = GCOLS * GROWS;
+  const grassMesh = new THREE.InstancedMesh(grassTuftGeometry(), grassMat, NTUFT);
+  grassMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  grassMesh.receiveShadow = true;
+  grassMesh.frustumCulled = false;
+  grassMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(NTUFT * 3), 3);
+  const grassGroup = new THREE.Group();
+  grassGroup.add(grassMesh);
+  scene.add(grassGroup);
+  const tOff = new Float32Array(NTUFT * 2); // x,z of each tuft (x is patch-local)
+  const tYaw = new Float32Array(NTUFT);
+  const tScl = new Float32Array(NTUFT);
+  const tY = new Float32Array(NTUFT);
+  const tBend = new Float32Array(NTUFT * 2); // last bend applied to the matrix
+  {
+    const rg = mulberry32(1234);
+    let gi = 0;
+    for (let j = 0; j < GROWS; j++) for (let i = 0; i < GCOLS; i++, gi++) {
+      tOff[gi * 2] = (i + 0.5) * GRASS_SP + (rg() - 0.5) * 0.22;
+      tOff[gi * 2 + 1] = GRASS_Z0 + (j + 0.5) * GRASS_SP + (rg() - 0.5) * 0.22;
+      tYaw[gi] = rg() * TAU;
+      tScl[gi] = 0.8 + rg() * 0.55;
+      tint.setHSL(lerp(-0.02, 0.04, rg()), lerp(0.0, 0.22, rg()), lerp(0.85, 1.08, rg()));
+      grassMesh.setColorAt(gi, tint);
+    }
+    grassMesh.instanceColor.needsUpdate = true;
+  }
+  const _gq = new THREE.Quaternion();
+  const _gq2 = new THREE.Quaternion();
+  const _gAxis = new THREE.Vector3();
+  const _gPos = new THREE.Vector3();
+  const _gScl = new THREE.Vector3();
+  const _gSmp = {};
+  function tuftMatrix(gi, bx, bz) {
+    const mag = Math.hypot(bx, bz);
+    _gq.setFromAxisAngle(_gAxis.set(0, 1, 0), tYaw[gi]);
+    if (mag > 0.003) {
+      // Tilt the tuft over toward the bend direction (flat at mag ~1)
+      _gAxis.set(bz / mag, 0, -bx / mag);
+      _gq2.setFromAxisAngle(_gAxis, Math.min(mag, 1.15) * 1.25);
+      _gq.premultiply(_gq2);
+    }
+    const s = tScl[gi];
+    _gPos.set(tOff[gi * 2], tY[gi], tOff[gi * 2 + 1]);
+    _gScl.set(s, s * (1 - 0.18 * Math.min(mag, 1)), s);
+    _m.compose(_gPos, _gq, _gScl);
+    grassMesh.setMatrixAt(gi, _m);
+  }
+  function layoutGrass() {
+    for (let gi = 0; gi < NTUFT; gi++) {
+      tY[gi] = terrainHeight(grassOrigin + tOff[gi * 2], tOff[gi * 2 + 1]) - 0.03;
+      tBend[gi * 2] = 0;
+      tBend[gi * 2 + 1] = 0;
+      tuftMatrix(gi, 0, 0);
+    }
+    grassMesh.instanceMatrix.needsUpdate = true;
+  }
+  layoutGrass();
+  let tuftsBent = 0;
+  function updateGrass(distance, dt, rider) {
+    grassGroup.position.x = grassOrigin - distance;
+    if (rider) {
+      if (rider.x > grassOrigin + GRASS_W - 18 || rider.x < grassOrigin + 8) {
+        // Recentre the patch on the rider (origin snapped to the cell grid)
+        grassOrigin = Math.round((rider.x - GRASS_W * 0.32) / 0.2) * 0.2;
+        pm = createPressMap({ x: grassOrigin, z: GRASS_Z0, w: GRASS_W, d: GRASS_Z1 - GRASS_Z0 });
+        layoutGrass();
+        tuftsBent = 0;
+        grassGroup.position.x = grassOrigin - distance;
+      }
+      const sp = Math.hypot(rider.dx, rider.dz);
+      if (sp > 0.6 && pm.contains(rider.x, rider.z)) {
+        pm.stamp(rider.x, rider.z, rider.dx / sp, rider.dz / sp, { halfW: 0.34, halfL: 0.95, reach: 0.7 });
+      }
+    }
+    if (dt > 0) pm.step(dt);
+    if (!pm.activeCount && !tuftsBent) return;
+    let bent = 0;
+    for (let gi = 0; gi < NTUFT; gi++) {
+      const s = pm.sample(grassOrigin + tOff[gi * 2], tOff[gi * 2 + 1], _gSmp);
+      const bx = s ? s.x : 0, bz = s ? s.z : 0;
+      if (Math.abs(bx - tBend[gi * 2]) + Math.abs(bz - tBend[gi * 2 + 1]) > 0.008) {
+        tBend[gi * 2] = bx;
+        tBend[gi * 2 + 1] = bz;
+        tuftMatrix(gi, bx, bz);
+      }
+      if (bx * bx + bz * bz > 0.0004) bent++;
+    }
+    tuftsBent = bent;
+    grassMesh.instanceMatrix.needsUpdate = true;
+  }
+
   // ---------- Lighthouse island ----------
   const lighthouse = new THREE.Group();
   {
@@ -853,7 +998,7 @@ export function createWorld(scene, opts) {
   leaves.frustumCulled = false;
   scene.add(leaves);
 
-  function update(distance, dt, t, env) {
+  function update(distance, dt, t, env, rider) {
     time.value = t;
     // Chunk recycling
     const base = Math.floor(distance / CHUNK) - 3;
@@ -864,6 +1009,7 @@ export function createWorld(scene, opts) {
       if (ch.index !== want) rebuild(ch, want);
       ch.group.position.x = want * CHUNK - distance;
     }
+    updateGrass(distance, dt, rider);
     const night = env.night;
     bulbMat.emissiveIntensity = lerp(0.0, 6.0, smoothstep(0.15, 0.6, night));
     poolMat.opacity = smoothstep(0.2, 0.7, night) * 0.5;
@@ -930,5 +1076,5 @@ export function createWorld(scene, opts) {
     return out;
   }
 
-  return { group, update, lampPositions, ffMat, leavesMat, terrainHeight, chunks };
+  return { group, update, lampPositions, ffMat, leavesMat, terrainHeight, chunks, get pressMap() { return pm; } };
 }

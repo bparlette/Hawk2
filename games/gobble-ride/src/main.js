@@ -462,6 +462,8 @@ function groundAt(p) {
   if (p.z < SHORE_GUARD) return Math.max(SEA_LEVEL + 0.4, terrainHeight(wx, p.z));
   return terrainHeight(wx, p.z);
 }
+const _groundP = { x: 0, z: 0 };
+const riderInfo = { x: 0, z: 0, dx: 0, dz: 0 }; // world-space rider feed for the press-map grass
 const SHORE_GUARD = -13;
 
 let flashTimer = 0;
@@ -613,7 +615,7 @@ function updateRide(dt) {
   const steerIn = ((keys.right || tRight) ? 1 : 0) - ((keys.left || tLeft) ? 1 : 0);
   if (steerIn) {
     S.lastSteer = S.time;
-    S.laneTarget = clamp(S.laneTarget + steerIn * 2.4 * dt, -2.15, 2.15);
+    S.laneTarget = clamp(S.laneTarget + steerIn * 2.4 * dt, -2.15, 7.6); // +z runs onto the grass verge (press-map grass)
   } else if (settings.autopilot && S.time - S.lastSteer > 4) {
     const next = nextFish(40);
     const want = next ? next.z : 0.9 + Math.sin(S.time * 0.23) * 0.7;
@@ -646,7 +648,9 @@ function updateRide(dt) {
   const wheelieT = S.trick * 0.3 + (S.airborne ? S.vy * 0.025 : 0);
   S.wheelie = damp(S.wheelie, wheelieT, 6, dt);
 
-  rider.position.set(0, S.y, S.lane);
+  _groundP.x = 0;
+  _groundP.z = S.lane;
+  rider.position.set(0, S.y + groundAt(_groundP) - 0.02, S.lane); // follow the terrain off-road (0 on the road itself)
   rider.rotation.set(S.lean, -Math.atan2(S.laneV, Math.max(S.speed, 1.5)), 0);
   wheelieRoot.rotation.z = S.wheelie;
 
@@ -1313,7 +1317,11 @@ function frame(ts) {
 
   updateRide(dt);
   info = updateLighting(dt);
-  world.update(S.distance, dt, S.t, env);
+  riderInfo.x = S.distance;
+  riderInfo.z = S.lane;
+  riderInfo.dx = S.speed;
+  riderInfo.dz = S.laneV;
+  world.update(S.distance, dt, S.t, env, riderInfo);
 
   // Rider IK and animation
   bike.group.updateMatrixWorld(true);
@@ -1417,6 +1425,7 @@ window.__pelican = {
   },
   S,
   settings,
+  world,
   setCamMode,
   jump,
   trick,
