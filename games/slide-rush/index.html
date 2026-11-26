@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Slide Rush</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#062b3f;touch-action:none;overscroll-behavior:none;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  #game{position:fixed;inset:0;display:block;touch-action:none}
+  .hud{position:fixed;z-index:1100;pointer-events:none;text-shadow:0 2px 6px rgba(0,20,40,.55)}
+  #posBox{top:10px;left:12px}
+  #posNum{font-size:52px;font-weight:900;line-height:.95;color:#fff}
+  #posNum small{font-size:22px;font-weight:800;color:#ffe14d}
+  #posLbl{font-size:12px;font-weight:700;letter-spacing:2px;color:#bff1ff}
+  #raceBox{top:10px;right:12px;text-align:right}
+  #raceLbl{font-size:15px;font-weight:800;color:#ffe14d}
+  #timeLbl{font-size:14px;font-weight:700;color:#e8fbff}
+  #scoreLbl{font-size:13px;font-weight:700;color:#bff1ff}
+  #progWrap{top:86px;left:12px;right:12px;height:10px;background:rgba(0,30,50,.45);border-radius:6px;overflow:hidden}
+  #progBar{height:100%;width:0%;background:linear-gradient(90deg,#19d3ff,#ffe14d);border-radius:6px}
+  #progFlag{position:absolute;right:2px;top:-3px;font-size:11px}
+  #msg{top:34%;left:0;right:0;text-align:center;font-size:38px;font-weight:900;color:#ffe14d;
+    opacity:0;transition:opacity .15s;letter-spacing:1px}
+  #hint{bottom:14px;left:0;right:0;text-align:center;font-size:13px;font-weight:700;color:rgba(255,255,255,.85)}
+  .overlay{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:linear-gradient(180deg,rgba(3,60,90,.82),rgba(2,30,50,.9));text-align:center;padding:24px;touch-action:none}
+  .overlay h1{font-size:52px;font-weight:900;letter-spacing:1px;color:#fff;line-height:1}
+  .overlay h1 span{color:#19d3ff}
+  .overlay h2{font-size:30px;font-weight:900;color:#ffe14d;margin-bottom:8px}
+  .overlay p{font-size:16px;line-height:1.45;color:#dff7ff;max-width:320px;margin-top:12px}
+  .bigbtn{pointer-events:auto;margin-top:26px;background:#ffb300;color:#231600;border:none;border-radius:999px;
+    font-size:22px;font-weight:900;padding:16px 44px;box-shadow:0 6px 0 #c47f00,0 10px 22px rgba(0,0,0,.35);cursor:pointer;touch-action:none}
+  .bigbtn:active{transform:translateY(3px);box-shadow:0 3px 0 #c47f00}
+  #endOv{display:none}
+  #endStats{font-size:17px;line-height:1.7;color:#e8fbff;font-weight:700}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud" id="posBox"><div id="posNum">6<small>th</small></div><div id="posLbl">POSITION</div></div>
+<div class="hud" id="raceBox"><div id="raceLbl">RACE 1</div><div id="timeLbl">0.0s</div><div id="scoreLbl">SCORE 0</div></div>
+<div class="hud" id="progWrap"><div id="progBar"></div></div>
+<div class="hud" id="msg"></div>
+<div class="hud" id="hint">◀ DRAG to steer ▶ &nbsp;•&nbsp; ride off an orange LIP to FLY!</div>
+
+<div class="overlay" id="startOv">
+  <h1>SLIDE<br><span>RUSH</span></h1>
+  <p>Race 5 rivals down a giant waterslide over the bay.<br><br>
+  <b>Drag one thumb</b> left / right to steer.<br>
+  Bump rivals off the edge. Ride off an <b style="color:#ff9d2e">orange LIP</b> to launch, fly, and land way further down — skipping whole sections!</p>
+  <button class="bigbtn" id="startBtn">TAP TO RACE</button>
+</div>
+
+<div class="overlay" id="endOv">
+  <h2 id="endTitle">1st PLACE!</h2>
+  <div id="endStats"></div>
+  <button class="bigbtn" id="endBtn">NEXT RACE</button>
+</div>
+
+<script>
+'use strict';
+// ---------- Slide Rush — original waterslide racer ----------
+// One verb: drag to steer. Bump rivals off, fly off lips, finish 1st.
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+let W = 390, H = 844, DPR = 1;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize); resize();
+
+// Block double-tap zoom + browser gestures
+document.addEventListener('dblclick', e => e.preventDefault());
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('gesturechange', e => e.preventDefault());
+document.addEventListener('contextmenu', e => e.preventDefault());
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouchEnd < 350) e.preventDefault(); lastTouchEnd = n; }, { passive:false });
+document.addEventListener('touchmove', e => e.preventDefault(), { passive:false });
+
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+const lerp = (a,b,t) => a + (b - a) * t;
+const SPEEDQ = clamp(parseFloat(new URLSearchParams(location.search).get('speed')) || 1, 1, 6); // QA time multiplier
+
+const RACES = [
+  { bot:0.99, twist:1.00, len:5400, name:'Race 1 · Sunny Shores' },
+  { bot:1.04, twist:1.28, len:5600, name:'Race 2 · Coral Curves' },
+  { bot:1.09, twist:1.55, len:5800, name:'Race 3 · Typhoon Twist' },
+];
+function raceCfg(r){ const c = RACES[Math.min(r, RACES.length - 1)]; if (r < RACES.length) return c;
+  return { bot:1.09 + (r - 2) * 0.03, twist:1.55 + (r - 2) * 0.12, len:5800, name:'Race ' + (r + 1) + ' · Typhoon Twist+' }; }
+
+const HW = 100; // track half-width in world units; lat is in units of HW
+const LIPS = [0.26, 0.52, 0.78]; // fractions of course length where lip zones live
+const LIP_LEN = 260, FLY_DIST = 780;
+
+let phase = 'menu'; // menu | count | race | fall | fly | done
+let race = 0, cfg = RACES[0];
+let time = 0, countT = 0, shake = 0, slowmo = 0;
+let player, bots, particles, bumped, airtime, falls, finishPos, finalScore, msgT = 0;
+const BOT_COLORS = ['#ff5252','#ab47bc','#66bb6a','#ffa726','#8d6e63'];
+const BOT_NAMES  = ['Ruby','Vio','Fern','Tang','Cocoa'];
+
+function centerAt(d, tw){ return (Math.sin(d * 0.0016) * 95 + Math.sin(d * 0.00071 + 1.3) * 62 + Math.sin(d * 0.0037) * 22) * tw; }
+function inLip(d){ for (const f of LIPS){ const s = f * cfg.len; if (d >= s && d <= s + LIP_LEN) return true; } return false; }
+function lipEndAhead(d){ for (const f of LIPS){ const s = f * cfg.len; if (d < s + LIP_LEN && s + LIP_LEN - d < 1200) return s + LIP_LEN; } return -1; }
+
+function resetRace(r){
+  race = r; cfg = raceCfg(r);
+  time = 0; bumped = 0; airtime = 0; falls = 0; finishPos = 0; finalScore = 0; particles = [];
+  player = { d:0, lat:0, latV:0, speed:0, invuln:0, fallT:0, flyT:0, flyFrom:0, flyLat:0, bumpCool:0 };
+  bots = BOT_COLORS.map((c, i) => ({
+    color:c, name:BOT_NAMES[i], d:70 + i * 58, lat:(i - 2) * 0.36, latV:0,
+    base:(108 + Math.random() * 9) * cfg.bot, phase:Math.random() * 9,
+    off:0, offT:0, finished:false, finTime:0, slowT:0, bumpMark:0
+  }));
+  document.getElementById('raceLbl').textContent = 'RACE ' + (race + 1);
+  updateHUD();
+}
+function showMsg(t, dur){ const m = document.getElementById('msg'); m.textContent = t; m.style.opacity = 1; msgT = dur || 1.1; }
+function startRace(){
+  document.getElementById('startOv').classList.add('hidden');
+  document.getElementById('endOv').style.display = 'none';
+  resetRace(race); phase = 'count'; countT = 3.2; showMsg('3', 0.9);
+}
+function positionNow(){
+  let p = 1;
+  for (const b of bots){ if (b.finished && phase !== 'done') p++; else if (!b.finished && b.d > player.d) p++; }
+  if (phase === 'done' && finishPos) return finishPos;
+  return p;
+}
+function scoreNow(){
+  const posBonus = (7 - positionNow()) * 200;
+  return Math.round(posBonus + bumped * 150 + airtime * 100);
+}
+function updateHUD(){
+  const p = positionNow(), suf = ['st','nd','rd','th','th','th'][p - 1] || 'th';
+  document.getElementById('posNum').innerHTML = p + '<small>' + suf + '</small>';
+  document.getElementById('timeLbl').textContent = time.toFixed(1) + 's';
+  document.getElementById('scoreLbl').textContent = 'SCORE ' + (phase === 'done' ? finalScore : scoreNow());
+  document.getElementById('progBar').style.width = clamp(player.d / cfg.len * 100, 0, 100) + '%';
+}
+
+// ---------- steering: one-thumb drag ----------
+let dragging = false, dragX = 0, dragId = null;
+function ptrDown(x, id){ dragging = true; dragX = x; dragId = id; }
+function ptrMove(x){ if (!dragging) return; const dx = x - dragX; dragX = x;
+  if (phase === 'race' || phase === 'count') player.latV += dx * 0.011; }
+function ptrUp(id){ if (id === undefined || id === dragId){ dragging = false; dragId = null; } }
+cv.addEventListener('pointerdown', e => { e.preventDefault(); ptrDown(e.clientX, e.pointerId); });
+window.addEventListener('pointermove', e => { if (e.pointerId === dragId) ptrMove(e.clientX); }, { passive:true });
+window.addEventListener('pointerup', e => ptrUp(e.pointerId));
+window.addEventListener('pointercancel', e => ptrUp(e.pointerId));
+cv.addEventListener('touchstart', e => { const t = e.changedTouches[0]; ptrDown(t.clientX, 't'); }, { passive:true });
+cv.addEventListener('touchmove', e => { const t = e.changedTouches[0]; ptrMove(t.clientX); }, { passive:true });
+cv.addEventListener('touchend', () => ptrUp('t'), { passive:true });
+
+document.getElementById('startBtn').addEventListener('click', () => { race = 0; startRace(); });
+document.getElementById('endBtn').addEventListener('click', () => {
+  if (finishPos === 1) race = race + 1; // win -> next (harder) race; lose -> retry same
+  startRace();
+});
+
+// ---------- race logic ----------
+function startFly(who){
+  if (who === player){
+    phase = 'fly'; player.flyT = 0; player.flyFrom = player.d; player.flyLat = player.lat;
+    slowmo = 1; showMsg('LIP LAUNCH!', 1.2);
+  }
+}
+function botOff(b, byPlayer){
+  b.off = 1; b.offT = 1.4;
+  if (byPlayer){ bumped++; showMsg('BUMPED OFF!', 0.9); }
+}
+function update(dt){
+  if (msgT > 0){ msgT -= dt; if (msgT <= 0) document.getElementById('msg').style.opacity = 0; }
+  if (phase === 'count'){
+    countT -= dt;
+    const n = Math.ceil(countT);
+    if (countT > 0.2) showMsg(String(Math.max(1, n)), 0.3); else if (phase === 'count'){ phase = 'race'; showMsg('GO!', 0.7); }
+    return;
+  }
+  if (phase !== 'race' && phase !== 'fly' && phase !== 'fall') return;
+  const ts = (phase === 'fly') ? 0.38 : 1; // slow-mo while airborne
+  const gdt = dt * ts;
+  time += gdt;
+  if (player.invuln > 0) player.invuln -= gdt;
+  if (player.bumpCool > 0) player.bumpCool -= gdt;
+
+  // --- player forward ---
+  if (phase === 'fly'){
+    player.flyT += dt; // real-time flight clock
+    airtime += dt;
+    const k = clamp(player.flyT / 1.5, 0, 1);
+    player.d = player.flyFrom + FLY_DIST * k;
+    player.lat = lerp(player.flyLat, 0, k);
+    player.latV = 0;
+    if (k >= 1){ phase = 'race'; player.invuln = 1.2; showMsg('LANDED! +' + FLY_DIST + 'm SKIP', 1.1); }
+  } else if (phase === 'fall'){
+    player.fallT -= dt;
+    if (player.fallT <= 0){ phase = 'race'; player.lat = 0; player.latV = 0; player.invuln = 1.6; player.speed = 55; }
+  } else {
+    const downhill = 112 + Math.sin(player.d * 0.0011) * 14 + (1 - Math.abs(player.lat)) * 10;
+    player.speed = lerp(player.speed || downhill, downhill, gdt * 1.6);
+    player.d += player.speed * gdt;
+    player.lat += player.latV * gdt * 3.2;
+    player.latV *= Math.pow(0.0015, gdt); // damping
+    player.latV = clamp(player.latV, -2.6, 2.6);
+    // spray on hard turns
+    if (Math.abs(player.latV) > 0.75 && particles.length < 240){
+      for (let i = 0; i < 3; i++) particles.push({ x:(Math.random()-0.5)*46, y:0, vx:(Math.random()-0.5)*60 - player.latV*36, vy:60+Math.random()*70, life:0.55 });
+    }
+    // edges
+    if (Math.abs(player.lat) > 1 && player.invuln <= 0){
+      if (inLip(player.d)) startFly(player);
+      else { phase = 'fall'; player.fallT = 1.15; falls++; shake = 0.7; showMsg('WIPEOUT!', 1.0); }
+    }
+  }
+
+  // --- bots ---
+  for (const b of bots){
+    if (b.off){ b.offT -= gdt; if (b.offT <= 0){ b.off = 0; b.d = Math.max(0, player.d - 260 - Math.random()*120); b.lat = 0; b.latV = 0; b.slowT = 0; } continue; }
+    if (b.finished) continue;
+    let sp = b.base * (1 + Math.sin(time * 0.5 + b.phase) * 0.03);
+    if (b.d < player.d - 220) sp *= 1.06; else if (b.d > player.d + 220) sp *= 0.96; // gentle rubber-band
+    if (b.slowT > 0){ b.slowT -= gdt; sp *= 0.55; }
+    b.d += sp * gdt;
+    const target = clamp(Math.sin(b.d * 0.0019 + b.phase) * 0.62, -0.8, 0.8);
+    b.latV += (target - b.lat) * gdt * 2.4;
+    b.lat += b.latV * gdt * 3.0;
+    b.latV *= Math.pow(0.01, gdt);
+    if (Math.abs(b.lat) > 1){
+      if (inLip(b.d)){ b.d += FLY_DIST; b.lat = 0; b.latV = 0; }
+      else botOff(b, b.bumpMark > 0);
+      b.bumpMark = 0;
+    }
+    if (b.d >= cfg.len){ b.finished = true; b.finTime = time; }
+  }
+
+  // --- bumps: player vs bots ---
+  if (phase === 'race'){
+    for (const b of bots){
+      if (b.off || b.finished) continue;
+      const dd = b.d - player.d, dl = b.lat - player.lat;
+      if (Math.abs(dd) < 30 && Math.abs(dl) < 0.34){
+        const dir = dl !== 0 ? Math.sign(dl) : (player.latV !== 0 ? Math.sign(player.latV) : 1);
+        b.latV += dir * 2.4; b.bumpMark = 1.6; b.slowT = Math.max(b.slowT, 0.35);
+        player.latV -= dir * 0.55; shake = Math.max(shake, 0.25);
+        if (player.bumpCool <= 0){ showMsg('BUMP!', 0.5); player.bumpCool = 0.8; }
+        for (let i = 0; i < 8; i++) particles.push({ x:dl*HW*0.8 + (Math.random()-0.5)*30, y:-6, vx:(Math.random()-0.5)*130, vy:40+Math.random()*80, life:0.5 });
+      }
+      if (b.bumpMark > 0) b.bumpMark -= gdt;
+    }
+  }
+
+  // particles
+  for (let i = particles.length - 1; i >= 0; i--){ const p = particles[i]; p.life -= gdt; p.x += p.vx * gdt; p.y += p.vy * gdt; if (p.life <= 0) particles.splice(i, 1); }
+
+  // finish
+  if (player.d >= cfg.len && phase === 'race'){
+    player.d = cfg.len;
+    finishPos = 1 + bots.filter(b => b.finished).length;
+    finalScore = Math.round((7 - finishPos) * 200 + bumped * 150 + airtime * 100);
+    phase = 'done';
+    const win = finishPos === 1;
+    document.getElementById('endTitle').textContent = win ? '🏆 1st PLACE — YOU WIN!' : ['','🏆 1st PLACE!','2nd PLACE','3rd PLACE','4th PLACE','5th PLACE','6th PLACE'][finishPos] + ' — RACE OVER';
+    document.getElementById('endStats').innerHTML =
+      'Race ' + (race + 1) + ' · ' + time.toFixed(1) + 's<br>' +
+      'Position bonus: ' + (7 - finishPos) * 200 + '<br>' +
+      'Rivals bumped off: ' + bumped + ' × 150 = ' + bumped * 150 + '<br>' +
+      'Airtime: ' + airtime.toFixed(1) + 's × 100 = ' + Math.round(airtime * 100) + '<br>' +
+      '<b style="color:#ffe14d;font-size:21px">SCORE ' + finalScore + '</b>';
+    document.getElementById('endBtn').textContent = win ? 'NEXT RACE ▶' : '↻ RETRY RACE';
+    document.getElementById('endOv').style.display = 'flex';
+  }
+  if (shake > 0) shake -= dt;
+  updateHUD();
+}
+
+// ---------- rendering ----------
+function projTable(){
+  // projection for distances ahead: returns array of {a, y, s}
+  const out = []; let y = H * 0.79, a = 0;
+  while (y > H * 0.06 && a < 1500){
+    const s = 1 / (1 + a * 0.0016);
+    out.push({ a, y, s });
+    a += 25; y -= 25 * s * 1.28;
+  }
+  out.push({ a, y, s: 1 / (1 + a * 0.0016) });
+  return out;
+}
+function projAt(tab, a){
+  if (a <= 0){ const t = tab[0]; return { y: t.y - a * 1.28, s: 1 }; }
+  const i = Math.min(tab.length - 2, Math.floor(a / 25)), f = (a - i * 25) / 25;
+  const p0 = tab[i], p1 = tab[i + 1];
+  return { y: lerp(p0.y, p1.y, f), s: lerp(p0.s, p1.s, f) };
+}
+function screenX(tab, d, lat){
+  const a = d - player.d, pr = projAt(tab, a);
+  const cx = W / 2 + (centerAt(d, cfg.twist) - centerAt(player.d, cfg.twist) - player.lat * HW) * 0.92 * pr.s;
+  return { x: cx + lat * HW * 0.92 * pr.s, y: pr.y, s: pr.s, cx, hw: HW * 0.92 * pr.s };
+}
+function draw(){
+  // bay / sky backdrop
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#7ed6ff'); g.addColorStop(0.35, '#37b6f0'); g.addColorStop(1, '#0b6ea8');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // sun + clouds
+  ctx.fillStyle = '#fff3a0'; ctx.beginPath(); ctx.arc(W - 62, 66, 26, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  for (let i = 0; i < 3; i++){ const cx = ((i * 173 + 60 - (player.d * 0.05) % 500) + 500) % 500 - 50, cy = 44 + i * 30;
+    ctx.beginPath(); ctx.ellipse(cx, cy, 30, 10, 0, 0, 7); ctx.ellipse(cx + 18, cy + 3, 20, 8, 0, 0, 7); ctx.fill(); }
+  // distant bay water sparkle
+  ctx.fillStyle = 'rgba(255,255,255,.18)';
+  for (let i = 0; i < 14; i++){ const x = (i * 89 + Math.floor(player.d * 0.3)) % W, y = H * 0.16 + (i * 37) % 90; ctx.fillRect(x, y, 16, 2); }
+
+  const tab = projTable();
+  const shX = shake > 0 ? (Math.random() - 0.5) * shake * 14 : 0;
+  ctx.save(); ctx.translate(shX, 0);
+
+  // slide ribbon, far -> near
+  for (let i = tab.length - 2; i >= 0; i--){
+    const d0 = player.d + tab[i].a, d1 = player.d + tab[i + 1].a;
+    const p0 = screenX(tab, d0, 0), p1 = screenX(tab, d1, 0);
+    const lip = inLip(d0);
+    // under-structure shadow
+    ctx.fillStyle = 'rgba(0,40,70,.35)';
+    ctx.beginPath(); ctx.moveTo(p0.cx - p0.hw, p0.y + 10 * p0.s); ctx.lineTo(p0.cx + p0.hw, p0.y + 10 * p0.s);
+    ctx.lineTo(p1.cx + p1.hw, p1.y + 10 * p1.s); ctx.lineTo(p1.cx - p1.hw, p1.y + 10 * p1.s); ctx.closePath(); ctx.fill();
+    // slide surface
+    ctx.fillStyle = lip ? '#ffb03a' : (Math.floor(d0 / 100) % 2 ? '#22c8f5' : '#1fbdf2');
+    ctx.beginPath(); ctx.moveTo(p0.cx - p0.hw, p0.y); ctx.lineTo(p0.cx + p0.hw, p0.y);
+    ctx.lineTo(p1.cx + p1.hw, p1.y); ctx.lineTo(p1.cx - p1.hw, p1.y); ctx.closePath(); ctx.fill();
+    // water sheen stripe
+    ctx.fillStyle = 'rgba(255,255,255,.20)';
+    ctx.beginPath(); ctx.moveTo(p0.cx - p0.hw * 0.25, p0.y); ctx.lineTo(p0.cx + p0.hw * 0.05, p0.y);
+    ctx.lineTo(p1.cx + p1.hw * 0.05, p1.y); ctx.lineTo(p1.cx - p1.hw * 0.25, p1.y); ctx.closePath(); ctx.fill();
+    // raised edges
+    ctx.fillStyle = lip ? '#ff7b1c' : '#eafcff';
+    ctx.fillRect(p0.cx - p0.hw - 5 * p0.s, p0.y - 3 * p0.s, 5 * p0.s, Math.max(2, (p0.y - p1.y)));
+    ctx.fillRect(p0.cx + p0.hw, p0.y - 3 * p0.s, 5 * p0.s, Math.max(2, (p0.y - p1.y)));
+    // finish checkers
+    if (d0 < cfg.len && d1 >= cfg.len - 25){
+      ctx.fillStyle = '#fff'; ctx.fillRect(p0.cx - p0.hw, p0.y - 4, p0.hw * 2, 8);
+      ctx.fillStyle = '#123'; for (let k = 0; k < 8; k++) if (k % 2 === 0) ctx.fillRect(p0.cx - p0.hw + k * p0.hw / 4, p0.y - 4, p0.hw / 4, 8);
+    }
+    // lip warning chevrons
+    const le = lipEndAhead(d0);
+    if (le > 0 && Math.abs(d0 - (le - LIP_LEN)) < 26){
+      ctx.fillStyle = '#ff7b1c'; ctx.font = '900 ' + Math.round(20 * p0.s + 6) + 'px system-ui';
+      ctx.textAlign = 'center'; ctx.fillText('▼ LIP ▼', p0.cx, p0.y - 14 * p0.s);
+    }
+  }
+
+  // landing shadow marker during flight
+  if (phase === 'fly'){
+    const landD = player.flyFrom + FLY_DIST, lp = screenX(tab, landD, 0);
+    if (landD - player.d < 1400){
+      ctx.strokeStyle = '#ffe14d'; ctx.lineWidth = 3;
+      ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.ellipse(lp.x, lp.y, lp.hw * 0.5, 10 * lp.s + 4, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#ffe14d'; ctx.font = '900 15px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('LAND HERE', lp.x, lp.y - 16);
+    }
+  }
+
+  // bots (far -> near)
+  const sorted = [...bots].filter(b => !b.off && b.d > player.d - 60 && b.d < player.d + 1400).sort((a, b) => b.d - a.d);
+  for (const b of sorted) drawRider(screenX(tab, b.d, b.lat), b.color, false, b);
+  // player shadow (also the flight shadow on the slide)
+  const pp = screenX(tab, player.d, player.lat);
+  ctx.fillStyle = 'rgba(0,30,50,.4)'; ctx.beginPath(); ctx.ellipse(pp.x, pp.y + 4, 24 * pp.s, 7 * pp.s, 0, 0, 7); ctx.fill();
+  // particles (spray)
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  for (const p of particles){ ctx.beginPath(); ctx.arc(pp.x + p.x, pp.y - 8 + p.y * 0.4, 2.4, 0, 7); ctx.fill(); }
+  // player (elevated while flying)
+  let py = pp.y, pScale = 1;
+  if (phase === 'fly'){ const k = clamp(player.flyT / 1.5, 0, 1); py -= Math.sin(k * Math.PI) * 120; pScale = 1 + Math.sin(k * Math.PI) * 0.35; }
+  if (phase === 'fall'){ py += 26; pScale = 0.8; }
+  drawRider({ x: pp.x, y: py, s: pp.s * pScale }, '#ffd91c', true, null);
+  ctx.restore();
+
+  // vignette speed lines when fast
+  if (phase === 'race' && player.speed > 118){
+    ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++){ const y = (i * 211 + (time * 700) % 211) % H; ctx.beginPath(); ctx.moveTo(6, y); ctx.lineTo(6, y + 44); ctx.moveTo(W - 6, y + 90); ctx.lineTo(W - 6, y + 134); ctx.stroke(); }
+  }
+}
+function drawRider(p, color, isPlayer, bot){
+  const r = 21 * p.s + 5;
+  // inflatable ring
+  ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(p.x, p.y, r, r * 0.62, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(p.x, p.y, r * 0.62, r * 0.36, 0, 0, 7); ctx.fill();
+  // rider body + head
+  ctx.fillStyle = isPlayer ? '#ff8a3c' : color;
+  ctx.beginPath(); ctx.ellipse(p.x, p.y - r * 0.52, r * 0.42, r * 0.5, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#ffcf9e'; ctx.beginPath(); ctx.arc(p.x, p.y - r * 1.05, r * 0.34, 0, 7); ctx.fill();
+  ctx.fillStyle = isPlayer ? '#12406b' : '#263238';
+  ctx.beginPath(); ctx.arc(p.x, p.y - r * 1.18, r * 0.35, Math.PI, 0); ctx.fill(); // cap
+  if (bot && Math.abs(bot.lat) > 0.86){ ctx.fillStyle = '#fff'; ctx.font = '900 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('!', p.x, p.y - r * 1.7); }
+}
+
+// ---------- main loop ----------
+let lastT = performance.now();
+function frame(now){
+  let dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+  dt *= SPEEDQ;
+  if (phase !== 'menu') update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+resetRace(0);
+window.__slide = {
+  state: () => ({ phase, race, pos: positionNow(), d: Math.round(player.d), lat: +player.lat.toFixed(2),
+    bumped, airtime: +airtime.toFixed(2), falls, time: +time.toFixed(1), finishPos, score: phase === 'done' ? finalScore : scoreNow(),
+    bots: bots.map(b => ({ d: Math.round(b.d), lat: +b.lat.toFixed(2), off: b.off, fin: b.finished })) }),
+  start: () => { race = 0; startRace(); },
+  cfg: () => cfg
+};
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
