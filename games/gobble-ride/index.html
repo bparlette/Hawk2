@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Gobble Ride · Turkey on a Bike</title>
+<meta name="description" content="A turkey in a pilgrim hat and autumn scarf, riding a vintage bicycle along a harvest coastline chasing pumpkins and pies. Real-time 3D: procedural modelling, IK pedalling, cloth scarf, Gerstner waves, day cycle and synthesized music." />
+<meta property="og:title" content="Gobble Ride · Turkey on a Bike" />
+<meta property="og:description" content="Real-time 3D harvest coast ride: a turkey, a bicycle, waves, golden hour and a basket of Thanksgiving treats." />
+
+<meta name="theme-color" content="#0d1424" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='16' cy='48' r='11' fill='none' stroke='%23138a8a' stroke-width='5'/%3E%3Ccircle cx='48' cy='48' r='11' fill='none' stroke='%23138a8a' stroke-width='5'/%3E%3Cellipse cx='26' cy='26' rx='13' ry='10' fill='%2396622f'/%3E%3Ccircle cx='38' cy='12' r='6' fill='%2396622f'/%3E%3Cpath d='M42 11 L54 15 L42 17 Z' fill='%23d9c39a'/%3E%3C/svg%3E" />
+<style>
+:root {
+  --glass: rgba(14, 20, 34, 0.52);
+  --glass-strong: rgba(10, 14, 26, 0.72);
+  --stroke: rgba(255, 255, 255, 0.14);
+  --text: #f4f6fb;
+  --muted: rgba(236, 240, 250, 0.66);
+  --accent: #ffb547;
+  --accent-2: #3fd0c9;
+  --danger: #ff5a6e;
+  --radius: 16px;
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+  --font: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --glass: rgba(18, 24, 40, 0.5); }
+}
+:root[data-theme="dark"] { --glass: rgba(14, 20, 34, 0.52); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1424; color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; touch-action: none; user-select: none; -webkit-user-select: none; }
+#app, #app canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+button { font: inherit; color: inherit; }
+
+/* ---------- Intro ---------- */
+#intro { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; overflow-y: auto; padding: 24px 16px; touch-action: pan-y; background: radial-gradient(120% 90% at 70% 10%, rgba(255, 150, 90, 0.28), transparent 60%), linear-gradient(180deg, rgba(10, 14, 30, 0.55), rgba(8, 10, 22, 0.82)); backdrop-filter: blur(3px); transition: opacity 0.9s ease, visibility 0.9s; }
+body.started #intro { opacity: 0; visibility: hidden; pointer-events: none; }
+.intro-card { width: min(640px, 100%); text-align: center; margin: auto; }
+.intro-art { width: min(300px, 70vw); height: auto; margin: 0 auto 6px; display: block; filter: drop-shadow(0 12px 30px rgba(0,0,0,0.4)); }
+.intro-art .wheel { transform-box: fill-box; transform-origin: center; animation: spin 1.1s linear infinite; }
+.intro-art .road { stroke-dasharray: 18 14; animation: road 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes road { to { stroke-dashoffset: -32; } }
+.intro-art .bob { animation: bob 0.55s ease-in-out infinite alternate; }
+@keyframes bob { to { transform: translateY(2px); } }
+h1 { margin: 0; font-size: clamp(34px, 7vw, 60px); letter-spacing: 0.04em; font-weight: 900; background: linear-gradient(92deg, #fff7e6, #ffc27a 45%, #ff8a5b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sub { margin: 8px 0 18px; color: var(--muted); font-size: clamp(14px, 2.4vw, 17px); line-height: 1.6; }
+.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 0 24px; }
+.chip { padding: 5px 11px; border-radius: 999px; font-size: 12.5px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--stroke); color: rgba(255,255,255,0.86); }
+.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn-primary { border: 0; cursor: pointer; padding: 14px 30px; border-radius: 999px; font-size: 17px; font-weight: 800; letter-spacing: 0.05em; color: #2a1400; background: linear-gradient(135deg, #ffd27a, #ff9a4d); box-shadow: 0 10px 30px rgba(255, 140, 60, 0.45), inset 0 1px 0 rgba(255,255,255,0.6); transition: transform 0.15s ease, box-shadow 0.2s; }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(255, 140, 60, 0.55); }
+.btn-ghost { cursor: pointer; padding: 14px 22px; border-radius: 999px; font-size: 15px; background: rgba(255,255,255,0.08); border: 1px solid var(--stroke); }
+.btn-ghost:hover { background: rgba(255,255,255,0.14); }
+.keys-hint { margin-top: 20px; color: var(--muted); font-size: 12.5px; line-height: 1.9; }
+kbd { display: inline-block; min-width: 22px; padding: 1px 6px; margin: 0 2px; border-radius: 6px; font: 600 11.5px/18px ui-monospace, Menlo, monospace; text-align: center; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-bottom-width: 2px; color: #fff; }
+
+/* ---------- HUD ---------- */
+.hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; opacity: 0; transition: opacity 0.8s ease 0.3s; }
+body.started .hud { opacity: 1; }
+body.hide-ui .hud, body.hide-ui .hud * { opacity: 0 !important; visibility: hidden !important; }
+.panel { pointer-events: auto; background: var(--glass); border: 1px solid var(--stroke); border-radius: var(--radius); box-shadow: var(--shadow); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3); }
+.brand { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; padding: 10px 14px; display: flex; gap: 10px; align-items: center; }
+.brand b { font-size: 15px; letter-spacing: 0.03em; }
+.brand small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.brand .logo { font-size: 24px; }
+.tools { position: absolute; top: max(14px, env(safe-area-inset-top)); right: 16px; display: flex; gap: 6px; padding: 6px; }
+.icon-btn { pointer-events: auto; width: 38px; height: 38px; border-radius: 11px; border: 0; background: transparent; cursor: pointer; display: grid; place-items: center; font-size: 17px; transition: background 0.15s; position: relative; color: inherit; text-decoration: none; }
+.icon-btn svg { width: 18px; height: 18px; fill: currentColor; display: block; }
+.icon-btn:hover { background: rgba(255,255,255,0.12); }
+.icon-btn.off::after { content: ""; position: absolute; width: 22px; height: 2px; background: var(--danger); transform: rotate(-45deg); border-radius: 2px; }
+.icon-btn.on { background: rgba(63, 208, 201, 0.22); }
+.cams { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 5px; }
+.cams button { pointer-events: auto; border: 0; background: transparent; cursor: pointer; padding: 7px 12px; border-radius: 10px; font-size: 13px; color: var(--muted); white-space: nowrap; transition: all 0.15s; }
+.cams button:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.cams button.on { color: #1a1206; background: linear-gradient(135deg, #ffd27a, #ffab5e); font-weight: 700; }
+.dash { position: absolute; left: 16px; bottom: max(16px, env(safe-area-inset-bottom)); padding: 12px 16px 12px 12px; display: flex; gap: 14px; align-items: center; }
+.gauge { position: relative; width: 124px; height: 124px; flex: none; }
+.gauge svg { width: 100%; height: 100%; transform: rotate(135deg); }
+.gauge .bg { fill: none; stroke: rgba(255,255,255,0.12); stroke-width: 9; stroke-linecap: round; stroke-dasharray: 245 400; }
+.gauge .fg { fill: none; stroke: url(#gGrad); stroke-width: 9; stroke-linecap: round; stroke-dasharray: 245 400; transition: stroke-dashoffset 0.12s linear; }
+.gauge .val { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+.gauge .val b { font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.gauge .val small { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; letter-spacing: 0.08em; }
+.stats { display: grid; grid-template-columns: auto auto; gap: 5px 14px; font-size: 12.5px; align-items: baseline; }
+.stats span { color: var(--muted); }
+.stats b { font-variant-numeric: tabular-nums; font-size: 15px; text-align: right; }
+.score { position: absolute; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); padding: 12px 16px; min-width: 210px; }
+.score .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fish { display: flex; align-items: center; gap: 8px; }
+.fish .ico { font-size: 26px; }
+#fishCount { font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; color: var(--accent); display: inline-block; }
+#fishCount.bump { animation: bump 0.45s ease; }
+@keyframes bump { 30% { transform: scale(1.35); color: #fff3c4; } }
+.ach { font-size: 12px; color: var(--muted); text-align: right; }
+.ach b { color: var(--text); font-size: 14px; }
+.timebar { margin-top: 10px; display: flex; align-items: center; gap: 8px; }
+.timebar input { flex: 1; accent-color: var(--accent); pointer-events: auto; cursor: pointer; }
+#clockVal { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 44px; }
+.hints { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom)); padding: 8px 14px; font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 560px); }
+.hints span { white-space: nowrap; }
+#fps { position: absolute; top: 72px; right: 18px; font: 11px ui-monospace, Menlo, monospace; color: var(--muted); padding: 4px 8px; }
+#toasts { position: fixed; top: 118px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; z-index: 30; pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 10px; padding: 10px 16px 10px 12px; border-radius: 14px; background: var(--glass-strong); border: 1px solid rgba(255, 210, 122, 0.35); box-shadow: var(--shadow); backdrop-filter: blur(12px); transform: translateY(-14px) scale(0.96); opacity: 0; transition: all 0.45s cubic-bezier(.2,1.4,.4,1); }
+.toast.in { transform: none; opacity: 1; }
+.toast .emo { font-size: 24px; }
+.toast b { display: block; font-size: 14px; }
+.toast small { color: var(--muted); font-size: 12px; }
+.pop { position: fixed; z-index: 25; pointer-events: none; font-weight: 900; font-size: 22px; color: #ffe3b3; text-shadow: 0 2px 10px rgba(255, 150, 0, 0.8); transform: translate(-50%, -50%); animation: pop 1.1s ease-out forwards; }
+.pop.gold { color: #ffe08a; font-size: 26px; text-shadow: 0 2px 14px rgba(255, 160, 0, 0.9); }
+@keyframes pop { to { transform: translate(-50%, -160%); opacity: 0; } }
+#guiHost { position: fixed; top: 70px; right: 16px; z-index: 20; max-height: calc(100vh - 220px); overflow-y: auto; border-radius: 12px; }
+#guiHost .lil-gui.lil-root { --background-color: rgba(12, 16, 28, 0.78); --title-background-color: rgba(255, 181, 71, 0.16); --title-text-color: #ffe3b3; --widget-color: rgba(255,255,255,0.1); --hover-color: rgba(255,255,255,0.16); --focus-color: rgba(255,255,255,0.22); --number-color: #ffc27a; --string-color: #8ce8e2; --font-family: var(--font); --font-size: 12px; --input-font-size: 12px; --width: 270px; border-radius: 12px; overflow: hidden; backdrop-filter: blur(14px); border: 1px solid var(--stroke); }
+body:not(.started) #guiHost { display: none; }
+/* Cinematic letterbox bars */
+.bars::before, .bars::after { content: ""; position: fixed; left: 0; right: 0; height: 0; background: #000; z-index: 5; transition: height 0.8s cubic-bezier(.6,0,.2,1); pointer-events: none; }
+.bars::before { top: 0; }
+.bars::after { bottom: 0; }
+body.cinematic.bars::before, body.cinematic.bars::after { height: 9vh; }
+body.cinematic.started .dash, body.cinematic.started .score, body.cinematic.started .hints { opacity: 0.35; }
+#cut { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 6; }
+#cut.go { animation: cut 0.38s ease; }
+@keyframes cut { 0% { opacity: 0; } 35% { opacity: 0.85; } 100% { opacity: 0; } }
+/* Help */
+#help { position: fixed; inset: 0; z-index: 40; display: none; place-items: center; background: rgba(0,0,0,0.45); padding: 16px; }
+#help.show { display: grid; }
+#help .panel { max-width: 560px; width: 100%; padding: 22px 24px; }
+#help h3 { margin: 0 0 12px; }
+#help ul { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; font-size: 13.5px; }
+#help li { color: var(--muted); }
+#help .close { margin-top: 16px; }
+#help p { color: var(--muted); font-size: 12.5px; line-height: 1.7; margin: 14px 0 0; }
+/* Legacy touch controls (replaced by gptouch on touch devices) */
+.touch { display: none; }
+@media (pointer: coarse) {
+  .touch { display: block; }
+  .hints { display: none; }
+}
+.touch .pad { position: absolute; bottom: 150px; display: flex; gap: 10px; pointer-events: auto; }
+.touch .left { left: 16px; }
+.touch .right { right: 16px; flex-direction: column; align-items: flex-end; }
+.touch .rowb { display: flex; gap: 10px; }
+.tbtn { pointer-events: auto; width: 60px; height: 60px; border-radius: 50%; border: 1px solid var(--stroke); background: var(--glass); backdrop-filter: blur(10px); font-size: 22px; display: grid; place-items: center; touch-action: none; }
+.tbtn.on, .tbtn:active { background: rgba(255, 181, 71, 0.4); }
+.tbtn.big { width: 72px; height: 72px; }
+#fallback { position: fixed; inset: 0; display: grid; place-items: center; z-index: 99; background: #0d1424; padding: 24px; text-align: center; }
+@media (max-width: 900px) {
+  .cams { top: calc(max(14px, env(safe-area-inset-top)) + 58px); left: 16px; right: 16px; transform: none; overflow-x: auto; scrollbar-width: none; }
+  .cams::-webkit-scrollbar { display: none; }
+  .cams button { padding: 6px 9px; font-size: 12px; }
+  .brand small { display: none; }
+  .gauge { width: 96px; height: 96px; }
+  .gauge .val b { font-size: 28px; }
+  .score { min-width: 0; padding: 10px 12px; }
+  .stats { font-size: 11.5px; gap: 3px 10px; }
+  .stats b { font-size: 13px; }
+  .timebar { display: none; }
+  #help ul { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .brand > div { display: none; }
+  .dash { padding: 8px 10px 8px 8px; gap: 8px; }
+  .stats { display: none; }
+  .tools { gap: 4px; padding: 5px; }
+  .tools .icon-btn { width: 32px; height: 32px; font-size: 14px; }
+  .tools .icon-btn svg { width: 16px; height: 16px; }
+  .brand { padding: 8px 10px; }
+  .brand b { font-size: 13px; }
+}
+@media (max-width: 1180px) { .hints { display: none; } }
+@media (max-height: 620px) {
+  .intro-art { width: 150px; }
+  h1 { font-size: 30px; }
+  .sub { margin: 4px 0 10px; font-size: 13px; }
+  .chips { display: none; }
+  .keys-hint { margin-top: 10px; font-size: 11px; line-height: 1.7; }
+  .btn-primary { padding: 11px 24px; font-size: 15px; }
+  .btn-ghost { padding: 11px 18px; font-size: 13px; }
+}
+@media (max-height: 420px) { .keys-hint, .intro-art { display: none; } }
+@media (prefers-reduced-motion: reduce) { .intro-art * { animation: none !important; } }
+</style>
+</head>
+<body class="bars">
+<div id="app"></div>
+<div id="cut"></div>
+<div id="fallback" hidden>This browser doesn't support WebGL, so the 3D scene can't be shown. Please try a recent Chrome / Edge / Safari.</div>
+
+<section id="intro">
+  <div class="intro-card">
+    <svg class="intro-art" viewBox="0 0 300 190" aria-hidden="true">
+      <line class="road" x1="0" y1="178" x2="300" y2="178" stroke="rgba(255,255,255,0.5)" stroke-width="3" />
+      <g class="wheel"><circle cx="84" cy="140" r="36" fill="none" stroke="#3fd0c9" stroke-width="5"/><path d="M84 104 V176 M48 140 H120 M59 115 L109 165 M59 165 L109 115" stroke="#cfe" stroke-width="1.3"/></g>
+      <g class="wheel"><circle cx="210" cy="140" r="36" fill="none" stroke="#3fd0c9" stroke-width="5"/><path d="M210 104 V176 M174 140 H246 M185 115 L235 165 M185 165 L235 115" stroke="#cfe" stroke-width="1.3"/></g>
+      <path d="M84 140 L140 142 L186 98 L118 98 Z M140 142 L112 84 M210 140 L192 80 L178 78" fill="none" stroke="#138a8a" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+      <g class="bob">
+        <g stroke="#7c4f27" stroke-width="7" stroke-linecap="round">
+          <path d="M82 74 L52 40"/><path d="M84 70 L62 30"/><path d="M86 68 L80 24"/><path d="M88 68 L102 28"/><path d="M90 70 L116 38"/>
+        </g>
+        <path d="M78 78 L118 62 L112 84 L84 88 Z" fill="#2a1a0e"/>
+        <ellipse cx="122" cy="72" rx="47" ry="31" fill="#96622f" transform="rotate(-16 122 72)"/>
+        <ellipse cx="132" cy="80" rx="30" ry="18" fill="#eed9a4" transform="rotate(-16 132 80)"/>
+        <path d="M152 58 C 172 42, 156 24, 168 12" stroke="#96622f" stroke-width="15" fill="none" stroke-linecap="round"/>
+        <circle cx="170" cy="12" r="13" fill="#96622f"/>
+        <path d="M158 2 L186 2 L182 10 L162 10 Z" fill="#26221f"/>
+        <rect x="155" y="8" width="34" height="4" fill="#26221f"/>
+        <rect x="168" y="3" width="7" height="6" fill="#e8b13c"/>
+        <path d="M178 8 L206 16 L180 18 Z" fill="#d9c39a"/>
+        <path d="M176 18 Q 184 34 178 40 Q 170 30 176 18 Z" fill="#c22e2e"/>
+        <circle cx="172" cy="11" r="2.6" fill="#1a0c08"/>
+        <path d="M102 78 L150 100" stroke="#241a12" stroke-width="7" stroke-linecap="round"/>
+        <path d="M118 92 L138 142" stroke="#9c5a44" stroke-width="5" stroke-linecap="round"/>
+        <path d="M150 50 C 120 40, 96 58, 70 50" stroke="#c1551f" stroke-width="7" fill="none" stroke-linecap="round"/>
+      </g>
+    </svg>
+    <h1>Gobble Ride</h1>
+    <p class="sub">A turkey in a pilgrim hat and russet scarf, riding a vintage bike along a harvest coastline, gobbling up pumpkins and pies.<br />Golden hour, starlight, waves and street lamps — all generated in real time, not one external texture.</p>
+    <div class="chips">
+      <span class="chip">Procedural modelling</span><span class="chip">Two-bone IK pedalling</span><span class="chip">Verlet cloth scarf</span><span class="chip">Gerstner waves</span><span class="chip">Day–night cycle</span><span class="chip">Synth SFX + generative music</span><span class="chip">Treat-collecting game</span>
+    </div>
+    <div class="cta">
+      <button class="btn-primary" id="startBtn">Start Riding ▶</button>
+      <button class="btn-ghost" id="startMute">Enter Muted</button>
+    </div>
+    <div class="keys-hint">
+      <kbd>W</kbd><kbd>S</kbd> Pedal / Brake <kbd>A</kbd><kbd>D</kbd> Change lane for treats <kbd>Space</kbd> Jump <kbd>T</kbd> Wing trick<br />
+      <kbd>B</kbd> Bell <kbd>H</kbd> Gobble <kbd>C</kbd> Camera <kbd>N</kbd> Skip 3 hours Tap the turkey / bell / sea for surprises
+    </div>
+  </div>
+</section>
+
+<div class="hud">
+  <div class="brand panel"><span class="logo">🦃</span><div><b>Gobble Ride</b><small>Turkey on a Bike · Real-time 3D</small></div></div>
+  <div class="cams panel">
+    <button data-cam="orbit">Orbit</button>
+    <button data-cam="chase">Chase</button>
+    <button data-cam="side">Side</button>
+    <button data-cam="cine">Cinematic</button>
+    <button data-cam="pov">Turkey POV</button>
+  </div>
+  <div class="tools panel">
+    <button class="icon-btn" data-act="shot" title="Screenshot (K)">📸</button>
+    <button class="icon-btn" data-act="music" title="Music (M)">🎵</button>
+    <button class="icon-btn" data-act="share" title="Copy share link">🔗</button>
+    <button class="icon-btn" data-act="full" title="Fullscreen (F)">⛶</button>
+    <button class="icon-btn" data-act="gui" title="Settings panel">⚙️</button>
+    <button class="icon-btn" data-act="help" title="Help">?</button>
+  </div>
+  <div id="fps" class="panel" hidden></div>
+  <div class="dash panel">
+    <div class="gauge">
+      <svg viewBox="0 0 124 124">
+        <defs><linearGradient id="gGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3fd0c9"/><stop offset="0.6" stop-color="#ffc27a"/><stop offset="1" stop-color="#ff5a6e"/></linearGradient></defs>
+        <circle class="bg" cx="62" cy="62" r="52"/>
+        <circle class="fg" id="speedArc" cx="62" cy="62" r="52" style="stroke-dashoffset: 245"/>
+      </svg>
+      <div class="val"><div><b id="speedVal">0</b><small>KM/H</small></div></div>
+    </div>
+    <div class="stats">
+      <span>Cadence</span><b><span id="cadVal" style="color:inherit">0</span> <small style="color:var(--muted);font-weight:400">rpm</small></b>
+      <span>Gear</span><b id="gearVal">3/5</b>
+      <span>Distance</span><b><span id="distVal" style="color:inherit">0.00</span> <small style="color:var(--muted);font-weight:400">km</small></b>
+      <span>Camera</span><b id="camLabel" style="font-size:13px">Cinematic</b>
+    </div>
+  </div>
+  <div class="hints panel">
+    <span><kbd>W</kbd>/<kbd>S</kbd> Pedal/Brake</span><span><kbd>A</kbd>/<kbd>D</kbd> Lane</span><span><kbd>Space</kbd> Jump</span><span><kbd>T</kbd> Trick</span><span><kbd>B</kbd> Bell</span><span><kbd>C</kbd> Camera</span><span><kbd>U</kbd> Hide UI</span>
+  </div>
+  <div class="score panel">
+    <div class="row">
+      <div class="fish"><span class="ico">🎃</span><span id="fishCount">0</span></div>
+      <div class="ach">Achievements<br /><b id="achCount">0/14</b></div>
+    </div>
+    <div class="timebar">
+      <span id="sunIcon">🌅</span>
+      <input id="timeSlider" type="range" min="0" max="24" step="0.01" value="17.3" aria-label="Time of day" />
+      <span id="clockVal">17:18</span>
+      <button class="icon-btn on" data-act="flow" title="Time flow" style="width:30px;height:30px;font-size:13px">⏯</button>
+    </div>
+  </div>
+  <div class="touch">
+    <div class="pad left">
+      <button class="tbtn big" data-key="left">◀</button>
+      <button class="tbtn big" data-key="right">▶</button>
+    </div>
+    <div class="pad right">
+      <div class="rowb"><button class="tbtn" data-act="bell">🔔</button><button class="tbtn" data-act="trick">🪽</button><button class="tbtn" data-act="jump">⤒</button></div>
+      <div class="rowb"><button class="tbtn big" data-key="down">▼</button><button class="tbtn big" data-key="up">▲</button></div>
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<div id="guiHost"></div>
+<div id="help">
+  <div class="panel">
+    <h3>How to Ride</h3>
+    <ul>
+      <li><kbd>W</kbd>/<kbd>↑</kbd> Pedal</li><li><kbd>S</kbd>/<kbd>↓</kbd> Brake (listen for the freewheel clicks)</li>
+      <li><kbd>A</kbd>/<kbd>D</kbd> Change lane to grab treats</li><li><kbd>Space</kbd> Jump</li>
+      <li><kbd>T</kbd> Wing trick + wheelie</li><li><kbd>B</kbd> Ring the bell</li>
+      <li><kbd>H</kbd> Gobble</li><li><kbd>C</kbd> Switch camera</li>
+      <li><kbd>Q</kbd>/<kbd>E</kbd> Shift gears manually</li><li><kbd>N</kbd> Skip time ahead 3 hours</li>
+      <li><kbd>M</kbd> Music on/off</li><li><kbd>K</kbd> Screenshot · <kbd>F</kbd> Fullscreen</li>
+      <li><kbd>U</kbd> Hide UI</li><li><kbd>P</kbd> Pause</li>
+    </ul>
+    <p>Drag to orbit the view, scroll to zoom. Tap the turkey and it gobbles; tap the bell and it rings; tap the far sea and a fish leaps out. Leave it alone for a few seconds and the turkey autopilots after the next treat — a whole pie is worth 5. The background music is synthesized live, and its tempo follows your pedalling.</p>
+    <button class="btn-ghost close" data-act="help">Got it</button>
+  </div>
+</div>
+<style>
+body.gptouch .touch{display:none!important}
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/",
+  "lil-gui":"https://cdn.jsdelivr.net/npm/lil-gui@0.21.0/+esm"
+}}
+</script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
