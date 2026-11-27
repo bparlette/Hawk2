@@ -204,6 +204,13 @@ states.forEach(s => { s.maxH = columns.reduce((a, c) => (c.state === s ? Math.ma
    first as bodies come to rest or are swallowed. Resting / standing / pending figures cost nothing per step.
    Determinism: fixed 1/60 steps (gp3d), the seeded PR() stream, and a sim clock (simT) that resets with the game. */
 const G = 26, BUDGET = 220, LIE = .12, RIMW = 1.4, HEADY = 1.95;
+/* TASK 4 — the CAPTURE FIELD (owner: "act more like a black hole"): radius FIELD x the rim (swallow) radius. Inside it:
+   standing base figures lean toward the hole (pitch grows as the distance closes), lose their footing and fall toward it;
+   downed figures are woken and DRAGGED — they inherit DRAG_INHERIT of the hole's velocity plus a steady inward pull, so a
+   moving hole sweeps a tumbling comet-tail that lags to its trailing side and feeds the rim. Outside the field nothing is
+   pulled: only Task 1 physics moves a figure there, and what the hole leaves behind lies where it stopped. */
+const FIELD = 2.2, DRAG_INHERIT = .85;
+let fieldRad = 5, fieldViol = 0;
 let simT = 0, active = [], pending = [], restGrid = new Map(), peakActive = 0, doomedN = 0;
 const tee = { n: 0, min: 1e9 };
 const colGrid = new Map(), CG = 3;
@@ -234,6 +241,7 @@ function activate(p) {
   const off = p.mode === 'pend' ? p.frozeOff : swayOff(p), col = p.col;
   p.x = p.x0 + col.dirX * off; p.z = p.z0 + col.dirZ * off; p.y = p.y0;
   const sg = off >= 0 ? 1 : -1; let dx = col.dirX * sg, dz = col.dirZ * sg;
+  if (p.fieldTip) { dx = 0; dz = 0; p.fieldTip = false; }   // the field tips it straight at the hole
   const th = Math.hypot(hx - p.x, hz - p.z) || 1; dx += (hx - p.x) / th * .35; dz += (hz - p.z) / th * .35;
   const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
   const hs = (.45 + .11 * p.lvl) * PR(.8, 1.2);
@@ -267,8 +275,13 @@ function swallow(p) {                                        // into the disc (B
 const _ax = [0, 0, 0];
 function stepBody(p, dt, trig) {
   p.vy -= G * dt;
-  const dh = Math.hypot(hx - p.x, hz - p.z);
-  if (dh < trig * 2.2) { p.vx += (hx - p.x) * dt * 1.6; p.vz += (hz - p.z) * dt * 1.6; }   // the hole's pull near the rim
+  const dh = Math.hypot(hx - p.x, hz - p.z), inF = dh < fieldRad;
+  if (inF) {                                                 // drag-along: hole velocity x DRAG_INHERIT + inward pull, eased in
+    const u = 1 - dh / fieldRad, pull = .8 + 2.5 * u * u, nx = (hx - p.x) / (dh || 1), nz = (hz - p.z) / (dh || 1);
+    const tx = hvx * DRAG_INHERIT + nx * pull, tz = hvz * DRAG_INHERIT + nz * pull, e = Math.min(1, dt * 8);
+    if (dh >= fieldRad) fieldViol++;
+    p.vx += (tx - p.vx) * e; p.vz += (tz - p.vz) * e;
+  }
   p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
   p.pitch = clamp(p.pitch + p.pitchV * dt, -1.52, 1.52); p.roll = clamp(p.roll + p.rollV * dt, -1.52, 1.52);
   if (p.y < SLAB + 3 && (p.contact === 0 || (p.gyT = (p.gyT || 0) + 1) % 8 === 0)) p.gy = groundAt(p.x, p.z, p.state);
@@ -276,7 +289,7 @@ function stepBody(p, dt, trig) {
   if (low <= p.gy) {
     p.y += p.gy - low; p.contact++;
     if (p.vy < -3) p.vy = -p.vy * .22; else p.vy = 0;
-    const fr = Math.pow(.02, dt); p.vx *= fr; p.vz *= fr;
+    if (!inF) { const fr = Math.pow(.02, dt); p.vx *= fr; p.vz *= fr; }   // in the field it is dragged, not braked
     // on the ground the body keeps toppling flat: angular velocity drives toward lying, then damps
     const tp = Math.abs(p.pitch) >= Math.abs(p.roll);
     if (tp) { p.pitchV += (p.pitch >= 0 ? 1 : -1) * 9 * dt; p.rollV *= Math.pow(.01, dt); } else { p.rollV += (p.roll >= 0 ? 1 : -1) * 9 * dt; p.pitchV *= Math.pow(.01, dt); }
@@ -304,7 +317,7 @@ function stepBody(p, dt, trig) {
   if (p.y < p.gy + .8) { const k0x = Math.floor(p.x), k0z = Math.floor(p.z);
     for (let ix = -1; ix <= 1; ix++) for (let iz = -1; iz <= 1; iz++) { const a = restGrid.get((k0x + ix) * 73856093 ^ (k0z + iz) * 19349663); if (!a) continue;
       for (const q of a) { const ddx = p.x - q.x, ddz = p.z - q.z, d = Math.hypot(ddx, ddz); if (d < .45 && d > 1e-4) { p.x += ddx / d * (.45 - d); p.z += ddz / d * (.45 - d); } } } }
-  if (p.contact > 6 && Math.hypot(p.vx, p.vz) < .5 && Math.abs(p.vy) < .6) return 'rest';
+  if (!inF && p.contact > 6 && Math.hypot(p.vx, p.vz) < .5 && Math.abs(p.vy) < .6) return 'rest';
   return null;
 }
 function stepBodies(dt, trig) {
@@ -341,9 +354,9 @@ function stateDone(s) {                                      // TASK 3: the real
   const t0 = st.t, k = 2 + size * .8; st.cine([{ t: t0, p: [0, 0, 0] }, { t: t0 + .45, p: [0, k, k * .8] }, { t: t0 + 1.7, p: [0, 0, 0] }]);
 }
 function reset() {
-  _pr = mulberry(SEED + 99); simT = 0; active = []; pending = []; restGrid = new Map(); peakActive = 0; doomedN = 0; tee.n = 0; tee.min = 1e9;
+  _pr = mulberry(SEED + 99); simT = 0; fieldViol = 0; active = []; pending = []; restGrid = new Map(); peakActive = 0; doomedN = 0; tee.n = 0; tee.min = 1e9;
   for (const p of persons) { p.fall = 0; p.gone = false; p.s = 1; p.mode = 'stand'; p.x = p.x0; p.z = p.z0; p.y = p.y0; p.pitch = 0; p.roll = 0; p.vy = 0; p.vx = 0; p.vz = 0;
-    p.doomed = false; p.rimT = -1; p.kx = p.kz = 0; p.contact = 0; p.gyT = 0; }
+    p.doomed = false; p.rimT = -1; p.kx = p.kz = 0; p.contact = 0; p.gyT = 0; p.fieldT = -1; p.lean = 0; p.fieldTip = false; }
   for (const c of columns) { c.standH = c.h; c.touched = false; }
   for (const s of states) { s.eatenCount = 0; s.announced = false; }
   hx = _ga.cx; hz = _ga.cz; hvx = hvz = 0; eatenVol = 0; peopleEaten = 0; statesDone = 0; size = 2.0; sizeLock = 0; scripted = null; tleft = TEST ? 1e9 : S.seconds; over = false;
@@ -366,7 +379,7 @@ function update(dt) {
   const wx = l ? mx / l * vm : 0, wz = l ? mz / l * vm : 0; hvx += (wx - hvx) * kk; hvz += (wz - hvz) * kk;
   hx = clamp(hx + hvx * dt, -118, 118); hz = clamp(hz + hvz * dt, -88, 88);
 
-  const trig = size * .92 + .4, rim = trig + RIMW;
+  const trig = size * .92 + .4, rim = trig + RIMW; fieldRad = trig * FIELD; const reach = Math.max(rim, fieldRad) + .5;
   for (const p of persons) {
     if (p.gone) continue;
     const m = p.mode;
@@ -381,16 +394,22 @@ function update(dt) {
       continue;
     }
     if (m === 'act' || m === 'pend') continue;               // bodies step below; pending wait frozen
-    const dx = p.x - hx, dz = p.z - hz; if (dx > rim + 2 || dx < -rim - 2 || dz > rim + 2 || dz < -rim - 2) { if (m === 'stand' && p.rimT >= 0 && !p.doomed) p.rimT = -1; }
+    const dx = p.x - hx, dz = p.z - hz; if (dx > reach || dx < -reach || dz > reach || dz < -reach) { if (m === 'stand' && p.rimT >= 0 && !p.doomed) p.rimT = -1; if (p.fieldT >= 0 && m === 'stand') { p.fieldT = -1; p.lean = 0; } }
     else { const d = Math.hypot(dx, dz);
-      if (m === 'rest') { if (d < trig) swallow(p); continue; }
+      if (m === 'rest') { if (d < trig) swallow(p); else if (d < fieldRad && active.length < BUDGET) { delRest(p); p.mode = 'act'; p.contact = 1; active.push(p); peakActive = Math.max(peakActive, active.length); } continue; }
+      /* TASK 4 field on a standing BASE figure: lean toward the hole (grows as it closes), then lose footing — sooner
+         the closer it stands (0.15 s at the rim .. 0.75 s at the field edge); never faster than the rim teeter */
+      if (p.lvl === 0 && !p.doomed) {
+        if (d < fieldRad) { if (p.fieldT < 0) p.fieldT = simT; const u = 1 - d / fieldRad; p.lean = (.25 + .9 * u) * Math.min(1, (simT - p.fieldT + dt) / .25);
+          if (simT - p.fieldT >= .15 + .6 * (d / fieldRad) && (p.rimT < 0 || simT - p.rimT >= p.tt) && d >= trig) { p.fieldTip = true; p.frozeOff = swayOff(p); release(p); continue; } }
+        else if (p.fieldT >= 0 && d > fieldRad + .3) { p.fieldT = -1; p.lean = 0; } }
       /* standing. TASK 3 TEETER: entering the rim starts the clock; the base figure only drops after its seeded
          0.15-0.3 s teeter (pre() wobbles it, amplitude growing) — panic, then the swallow */
       if (d < rim) { if (p.rimT < 0) { p.rimT = simT; p.tt = PR(.15, .3); } p.col.touched = true; }
       else if (p.rimT >= 0 && !p.doomed && d > rim + .5) p.rimT = -1;
       if (p.lvl === 0 && d < trig && p.rimT >= 0 && simT - p.rimT >= p.tt) { swallow(p); continue; }
     }
-    if (m === 'stand' && p.doomed && simT >= p.doomAt) { p.frozeOff = swayOff(p); release(p); }
+    if (m === 'stand' && p.doomed && simT >= p.doomAt && (p.rimT < 0 || simT - p.rimT >= p.tt)) { p.frozeOff = swayOff(p); release(p); }   // a doomed figure that wandered into the rim still teeters first
   }
   stepBodies(dt, trig);
   fx.update(dt);
@@ -436,6 +455,8 @@ function pre() {
       let roll = Math.sin(simT * 1.15 + col.phase - p.lvl * .38) * .06 * f * (doomed ? 2.5 : 1), pitch = Math.cos(simT * .95 + col.phase - p.lvl * .3) * .045 * f;
       let ox = 0; if (doomed) ox = Math.sin(simT * 31 + i) * .06;
       if (p.rimT >= 0) { const a = Math.min(1, (simT - p.rimT) / .3); roll += Math.sin(simT * 26 + i * 1.7) * .16 * a; pitch += Math.cos(simT * 21 + i) * .1 * a; }
+      if (p.lean > 0) { const ddx = hx - p.x0, ddz = hz - p.z0, dd = Math.hypot(ddx, ddz) || 1, ux = ddx / dd, uz = ddz / dd, sn = Math.sin(p.rot), ct = Math.cos(p.rot);
+        pitch += p.lean * (ux * sn + uz * ct); roll -= p.lean * (ux * ct - uz * sn); }   // the field leans it toward the hole
       cr.set(i, p.x0 + col.dirX * (off + ox), p.y0, p.z0 + col.dirZ * (off + ox), p.sc, p.rot, pitch, roll);
     }
   }
@@ -498,6 +519,11 @@ window.__SIM = { ready: true,
   teeterStats: () => ({ transitions: tee.n, minRimToFall: +tee.min.toFixed(3) }),
   completeState: ab => stateDone(byAbbr[ab]), factLine: ab => factLine(byAbbr[ab]), lastBanner: () => banners[banners.length - 1],
   data: ab => { const s = byAbbr[ab]; return { name: s.name, pop: s.pop, maxH: s.maxH }; },
+  figOf: (id, L) => columns[id].figs[L].i, rimR: () => size * .92 + .4, fieldR: () => (size * .92 + .4) * FIELD, rimZoneR: () => size * .92 + .4 + RIMW,
+  figInfo: i => { const p = persons[i]; return { mode: p.gone ? 'gone' : p.mode, x: p.x, z: p.z, y: p.y, lean: p.lean || 0 }; },
+  placeDowned: (i, x, z) => { const p = persons[i]; if (p.mode === 'stand') leaveStand(p); p.x = x; p.z = z; p.pitch = 1.45; p.roll = 0; p.mode = 'act'; setRest(p); },
+  outsideField: R => persons.filter(p => !p.gone && (p.mode === 'stand' || p.mode === 'rest') && Math.hypot(p.x - hx, p.z - hz) > R).map(p => [p.i, p.x, p.z, p.mode]),
+  colStanding: id => columns[id].figs.filter(f => !f.gone && f.mode === 'stand').length, fieldViolations: () => fieldViol,
   counts: () => window.__SAMPLE.counts(), simCost: () => ({ updateMs: +simCostMs.toFixed(2), preMs: +preCostMs.toFixed(2) })
 };
 </script>
