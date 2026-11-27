@@ -1,0 +1,11 @@
+PASS collapse-budget  {"peak":72,"peakTracked":72,"maxPend":0,"settled":true,"fallen":219}
+PASS collapse-determinism  {"values":21812,"mismatches":0,"worst":0,"figuresDisturbed":206}
+PASS no-floaters  [{"ab":"CA","settled":true,"floaters":0,"rested":139,"standing":5309,"falling":0,"ex":[]},{"ab":"TX","settled":true,"floaters":0,"rested":284,"standing":5159,"falling":0,"ex":[]},{"ab":"NY","settled":true,"floaters":0,"rested":398,"standing":5040,"falling":0,"ex":[]},{"ab":"FL","settled":true,"floaters":0,"rested":501,"standing":4932,"falling":0,"ex":[]},{"ab":"PA","settled":true,"floaters":0,"rested":573,"standing":4855,"falling":0,"ex":[]},{"ab":"OH-drive","settled":true,"floaters":0,"rested":695,"standing":4686,"falling":0,"ex":[]}]
+PASS domino  [{"ab":"CA","A":25,"neighbours":6,"knocked":5,"holeTouched":false},{"ab":"TX","A":22,"neighbours":6,"knocked":2,"holeTouched":false},{"ab":"NY","A":17,"neighbours":6,"knocked":4,"holeTouched":false}]
+FAIL perf-frame  {"persons":5453,"active":0,"medianMs":616.6,"p90Ms":666.6,"simMs":{"updateMs":0.15,"preMs":1.49},"renderer":"ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"}
+PASS hole-speed-curve  [{"r":2,"table":11,"measured":11,"err":0},{"r":3.5,"table":9.8,"measured":9.8,"err":0},{"r":5,"table":8.6,"measured":8.6,"err":0},{"r":7,"table":7.4,"measured":7.399,"err":0.0001},{"r":10,"table":6.2,"measured":6.195,"err":0.0008}]
+PASS ca-framing  {"h":25,"border":[-112.7218973500576,-11.535401404317291],"top":{"x":290,"y":64,"inFront":true},"w":390,"hgt":844}
+PASS teeter-before-fall  {"transitions":352,"minRimToFall":0.167}
+  FLAG banner-facts: spec example says Texas 30.5M; data table gives 31.7M — banner follows the data
+PASS banner-facts  [{"ab":"TX","got":"Texas down — 31.7M people · tallest stack 22","want":"Texas down — 31.7M people · tallest stack 22","pop":31709821,"maxH":22,"ok":true},{"ab":"WY","got":"Wyoming down — 0.6M people · tallest stack 3","want":"Wyoming down — 0.6M people · tallest stack 3","pop":588753,"maxH":3,"ok":true},{"ab":"OH","got":"Ohio down — 11.9M people · tallest stack 12","want":"Ohio down — 11.9M people · tallest stack 12","pop":11900510,"maxH":12,"ok":true}]
+8/9 passed, page errors: 0

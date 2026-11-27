@@ -51,3 +51,62 @@ State-surface painting, sky/water grade, landmarks, skyline silhouette art. If p
 
 ## DONE protocol
 Append DONE entries here with: what changed, the spec-test results, play-evidence links/paths, SHOW YOUR WORK. Then immediately take the next task in this file; if none remain, say so in the DONE entry — Moth restocks the queue.
+
+---
+
+## DONE — TASK 1 · TASK 2 · TASK 3 (Opus, Nov 27)
+
+**Spec tests:** `node games/state-hole/tests/spec.cjs`. All nine were written first and pushed red (`ed721c3`, 0/9); the implementation followed (`3243bdd`). **Result: 8/9 pass, 0 page errors.** The full output is in `tasking/opus-shots/spec-results.txt`.
+
+| Test | Result |
+|---|---|
+| collapse-budget | **PASS**: CA's 25-stack plus 9 neighbours; peak active **72 ≤ 220** on every step; settles |
+| collapse-determinism | **PASS**: scripted 6 s drive on seed 7, twice; **0 mismatches** over all 5,453 figures (x, y, z, mode); 206 disturbed |
+| no-floaters | **PASS**: CA / TX / NY / FL / PA collapses plus an OH drive; after each settles, **0 floaters** (every figure standing on the slab or a standing figure, or lying exactly on the ground) |
+| domino | **PASS**: eat tower A's base only, hole parked off-map; **5 / 2 / 4 neighbour towers knocked** (CA / TX / NY); the hole never touched them |
+| **perf-frame** | **FAIL (flagged to Moth).** 616 ms median frame on this harness: **SwiftShader (CPU rasterizer)**, `ANGLE (Vulkan 1.3.0 (SwiftShader Device (Subzero)))`. The sim is **0.15 ms update + 1.5 ms pose/upload per frame**; the remaining ~615 ms is CPU rasterization of 5,453 instanced figures at 390×844. I won't claim phone numbers from this renderer. Needs a GPU harness profile to judge. The test is unchanged. |
+| hole-speed-curve | **PASS**: measured top speed at r = 2 / 3.5 / 5 / 7 / 10 matches the table within 0.08% (11 → 6.2 m/s, strictly decreasing) |
+| ca-framing | **PASS**: hole on CA's border vertex nearest its 25-stack; the stack's top projects at (290, 64), inside 390×844 |
+| teeter-before-fall | **PASS**: 352 standing → falling transitions inside the rim; minimum 0.167 s (≥ 0.12) |
+| banner-facts | **PASS** for TX / WY / OH against the data table. **FLAG:** this file's example says "Texas down — 30.5M people", but the build's data table has TX = 31,709,821, so the banner reads "Texas down — 31.7M people · tallest stack 22". The banner follows the data. Moth: if 30.5M is the intended figure, the data table is what to change. |
+
+**What changed** (`index.html`, one file; nothing in Neon's lane touched):
+
+- **Determinism.** Layout and physics use seeded mulberry32 streams (`?seed=`, default 7). The physics stream reseeds on reset. A sim clock (`simT`) drives sway and teeter, so a body starts exactly where its figure was drawn. The vendor's `Math.random` is left to particles and camera shake.
+- **Task 1: support graph.**
+  - Each figure's support is the slab (level 0) or the figure below it. Leaving the standing pose (eaten, or becoming a body) dooms the figure above. That figure trembles for a seeded 0.03–0.07 s, or ≥ 0.15 s if it is inside the rim, then becomes an **active body**.
+  - **Bodies:** gravity 26; an initial tip along the column's current lean plus 35% toward the hole; horizontal speed grows with height (0.45 + 0.11 × level).
+  - **Collision:** an angular tip (pitch / roll decomposed through the figure's yaw), and a 2-sphere capsule (mid and head) against:
+    - the slab or ocean floor (bounce, friction, topple flat, then **rest** lying exactly at ground + 0.12);
+    - other bodies (separation plus velocity exchange);
+    - resting bodies, **sideways only, so nothing ever rests on a body** (the grounding invariant);
+    - **standing figures of other columns**: a hit above 1.1 m/s knocks that figure loose with an impulse, and its column loses support above it (**domino**).
+  - **Budget:** at most 220 active bodies. Overflow waits **frozen** (pending) and is released nearest-to-hole first as bodies rest or are swallowed. Standing, resting and pending figures cost nothing per step.
+- **Task 2: hole and camera.**
+  - **Hole speed:** `VMAX` table `[[2,11],[3.5,9.8],[5,8.6],[7,7.4],[10,6.2],[14,5.4]]`. The hole accelerates toward v_max(r) with response 14/(1 + 0.25 r): heavier means slower and swingier.
+  - **Camera:** BHC's follow camera, scaled out by `camK`. Every 6 frames it finds the **tallest still-standing tower within 16 + 2.5 r**, then finds the smallest scale at which a probe camera projects that tower's head inside the viewport (|x| ≤ 0.9, y ≤ 0.86 NDC), and eases to it.
+  - **Cine:** a pull-back on every state completion; the opening reveal is kept.
+- **Task 3: eat feel.**
+  - **Rim teeter:** entering the rim (trigger + 1.4) starts a seeded 0.15–0.3 s teeter, with roll and pitch wobble that grows over 0.3 s. A base figure drops only after it. Support loss inside the rim honours the same clock.
+  - **Completion banner:** `"<Name> down — <pop/1e6, 1 dp>M people · tallest stack <max column height>"` from the inlined table.
+
+**Play evidence, real input:** `tests/play-capture.cjs` boots the served build with **no test hooks** and drives it only with CDP touch events: a tap to start, then a held finger swept in a figure-eight. 150 s of wall time on the CPU renderer; **0 page errors**; 233 people eaten, size 3.6, collapses active throughout.
+
+| File | Contents |
+|---|---|
+| `tasking/opus-shots/play-real-touch-drag.mp4` | the capture |
+| `play-real-touch-contact-sheet.png` | the capture as stills |
+| `collapse-bodies-on-slab-390x844.png` | toppled figures lying on the slabs beside crumbled towers |
+| `play-log.json` | per-shot HUD: size, eaten, active, pending |
+
+**Served-build verification:** both harnesses serve the folder over HTTP, so the ES-module imports resolve the way they do on Pages. The game booted and ran with 0 page errors in both.
+
+**SHOW YOUR WORK.**
+- **Method:** I read the shipped v4 `index.html` and the vendor stage loop (gp3d already steps a fixed 1/60, which is what made determinism achievable). I then wrote the 9 specs against a `window.__SIM` hook contract and pushed them red. The sim replaced the scripted stagger in `update()` / `pre()`; layout code is unchanged except seeded randoms and column ids.
+- **Tools and commands:**
+  - `node games/state-hole/tests/spec.cjs [name…]`: Playwright Chromium at 390×844, local HTTP server, `?test=1&seed=7`, fixed-step `__SIM.step`;
+  - `node games/state-hole/tests/play-capture.cjs OUTDIR SECONDS SHOT_MS`: real touch;
+  - `ffmpeg` for the clip and contact sheet.
+- **Hooks:** `__SIM` scripts only the simulation (steps, move vector, hole placement). Play evidence never uses it.
+
+**Queue:** no tasks remain in this file. Moth, please restock. Open items: perf-frame needs a GPU profile; the Texas example number needs a ruling.
