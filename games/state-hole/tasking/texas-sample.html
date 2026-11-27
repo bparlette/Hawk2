@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>State Hole — Mission 1 Texas Sample (Neon)</title>
+<style>
+  #look-ui {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1200;
+    display: flex;
+    gap: 6px;
+    padding: 5px 7px;
+    border-radius: 999px;
+    background: rgba(18, 16, 28, 0.78);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  #look-ui a {
+    color: rgba(255, 255, 255, 0.86);
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 5px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  #look-ui a.active {
+    background: #ffd34d;
+    color: #191324;
+  }
+  body.clean-mode #look-ui { display: none; }
+</style>
+</head>
+<body>
+<nav id="look-ui" aria-label="Look selector">
+  <a href="?look=before" data-look="before">Before</a>
+  <a href="?look=A" data-look="A">A · Gouache</a>
+  <a href="?look=B" data-look="B">B · Watercolor</a>
+  <a href="?look=C" data-look="C">C · Impasto</a>
+</nav>
+<script type="module">
+/* MISSION 1 — TEXAS BEAUTY SAMPLE (A / B / C contenders + before baseline).
+   Imports ONLY from ../vendor/gp3d.js & ../vendor/gpkit.js.
+   People, shoulder towers, hole mechanics, physics, camera framing, and Census data
+   match ../index.html verbatim. Zero per-frame canvas redraws. */
+import { createStage, sfx, rand, clamp, THREE } from '../vendor/gp3d.js';
+import { toon, personGeo, crowd, particles, sky, walkClock } from '../vendor/gpkit.js';
+
+const qs = new URLSearchParams(location.search);
+const CLEAN = qs.has('clean') || qs.has('auto');
+if (CLEAN) document.body.classList.add('clean-mode');
+const rawLook = (qs.get('look') || 'A').trim();
+const upLook = rawLook.toUpperCase();
+const LOOK_ID = rawLook.toLowerCase() === 'before' ? 'before' : (['A', 'B', 'C'].includes(upLook) ? upLook : 'A');
+
+document.querySelectorAll('#look-ui a').forEach(a => {
+  a.classList.toggle('active', a.dataset.look === LOOK_ID);
+});
+
+const LOOKS = {
+  before: {
+    name: 'Before (Baseline)',
+    skyTop: 0x4aa8ff, skyBottom: 0xdff3ff, bg: 0x9fd8ff, fog: [160, 520],
+    hemi: [0xffffff, 0x445566, 1.1], dir: [0xffffff, 1.6, [4, 10, 6]],
+    paint: false
+  },
+  A: {
+    name: 'Look A · Palm Gouache',
+    skyTop: 0x3b9ae8, skyBottom: 0xffe4b8, bg: 0xffe4b8, fog: [85, 300],
+    hemi: [0xf7f9ff, 0x5d4b63, 1.12], dir: [0xfff4df, 1.56, [6, 11, 5]],
+    paint: {
+      mode: 'gouache',
+      baseScale: 0.90, baseWarm: 0.12,
+      strokeStep: 1.25, strokeLen: [2.0, 4.4], strokeW: [0.55, 1.25], strokeAlpha: [0.24, 0.44],
+      bloomCount: 16, bloomAlpha: 0.16,
+      bristleCount: 180,
+      edgeColor: '#3b2139', edgeRings: [[2.9, 0.08], [1.6, 0.14], [0.6, 0.27]], edgeRimLight: 0.06,
+      sideDarken: 0.62
+    },
+    ocean: {
+      shallow: 0x45b8c8, mid: 0x348db8, deep: 0x256fa0, horizon: 0xffd79e,
+      glint: 0xfff2cf, shimmerStrength: 0.18, waveScale: 0.36, speed: 0.55
+    }
+  },
+  B: {
+    name: 'Look B · Sunlit Watercolor Atlas',
+    skyTop: 0x4aa8f5, skyBottom: 0xffeed6, bg: 0xffeed6, fog: [95, 320],
+    hemi: [0xf9fcff, 0x675b73, 1.15], dir: [0xfff9ee, 1.54, [5, 12, 6]],
+    paint: {
+      mode: 'watercolor',
+      baseScale: 0.96, baseWarm: 0.24,
+      strokeStep: 1.65, strokeLen: [2.6, 5.4], strokeW: [0.85, 1.75], strokeAlpha: [0.14, 0.25],
+      bloomCount: 28, bloomAlpha: 0.22,
+      bristleCount: 70,
+      edgeColor: '#482946', edgeRings: [[3.2, 0.06], [1.4, 0.12], [0.42, 0.34]], edgeBleach: 0.13,
+      sideDarken: 0.66
+    },
+    ocean: {
+      shallow: 0x56c7cf, mid: 0x419ec9, deep: 0x2f7cb0, horizon: 0xffe4bc,
+      glint: 0xfff8e2, shimmerStrength: 0.15, waveScale: 0.30, speed: 0.48
+    }
+  },
+  C: {
+    name: 'Look C · Bold Impasto Sunset',
+    skyTop: 0x327ed4, skyBottom: 0xffcf91, bg: 0xffcf91, fog: [78, 275],
+    hemi: [0xf2f6ff, 0x55425e, 1.12], dir: [0xfff0d2, 1.60, [7, 10, 4]],
+    paint: {
+      mode: 'impasto',
+      baseScale: 0.85, baseWarm: 0.10,
+      strokeStep: 1.05, strokeLen: [1.8, 3.8], strokeW: [0.60, 1.35], strokeAlpha: [0.30, 0.52],
+      bloomCount: 14, bloomAlpha: 0.18,
+      bristleCount: 260,
+      edgeColor: '#2c1736', edgeRings: [[3.0, 0.10], [1.5, 0.18], [0.52, 0.32]], edgeRimLight: 0.11,
+      sideDarken: 0.58
+    },
+    ocean: {
+      shallow: 0x39acb8, mid: 0x287eae, deep: 0x1d588a, horizon: 0xffc684,
+      glint: 0xffe4aa, shimmerStrength: 0.22, waveScale: 0.42, speed: 0.62
+    }
+  }
+};
+const CFG = LOOKS[LOOK_ID];
+
+/* Extract STATE_DATA cleanly from ../index.html without duplicating Census polygons */
+const srcHtml = await fetch('../index.html').then(r => {
+  if (!r.ok) throw new Error('Failed to fetch ../index.html: ' + r.status);
+  return r.text();
+});
+const m = srcHtml.match(/const STATE_DATA = (\{[^\n]+\});/);
+if (!m) throw new Error('Could not locate STATE_DATA in ../index.html');
+const STATE_DATA = JSON.parse(m[1]);
+
+const S = {
+  title: 'STATE HOLE',
+  sub: 'Drag the hole. Swallow every state. 90 seconds.',
+  seconds: +(qs.get('seconds') || 90),
+  ringColor: 0x7b4bff,
+  skyTop: CFG.skyTop,
+  skyBottom: CFG.skyBottom,
+  bg: CFG.bg,
+  winScore: 2500
+};
+
+const st = createStage({ style: 'toon', bg: S.bg, fitWidth: 16, fov: 50 });
+if (LOOK_ID === 'before') {
+  st.light();
+} else {
+  const hl = new THREE.HemisphereLight(CFG.hemi[0], CFG.hemi[1], CFG.hemi[2]);
+  const dl = new THREE.DirectionalLight(CFG.dir[0], CFG.dir[1]);
+  dl.position.set(...CFG.dir[2]);
+  st.scene.add(hl, dl);
+}
+sky(st.scene, S.skyTop, S.skyBottom, CFG.fog);
+const fx = particles(st.scene, 400);
+
+/* ============================ world mapping ============================ */
+const WS = 240 / STATE_DATA.w;
+const wX = x => (x - STATE_DATA.w / 2) * WS;
+const wZ = y => (y - STATE_DATA.h / 2) * WS;
+const SLAB = 0.3;
+
+/* =================== deterministic noise + color utils ================= */
+function makeRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hash2(ix, iy) {
+  const n = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453123;
+  return n - Math.floor(n);
+}
+function vnoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy), b = hash2(ix + 1, iy), c = hash2(ix, iy + 1), d = hash2(ix + 1, iy + 1);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+function fbm(x, y) {
+  return vnoise(x, y) * 0.55 + vnoise(x * 2.13 + 7.1, y * 2.13 + 3.4) * 0.30 + vnoise(x * 4.41 + 19.3, y * 4.41 + 11.7) * 0.15;
+}
+/* Pure sRGB color helpers (avoid Three.Color Linear vs SRGB double-gamma shift) */
+function hexToRgb01(hex) {
+  if (typeof hex === 'string') hex = parseInt(hex.replace('#', ''), 16);
+  return [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
+}
+function rgb01ToHex([r, g, b]) {
+  const R = Math.round(clamp(r, 0, 1) * 255);
+  const G = Math.round(clamp(g, 0, 1) * 255);
+  const B = Math.round(clamp(b, 0, 1) * 255);
+  return (R << 16) | (G << 8) | B;
+}
+function lerpRgb(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+function rgbToHsl(r, g, b) {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) * 0.5;
+  if (max === min) return [0, 0, l];
+  const d = max - min, s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return [h / 6, s, l];
+}
+function hslToRgb(h, s, l) {
+  h = ((h % 1) + 1) % 1;
+  if (s === 0) return [l, l, l];
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = t => {
+    t = ((t % 1) + 1) % 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  return [f(h + 1 / 3), f(h), f(h - 1 / 3)];
+}
+function rgbStr(rgb, a = 1) {
+  const r = Math.round(clamp(rgb[0], 0, 1) * 255);
+  const g = Math.round(clamp(rgb[1], 0, 1) * 255);
+  const b = Math.round(clamp(rgb[2], 0, 1) * 255);
+  return a >= 0.999 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${a.toFixed(3)})`;
+}
+function shiftColor(baseHex, dh, ds, dl, warmHex = 0xffe4b8, warmAmt = 0) {
+  const [r0, g0, b0] = hexToRgb01(baseHex);
+  const [h, s, l] = rgbToHsl(r0, g0, b0);
+  let out = hslToRgb(h + dh, clamp(s + ds, 0.08, 0.96), clamp(l + dl, 0.14, 0.84));
+  if (warmAmt > 0) out = lerpRgb(out, hexToRgb01(warmHex), warmAmt);
+  else if (warmAmt < 0) out = lerpRgb(out, hexToRgb01(0x3a2342), -warmAmt);
+  return out;
+}
+
+/* ==================== painterly state surface builder ================== */
+const TX_FOCUS_ABBR = new Set(['TX', 'OK', 'NM', 'LA', 'AR', 'KS', 'CO', 'MO', 'MS', 'AL', 'TN', 'AZ', 'NE', 'IA', 'GA', 'FL']);
+function paintStateTexture(sd, ringsW, baseHex, texRes, pCfg) {
+  let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+  for (const r of ringsW) for (const [x, z] of r) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; }
+  const span = Math.max(x1 - x0, z1 - z0);
+  const pad = span * 0.035 + 0.6;
+  const bx0 = x0 - pad, bz0 = z0 - pad;
+  const bw = (x1 - x0) + pad * 2, bh = (z1 - z0) + pad * 2;
+
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = texRes;
+  const ctx = cv.getContext('2d');
+  const toCx = wx => (wx - bx0) / bw * texRes;
+  const toCy = wz => (wz - bz0) / bh * texRes;
+  const pxPerWu = texRes / Math.max(bw, bh);
+
+  /* Calibrated sRGB base albedo: stays true to state hue while grounding lightness for figure contrast */
+  const rawRgb = hexToRgb01(baseHex);
+  const warmRgb = hexToRgb01(0xffe0aa);
+  const baseRgb = lerpRgb(
+    [rawRgb[0] * pCfg.baseScale, rawRgb[1] * pCfg.baseScale, rawRgb[2] * pCfg.baseScale],
+    warmRgb,
+    pCfg.baseWarm * 0.30
+  );
+  const baseMidHex = rgb01ToHex(baseRgb);
+  ctx.fillStyle = rgbStr(baseRgb);
+  ctx.fillRect(0, 0, texRes, texRes);
+
+  const path = new Path2D();
+  for (const r of ringsW) {
+    if (!r.length) continue;
+    path.moveTo(toCx(r[0][0]), toCy(r[0][1]));
+    for (let i = 1; i < r.length; i++) path.lineTo(toCx(r[i][0]), toCy(r[i][1]));
+    path.closePath();
+  }
+
+  /* Directional sunlight wash across the slab (northwest warm lift -> southeast subtle cool depth) */
+  const grad = ctx.createLinearGradient(0, 0, texRes, texRes);
+  const sunWash = shiftColor(baseMidHex, -0.015, 0.02, 0.08, 0xffe4ad, 0.24);
+  const shadeWash = shiftColor(baseMidHex, 0.025, 0.03, -0.08, 0xffe4b8, -0.18);
+  grad.addColorStop(0, rgbStr(sunWash, 0.36));
+  grad.addColorStop(0.5, rgbStr(baseRgb, 0.0));
+  grad.addColorStop(1, rgbStr(shadeWash, 0.32));
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, texRes, texRes);
+
+  /* Deterministic state seed from abbreviation characters (never calls Math.random) */
+  let seed = 1337;
+  for (let i = 0; i < sd.abbr.length; i++) seed = (seed * 131 + sd.abbr.charCodeAt(i)) | 0;
+  const rng = makeRng(seed);
+
+  /* Pass 1: Soft tonal blooms (wet-on-wet watercolor / broad gouache underpainting) */
+  for (let i = 0; i < pCfg.bloomCount; i++) {
+    const wx = x0 + rng() * (x1 - x0);
+    const wz = z0 + rng() * (z1 - z0);
+    const rx = (5.0 + rng() * 11.0) * pxPerWu;
+    const ry = rx * (0.55 + rng() * 0.65);
+    const rot = fbm(wx * 0.05 + 1.7, wz * 0.05 + 4.2) * Math.PI * 2;
+    const warmPick = rng() < 0.54;
+    const col = warmPick
+      ? shiftColor(baseMidHex, -0.02, 0.02, 0.09, 0xffe5b0, 0.25)
+      : shiftColor(baseMidHex, 0.025, 0.04, -0.08, 0xffe4b8, -0.16);
+    ctx.save();
+    ctx.translate(toCx(wx), toCy(wz));
+    ctx.rotate(rot);
+    const rg = ctx.createRadialGradient(0, 0, rx * 0.08, 0, 0, rx);
+    rg.addColorStop(0, rgbStr(col, pCfg.bloomAlpha));
+    rg.addColorStop(0.62, rgbStr(col, pCfg.bloomAlpha * 0.45));
+    rg.addColorStop(1, rgbStr(col, 0));
+    ctx.fillStyle = rg;
+    ctx.scale(1, ry / rx);
+    ctx.beginPath();
+    ctx.arc(0, 0, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* Pass 2: Palm City curved brushstrokes aligned with world FBM curl-flow field */
+  const step = Math.max(pCfg.strokeStep, span / 58);
+  ctx.lineCap = 'round';
+  const strokeJitter = step * 0.45;
+  for (let wz = bz0; wz <= bz0 + bh; wz += step) {
+    for (let wx = bx0; wx <= bx0 + bw; wx += step) {
+      const px = wx + (rng() - 0.5) * strokeJitter;
+      const pz = wz + (rng() - 0.5) * strokeJitter;
+      const nFlow = fbm(px * 0.075 + 2.3, pz * 0.075 + 5.1);
+      const nTone = fbm(px * 0.14 + 13.7, pz * 0.14 + 8.9);
+      const ang = nFlow * Math.PI * 3.1;
+      const len = (pCfg.strokeLen[0] + rng() * (pCfg.strokeLen[1] - pCfg.strokeLen[0])) * Math.min(1.5, Math.max(0.75, span / 48));
+      const w = pCfg.strokeW[0] + rng() * (pCfg.strokeW[1] - pCfg.strokeW[0]);
+      const bend = (nTone - 0.5) * len * 0.55;
+
+      const xA = px - Math.cos(ang) * len * 0.5, zA = pz - Math.sin(ang) * len * 0.5;
+      const xB = px + Math.cos(ang) * len * 0.5, zB = pz + Math.sin(ang) * len * 0.5;
+      const mx = px - Math.sin(ang) * bend, mz = pz + Math.cos(ang) * bend;
+
+      const rCol = rng();
+      let col;
+      if (rCol < 0.36) {
+        col = shiftColor(baseMidHex, -0.022, 0.03, (pCfg.mode === 'impasto' ? 0.10 : 0.07) + nTone * 0.05, 0xffe8b5, pCfg.mode === 'impasto' ? 0.34 : 0.24);
+      } else if (rCol < 0.72) {
+        col = shiftColor(baseMidHex, 0.022, 0.04, -(pCfg.mode === 'impasto' ? 0.10 : 0.07) - (1 - nTone) * 0.05, 0xffe4b8, pCfg.mode === 'impasto' ? -0.24 : -0.15);
+      } else {
+        col = shiftColor(baseMidHex, (nTone - 0.5) * 0.05, 0.02, (nFlow - 0.5) * 0.08);
+      }
+      const alpha = pCfg.strokeAlpha[0] + rng() * (pCfg.strokeAlpha[1] - pCfg.strokeAlpha[0]);
+      ctx.strokeStyle = rgbStr(col, alpha);
+      ctx.lineWidth = Math.max(1.2, w * pxPerWu);
+      ctx.beginPath();
+      ctx.moveTo(toCx(xA), toCy(zA));
+      ctx.quadraticCurveTo(toCx(mx), toCy(mz), toCx(xB), toCy(zB));
+      ctx.stroke();
+    }
+  }
+
+  /* Pass 3: Subtle dry-brush bristle wisps inside surface */
+  for (let i = 0; i < pCfg.bristleCount; i++) {
+    const px = x0 + rng() * (x1 - x0);
+    const pz = z0 + rng() * (z1 - z0);
+    const ang = fbm(px * 0.075 + 2.3, pz * 0.075 + 5.1) * Math.PI * 3.1;
+    const len = 1.1 + rng() * 2.2;
+    const isLight = rng() < 0.48;
+    const col = isLight
+      ? shiftColor(baseMidHex, -0.02, -0.02, 0.13, 0xfff0c8, 0.28)
+      : shiftColor(baseMidHex, 0.03, 0.04, -0.11, 0xffe4b8, -0.25);
+    ctx.strokeStyle = rgbStr(col, pCfg.mode === 'impasto' ? 0.28 : 0.17);
+    ctx.lineWidth = Math.max(0.9, (0.14 + rng() * 0.14) * pxPerWu);
+    ctx.beginPath();
+    ctx.moveTo(toCx(px - Math.cos(ang) * len * 0.5), toCy(pz - Math.sin(ang) * len * 0.5));
+    ctx.lineTo(toCx(px + Math.cos(ang) * len * 0.5), toCy(pz + Math.sin(ang) * len * 0.5));
+    ctx.stroke();
+  }
+
+  /* Pass 4: Clipped soft inward edge shading (separates neighboring states cleanly without black outlines) */
+  const edgeRgb = lerpRgb(hexToRgb01(pCfg.edgeColor), baseRgb, 0.34);
+  ctx.save();
+  ctx.clip(path);
+
+  if (pCfg.edgeBleach) {
+    ctx.strokeStyle = rgbStr(shiftColor(baseMidHex, -0.02, -0.08, 0.14, 0xfff3d4, 0.32), pCfg.edgeBleach);
+    ctx.lineWidth = Math.max(2, 2.2 * pxPerWu);
+    ctx.stroke(path);
+  }
+  if (pCfg.edgeRimLight) {
+    ctx.save();
+    ctx.translate(0.32 * pxPerWu, 0.32 * pxPerWu);
+    ctx.strokeStyle = rgbStr(shiftColor(baseMidHex, -0.02, -0.04, 0.16, 0xfff2cf, 0.38), pCfg.edgeRimLight);
+    ctx.lineWidth = Math.max(1.5, 0.9 * pxPerWu);
+    ctx.stroke(path);
+    ctx.restore();
+  }
+
+  ctx.lineJoin = 'round';
+  for (const [wuWidth, alpha] of pCfg.edgeRings) {
+    ctx.strokeStyle = rgbStr(edgeRgb, alpha);
+    ctx.lineWidth = Math.max(1.2, wuWidth * pxPerWu);
+    ctx.stroke(path);
+  }
+  ctx.restore();
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return { tex, bx0, bz0, bw, bh, edgeHex: rgb01ToHex(edgeRgb) };
+}
+
+/* ==================== warm coastal mask + ocean shader ================== */
+function buildCoastMask(stateList) {
+  const res = 512;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = res;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, res, res);
+  const toU = wx => (wx + 140) / 280 * res;
+  const toV = wz => (wz + 110) / 220 * res;
+  const p = new Path2D();
+  for (const s of stateList) {
+    for (const r of s.ringsW) {
+      if (!r.length) continue;
+      p.moveTo(toU(r[0][0]), toV(r[0][1]));
+      for (let i = 1; i < r.length; i++) p.lineTo(toU(r[i][0]), toV(r[i][1]));
+      p.closePath();
+    }
+  }
+  ctx.save();
+  ctx.filter = 'blur(12px)';
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+  ctx.lineWidth = 6;
+  ctx.stroke(p);
+  ctx.fillStyle = '#fff';
+  ctx.fill(p);
+  ctx.restore();
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  return tex;
+}
+
+/* Build states first so coastal water mask knows exact state outlines */
+const STATE_COLORS = [0xef476f, 0xf78c2b, 0xffd23f, 0x8ac926, 0x3ec1d3, 0x4361ee, 0x9b5de5, 0xf15bb5, 0x00bbf9, 0xff6b35, 0x6a994e, 0x4cc9f0, 0xe63946, 0x2ec4b6, 0xfb8b24, 0x7fb069, 0xbc4749, 0x5e60ce, 0xf4a261, 0x43aa8b];
+const CA_POP = 39355309;
+function pointInRings(rings, x, z) {
+  let inside = false;
+  for (const r of rings) {
+    for (let a = 0, b = r.length - 1; a < r.length; b = a++) {
+      const xa = r[a][0], za = r[a][1], xb = r[b][0], zb = r[b][1];
+      if ((za > z) !== (zb > z) && x < (xb - xa) * (z - za) / (zb - za) + xa) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+const states = STATE_DATA.states.map((sd, i) => {
+  const color = STATE_COLORS[(i * 7) % STATE_COLORS.length];
+  const ringsW = sd.rings.map(r => r.map(p => [wX(p[0]), wZ(p[1])]));
+  const shapes = ringsW.map(r => new THREE.Shape(r.map(p => new THREE.Vector2(p[0], -p[1]))));
+  const geo = new THREE.ExtrudeGeometry(shapes, { depth: SLAB, bevelEnabled: false });
+  geo.rotateX(-Math.PI / 2);
+
+  let topMat, sideMat;
+  if (!CFG.paint) {
+    const side = new THREE.Color(color).multiplyScalar(0.68).getHex();
+    topMat = toon(color);
+    sideMat = toon(side);
+  } else {
+    const res = sd.abbr === 'TX' ? 768 : (TX_FOCUS_ABBR.has(sd.abbr) ? 384 : 160);
+    const { tex, bx0, bz0, bw, bh, edgeHex } = paintStateTexture(sd, ringsW, color, res, CFG.paint);
+    const posAttr = geo.attributes.position;
+    const uvAttr = geo.attributes.uv;
+    for (let v = 0; v < posAttr.count; v++) {
+      const px = posAttr.getX(v), pz = posAttr.getZ(v);
+      uvAttr.setXY(v, (px - bx0) / bw, 1 - (pz - bz0) / bh);
+    }
+    uvAttr.needsUpdate = true;
+    const sideCol = new THREE.Color(edgeHex).multiplyScalar(0.84);
+    topMat = toon(0xffffff, { map: tex });
+    sideMat = toon(sideCol.getHex());
+  }
+
+  const mesh = new THREE.Mesh(geo, [topMat, sideMat]);
+  st.scene.add(mesh);
+  let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+  for (const r of ringsW) for (const [x, z] of r) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; }
+  return { abbr: sd.abbr, name: sd.name, pop: sd.pop, color, ringsW, x0, z0, x1, z1,
+           cx: wX(sd.anchor[0]), cz: wZ(sd.anchor[1]), eatenCount: 0, total: 0, announced: false };
+});
+const byAbbr = {}; states.forEach(s => byAbbr[s.abbr] = s);
+
+/* Ocean: flat baseline in before mode; warm coastal-depth gradient + slow GPU shimmer otherwise (0 per-frame redraws) */
+const oceanUniforms = {
+  uTime: { value: 0 },
+  uCoast: { value: null },
+  uShallow: { value: new THREE.Color(CFG.ocean ? CFG.ocean.shallow : 0x4f9fd0) },
+  uMid: { value: new THREE.Color(CFG.ocean ? CFG.ocean.mid : 0x4f9fd0) },
+  uDeep: { value: new THREE.Color(CFG.ocean ? CFG.ocean.deep : 0x4f9fd0) },
+  uHorizon: { value: new THREE.Color(CFG.ocean ? CFG.ocean.horizon : 0xdff3ff) },
+  uGlint: { value: new THREE.Color(CFG.ocean ? CFG.ocean.glint : 0xffffff) }
+};
+let oceanMat;
+if (!CFG.ocean) {
+  oceanMat = toon(0x4f9fd0);
+} else {
+  oceanUniforms.uCoast.value = buildCoastMask(states);
+  const ocCfg = CFG.ocean;
+  oceanMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  oceanMat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, oceanUniforms);
+    sh.vertexShader = 'varying vec3 vOceanPos;\n' + sh.vertexShader.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\n  vOceanPos = (modelMatrix * vec4(transformed, 1.0)).xyz;'
+    );
+    sh.fragmentShader =
+      `uniform float uTime;\nuniform sampler2D uCoast;\nuniform vec3 uShallow, uMid, uDeep, uHorizon, uGlint;\nvarying vec3 vOceanPos;\n` +
+      sh.fragmentShader.replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        vec2 cuv = clamp(vec2((vOceanPos.x + 140.0) / 280.0, 1.0 - (vOceanPos.z + 110.0) / 220.0), 0.0, 1.0);
+        float coast = texture2D(uCoast, cuv).r;
+        float distRad = clamp(length(vOceanPos.xz * vec2(0.75, 1.0)) / 145.0, 0.0, 1.0);
+        float sunSweep = clamp((vOceanPos.z * 0.40 - vOceanPos.x * 0.35 + 35.0) / 115.0, 0.0, 1.0);
+        float horizonWarm = smoothstep(-25.0, -145.0, vOceanPos.z) * 0.44 + sunSweep * 0.14;
+        vec3 baseWater = mix(uMid, uDeep, smoothstep(0.18, 0.90, distRad));
+        baseWater = mix(baseWater, uShallow, smoothstep(0.06, 0.90, coast) * 0.44);
+        baseWater = mix(baseWater, uHorizon, clamp(horizonWarm, 0.0, 0.38));
+        /* Subtle organic wave swells & elongated horizontal sun-glint ripples (zero polka-dot blobs) */
+        float t = uTime * ${ocCfg.speed.toFixed(2)};
+        float warp = sin(vOceanPos.x * 0.09 + vOceanPos.z * 0.07 + t * 0.35) * 2.2
+                   + cos(vOceanPos.z * 0.11 - vOceanPos.x * 0.06 - t * 0.28) * 1.6;
+        float r1 = sin((vOceanPos.z + warp) * ${(ocCfg.waveScale * 2.1).toFixed(2)} + vOceanPos.x * 0.16 - t);
+        float r2 = sin((vOceanPos.z * 1.15 - warp * 0.8) * ${(ocCfg.waveScale * 2.7).toFixed(2)} - vOceanPos.x * 0.21 + t * 0.82);
+        float patchMask = 0.55 + 0.45 * sin(vOceanPos.x * 0.08 + vOceanPos.z * 0.06 + t * 0.35);
+        float crest = smoothstep(0.68, 0.99, r1 * 0.55 + r2 * 0.45) * patchMask;
+        float wideSwell = sin(vOceanPos.x * 0.07 + vOceanPos.z * 0.13 + t * 0.45) * 0.5 + 0.5;
+        float shoreRim = smoothstep(0.45, 0.78, coast) * (1.0 - smoothstep(0.80, 0.98, coast));
+        baseWater += uShallow * ((wideSwell - 0.5) * 0.05) + uGlint * (crest * ${(ocCfg.shimmerStrength * 0.55).toFixed(2)} + shoreRim * 0.05);
+        diffuseColor.rgb *= baseWater;`
+      );
+  };
+}
+const ocean = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), oceanMat);
+ocean.rotation.x = -Math.PI / 2;
+st.scene.add(ocean);
+
+/* the hole — verbatim from ../index.html */
+const hole = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0x000000 })); hole.rotation.x = -Math.PI / 2; hole.position.y = .36; st.scene.add(hole);
+const aura = new THREE.Mesh(new THREE.RingGeometry(1.12, 1.7, 40), new THREE.MeshBasicMaterial({ color: S.ringColor, transparent: true, opacity: .3, side: THREE.DoubleSide, depthWrite: false })); aura.rotation.x = -Math.PI / 2; aura.position.y = .365; st.scene.add(aura);
+const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 40), new THREE.MeshBasicMaterial({ color: S.ringColor, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = .37; st.scene.add(ring);
+
+/* ================= shoulder towers = buildings (verbatim) ============== */
+const SHIRT = [0xe63946, 0x2a9d8f, 0xf1c453, 0x457b9d, 0xff7ab6];
+const SPACING = 2.7, HMAX = 25, PEXP = 0.6, TARGET = 6400;
+let _kSum = 0; for (const sd of STATE_DATA.states) _kSum += Math.pow(sd.pop, PEXP);
+const KFIG = TARGET / _kSum;
+const persons = [], columns = [];
+for (const s of states) {
+  const cell = SPACING;
+  const cols = Math.max(1, Math.ceil((s.x1 - s.x0) / cell)), rows = Math.max(1, Math.ceil((s.z1 - s.z0) / cell));
+  const inside = new Uint8Array(cols * rows), dist = new Float32Array(cols * rows);
+  const cells = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (pointInRings(s.ringsW, s.x0 + (c + .5) * cell, s.z0 + (r + .5) * cell)) { inside[r * cols + c] = 1; cells.push(r * cols + c); }
+  }
+  function segDist(px, pz, ax, az, bx, bz) { const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz; let t = L2 ? ((px - ax) * dx + (pz - az) * dz) / L2 : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(ax + t * dx - px, az + t * dz - pz); }
+  let maxD = 0.0001;
+  for (const idx of cells) {
+    const cx = s.x0 + ((idx % cols) + .5) * cell, cz = s.z0 + (((idx / cols) | 0) + .5) * cell;
+    let d = 1e9;
+    for (const r of s.ringsW) for (let a = 0, b = r.length - 1; a < r.length; b = a++) d = Math.min(d, segDist(cx, cz, r[b][0], r[b][1], r[a][0], r[a][1]));
+    dist[idx] = d; if (d > maxD) maxD = d;
+  }
+  const compId = new Int32Array(cols * rows).fill(-1);
+  const compSize = [];
+  let nComp = 0;
+  for (const start of cells) {
+    if (compId[start] >= 0) continue;
+    const stack = [start]; compId[start] = nComp; let n = 0;
+    while (stack.length) {
+      const idx = stack.pop(); n++;
+      const c = idx % cols, r = (idx / cols) | 0;
+      if (c > 0 && inside[idx - 1] && compId[idx - 1] < 0) { compId[idx - 1] = nComp; stack.push(idx - 1); }
+      if (c < cols - 1 && inside[idx + 1] && compId[idx + 1] < 0) { compId[idx + 1] = nComp; stack.push(idx + 1); }
+      if (r > 0 && inside[idx - cols] && compId[idx - cols] < 0) { compId[idx - cols] = nComp; stack.push(idx - cols); }
+      if (r < rows - 1 && inside[idx + cols] && compId[idx + cols] < 0) { compId[idx + cols] = nComp; stack.push(idx + cols); }
+    }
+    compSize[nComp] = n; nComp++;
+  }
+  const sites = cells.filter(idx => compSize[compId[idx]] >= 4)
+    .map(idx => ({ c: idx % cols, r: (idx / cols) | 0, dN: dist[idx] / maxD }))
+    .sort((a, b) => b.dN - a.dN);
+  const H = Math.max(1, Math.round(HMAX * Math.pow(s.pop / CA_POP, PEXP)));
+  let F = Math.round(KFIG * Math.pow(s.pop, PEXP));
+  if (s.pop < 900000) F = Math.min(F, 3);
+  let plan = [];
+  if (!sites.length) plan = [{ anchor: true, h: Math.max(1, Math.min(F, H)) }];
+  else if (F <= 4) plan = [{ ...sites[0], h: F }];
+  else {
+    const coreN = Math.max(3, Math.min(42, Math.round(F / (0.55 * H)), sites.length));
+    const fieldReserve = sites.length > coreN ? Math.round(F * 0.22) : 0;
+    const coreBudget = F - fieldReserve;
+    const raw = sites.slice(0, coreN).map((t, i) => Math.pow(1 - i / (coreN + 2), 1.3) * (0.45 + 0.55 * Math.pow(t.dN, 2)));
+    const sum = raw.reduce((a, b) => a + b, 0);
+    const real = raw.map(v => coreBudget * v / sum);
+    const heights = real.map(v => Math.floor(v));
+    let rem = coreBudget - heights.reduce((a, b) => a + b, 0);
+    const order = real.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0]);
+    for (let k = 0; rem > 0 && k < order.length; k++, rem--) heights[order[k][1]]++;
+    for (let pass = 0; pass < 3; pass++) {
+      let excess = 0;
+      for (let i = 0; i < heights.length; i++) if (heights[i] > H) { excess += heights[i] - H; heights[i] = H; }
+      for (let i = 0; excess > 0 && i < heights.length; i++) while (heights[i] < H && excess > 0) { heights[i]++; excess--; }
+      if (!excess) break;
+    }
+    heights[0] = Math.max(heights[0], Math.min(H, F));
+    for (let i = coreN; i < sites.length; i++) heights[i] = 1 + (sites[i].dN >= 0.62 ? 2 : sites[i].dN >= 0.38 ? 1 : 0);
+    let tot = heights.reduce((a, b) => a + b, 0);
+    for (let i = heights.length - 1; tot > F && i >= coreN; i--) { while (heights[i] > 0 && tot > F) { heights[i]--; tot--; } }
+    for (let i = coreN - 1; tot > F && i > 0; i--) { while (heights[i] > 2 && tot > F) { heights[i]--; tot--; } }
+    plan = sites.map((t, i) => ({ ...t, h: heights[i] })).filter(t => t.h > 0);
+  }
+  for (const pl of plan) {
+    const cs = rand(1.0, 1.16);
+    const bx = pl.anchor ? s.cx : s.x0 + (pl.c + .5) * cell + rand(-.4, .4);
+    const bz = pl.anchor ? s.cz : s.z0 + (pl.r + .5) * cell + rand(-.4, .4);
+    const ang = rand(0, 6.28);
+    const col = { x: bx, z: bz, h: pl.h, phase: rand(0, 6.28), dirX: Math.cos(ang), dirZ: Math.sin(ang),
+                  swayAmp: Math.min(2.0, pl.h * 0.085), state: s, figs: [] };
+    let below = null;
+    for (let L = 0; L < pl.h; L++) {
+      const y0 = SLAB + L * 1.5 * cs;
+      const p = { x: bx + rand(-.14, .14), z: bz + rand(-.14, .14), y: y0, y0,
+        lvl: L, col, below, mode: 'stand', delay: 0, vy: 0, vx: 0, vz: 0,
+        pitch: 0, roll: 0, pitchV: 0, rollV: 0, spin: 0,
+        fall: 0, s: 1, gone: false, rot: rand(0, 6.28), sc: cs, state: s };
+      p.x0 = p.x; p.z0 = p.z;
+      col.figs.push(p); persons.push(p); below = p; s.total++;
+    }
+    columns.push(col);
+  }
+}
+const cr = crowd(st.scene, personGeo(), persons.length, true, .75);
+persons.forEach((p, i) => cr.color(i, SHIRT[i % SHIRT.length]));
+const TOTAL_PERSONS = persons.length;
+
+/* Start centered on Texas for immediate owner inspection when opened directly */
+const _tx = byAbbr['TX'];
+let hx = _tx.cx, hz = _tx.cz, size = 2.0, eatenVol = 0, peopleEaten = 0, statesDone = 0, tleft = S.seconds, over = false;
+let screamCd = 0;
+const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), tmp = new THREE.Vector3();
+function reset() {
+  for (const p of persons) { p.fall = 0; p.gone = false; p.s = 1; p.mode = 'stand'; p.x = p.x0; p.z = p.z0; p.y = p.y0; p.pitch = 0; p.roll = 0; p.vy = 0; p.vx = 0; p.vz = 0; p.delay = 0; }
+  for (const s of states) { s.eatenCount = 0; s.announced = false; }
+  hx = _tx.cx; hz = _tx.cz; eatenVol = 0; peopleEaten = 0; statesDone = 0; size = 2.0; tleft = S.seconds; over = false;
+  st.hud.banner('GO!', .8);
+}
+st.shell({ id: 'state-hole', title: S.title, sub: S.sub, onReset: reset });
+st.cine([{ t: 0, p: [0, 7, 9] }, { t: 3.5, p: [0, 0, 0] }]);
+
+function update(dt) {
+  if (over) { fx.update(dt); return; }
+  walkClock.value = st.t;
+  oceanUniforms.uTime.value = st.t;
+  tleft -= dt; screamCd -= dt;
+  const k = st.keys; let mx = (k.d || k.arrowright ? 1 : 0) - (k.a || k.arrowleft ? 1 : 0), mz = (k.s || k.arrowdown ? 1 : 0) - (k.w || k.arrowup ? 1 : 0);
+  if (st.ptr.down) { ray.setFromCamera({ x: st.ptr.x, y: -st.ptr.y }, st.camera); if (ray.ray.intersectPlane(plane, tmp)) { const dx = tmp.x - hx, dz = tmp.z - hz, d = Math.hypot(dx, dz); if (d > .3) { mx = dx / d; mz = dz / d; } } }
+  const l = Math.hypot(mx, mz) || 1, sp = 7 + size * 1.4;
+  hx = clamp(hx + mx / l * sp * dt, -118, 118); hz = clamp(hz + mz / l * sp * dt, -88, 88);
+
+  const trig = size * .92 + .4;
+  for (const p of persons) {
+    if (p.gone) continue;
+    if (p.mode === 'fall') {
+      p.fall += dt * 1.7; p.x += (hx - p.x) * Math.min(1, dt * 8); p.z += (hz - p.z) * Math.min(1, dt * 8); p.s = Math.max(0, 1 - p.fall);
+      if (p.fall >= 1) {
+        p.gone = true; peopleEaten++; eatenVol += .10;
+        const s = p.state; s.eatenCount++;
+        if (screamCd <= 0) { sfx('pop', .35); screamCd = .09; fx.burst(5, { x: hx, y: 1.2, z: hz, size: .22, life: .55, color: 0xffc9a0, g: 4 }, 3); }
+        if (s.eatenCount >= s.total && !s.announced && s.total > 0) {
+          s.announced = true; statesDone++;
+          st.hud.banner(s.name.toUpperCase() + ' EATEN!', 1.6); sfx('win'); st.flash('#7b4bff', .3);
+          st.popup(s.name, { x: hx, y: 5, z: hz }, '#c9a8ff', 7);
+        }
+      }
+      continue;
+    }
+    if (p.mode === 'loose') {
+      if (p.delay > 0) { p.delay -= dt; continue; }
+      p.vy -= 26 * dt; p.y += p.vy * dt;
+      p.vx += (hx - p.x) * dt * 2.2; p.vz += (hz - p.z) * dt * 2.2;
+      p.x += p.vx * dt; p.z += p.vz * dt;
+      p.pitch = clamp(p.pitch + p.pitchV * dt, -1.5, 1.5); p.roll = clamp(p.roll + p.rollV * dt, -1.5, 1.5);
+      p.rot += p.spin * dt;
+      if (p.y <= SLAB) { p.y = SLAB; p.vy = 0; p.vx *= .8; p.vz *= .8; }
+      const d = Math.hypot(p.x - hx, p.z - hz);
+      if (p.y <= SLAB + .05) { if (d < trig) { p.mode = 'fall'; p.fall = 1e-3; } else if (!p.vy) p.mode = 'down'; }
+      continue;
+    }
+    if (p.mode === 'down') {
+      p.x += p.vx * dt; p.z += p.vz * dt; p.vx *= .86; p.vz *= .86;
+      if (Math.hypot(p.x - hx, p.z - hz) < trig) { p.mode = 'fall'; p.fall = 1e-3; }
+      continue;
+    }
+    if (p.lvl === 0) {
+      if (Math.hypot(p.x - hx, p.z - hz) < trig && .55 < size * .78) { p.mode = 'fall'; p.fall = 1e-3; }
+    } else if (p.below.mode !== 'stand') {
+      p.mode = 'loose'; p.delay = .05 + p.lvl * .045 + rand(0, .05);
+      p.vy = 0; p.vx = (hx - p.x) * .35 + rand(-.5, .5); p.vz = (hz - p.z) * .35 + rand(-.5, .5);
+      p.pitchV = rand(1.6, 3.4) * (Math.random() < .5 ? -1 : 1); p.rollV = rand(1.6, 3.4) * (Math.random() < .5 ? -1 : 1);
+      p.spin = rand(-1.2, 1.2);
+    }
+  }
+  fx.update(dt);
+  size = 2.0 + Math.sqrt(eatenVol) * .34;
+  const left = TOTAL_PERSONS - peopleEaten;
+  st.hud.left(`SIZE<br><span style="color:#ffd34d;font-size:8vmin">${size.toFixed(1)}m</span>`);
+  st.hud.right(`EATEN ${peopleEaten}<br>STATES ${statesDone}/51<br>${Math.ceil(Math.max(0, tleft))}s`);
+  st.hud.hint('Drag to move the hole');
+  if (tleft <= 0 || left === 0) { over = true; st.hud.banner(left === 0 ? 'AMERICA EATEN!' : 'TIME UP', 3); sfx('win'); st.flash('#7b4bff', .5); st.end({ win: peopleEaten > S.winScore, score: peopleEaten, label: 'PEOPLE EATEN' }); }
+  window.__game = { size: +size.toFixed(2), eaten: peopleEaten, left, look: LOOK_ID };
+}
+
+const camP = new THREE.Vector3(0, 12, 12), look = new THREE.Vector3();
+let camSnap = false;
+function pre() {
+  const t = st.t;
+  oceanUniforms.uTime.value = t;
+  for (let i = 0; i < persons.length; i++) {
+    const p = persons[i];
+    if (p.gone) { cr.set(i, p.x, -50, p.z, p.sc * Math.max(0, p.s), p.rot, 0, 0); continue; }
+    if (p.mode === 'fall') {
+      cr.set(i, p.x, p.y - p.fall * 1.8 * p.sc * .6, p.z, p.sc * p.s, p.rot, p.fall * .6, p.fall * .4);
+    } else if ((p.mode === 'loose' && p.delay <= 0) || p.mode === 'down') {
+      cr.set(i, p.x, p.y, p.z, p.sc, p.rot, p.pitch, p.roll);
+    } else {
+      const col = p.col, f = col.h > 1 ? p.lvl / (col.h - 1) : 0, doomed = p.mode === 'loose';
+      const off = Math.sin(t * 1.15 + col.phase) * col.swayAmp * (doomed ? 3.2 : 1) * Math.pow(f, 1.5);
+      const roll = Math.sin(t * 1.15 + col.phase - p.lvl * .38) * .06 * f * (doomed ? 2.5 : 1);
+      const pitch = Math.cos(t * .95 + col.phase - p.lvl * .3) * .045 * f;
+      cr.set(i, p.x + col.dirX * off, p.y0, p.z + col.dirZ * off, p.sc, p.rot, pitch, roll);
+    }
+  }
+  cr.done(persons.length);
+  hole.scale.setScalar(size); ring.scale.setScalar(size); aura.scale.setScalar(size); aura.rotation.z = st.t * 2;
+  hole.position.x = ring.position.x = aura.position.x = hx; hole.position.z = ring.position.z = aura.position.z = hz;
+  let onLand = false;
+  for (const s of states) { if (hx >= s.x0 && hx <= s.x1 && hz >= s.z0 && hz <= s.z1 && pointInRings(s.ringsW, hx, hz)) { onLand = true; break; } }
+  const hy = onLand ? .36 : .06;
+  hole.position.y += (hy - hole.position.y) * .3; aura.position.y = hole.position.y + .005; ring.position.y = hole.position.y + .01;
+  const h = 8 + size * 6.0, z = 7 + size * 4.6;
+  camP.set(hx, h, hz + z);
+  st.camera.position.lerp(camP, camSnap ? 1 : .08);
+  camSnap = false;
+  look.set(hx, 0, hz - 1);
+  st.camera.lookAt(look);
+}
+
+st.camera.position.set(hx, 14, hz + 14);
+st.run(update, pre);
+
+const _v = new THREE.Vector3();
+function toScreen(x, y, z) {
+  _v.set(x, y, z).project(st.camera);
+  return { x: Math.round((_v.x * .5 + .5) * innerWidth), y: Math.round((-_v.y * .5 + .5) * innerHeight) };
+}
+window.__SAMPLE = {
+  setHole: (x, z) => { hx = x; hz = z; camSnap = true; },
+  setSize: s => { eatenVol = Math.pow(Math.max(0, s - 2.0) / .34, 2); },
+  pos: ab => { const s = byAbbr[ab]; const p = toScreen(s.cx, SLAB, s.cz); return { ...p, wx: +s.cx.toFixed(1), wz: +s.cz.toFixed(1), x0: +s.x0.toFixed(1), x1: +s.x1.toFixed(1), z0: +s.z0.toFixed(1), z1: +s.z1.toFixed(1) }; },
+  hole: () => toScreen(hx, 0, hz),
+  toScreen: (x, z) => toScreen(x, 0, z),
+  holeWorld: () => ({ x: +hx.toFixed(1), z: +hz.toFixed(1), size: +size.toFixed(2) }),
+  state: ab => { const s = byAbbr[ab]; return { eaten: s.eatenCount, total: s.total, frac: s.total ? +(s.eatenCount / s.total).toFixed(3) : 0 }; },
+  towers: ab => { const s = byAbbr[ab]; const cs = columns.filter(c => c.state === s); return { cols: cs.length, maxH: cs.reduce((a, c) => Math.max(a, c.h), 0), figs: s.total, standing: cs.reduce((a, c) => a + c.figs.filter(f => f.mode === 'stand').length, 0) }; },
+  tallCol: ab => { const s = byAbbr[ab]; const c = columns.filter(c => c.state === s).reduce((a, b) => (b.h > a.h ? b : a)); const p = toScreen(c.x, SLAB, c.z); return { ...p, wx: +c.x.toFixed(1), wz: +c.z.toFixed(1), h: c.h }; },
+  counts: () => ({ persons: TOTAL_PERSONS, eaten: peopleEaten, states: statesDone }),
+  look: () => ({ id: LOOK_ID, name: CFG.name })
+};
+window.__SAMPLE_READY = true;
+</script>
+</body>
+</html>
