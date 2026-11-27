@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Hex Rush USA — claim America in 60 seconds</title>
+<meta name="description" content="A pop-up book of the real USA. Sweep to claim hexes, bank their real GDP, dodge real-pattern disasters. 60 seconds.">
+<style>
+  :root{
+    --paper:#f6eeda; --paper2:#efe3c8; --ink:#33302a; --verm:#e4572e; --gold:#c9a227;
+    --hud-bg:rgba(246,238,218,.92);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:#e9dfc6}
+  body{font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;color:var(--ink);
+       touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none}
+  #game{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+  /* ---------- HUD (z >= 1100 per house standard) ---------- */
+  #hud{position:fixed;top:0;left:0;right:0;z-index:1200;pointer-events:none;
+       padding:calc(6px + env(safe-area-inset-top)) 8px 0}
+  #hudbar{display:flex;align-items:stretch;gap:6px}
+  .card{background:var(--hud-bg);border:2px solid #d8c69a;border-radius:12px;
+        box-shadow:0 3px 0 rgba(120,90,30,.25);padding:5px 9px}
+  #timerCard{display:flex;flex-direction:column;align-items:center;min-width:64px}
+  #timer{font-size:26px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+  #timer.low{color:#c22f16;animation:pulse .5s infinite alternate}
+  @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.12)}}
+  #timerLabel{font-size:9px;letter-spacing:.14em;font-weight:700;opacity:.65}
+  #scoreCard{flex:1;display:flex;flex-direction:column;justify-content:center}
+  #banked{font-size:21px;font-weight:900;line-height:1.05;color:#a03d14;font-variant-numeric:tabular-nums}
+  #substats{font-size:11px;font-weight:700;opacity:.75;font-variant-numeric:tabular-nums}
+  .hbtn{pointer-events:auto;border:2px solid #d8c69a;background:var(--hud-bg);border-radius:12px;
+        box-shadow:0 3px 0 rgba(120,90,30,.25);font-size:17px;width:42px;cursor:pointer;color:var(--ink)}
+  .hbtn:active{transform:translateY(2px);box-shadow:none}
+  #timebarWrap{height:7px;margin-top:6px;background:rgba(120,90,30,.18);border-radius:4px;overflow:hidden}
+  #timebar{height:100%;width:100%;background:linear-gradient(90deg,#e4572e,#f2a541);border-radius:4px}
+  #combo{position:fixed;top:calc(86px + env(safe-area-inset-top));right:10px;z-index:1200;pointer-events:none;
+         font-weight:900;font-size:19px;color:#c22f16;text-shadow:0 2px 0 #fff6df;opacity:0;transition:opacity .15s}
+  #banner{position:fixed;top:22%;left:50%;transform:translate(-50%,-50%) rotate(-2deg) scale(.8);z-index:1250;
+          pointer-events:none;background:#fdf6e0;border:3px solid var(--ink);border-radius:10px;
+          padding:10px 18px;font-weight:900;font-size:clamp(17px,5.4vw,26px);letter-spacing:.02em;
+          box-shadow:0 8px 0 rgba(51,48,42,.35);opacity:0;text-align:center;max-width:92vw}
+  #banner small{display:block;font-size:.52em;font-weight:700;opacity:.7;letter-spacing:.06em}
+  #banner.show{animation:bannerIn 2.6s ease forwards}
+  @keyframes bannerIn{0%{opacity:0;transform:translate(-50%,-50%) rotate(-2deg) scale(.7)}
+    10%{opacity:1;transform:translate(-50%,-50%) rotate(-2deg) scale(1.06)}
+    16%{transform:translate(-50%,-50%) rotate(-2deg) scale(1)}
+    82%{opacity:1}100%{opacity:0;transform:translate(-50%,-56%) rotate(-2deg) scale(1)}}
+  #hint{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);
+        z-index:1200;pointer-events:none;background:rgba(51,48,42,.82);color:#fdf6e0;font-size:13px;font-weight:700;
+        padding:8px 14px;border-radius:999px;text-align:center;max-width:94vw;transition:opacity .6s}
+  #hint.gone{opacity:0}
+
+  /* ---------- overlays ---------- */
+  .overlay{position:fixed;inset:0;z-index:1300;display:flex;align-items:center;justify-content:center;
+           background:rgba(64,50,24,.45);padding:14px}
+  .overlay[hidden]{display:none}
+  .sheet{background:var(--paper);border:3px solid #d8c69a;border-radius:18px;box-shadow:0 14px 0 rgba(64,50,24,.35);
+         max-width:430px;width:100%;padding:20px 18px;text-align:center;max-height:94dvh;overflow:auto}
+  .sheet h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(30px,9vw,42px);letter-spacing:.01em;
+            color:#a03d14;line-height:1.02}
+  .sheet h1 .usa{color:#2d6d97}
+  .sheet p.sub{margin:9px 0 4px;font-size:14.5px;line-height:1.45}
+  .bigbtn{pointer-events:auto;margin-top:14px;background:var(--verm);color:#fff8ea;border:none;border-radius:999px;
+          font-family:inherit;font-size:19px;font-weight:900;letter-spacing:.04em;padding:13px 34px;cursor:pointer;
+          box-shadow:0 5px 0 #9c3517}
+  .bigbtn:active{transform:translateY(3px);box-shadow:0 2px 0 #9c3517}
+  #snap{width:100%;border:2px solid #d8c69a;border-radius:10px;margin:10px 0 4px;background:#e9dfc6}
+  #headline{font-family:Georgia,serif;font-size:clamp(21px,6.4vw,29px);font-weight:700;color:#a03d14;line-height:1.15;margin-top:6px}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px}
+  .stat{background:#fff8ea;border:2px solid #e3d3a8;border-radius:12px;padding:8px 6px}
+  .stat b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+  .stat span{font-size:10.5px;font-weight:700;letter-spacing:.08em;opacity:.65}
+  #bestMetro{margin-top:10px;font-size:14px;font-weight:700}
+  .credits{margin-top:13px;font-size:10.5px;line-height:1.5;opacity:.62}
+  .rules{display:flex;gap:6px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+  .rules div{background:#fff8ea;border:2px solid #e3d3a8;border-radius:10px;padding:6px 9px;font-size:11.5px;font-weight:700;max-width:31%}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="hudbar">
+    <div class="card" id="timerCard"><div id="timer">60</div><div id="timerLabel">SECONDS</div></div>
+    <div class="card" id="scoreCard">
+      <div id="banked">$0</div>
+      <div id="substats">0.0% of US GDP · 0 people</div>
+    </div>
+    <button class="hbtn" id="soundBtn" aria-label="Toggle sound">♪</button>
+    <button class="hbtn" id="restartBtn" aria-label="Restart round">↻</button>
+  </div>
+  <div id="timebarWrap"><div id="timebar"></div></div>
+</div>
+<div id="combo"></div>
+<div id="banner"></div>
+<div id="hint">Drag to sweep — every hex banks its real GDP. Disasters take it back!</div>
+
+<div class="overlay" id="startOverlay">
+  <div class="sheet">
+    <h1>HEX RUSH<br><span class="usa">USA</span></h1>
+    <p class="sub">A pop-up book of the <b>real</b> United States — 4,807 paper hexes,
+      each worth its actual GDP. New York's biggest hex alone banks <b>$896 billion</b>.</p>
+    <div class="rules">
+      <div>👆 Sweep to claim</div>
+      <div>⭐ Grab the metros</div>
+      <div>🌀 Disasters steal hexes</div>
+    </div>
+    <p class="sub" style="margin-top:10px">60 seconds. How much of America can you hold?</p>
+    <button class="bigbtn" id="startBtn">START CLAIMING</button>
+    <p class="credits">Map &amp; data: US public data (Census · BEA · FEMA · NOAA) via karpathy.ai/usaciv (MIT).</p>
+  </div>
+</div>
+
+<div class="overlay" id="scoreOverlay" hidden>
+  <div class="sheet">
+    <div id="headline">You held $0 of America</div>
+    <img id="snap" alt="Your claimed map of the USA">
+    <div class="statgrid">
+      <div class="stat"><b id="stPct">0%</b><span>OF US GDP</span></div>
+      <div class="stat"><b id="stPop">0</b><span>PEOPLE HELD</span></div>
+      <div class="stat"><b id="stHex">0</b><span>HEXES HELD</span></div>
+      <div class="stat"><b id="stStorm">0</b><span>DISASTERS SURVIVED</span></div>
+    </div>
+    <div id="bestMetro"></div>
+    <button class="bigbtn" id="againBtn">PLAY AGAIN</button>
+    <p class="credits">Every number is real: hex GDP from BEA metro GDP + Census county data,
+      disasters placed by FEMA declaration history. Map &amp; data via karpathy.ai/usaciv (MIT) — US public data.</p>
+  </div>
+</div>
+
+<script>
+  // Block browser gestures (double-tap zoom, pinch page zoom) — house standard.
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  document.addEventListener('dblclick', e => e.preventDefault(), {passive:false});
+  document.addEventListener('contextmenu', e => e.preventDefault());
+</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>
