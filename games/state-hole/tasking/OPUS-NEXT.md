@@ -110,3 +110,48 @@ Append DONE entries here with: what changed, the spec-test results, play-evidenc
 - **Hooks:** `__SIM` scripts only the simulation (steps, move vector, hole placement). Play evidence never uses it.
 
 **Queue:** no tasks remain in this file. Moth, please restock. Open items: perf-frame needs a GPU profile; the Texas example number needs a ruling.
+
+## DONE — TASK 4: capture field (Opus, Nov 27)
+
+**Spec tests 6–10** were written first and pushed red (0/5), then the field was implemented. **Full suite: 13/14 pass, 0 page errors** (`tasking/opus-shots/spec-results.txt`).
+
+| Test | Result |
+|---|---|
+| field-radius | **PASS**: field = **2.2 × rim (swallow) radius** (4.93 at size 2). At 2.1× the figure leans 0.29 rad toward the hole within 0.5 s. At 2.4× it is untouched after 2 s: no lean, 0 movement. |
+| drag-along | **PASS**: a downed figure in the field while the hole drives 20.2 m in 2 s; the figure travels **16.9 m along the hole's direction (84%)**, still tumbling with it |
+| no-free-sucks | **PASS**: 1.6 M figure-steps checked outside the field during a 5 s drive; **0 moved**, and 0 pulls applied outside the field (internal counter) |
+| strip-without-touch | **PASS**: hole parked 4.28 from the base, inside the field (4.93) but outside the rim zone (3.64). **NY's 17-stack falls completely in 1.67 s, TX's 22-stack in 1.87 s**; the rim never touched them |
+| tail-escapes-stay | **PASS**: after a drive and an exit, 74 figures lying outside the field; **0 moved, 0 woke** over 3 s |
+| perf-frame | still red: SwiftShader rendering, as reported in the Task 1–3 DONE entry. Sim cost is now 0.29 ms update + 1.45 ms pose per frame. |
+
+The earlier specs stay green, including teeter-before-fall. Task 4 first exposed a gap there: a figure whose support was knocked away *outside* the rim could drift into the rim and drop at once. Fix: a doomed figure that enters the rim still waits out its 0.15–0.3 s teeter.
+
+**What changed** (`index.html`):
+
+| Piece | Behaviour |
+|---|---|
+| Field radius | `FIELD = 2.2` × rim radius, recomputed each step from the hole size |
+| Standing base figures in the field | Lean toward the hole: 0.25 → 1.15 rad as the distance closes, eased in over 0.25 s and drawn through the figure's yaw. They lose their footing after 0.15 s (at the rim) to 0.75 s (at the field edge), and never faster than the rim teeter. They then become Task 1 bodies tipped straight at the hole, so the rest of the tower falls through the support graph: **tower stripping**. |
+| Downed and falling figures in the field | Resting figures are woken. Bodies are dragged toward **85% of the hole's velocity plus an inward pull of 0.8 + 2.5(1 − d/F)² m/s**, at an easing rate of 8/s, with no ground braking while dragged and no settling inside the field. They lag to the trailing side as a comet tail and feed the rim, where the existing swallow takes them. |
+| Outside the field | **No pull of any kind.** The old near-rim pull was removed. Bodies brake, settle and stay where they lie. |
+| New `__SIM` hooks | `figOf`, `figInfo`, `rimR`, `fieldR`, `rimZoneR`, `placeDowned`, `outsideField`, `colStanding`, `fieldViolations` |
+
+**Moth's first pass:** `index.html` had no field code from Moth's lane when I took this task (its last change was my `3243bdd`), so there was nothing to merge. If a first pass lands later, these specs are the contract.
+
+**Play evidence, real touch only, no hooks:** `tests/play-capture.cjs`; 150 s wall time; **0 page errors**; 360 eaten, size 4.0, 51 bodies active at the end.
+
+| File | Contents |
+|---|---|
+| `tasking/opus-shots/task4-capture-field-real-touch.mp4` | the capture |
+| `task4-comet-tail-strip.png` | the dragged swarm clustering and travelling with the hole |
+| `task4-dragged-tail-390x844.png` | a full-size frame |
+| `task4-play-log.json` | per-shot HUD log |
+
+**SHOW YOUR WORK.**
+- **Method:** specs first, against new read-only and setup hooks. The field lives inside the existing fixed-step loop: base-figure lean and footing in `update()`, drag in `stepBody()`, lean drawing in `pre()`. Determinism holds because there is no new randomness and the field is a pure function of distance and hole velocity.
+- **Commands:**
+  - `node games/state-hole/tests/spec.cjs [names…]`
+  - `node games/state-hole/tests/play-capture.cjs OUTDIR 150 300`
+  - `ffmpeg` for the clip and stills
+
+**Queue:** no tasks remain in this file. Moth, please restock. Open items: perf-frame needs a GPU harness profile; the Texas 30.5M vs 31.7M ruling.
