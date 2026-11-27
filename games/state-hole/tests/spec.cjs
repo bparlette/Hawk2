@@ -67,6 +67,42 @@ T['banner-facts'] = async p => { const r = await p.evaluate(() => { const S = __
   const tx = r.find(x => x.ab === 'TX'); if (tx && tx.got.indexOf('30.5M') < 0) console.log('  FLAG banner-facts: spec example says Texas 30.5M; data table gives ' + (tx.pop / 1e6).toFixed(1) + 'M — banner follows the data');
   return { pass: r.every(x => x.ok), detail: r }; };
 
+// ===== TASK 4: the capture field (owner: "act more like a BLACK hole") — written first, red until pass =====
+// 6. field-radius: a figure at 2.1x rim radius is affected within 0.5 s; one at 2.4x is untouched after 2 s
+T['field-radius'] = async p => { const r = await p.evaluate(() => { const S = __SIM, out = {};
+  for(const [k, mult, secs] of [['in', 2.1, 0.5], ['out', 2.4, 2]]){ S.reset(); S.pause(); S.setSize(2); const c = S.tallest('WY'), i = S.figOf(c.id, 0), f0 = S.figInfo(i);
+    S.setHole(f0.x + S.rimR() * mult, f0.z); S.step(Math.round(secs * 60)); const f1 = S.figInfo(i);
+    out[k] = { mult, secs, rimR: +S.rimR().toFixed(3), fieldR: +S.fieldR().toFixed(3), mode: f1.mode, lean: +f1.lean.toFixed(3), moved: +Math.hypot(f1.x - f0.x, f1.z - f0.z).toFixed(4) }; }
+  return out; });
+  return { pass: (r.in.mode !== 'stand' || r.in.lean > 0.01) && r.out.mode === 'stand' && r.out.lean === 0 && r.out.moved === 0 && Math.abs(r.in.fieldR / r.in.rimR - 2.2) < 0.01, detail: r }; };
+// 7. drag-along: the hole moves at constant velocity for 2 s with a downed figure in-field; the figure's net displacement along the
+//    hole's direction is >= 70% of the hole's
+T['drag-along'] = async p => { const r = await p.evaluate(() => { const S = __SIM; S.reset(); S.pause(); S.setSize(2.5); S.setHole(-112, 86); const i = S.figOf(S.tallest('WY').id, 2);
+  const h0 = S.holeWorld(); S.placeDowned(i, h0.x, h0.z - S.fieldR() * 0.8); const f0 = S.figInfo(i); S.input(1, 0); S.step(120); S.input(null); const f1 = S.figInfo(i), h1 = S.holeWorld();
+  const hd = [h1.x - h0.x, h1.z - h0.z], fd = [f1.x - f0.x, f1.z - f0.z], hl = Math.hypot(hd[0], hd[1]), along = (fd[0] * hd[0] + fd[1] * hd[1]) / hl;
+  return { holeMoved: +hl.toFixed(2), figAlong: +along.toFixed(2), ratio: +(along / hl).toFixed(3), modeEnd: f1.mode }; });
+  return { pass: r.holeMoved > 5 && r.ratio >= 0.7, detail: r }; };
+// 8. no-free-sucks: a figure outside the field is never position-pulled (only Task 1 physics may move it)
+T['no-free-sucks'] = async p => { const r = await p.evaluate(() => { const S = __SIM; S.reset(); S.pause(); S.setHole(...S.statePoint('OH', 0.3)); let bad = 0, checked = 0;
+  for(let k = 0; k < 60 * 5; k++){ const a = k / 60; S.input(Math.cos(a), Math.sin(a * 0.7)); const h = S.holeWorld(), F = S.fieldR(), snap = S.outsideField(F + 0.05); S.step(1);
+    for(const q of snap){ const f = S.figInfo(q[0]); checked++; if(f.mode === q[3] && (f.mode === 'stand' || f.mode === 'rest') && (Math.abs(f.x - q[1]) > 1e-6 || Math.abs(f.z - q[2]) > 1e-6)) bad++; } }
+  S.input(null); return { checked, movedWhileOutside: bad, internalViolations: S.fieldViolations() }; });
+  return { pass: r.checked > 1000 && r.movedWhileOutside === 0 && r.internalViolations === 0, detail: r }; };
+// 9. strip-without-touch: the field overlaps a tower's base, the rim never does -> the whole tower falls within 6 s
+T['strip-without-touch'] = async p => { const r = await p.evaluate(() => { const S = __SIM, out = [];
+  for(const ab of ['NY', 'TX']){ S.reset(); S.pause(); S.setSize(2); const c = S.tallest(ab), b = S.figInfo(S.figOf(c.id, 0)), d = (S.rimZoneR() + S.fieldR()) / 2;
+    S.setHole(b.x + d, b.z); let t = 0; for(; t < 360; t++){ S.step(1); if(S.colStanding(c.id) === 0) break; }
+    out.push({ ab, h: c.h, dist: +d.toFixed(2), rimZone: +S.rimZoneR().toFixed(2), field: +S.fieldR().toFixed(2), standingLeft: S.colStanding(c.id), secs: +(t / 60).toFixed(2), rimTouched: S.holeTouched([c.id]) }); }
+  return out; });
+  return { pass: r.every(x => x.standingLeft === 0 && x.secs <= 6 && !x.rimTouched), detail: r }; };
+// 10. tail-escapes-stay: after the hole exits, figures left downed outside the field stay at rest (no zombie sliding) for 3 s
+T['tail-escapes-stay'] = async p => { const r = await p.evaluate(() => { const S = __SIM; S.reset(); S.pause(); S.setSize(2.5); S.setHole(...S.statePoint('PA', 0.5));
+  for(let k = 0; k < 60 * 3; k++){ S.input(1, 0.3); S.step(1); } for(let k = 0; k < 60 * 2; k++){ S.input(-1, -1); S.step(1); } S.input(null); S.step(30);
+  const snap = S.outsideField(S.fieldR() + 0.05).filter(q => q[3] === 'rest'); S.step(180); let moved = 0, woke = 0;
+  for(const q of snap){ const f = S.figInfo(q[0]); if(f.mode !== 'rest') woke++; else if(Math.hypot(f.x - q[1], f.z - q[2]) > 1e-6) moved++; }
+  return { downedOutside: snap.length, moved, woke }; });
+  return { pass: r.downedOutside > 20 && r.moved === 0 && r.woke === 0, detail: r }; };
+
 (async () => { const srv = await serve(), port = srv.address().port, b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await b.newPage({ viewport: { width: 390, height: 844 } }); const errs = []; p.on('pageerror', e => errs.push('' + e));
   await p.goto(`http://localhost:${port}/index.html?test=1&seed=7`); let ok = false;
