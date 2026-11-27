@@ -62,7 +62,10 @@ T['banner-facts'] = async p => { const r = await p.evaluate(() => { const S = __
   for(const ab of ['TX', 'WY', 'OH']){ S.completeState(ab); const want = S.factLine(ab), got = S.lastBanner(); const d = S.data(ab);
     out.push({ ab, got, want, pop: d.pop, maxH: d.maxH, ok: got === want && got.indexOf(d.name) === 0 && got.indexOf((d.pop / 1e6).toFixed(1) + 'M people') > 0 && got.indexOf('tallest stack ' + d.maxH) > 0 }); }
   return out; });
-  return { pass: r.every(x => x.ok) && r[0].got === 'Texas down — 30.5M people · tallest stack 22', detail: r }; };
+  // FLAGGED TO MOTH: OPUS-NEXT's example text says "Texas down — 30.5M people", but the build's inlined data table says TX pop
+  // 31,709,821 (31.7M). The spec's rule is "matches the data table", so that is what passes; the example's number is reported here.
+  const tx = r.find(x => x.ab === 'TX'); if (tx && tx.got.indexOf('30.5M') < 0) console.log('  FLAG banner-facts: spec example says Texas 30.5M; data table gives ' + (tx.pop / 1e6).toFixed(1) + 'M — banner follows the data');
+  return { pass: r.every(x => x.ok), detail: r }; };
 
 (async () => { const srv = await serve(), port = srv.address().port, b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await b.newPage({ viewport: { width: 390, height: 844 } }); const errs = []; p.on('pageerror', e => errs.push('' + e));
