@@ -33,6 +33,19 @@ Today towers crumble on a scripted per-level stagger. Replace it with a support-
 - Rim behaviour: figures within rim radius get a pre-fall TEETER (0.15–0.3 s wobble, amplitude grows) before tipping in — reads as panic, sells the swallow. Test `teeter-before-fall`: no figure transitions standing→falling in <0.12 s once inside rim radius.
 - Per-state completion banner carries the real fact line (data already in the build): "Texas down — 30.5M people · tallest stack 22". Test asserts banner text matches the data table for 3 sampled states.
 
+## TASK 4 — Capture field: the hole must act like a BLACK hole (owner note, Nov 27)
+Owner, verbatim: "Should also act more like a black hole where the people all fall and tip over but are dragged along with the movement until they all suck into the hole." A first-pass implementation ships with the population-banner update (Moth's lane) — your job is to own it, harden it, and prove it with tests. If the shipped pass disagrees with the specs below, the specs win.
+- **Influence field** ≈ 2.2× rim radius. Figures entering it lean/tip progressively toward the hole (pitch grows as distance closes), lose footing, and fall.
+- **Drag-along:** downed/in-field figures inherit the hole's velocity plus a steady inward pull — a moving hole sweeps a tumbling comet-tail of people that travels WITH it and piles against its trailing side. Figures reaching the rim suck in (existing fall). Figures the hole leaves behind (outside the field) stay downed where they lie.
+- **Tower stripping:** figures dragged from a stack's base/edge are support loss — Task 1's collapse takes the rest. The field must be able to fell a tower without the rim touching it.
+
+**Spec tests (write first, red until pass):**
+6. `field-radius`: a figure at 2.1× rim radius is affected within 0.5 s; a figure at 2.4× is untouched after 2 s.
+7. `drag-along`: hole moves at constant velocity for 2 s with a downed figure in-field; assert the figure's net displacement is ≥ 70% of the hole's, in the hole's direction.
+8. `no-free-sucks`: a figure outside the field is never position-pulled (only Task 1 physics may move it).
+9. `strip-without-touch`: park the hole so its field overlaps a tower base but its rim never does; assert the tower fully falls within 6 s.
+10. `tail-escapes-stay`: after the hole exits, figures left downed outside the field remain at rest (no zombie sliding) for 3 s.
+
 ## Out of scope (Neon's lane, do not touch)
 State-surface painting, sky/water grade, landmarks, skyline silhouette art. If physics needs a data change for skylines, propose it in a response file; don't build it.
 
