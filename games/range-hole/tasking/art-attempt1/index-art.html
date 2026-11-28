@@ -1,0 +1,503 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>Range Hole</title></head><body>
+<script type="module">
+/* RANGE HOLE — Cherie's concept: a triple-deck driving range, 100 golfers
+   all hitting, and YOU are the hole. Built on the Black Hole City kit
+   (same gp3d/gpkit vendor stack, stage, sky, black disc + purple ring +
+   aura, tip/shrink/sink swallow). Camera: one locked FULL VIEW — a
+   gentle follow at a fixed offset and fixed fov, never a zoom, never a
+   cut. Every ball carries its own state: on launch it flies its high
+   arch in personal slow motion (~0.3x for the first ~1.3 s of its own
+   flight), then flips to normal speed for the drop, bounce and roll.
+   Drag the hole around the range grass and swallow balls BEFORE they
+   bounce away their value: a ball eaten on the fly (straight into the
+   cup, no bounce) pays the full 50 pts; every bounce before the eat
+   costs 10 pts (40/30/20/10), and a ball that has stopped rolling
+   pays 0 — it still fills the hole, but it doesn't feed the combo.
+   Chain scoring catches inside 2 s to build a combo multiplier.
+   60 seconds. */
+import { createStage, sfx, rand, clamp, THREE } from './vendor/gp3d.js';
+import { toon, build, crowd, particles, sky, groundTex, treeGeo, walkClock } from './vendor/gpkit.js';
+
+const qs = new URLSearchParams(location.search);
+const S = { title: 'RANGE HOLE', sub: '100 golfers. One hole. Catch the balls while they\'re fast! 60 seconds.', seconds: +(qs.get('seconds') || 60), ringColor: 0x7b4bff, skyTop: 0x4aa8ff, skyBottom: 0xbfe6ff, bg: 0x9fd8ff, winScore: 1000 };
+const st = createStage({ style: 'toon', bg: S.bg, fitWidth: 16, fov: 56 });
+/* ART PASS 1 — light rig = gamepress VISUAL-STANDARDS PRESET 3 `hoa`
+   (HOA Warfare bright daytime): hemi #dff4ff/#6a8d4a 1.8, sun #fff3d6
+   2.1 at (30,50,20), REAL shadow mapping (Scaggsville index.html
+   pattern: shadowMap enabled, PCFSoft). Colours verbatim from
+   kit/gpstyle.js PALETTES.hoa. Fog distances rescaled to this scene. */
+st.renderer.shadowMap.enabled = true; st.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+st.scene.add(new THREE.HemisphereLight(0xdff4ff, 0x6a8d4a, 1.8));
+const sun = new THREE.DirectionalLight(0xfff3d6, 2.1);
+sun.position.set(30, 50, 20); sun.castShadow = true;
+sun.shadow.camera.left = -62; sun.shadow.camera.right = 62; sun.shadow.camera.top = 62; sun.shadow.camera.bottom = -62;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 160; sun.shadow.bias = -0.0015; sun.shadow.mapSize.set(2048, 2048);
+sun.target.position.set(0, 0, -6); st.scene.add(sun); st.scene.add(sun.target);
+sky(st.scene, S.skyTop, S.skyBottom, [140, 480]); const fx = particles(st.scene, 400);
+
+/* ============================ the range ============================
+   Decks at the far end (z ~ -44), golfers hit toward +z. The hole plays
+   on the grass in front of the decks: x in [-52,52], z in [-39.5, 30]. */
+const HX = [-52, 52], HZ = [-39.5, 30];
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), toon(0xffffff, { map: groundTex('grass', 290) })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; st.scene.add(ground);
+
+/* ART PASS 1 — the range surface is ONE PAINTED CANVAS, Palm City
+   technique (moth-slice palm-city src/ground.js: layered alpha dabs,
+   indigo shadow splotches rgba(28,22,62,0.11), hand-painted lines,
+   worn patches) drawn in gpstyle's canvasTexture spirit: soft-edged
+   mowing stripes, a scuffed landing zone where the balls rain, a pale
+   apron in front of the decks, painted rings under the 3D targets and
+   worn painted yardage numbers. Base colour = groundTex grass base so
+   the sheet melts into the surround. */
+function rangeTex() {
+  let seed = 20261127; const rnd = (a = 1, b) => { seed = (seed * 16807) % 2147483647; const r = (seed - 1) / 2147483646; return b === undefined ? r * a : a + r * (b - a); };
+  const W = 2048, H = 1556, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d'), KX = W / 116, KZ = H / 88, X = x => (x + 58) * KX, Z = z => (z + 52) * KZ;
+  g.fillStyle = '#5aa844'; g.fillRect(0, 0, W, H);
+  const GREENS = ['#57a047', '#6fb457', '#4e9a3c', '#67b84d', '#5da64e'];
+  const dab = (cols, n, amax, rmax, x0, x1, z0, z1) => { for (let i = 0; i < n; i++) { const x = rnd(x0, x1), z = rnd(z0, z1), r = rnd(20, rmax); const gr = g.createRadialGradient(X(x), Z(z), 0, X(x), Z(z), r); const c = cols[(rnd(cols.length)) | 0]; gr.addColorStop(0, c); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.globalAlpha = rnd(.06, amax); g.fillStyle = gr; g.beginPath(); g.arc(X(x), Z(z), r, 0, 7); g.fill(); } };
+  dab(GREENS, 150, .26, 250, -58, 58, -52, 36);                                   // broad colour variation
+  dab(['#1c163e'], 42, .11, 120, -58, 58, -52, 36);                              // indigo shadow splotches (Palm City)
+  /* mowing stripes along z, soft-edged bands on a 7.4u rhythm */
+  for (let i = 0; i < 16; i++) { const bx = -58 + i * 7.4, gr = g.createLinearGradient(X(bx), 0, X(bx + 7.4), 0); const col = i % 2 ? '255,255,235' : '16,44,16'; gr.addColorStop(0, `rgba(${col},0)`); gr.addColorStop(.5, `rgba(${col},.15)`); gr.addColorStop(1, `rgba(${col},0)`); g.globalAlpha = 1; g.fillStyle = gr; g.fillRect(X(bx), Z(-44), 7.4 * KX + 2, Z(36) - Z(-44)); }
+  /* pale apron in front of the decks */
+  g.globalAlpha = .5; g.fillStyle = '#b2be82'; g.fillRect(X(-50), Z(-41), 100 * KX, Z(-34) - Z(-41)); g.globalAlpha = 1;
+  /* worn landing zone: scuffed yellow-brown where the balls rain */
+  dab(['#b3a05f', '#a8935a', '#c2b06a', '#9c8a52'], 120, .30, 90, -30, 30, -4, 18);
+  for (let i = 0; i < 1500; i++) { const a = rnd(6.28), rr = Math.sqrt(rnd(1)), x = Math.cos(a) * rr * 30, z = 7 + Math.sin(a) * rr * 11; g.globalAlpha = rnd(.15, .45); g.fillStyle = ['#b3a05f', '#a8935a', '#c2b06a', '#8a7a48'][(rnd(4)) | 0]; g.fillRect(X(x), Z(z), rnd(1, 3.4), rnd(1, 3.4)); }
+  /* painted rings under the 3D target rings */
+  for (const [x, z, r, c] of [[-20, -10, 4.5, '#2a9d8f'], [19, -22, 5.5, '#f1c453'], [2, 6, 3.5, '#e63946']]) { g.globalAlpha = .12; g.fillStyle = c; g.beginPath(); g.arc(X(x), Z(z), r * KX, 0, 7); g.fill(); g.globalAlpha = .55; g.lineWidth = 11; g.strokeStyle = c; g.beginPath(); g.arc(X(x), Z(z), (r - .4) * KX, 0, 7); g.stroke(); }
+  /* painted yardage numbers, worn */
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 96px "Arial Black", system-ui, sans-serif';
+  for (const [txt, x, z] of [['50', -30, -25], ['100', 30, -10], ['150', -30, 5], ['200', 30, 20]]) {
+    g.globalAlpha = .88; g.fillStyle = '#f4efe4'; g.fillText(txt, X(x), Z(z));
+    g.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 260; i++) { g.globalAlpha = rnd(.2, .6); g.fillRect(X(x) + rnd(-95, 95), Z(z) + rnd(-42, 42), rnd(1, 4), rnd(1, 4)); }
+    g.globalCompositeOperation = 'source-over';
+  }
+  /* fine speckle everywhere */
+  for (let i = 0; i < 2600; i++) { g.globalAlpha = rnd(.05, .14); g.fillStyle = GREENS[(rnd(GREENS.length)) | 0]; g.fillRect(rnd(W), rnd(H), rnd(1, 2.6), rnd(1, 2.6)); }
+  /* melt the sheet edges into the surround */
+  const melt = (rx, ry, rw, rh, gx0, gy0, gx1, gy1) => { const gr = g.createLinearGradient(gx0, gy0, gx1, gy1); gr.addColorStop(0, 'rgba(90,168,68,.9)'); gr.addColorStop(1, 'rgba(90,168,68,0)'); g.globalAlpha = 1; g.fillStyle = gr; g.fillRect(rx, ry, rw, rh); };
+  melt(0, 0, W, 80, 0, 0, 0, 80); melt(0, H - 80, W, 80, 0, H, 0, H - 80); melt(0, 0, 80, H, 0, 0, 80, 0); melt(W - 80, 0, 80, H, W, 0, W - 80, 0);
+  g.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+{
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(116, 88), toon(0xffffff, { map: rangeTex() }));
+  m.rotation.x = -Math.PI / 2; m.position.set(0, .012, -8); m.receiveShadow = true; st.scene.add(m);
+}
+
+/* ===================== triple-deck structure =====================
+   One merged build(): slabs, bay dividers, columns, railings, roof —
+   three clearly stacked decks with a coloured fascia per level. */
+const DECK_TOPS = [0.6, 5.0, 9.4];            // floor height of decks 1..3
+/* launch elevation per deck (radians): BIG HIGH ARCING shots, never
+   line drives — ground deck steepest (41–52°), top deck a touch
+   flatter (33–44°) since it starts 9.4 up, all well inside the
+   30–50° real-range-shot band */
+const LAUNCH_EL = [[.72, .90], [.65, .83], [.58, .76]];
+const ARC_SPD = .78;   // speed trim so the steep arcs carry to the same field the flat shots did
+const DECK_COUNTS = [34, 33, 33];             // 100 bays total
+const BAY_W = 2.6, DECK_Z = -44.5, ROOF_Y = 14.9;
+const FASCIA = [0x2a9d8f, 0xf1c453, 0xe63946];
+{
+  const P = [];
+  const box = (s, p, c) => P.push({ g: 'box', s, p, c });
+  box([94, 15.4, .6], [0, 7.7, -49.1], 0x87a0b8);                       // back wall
+  box([.6, 15.4, 8.5], [-47, 7.7, DECK_Z], 0x87a0b8); box([.6, 15.4, 8.5], [47, 7.7, DECK_Z], 0x87a0b8);
+  box([96, .6, 10.5], [0, ROOF_Y, -44.6], 0xe63946);                    // roof
+  box([96, .9, .25], [0, ROOF_Y - .75, -39.45], 0xffd34d);              // roof banner strip
+  for (let x = -46; x <= 46; x += 11.5) box([.7, ROOF_Y, .7], [x, ROOF_Y / 2, -48.2], 0x9fb2c8);   // back columns
+  for (const x of [-46, -23, 0, 23, 46]) box([.6, ROOF_Y, .6], [x, ROOF_Y / 2, -40.9], 0x9fb2c8);  // front columns
+  DECK_TOPS.forEach((top, d) => {
+    box([94, .6, 8.5], [0, top - .3, DECK_Z], 0x9fb0c6);                // floor slab (mid grey-blue so the golfers pop)
+    box([94, .55, .3], [0, top - .32, -40.32], FASCIA[d]);              // fascia strip
+    box([94, .12, .34], [0, top - .70, -40.32], 0xf4efe4);              // ART 1: white trim line under each fascia
+    box([93, .14, .14], [0, top + 1.08, -40.55], 0x37474f);             // railing top bar
+    box([93, .09, .09], [0, top + .58, -40.55], 0x37474f);              // railing mid bar
+    for (let x = -46; x <= 46; x += 5.75) box([.1, 1.08, .1], [x, top + .54, -40.55], 0x37474f);
+    const n = DECK_COUNTS[d], x0 = -(n - 1) / 2 * BAY_W;
+    /* ART 1: divider NETS — thin dark blue-grey panels + a mid rail,
+       replacing the pale slabs, so bays read as netted stalls */
+    for (let i = 0; i <= n; i++) { const dx = x0 - BAY_W / 2 + i * BAY_W; box([.08, 2.1, 6.8], [dx, top + 1.05, -44.9], 0x5f7185); box([.14, .09, 6.8], [dx, top + 1.05, -44.9], 0x46586a); }
+    /* ART 1: bay dressing from build() primitives (kit idiom — no golf
+       dressing set exists in the kit): ball pyramids + range buckets */
+    for (let i = 0; i < n; i++) {
+      const bx = x0 + i * BAY_W;
+      if (i % 4 === 1) { const px = bx - .82, pz = -46.4;               // 3-2-1 ball pyramid
+        for (const [ox, oz, oy] of [[-.26, -.18, .23], [.26, -.18, .23], [0, .26, .23], [-.13, .02, .59], [.13, .02, .59], [0, .03, .93]])
+          P.push({ g: 'sphere', s: [.46, .46, .46], p: [px + ox, top + oy, pz + oz], c: 0xf7f3e8 }); }
+      if (i % 4 === 3) { P.push({ g: 'cyl', s: [.58, .5, .58], p: [bx + .82, top + .25, -46.4], c: 0xf4efe4 }, { g: 'cyl', s: [.46, .06, .46], p: [bx + .82, top + .5, -46.4], c: 0x2c313a }); }  // bucket + dark opening
+    }
+  });
+  const m = new THREE.Mesh(build(P), toon(0xffffff, { vertexColors: true })); m.castShadow = true; m.receiveShadow = true; st.scene.add(m);
+}
+
+/* target rings + yardage flags on the grass */
+for (const [x, z, r, c] of [[-20, -10, 4.5, 0x2a9d8f], [19, -22, 5.5, 0xf1c453], [2, 6, 3.5, 0xe63946]]) {
+  const ringM = new THREE.Mesh(new THREE.RingGeometry(r - .8, r, 40), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .45, side: THREE.DoubleSide, depthWrite: false }));
+  ringM.rotation.x = -Math.PI / 2; ringM.position.set(x, .05, z); st.scene.add(ringM);
+}
+{
+  const P = [];
+  for (const [x, z, c] of [[-27, -27, 0xe63946], [27, -27, 0xf1c453], [-27, 1, 0x2a9d8f], [27, 1, 0x4361ee]]) {
+    P.push({ g: 'cyl', s: [.09, 3.4, .09], p: [x, 1.7, z], c: 0xf4efe4 }, { g: 'box', s: [1.15, .72, .07], p: [x + .6, 3.05, z], c });
+  }
+  const m = new THREE.Mesh(build(P), toon(0xffffff, { vertexColors: true })); st.scene.add(m);
+}
+
+/* tree line behind the decks and along both sides — frames the range */
+{
+  const LEAF = [0x2f8f4a, 0x3aa65a, 0x5cb85c];
+  const spots = [];
+  for (let x = -72; x <= 72; x += rand(5, 8)) spots.push([x + rand(-1.5, 1.5), rand(-62, -55)]);
+  for (let z = -50; z <= 32; z += rand(6, 9)) { spots.push([rand(-66, -58), z]); spots.push([rand(58, 66), z]); }
+  const round = crowd(st.scene, treeGeo('round'), spots.length, true, 0);
+  spots.forEach(([x, z], i) => { round.set(i, x, 0, z, rand(1.5, 2.4), rand(0, 6.3), 0, 0); round.color(i, LEAF[i % 3]); });
+  round.done(spots.length); round.mesh.castShadow = true;
+  const pines = [];
+  for (let x = -70; x <= 70; x += rand(7, 11)) pines.push([x, rand(-68, -63)]);
+  const pine = crowd(st.scene, treeGeo('pine'), pines.length, true, 0);
+  pines.forEach(([x, z], i) => { pine.set(i, x, 0, z, rand(1.6, 2.6), rand(0, 6.3), 0, 0); pine.color(i, LEAF[(i + 1) % 3]); });
+  pine.done(pines.length); pine.mesh.castShadow = true;
+}
+
+/* the hole — exactly as in Black Hole City: black disc, purple ring, aura */
+const hole = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0x000000 })); hole.rotation.x = -Math.PI / 2; hole.position.y = .06; st.scene.add(hole);
+const aura = new THREE.Mesh(new THREE.RingGeometry(1.12, 1.7, 40), new THREE.MeshBasicMaterial({ color: S.ringColor, transparent: true, opacity: .3, side: THREE.DoubleSide, depthWrite: false })); aura.rotation.x = -Math.PI / 2; aura.position.y = .065; st.scene.add(aura);
+const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 40), new THREE.MeshBasicMaterial({ color: S.ringColor, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = .07; st.scene.add(ring);
+
+/* ============================ golfers ============================
+   Swing = per-instance yaw/pitch: address, wind-up (shoulders turn),
+   fast downswing (ball launches at impact), follow-through, settle. */
+/* ART PASS 1 — golfers rebuilt as PEOPLE on the Scaggsville discipline:
+   clothing TEMPLATES as data rows (scaggsville-3d/src/crowd.js lines
+   41–46 format, extended to golf colours), proportions + cap
+   construction from shared/people.js buildPerson (head small on a
+   ~1.85 figure, cap = dome + TIPPED brim + top button, shoes as
+   separate dark boxes, chest STRIPE band), skins cycling gpchar's
+   SKIN_TONES verbatim (kit/gpchar.js line 394). The figure is split
+   into FOUR crowd() InstancedMeshes (SHIRT / SKIN / PANTS+club / CAP)
+   sharing per-instance matrices in pre() — the crowd.js proof that
+   the people.js idiom instances. White parts take the row colour. */
+const SKIN_TONES = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac];
+const OUTFITS = [
+  { skin: SKIN_TONES[0], shirt: 0xe63946, pants: 0x2c3e66, cap: 0xf4efe4 },
+  { skin: SKIN_TONES[3], shirt: 0x2a9d8f, pants: 0xf4efe4, cap: 0x2a9d8f },
+  { skin: SKIN_TONES[1], shirt: 0xf1c453, pants: 0x37474f, cap: 0xe63946 },
+  { skin: SKIN_TONES[2], shirt: 0x457b9d, pants: 0x5a5148, cap: 0xf1c453 },
+  { skin: SKIN_TONES[4], shirt: 0xff7ab6, pants: 0x2a3a5e, cap: 0xf4efe4 },
+  { skin: SKIN_TONES[0], shirt: 0x8ac926, pants: 0x23232a, cap: 0x24304a },
+  { skin: SKIN_TONES[1], shirt: 0xf4efe4, pants: 0x5e1f24, cap: 0xff8a3c },
+  { skin: SKIN_TONES[3], shirt: 0xff8a3c, pants: 0x3a3f44, cap: 0x457b9d },
+];
+const shirtGeo = () => build([
+  { g: 'box', s: [.48, .60, .27], p: [0, 1.32, 0] },                                            // torso (white → shirt)
+  { g: 'box', s: [.50, .10, .29], p: [0, 1.40, 0], c: 0xf4efe4 },                              // chest stripe band (people.js STRIPE)
+  { g: 'cyl', s: [.13, .62, .13], p: [-.28, 1.02, .16], r: [.5, 0, .18] },                     // long sleeves (white → shirt)
+  { g: 'cyl', s: [.13, .62, .13], p: [.28, 1.02, .16], r: [.5, 0, -.18] },
+]);
+const skinGeo = () => build([
+  { g: 'sphere', s: [.34, .34, .34], p: [0, 1.70, 0] },                                        // head .34 (white → skin)
+  { g: 'cyl', s: [.10, .10, .10], p: [0, 1.60, 0] },                                           // neck
+  { g: 'sphere', s: [.12, .12, .12], p: [.08, .80, .36] },                                     // hands on the grip
+  { g: 'sphere', s: [.12, .12, .12], p: [.20, .76, .39] },
+]);
+const pantsGeo = () => build([
+  { g: 'box', s: [.34, .18, .21], p: [0, .95, 0] },                                             // pelvis (white → pants)
+  { g: 'box', s: [.18, .84, .20], p: [-.10, .47, 0] },                                         // one-piece legs (white → pants)
+  { g: 'box', s: [.18, .84, .20], p: [.10, .47, 0] },
+  { g: 'box', s: [.11, .07, .25], p: [-.10, .035, .04], c: 0x232327 },                         // shoes (people.js row.shoes)
+  { g: 'box', s: [.11, .07, .25], p: [.10, .035, .04], c: 0x232327 },
+  { g: 'cyl', s: [.06, 1.15, .06], p: [.16, .6, .44], r: [.35, 0, 0], c: 0x222831 },            // club shaft
+  { g: 'box', s: [.17, .09, .09], p: [.16, .07, .62], c: 0x9aa0aa },                           // club head
+]);
+const capGeo = () => build([
+  { g: 'sphere', s: [.37, .20, .37], p: [0, 1.80, -.01] },                                     // dome (white → cap colour)
+  { g: 'box', s: [.30, .05, .24], p: [0, 1.76, .22], r: [.15, 0, 0] },                         // brim, tipped down (people.js)
+  { g: 'sphere', s: [.07, .06, .07], p: [0, 1.90, -.01] },                                     // top button
+]);
+const golfers = [];
+DECK_TOPS.forEach((top, d) => {
+  const n = DECK_COUNTS[d], x0 = -(n - 1) / 2 * BAY_W;
+  for (let i = 0; i < n; i++) golfers.push({
+    x: x0 + i * BAY_W, y: top, z: -45.7, deck: d,
+    power: rand(27, 44), period: rand(3.4, 5.4), start: -rand(0, 5), prevC: 0,
+    aim: rand(-2.2, 2.2), ph: rand(0, 6.28),
+  });
+});
+const gShirt = crowd(st.scene, shirtGeo(), golfers.length, true, 0);
+const gSkin = crowd(st.scene, skinGeo(), golfers.length, true, 0);
+const gPants = crowd(st.scene, pantsGeo(), golfers.length, true, 0);
+const gCap = crowd(st.scene, capGeo(), golfers.length, true, 0);
+for (const c of [gShirt, gSkin, gPants, gCap]) c.mesh.castShadow = true;
+golfers.forEach((g, i) => { const o = OUTFITS[i % OUTFITS.length]; gShirt.color(i, o.shirt); gSkin.color(i, o.skin); gPants.color(i, o.pants); gCap.color(i, o.cap); });
+const GSCALE = golfers.map(() => rand(1.06, 1.18));   // per-golfer body scale variety
+const IMPACT_TAIL = .38;   // impact happens this long before cycle end
+function swingPose(g, c, t) {
+  const impactAt = g.period - IMPACT_TAIL, windStart = g.period - 1.15, swingStart = g.period - .62;
+  if (c < windStart) return { yaw: .04 * Math.sin(t * 1.4 + g.ph), pitch: .02 * Math.sin(t * 1.1 + g.ph) };
+  if (c < swingStart) { const k = (c - windStart) / .53, e = 1 - (1 - k) * (1 - k); return { yaw: -.62 * e, pitch: -.06 * e }; }
+  if (c < impactAt) { const k = (c - swingStart) / .24, e = k * k; return { yaw: -.62 + 1.0 * e, pitch: -.06 + .16 * e }; }
+  const k = Math.min(1, (c - impactAt) / IMPACT_TAIL), e = 1 - Math.pow(1 - k, 3);
+  return { yaw: .38 + .2 * e, pitch: .1 - .04 * e };
+}
+
+/* ============================ balls ============================
+   Instanced spheres, per-ball physics: gravity 22, bounce restitution
+   .45 (horizontal keeps .8), roll friction decel 7.5, rest after speed
+   < .35, fade out 2.0–2.6 s after stopping. Every bounce is counted
+   on the ball (b.bounces).
+   PER-BALL SLOW STATE: on launch a ball is SLOW — its own integrator
+   step is scaled by SLOW_TS for the first SLOW_DUR seconds of ITS OWN
+   flight time, so its rise and peak loop in slow motion; then it flips
+   to 1x for descent, bounce, roll, rest. Only the step is scaled, never
+   the velocities, so the trajectory is the true one played slower.
+   SLOW_DUR 1.3: with the high-arc launch the climb to peak takes up
+   to ~1.2 s of ball time, so the window is sized to keep the peak
+   inside the slow state for every shot.
+   VALUE (bounce-based): a ball that drops straight in — eaten while
+   flying, before any bounce — pays 50. Each bounce before the eat
+   cuts 10: 40 / 30 / 20 / 10 at 1 / 2 / 3 / 4+ bounces. A ball that
+   has stopped rolling pays 0: eating it scores nothing and does not
+   extend the combo chain, but it still counts as eaten (hole growth).
+   TINT keys off the value tier: white-hot at the 50 tier, one cooling
+   step per bounce, fully grey/dim once stopped — dead balls read dead. */
+const BALL_R = .23, MAX_BALLS = 240, GRAV = 22, SLOW_TS = .3, SLOW_DUR = 1.3;
+const ballGeo = () => build([{ g: 'sphere', s: [BALL_R * 2, BALL_R * 2, BALL_R * 2], p: [0, 0, 0] }]);
+const balls = Array.from({ length: MAX_BALLS }, () => ({ on: false, x: 0, y: -50, z: 0, vx: 0, vy: 0, vz: 0, state: 'off', bounces: 0, restT: 0, fall: 0, fallY0: 0, pts: 0, s: 1, slowT: 0 }));
+const bcr = crowd(st.scene, ballGeo(), MAX_BALLS, true, 0);
+bcr.mesh.castShadow = true;
+/* ART PASS 1 — slow-mo streaks. No trail/ribbon helper exists in the
+   house (searched kit/gpfx, gpfeel, gpkit, vendor — none), so this is
+   gpstyle's additive-glow technique (makeGlowSprite3D, kit/gpstyle.js
+   line 625: additive halo, warm colour, cheap bloom) in instanced
+   form: one stretched additive ellipsoid trailing each ball while it
+   is in its personal slow state, oriented along its velocity. */
+const streaks = new THREE.InstancedMesh(ballGeo(), new THREE.MeshBasicMaterial({ color: 0xfff3c8, transparent: true, opacity: .38, blending: THREE.AdditiveBlending, depthWrite: false }), MAX_BALLS);
+streaks.frustumCulled = false; st.scene.add(streaks);
+const _o = new THREE.Object3D(); _o.rotation.order = 'YXZ';
+const HOT = new THREE.Color(0xfff0a8), DEAD = new THREE.Color(0x565e66), _c = new THREE.Color();
+const ballSpeed = b => b.state === 'fly' ? Math.hypot(b.vx, b.vy, b.vz) : Math.hypot(b.vx, b.vz);
+const ballValue = b => b.state === 'rest' ? 0 : Math.max(10, 50 - 10 * b.bounces);
+/* tint tier 1 = white-hot (50, still flying clean) -> 0 = dead grey */
+const ballTier = b => b.state === 'rest' ? 0 : clamp(1 - b.bounces * .22, .12, 1);
+function launchBall(g) {
+  let b = balls.find(b => !b.on);
+  if (!b) { b = balls.filter(b => b.on && b.state !== 'fall').sort((a, c) => ballValue(a) - ballValue(c))[0]; if (!b) return; }
+  const elr = LAUNCH_EL[g.deck] || LAUNCH_EL[1];
+  const spd = g.power * rand(.9, 1.1) * ARC_SPD, el = rand(elr[0], elr[1]), az = rand(-.045, .045) + g.aim * .002;
+  const vh = Math.cos(el) * spd;
+  b.on = true; b.state = 'fly'; b.fall = 0; b.s = 1; b.restT = 0; b.bounces = 0;
+  b.x = g.x + .16; b.y = g.y + .3; b.z = g.z + 1.05;
+  b.vx = vh * Math.sin(az); b.vz = vh * Math.cos(az); b.vy = Math.sin(el) * spd;
+  b.slowT = SLOW_DUR;   // every ball starts its flight in its own slow state
+}
+
+/* ============================ game state ============================
+   SCORE MODEL (exact): catch pts = ballValue at the catch instant
+   (bounce-based: 50 on the fly, −10 per bounce, 0 once stopped).
+   COMBO: a chain counts SCORING catches (value > 0) <= 2.0 s apart.
+   For chain length c >= 3 the multiplier is min(c - 1, 6) — 3rd in
+   a row pays x2, 4th x3, 5th x4 ... capped x6. Awarded = pts *
+   multiplier. A 0-value (stopped) ball still increments ballsEaten
+   and grows the hole; it just never touches the chain.
+   HOLE GROWTH: size = min(1.4 + sqrt(ballsEaten) * .055, 2.6). */
+let hx = 0, hz = 2, tx = 0, tz = 2, size = 1.4;
+let score = 0, eatenCt = 0, chain = 0, chainT = 0, bestChain = 0, bestCatch = 0;
+let tleft = S.seconds, over = false;
+const comboMult = () => chain >= 3 ? Math.min(chain - 1, 6) : 1;
+const endcard = document.createElement('div');
+endcard.style.cssText = 'position:fixed;left:0;right:0;top:66%;display:none;text-align:center;color:#fff;font-size:4.4vmin;text-shadow:0 .5vmin 0 #000,0 0 1.2vmin #000;pointer-events:none;line-height:1.7;z-index:10';
+document.body.appendChild(endcard);
+function reset() {
+  for (const b of balls) { b.on = false; b.state = 'off'; b.y = -50; }
+  hx = tx = 0; hz = tz = 2; size = 1.4;
+  score = 0; eatenCt = 0; chain = 0; chainT = 0; bestChain = 0; bestCatch = 0;
+  tleft = S.seconds; over = false; endcard.style.display = 'none';
+  st.hud.banner('GO!', .8);
+}
+
+/* ===================== camera geometry =====================
+   FULL VIEW, LOCKED (Cherie: "No zooming in and out. Just full view."):
+   fov 56, and the camera follows the hole at a FIXED offset — fixed
+   height, fixed distance, fixed look offset — so the framing never
+   zooms, never cuts, never tracks a ball. The offset is the wide
+   framing verified in the previous pass (decks + range + hole and the
+   full height of a ball's arc in the 390x844 frame), frozen at its
+   starting-size values: it no longer grows with the hole.
+   A fully static camera was rejected on the numbers: in portrait the
+   horizontal half-fov is ~13.8°, so framing the whole ±52-unit-wide
+   field at once needs the camera ~210 units back, where a ball is
+   under 2 px and nothing is readable. The gentle follow below keeps
+   the whole scene in view around the hole at a constant distance. */
+const CAM_H = 21.2, CAM_D = 19.9, LOOK_Y = 2, LOOK_Z = 10;
+
+st.shell({ id: 'range-hole', title: S.title, sub: S.sub, onReset: reset });
+
+/* delta drag — camera-immune: screen-space pointer deltas are converted
+   to world deltas at the hole's depth, so follow-cam motion can't feed
+   back into the target (the State Hole v2 runaway bug). */
+let ptrWasDown = false, ptrPX = 0, ptrPY = 0;
+function dragStep(dt) {
+  const k = st.keys, spd = 30;
+  if (k.a || k.arrowleft) tx -= spd * dt; if (k.d || k.arrowright) tx += spd * dt;
+  if (k.w || k.arrowup) tz -= spd * dt; if (k.s || k.arrowdown) tz += spd * dt;
+  if (st.ptr.down) {
+    if (!ptrWasDown) { ptrPX = st.ptr.x; ptrPY = st.ptr.y; }
+    else {
+      const dxn = st.ptr.x - ptrPX, dyn = st.ptr.y - ptrPY; ptrPX = st.ptr.x; ptrPY = st.ptr.y;
+      const D = Math.hypot(CAM_H, CAM_D);                              // camera distance to the hole (fixed offset)
+      const H_w = 2 * D * Math.tan(28 * Math.PI / 180);                // visible height at hole depth (fov 56)
+      const W_w = H_w * (innerWidth / innerHeight);
+      const pitch = Math.atan2(CAM_H - LOOK_Y, CAM_D + LOOK_Z);
+      tx += dxn * .5 * W_w;
+      tz += dyn * .5 * H_w * (0.98 / Math.sin(pitch));                 // ground foreshortening at this tilt
+    }
+    ptrWasDown = true;
+  } else ptrWasDown = false;
+  tx = clamp(tx, HX[0], HX[1]); tz = clamp(tz, HZ[0], HZ[1]);
+  const f = Math.min(1, dt * 7), mx = (tx - hx) * f, mz = (tz - hz) * f, cap = 34 * dt, ml = Math.hypot(mx, mz);
+  if (ml > cap) { hx += mx / ml * cap; hz += mz / ml * cap; } else { hx += mx; hz += mz; }
+  hx = clamp(hx, HX[0], HX[1]); hz = clamp(hz, HZ[0], HZ[1]);
+}
+
+function update(dt) {
+  if (over) { fx.update(dt); return; }
+  walkClock.value = st.t; tleft -= dt;
+  dragStep(dt);
+  if (chainT > 0) { chainT -= dt; if (chainT <= 0) chain = 0; }
+
+  /* golfers: detect impact moment -> launch; occasional long pause */
+  for (const g of golfers) {
+    let c = st.t - g.start;
+    if (c >= g.period) {
+      g.start += g.period;
+      g.period = rand(3.4, 5.4) * (Math.random() < .22 ? rand(1.4, 1.9) : 1);
+      c = st.t - g.start;
+      if (g.prevC < g.period && c >= 0) { /* wrapped past impact last cycle end */ }
+      g.prevC = c; continue;
+    }
+    const impactAt = g.period - IMPACT_TAIL;
+    if (g.prevC < impactAt && c >= impactAt) launchBall(g);
+    g.prevC = c;
+  }
+
+  /* balls: physics + swallow */
+  const trig = size * .95 + .1, reachY = 1.5 + size * .55;
+  for (const b of balls) {
+    if (!b.on) continue;
+    if (b.state === 'fall') {                                        // BHC swallow: pull to centre, shrink, sink
+      b.fall += dt * 1.7; b.x += (hx - b.x) * Math.min(1, dt * 8); b.z += (hz - b.z) * Math.min(1, dt * 8);
+      b.y = b.fallY0 * (1 - b.fall) - b.fall * .5; b.s = Math.max(0, 1 - b.fall);
+      if (b.fall >= 1) {
+        b.on = false; b.state = 'off'; b.y = -50;
+        const mult = comboMult(), got = b.pts * mult;
+        score += got; eatenCt++;
+        if (b.pts > 0) chainT = 2.0;   // only scoring eats refresh the chain window
+        bestCatch = Math.max(bestCatch, got);
+        size = Math.min(1.4 + Math.sqrt(eatenCt) * .055, 2.6);
+        st.popup('+' + got + (mult > 1 ? ' ×' + mult : ''), { x: hx, y: 2.6, z: hz }, b.pts >= 50 ? '#ffd34d' : '#ffffff', b.pts >= 50 ? 7.5 : 5.5);
+        if (b.pts >= 50) { sfx('pop', .5); st.hitstop(.03); } else if (b.pts > 0 && Math.random() < .5) sfx('tick', .3);
+        fx.burst(4, { x: hx, y: .6, z: hz, size: .16, life: .45, color: 0xfff0a8, g: 3 }, 2);
+      }
+      continue;
+    }
+    if (b.state === 'fly') {
+      /* per-ball state: while slowT remains, THIS ball's step runs at
+         SLOW_TS — its arch loops in slow motion while everything else
+         moves at full speed. Velocities are never scaled, only the
+         step, so speed/value/tint stay the true physical values. */
+      const bdt = b.slowT > 0 ? dt * SLOW_TS : dt;
+      if (b.slowT > 0) b.slowT -= bdt;
+      b.vy -= GRAV * bdt; b.x += b.vx * bdt; b.y += b.vy * bdt; b.z += b.vz * bdt;
+      if (b.y <= BALL_R && b.vy < 0) {
+        b.y = BALL_R;
+        if (Math.abs(b.vy) > 2.4) { if (b.bounces === 0) fx.burst(3, { x: b.x, y: .3, z: b.z, size: .15, life: .4, color: 0xd9c9a0, g: 3 }, 1.6); b.vy = -b.vy * .45; b.vx *= .8; b.vz *= .8; b.bounces++; }
+        else { b.vy = 0; b.state = 'roll'; }
+      }
+    } else if (b.state === 'roll') {
+      const h = Math.hypot(b.vx, b.vz), nh = h - 7.5 * dt;
+      if (nh <= .35) { b.vx = b.vz = 0; b.state = 'rest'; b.restT = 0; }
+      else { b.vx *= nh / h; b.vz *= nh / h; b.x += b.vx * dt; b.z += b.vz * dt; }
+    } else if (b.state === 'rest') {
+      b.restT += dt; b.s = b.restT > 2.0 ? Math.max(0, 1 - (b.restT - 2.0) / .6) : 1;
+      if (b.restT >= 2.6) { b.on = false; b.state = 'off'; b.y = -50; continue; }
+    }
+    if (b.z > 70 || b.z < -52 || Math.abs(b.x) > 95) { b.on = false; b.state = 'off'; b.y = -50; continue; }
+    /* catch: close to the disc and low enough to be scooped. Only a
+       scoring ball (value > 0) extends the chain; a stopped ball is
+       eaten for mass (growth) alone — no points, no chain. */
+    const dx = b.x - hx, dz = b.z - hz;
+    if (dx * dx + dz * dz < trig * trig && b.y < reachY) {
+      b.state = 'fall'; b.fall = 1e-3; b.fallY0 = b.y; b.pts = ballValue(b);
+      if (b.pts > 0) { chain++; bestChain = Math.max(bestChain, chain); }
+    }
+  }
+  fx.update(dt);
+  st.hud.left(`SCORE<br><span style="color:#ffd34d;font-size:8vmin">${score}</span>`);
+  st.hud.right(`BALLS ${eatenCt}<br>${Math.ceil(Math.max(0, tleft))}s`);
+  st.hud.hint(chain >= 3 && chainT > 0 ? `COMBO ×${comboMult()} — ${chain} IN A ROW!` : 'Drag the hole — straight in pays 50, each bounce costs 10!');
+  if (tleft <= 0) {
+    over = true; st.hud.banner('TIME UP', 3); sfx('win'); st.flash('#7b4bff', .5);
+    const bestMult = bestChain >= 3 ? Math.min(bestChain - 1, 6) : 1;
+    endcard.innerHTML = `BALLS EATEN <b style="color:#ffd34d">${eatenCt}</b> &nbsp;·&nbsp; BEST COMBO <b style="color:#ffd34d">×${bestMult} (${bestChain} in a row)</b><br>BEST CATCH <b style="color:#ffd34d">+${bestCatch} pts</b>`;
+    endcard.style.display = 'block';
+    st.end({ win: score >= S.winScore, score, label: 'POINTS' });
+  }
+  window.__game = { score, eaten: eatenCt, size: +size.toFixed(2), chain, bestChain, bestCatch, live: balls.filter(b => b.on).length, flying: balls.filter(b => b.on && b.state === 'fly').length, slow: balls.filter(b => b.on && b.state === 'fly' && b.slowT > 0).length, ts: st.timeScale };
+}
+
+const camP = new THREE.Vector3(0, 12, 12), look = new THREE.Vector3();
+let camSnap = false;   // QA capture aid: one-frame camera snap after a teleport
+function pre() {
+  const t = st.t;
+  golfers.forEach((g, i) => {
+    let c = t - g.start; if (c < 0) c = 0; if (c >= g.period) c = g.period - .001;
+    const p = swingPose(g, c, t);
+    gShirt.set(i, g.x, g.y, g.z, GSCALE[i], p.yaw, p.pitch, 0);
+    gSkin.set(i, g.x, g.y, g.z, GSCALE[i], p.yaw, p.pitch, 0);
+    gPants.set(i, g.x, g.y, g.z, GSCALE[i], p.yaw, p.pitch, 0);
+    gCap.set(i, g.x, g.y, g.z, GSCALE[i], p.yaw, p.pitch, 0);
+  });
+  gShirt.done(golfers.length); gSkin.done(golfers.length); gPants.done(golfers.length); gCap.done(golfers.length);
+  balls.forEach((b, i) => {
+    if (!b.on) { bcr.set(i, 0, -50, 0, .01, 0, 0, 0); return; }
+    bcr.set(i, b.x, b.y, b.z, b.s, 0, 0, 0);
+    _c.copy(DEAD).lerp(HOT, ballTier(b)); bcr.color(i, _c.getHex());
+  });
+  bcr.done(MAX_BALLS);
+  /* ART 1: slow-mo streak ellipsoids (see streaks creation above) */
+  balls.forEach((b, i) => {
+    if (b.on && b.state === 'fly' && b.slowT > 0) {
+      const sp = Math.hypot(b.vx, b.vy, b.vz) || 1;
+      _o.position.set(b.x - b.vx * .045, b.y - b.vy * .045, b.z - b.vz * .045);
+      _o.rotation.set(-Math.asin(clamp(b.vy / sp, -1, 1)), Math.atan2(b.vx, b.vz), 0);
+      _o.scale.set(.75, .75, clamp(sp * .26, .3, 8));
+    } else { _o.position.set(0, -50, 0); _o.rotation.set(0, 0, 0); _o.scale.setScalar(.01); }
+    _o.updateMatrix(); streaks.setMatrixAt(i, _o.matrix);
+  });
+  streaks.instanceMatrix.needsUpdate = true;
+  hole.scale.setScalar(size); ring.scale.setScalar(size); aura.scale.setScalar(size); aura.rotation.z = st.t * 2;
+  hole.position.x = ring.position.x = aura.position.x = hx; hole.position.z = ring.position.z = aura.position.z = hz;
+  camP.set(hx, CAM_H, hz + CAM_D); st.camera.position.lerp(camP, camSnap ? 1 : .08); camSnap = false;
+  look.set(hx, LOOK_Y, hz - LOOK_Z);
+  st.camera.lookAt(look);
+}
+st.camera.position.set(hx, CAM_H, hz + CAM_D); st.run(update, pre);
+
+/* QA hooks (read-only + capture placement, same pattern as State Hole) */
+const _v = new THREE.Vector3();
+function toScreen(x, y, z) { _v.set(x, y, z).project(st.camera); return { x: Math.round((_v.x * .5 + .5) * innerWidth), y: Math.round((-_v.y * .5 + .5) * innerHeight) }; }
+window.__SAMPLE = {
+  setHole: (x, z) => { hx = tx = x; hz = tz = z; camSnap = true; },
+  hole: () => toScreen(hx, 0, hz),
+  holeWorld: () => ({ x: +hx.toFixed(1), z: +hz.toFixed(1), size: +size.toFixed(2) }),
+  toScreen: (x, y, z) => toScreen(x, y, z),
+  state: () => ({ ...window.__game, tleft: Math.ceil(Math.max(0, tleft)), over }),
+  balls: () => balls.filter(b => b.on).map(b => ({ x: +b.x.toFixed(1), y: +b.y.toFixed(1), z: +b.z.toFixed(1), spd: +ballSpeed(b).toFixed(1), val: ballValue(b), bounces: b.bounces, state: b.state, slow: b.state === 'fly' && b.slowT > 0, slowT: +b.slowT.toFixed(2), scr: toScreen(b.x, b.y, b.z) })),
+  golfers: () => golfers.length,
+  cam: () => ({ x: +st.camera.position.x.toFixed(1), y: +st.camera.position.y.toFixed(1), z: +st.camera.position.z.toFixed(1), fov: st.camera.fov }),
+};
+</script></body></html>

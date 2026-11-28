@@ -1,31 +1,22 @@
-# RANGE HOLE — Neon Brief (beauty pass)
+# NEON BRIEF — Range Hole beauty pass (updated Nov 27, 2026)
 
-**Exact location:** repo https://github.com/bparlette/Hawk2 · branch `main` · game folder `games/range-hole/` · your deliverables land in `games/range-hole/` and your response file goes in `games/range-hole/tasking/responses/`.
-**Live page (after Moth's push):** https://bparlette.github.io/Hawk2/games/range-hole/
+**Game:** Range Hole — triple-deck driving range, you are the hole.
+**Live:** https://bparlette.github.io/Hawk2/games/range-hole/
+**Repo:** https://github.com/bparlette/Hawk2 — branch `main` — folder `games/range-hole/`
+**Your starting file:** `games/range-hole/tasking/art-attempt1/index-art.html` (in this repo, pushed with this brief) — Moth's art attempt 1, already containing the HOA daytime light rig, people-golfers, and the painted ground. Build your pass ON it, not on the plainer live index.html.
+**Reference looks:** Palm City (painted ground energy) https://bparlette.github.io/Hawk/games/palm-city/ · Black Hole City (crowd/hole readability)
 
-## The game you are beautifying
-Range Hole: a triple-deck driving range, 100 golfers hitting balls, and the player is the black hole (Black Hole City's disc + purple rim) dragging around the range swallowing balls. Fresh balls are worth up to 50 pts, stopped balls 5; combos multiply. Fixed FULL-VIEW camera — the whole range in frame at all times. Every ball flies its first second in its own slow motion, then drops at normal speed. Gameplay, physics, scoring, camera and controls are FROZEN — this brief is looks only.
+## What attempt 1 fixed (do not redo)
+HOA bright-daytime grade + real shadows; golfers read as people (skin tones, caps, two-tone outfits, ball pyramids, net dividers); painted ground canvas (blotches, worn landing-zone scuff, painted rings + yardage numbers); slow-mo ball glow streaks.
 
-## The owner's verdict that created this brief
-"You have been super lazy on graphics." She's right about the current build: flat green slab, plain deck boxes, capsule golfers in solid colours. It plays well and looks like a prototype. Your job: make it look like a place.
+## Your missions (the gaps attempt 1 left)
+1. **The field at gameplay distance.** In the locked spawn framing the painted field still reads as flat green — the painted detail only shows when the hole travels. Make the field read as a real painted range FROM the gameplay camera: stronger mowing-stripe contrast, visible worn landing zone, yardage numbers and target rings that read at distance, without turning it garish.
+2. **Background depth.** Behind/around the decks there is nothing. Add the world: skyline or tree line, range signage (a big RANGE HOLE sign), fencing, light poles — depth so the scene stops floating in green void.
+3. **Grade option.** Keep the HOA bright day as the base; if a late-afternoon golden grade reads better in stills, show it as a variant still — owner picks from stills.
+4. **Serve the new ball flight.** Shots are now big high arcs (physics updated separately — not your concern, do not touch it). Make sure high balls stay visible and beautiful at the peak: ball glow/trail tuning for altitude, landing puffs where balls come down.
 
-## STILLS-FIRST GATE (do not skip)
-Before touching the build, produce ONE painted sample still — the range from the game's fixed camera — for the owner's pick. Post it in your response file with the live links you anchored on. Roll out only after her pick. Anchors: the shipped build above (composition + camera are locked — match them), Palm City for painted-surface language (https://bparlette.github.io/Hawk/games/palm-city/), and Black Hole City for the hole itself (https://bparlette.github.io/Hawk/brad-demos/g/black-hole/index.html) — the hole does not change.
+## Frozen — do not change
+Gameplay, physics, launch, scoring, camera framing/movement, timing, HUD layout. Visuals only. HTML UI z-index stays ≥1100. Touch standard stays gptouch-compatible (no custom pads).
 
-## Mission 1 — the range is a place
-- Grass with mowing stripes and a worn landing zone where balls rain down; distance markers (50 / 100 / 150 / 200) as painted ground signs + small flags; two or three target greens (rings) out in the field.
-- The decks get materials: concrete/wood bays, painted fascia in the existing teal/yellow/red, railings with depth, a real roof with shadow, ball pyramids and buckets in the bays, divider nets.
-- Sky and light: warm late-afternoon grade, long shadows from the decks across the range. The scene must still read at phone size — contrast first, detail second.
-
-## Mission 2 — golfers are people
-100 instanced golfers stay instanced (perf), but they stop being capsules: distinct silhouettes (cap, shoulders, club readable through the swing), varied skin/shirt/pants colours from a deliberate palette, a few body types if the instancing allows it without new draw calls. The swing must read from the fixed camera at phone size — exaggerate the wind-up and follow-through.
-
-## Mission 3 — juice that serves the loop
-- Slow-mo balls (first second of flight) get a subtle trail or glow so the eye catches the loops — they are the game's signature visual. Keep it cheap: no post-processing passes.
-- Landing puffs where balls hit the grass; a satisfying gulp pulse on the hole rim per catch (the hole's look itself is BHC-locked; rim pulse timing/feel only).
-
-## Hard rules
-- Frozen: physics, per-ball slow-mo states, scoring, combo, hole growth, 60 s round, camera (fixed full view — NO zoom, NO swoop, ever), drag control, HUD layout (icons + numbers, ≤ ~15% of phone screen, z-index ≥ 1100).
-- three.js stays the shared vendor stack in `games/range-hole/vendor/` — never inlined.
-- Phone is the gate: show phone-size (390×844) shots of everything.
-- SHOW YOUR WORK in your DONE entry: method, tools, output locations — recreate-from-paper detail.
+## Gate — stills first
+Before building anything out, push 390×844 phone stills (same spawn framing as attempt 1 + one mid-field framing) to `games/range-hole/tasking/responses/` showing missions 1–2 (and 3 if you try the grade). Owner picks from stills; only then roll the look into the game file. Describe HOW in your DONE entry (method, sources reused with exact paths, output locations).
