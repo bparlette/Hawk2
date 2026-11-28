@@ -34,3 +34,12 @@ Before building anything out, push 390×844 phone stills (same spawn framing as 
   - Individual stills (`rh-spawn-{attempt1,day,golden}.png`, `rh-midfield-{attempt1,day,golden}.png`) in `games/range-hole/tasking/responses/neon-range-stills/`
   - Full write-up: `games/range-hole/tasking/responses/neon-range-stills.md`
 - **HOW (method, tools, verification):** Captured via `games/range-hole/tools/capture-range-stills.mjs` (headless Chrome CDP SwiftShader + Node `WebSocket` + `uv run --with pillow python3`, seeded PRNG = 42, `390×844` DPR 2). Verified `exit 0`, `consoleErrors=0`, `pageExceptions=0`, and visually inspected all contact sheets and Retina stills.
+
+### 2026-11-27 — Neon · Live Rollout to `games/range-hole/index.html` (Owner Directed)
+- **What shipped in `games/range-hole/index.html`:**
+  - **Both grades + 24-hour real-time cycle (`1 real minute = 1 in-game hour`):** Starts at `16:09` (HOA Bright Day) so a single 60-second round sweeps naturally into Golden Hour (`17:09`), continuing through sunset, twilight, stadium-lit night range, dawn, and back to HOA Day across replays (`applyTimeOfDay()`, zero per-frame canvas redraws; supports `?hour=H` and `window.__SAMPLE.setHour(h)`).
+  - **Permanent slow-mo flight (no speed-up):** Every ball runs at `dt * SLOW_TS` (`0.3x`) for its entire flight, descent, bounces, and roll — never speeding back up to 1x.
+  - **Open full-range camera angle:** Updated to `CAM_H = 17.5, CAM_D = 30.0, LOOK_Y = 7.2, LOOK_Z = 14, fov = 58` so players see almost the entire triple-deck driving bay, the `"RANGE HOLE"` marquee, floodlights, rolling foothills, sky, and soaring high-arc balls cleanly above the painted range and hole.
+  - **Half-width driving bay (50 bays):** `DECK_COUNTS = [17, 17, 16]` (width `48u`, `HX = [-25, 25]`, half-width `rangeTex()`, perimeter netting at `x = ±27.5`, flank clubhouses at `±36`, side trees framing closely).
+  - **Faster hole movement:** Snappier drag and keyboard steering (`spd = 58`, `f = dt * 18`, `cap = 82 * dt`) plus grazing-angle Z-fighting fix (`ground.position.y = -0.18` with positive `polygonOffset` vs painted range at `y = 0.0`).
+- **Verification:** `node games/range-hole/tools/verify-live.mjs` (`390×844` DPR 2): `exit 0`, `Errors check: 0`, `golfers: 50`, `flying: 57 / slow: 57`, `deltaHour: +0.1h / 6s` (`1h / 60s`). Visually inspected `games/range-hole/tasking/responses/neon-range-stills/SBS-live-time-cycle.png` and `live-day.png`.
