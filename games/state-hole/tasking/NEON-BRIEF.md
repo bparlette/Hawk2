@@ -44,3 +44,7 @@ Append DONE entries here: what changed, before/after stills at phone size, SHOW 
   - Individual stills (`tx-play-{before,lookA,lookB,lookC}.png`, `tx-coast-{before,lookA,lookB,lookC}.png`) in `games/state-hole/tasking/responses/neon-texas-stills/`
   - Full write-up: `games/state-hole/tasking/responses/neon-mission1-texas.md`
 - **SHOW YOUR WORK:** Captured via `games/state-hole/tools/capture-texas-stills.mjs` using headless Google Chrome CDP + Node built-in `WebSocket` (`390×844`, DPR 2, SwiftShader ANGLE WebGL, seeded PRNG = 7) and `/opt/homebrew/bin/uv run --with pillow python3`. Verified `exit 0`, `consoleErrors=0`, `pageExceptions=0`, `totalPersons=5453`, and inspected all stills visually via `read_file`.
+
+## OWNER PICK — Mission 1 look (Cherie, Nov 27, 2026)
+
+**Look A · Palm Gouache is the pick.** Roll the Look A painted surface across all 51 states (Mission 1 rollout), then proceed to Missions 2 and 3 as briefed. B and C are closed — do not build them out. Moth's read, endorsed by the pick: A is the most Palm City of the three, warm golden strokes, states cleanly separated, painted feel reads at phone size without fighting the crowd.
