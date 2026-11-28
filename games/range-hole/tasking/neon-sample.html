@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Range Hole — Neon Beauty Pass Sample</title>
+<style>
+  #grade-ui {
+    position: fixed;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1200;
+    display: flex;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: rgba(16, 18, 28, 0.80);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.34);
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  #grade-ui a {
+    color: rgba(255, 255, 255, 0.88);
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 5px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  #grade-ui a.active {
+    background: #ffd34d;
+    color: #171422;
+  }
+  body.clean-mode #grade-ui { display: none; }
+</style>
+</head>
+<body>
+<nav id="grade-ui" aria-label="Grade selector">
+  <a href="?grade=day" data-grade="day">HOA Bright Day</a>
+  <a href="?grade=golden" data-grade="golden">Golden Hour</a>
+</nav>
+<script type="module">
+/* RANGE HOLE — NEON BEAUTY PASS SAMPLE (built on art-attempt1/index-art.html).
+   Gameplay, physics, launch arcs, bounce scoring, combo, hole growth, camera
+   (CAM_H=21.2, CAM_D=19.9, LOOK_Y=2, LOOK_Z=10, fov=56), timing, and HUD
+   remain 100% FROZEN from art-attempt1/index-art.html. Visuals only.
+   Imports exclusively from ../vendor/gp3d.js & ../vendor/gpkit.js. */
+import { createStage, sfx, rand, clamp, THREE } from '../vendor/gp3d.js';
+import { toon, build, crowd, particles, sky, groundTex, treeGeo, walkClock } from '../vendor/gpkit.js';
+
+const qs = new URLSearchParams(location.search);
+const CLEAN = qs.has('clean') || qs.has('auto');
+if (CLEAN) document.body.classList.add('clean-mode');
+const GRADE = (qs.get('grade') || 'day').toLowerCase() === 'golden' ? 'golden' : 'day';
+document.querySelectorAll('#grade-ui a').forEach(a => a.classList.toggle('active', a.dataset.grade === GRADE));
+
+const GRADES = {
+  day: {
+    skyTop: 0x3b9cf5, skyBottom: 0xcbeaff, bg: 0x9fd8ff, fog: [135, 420],
+    hemi: [0xdff4ff, 0x6a8d4a, 1.8],
+    sun: { color: 0xfff3d6, intensity: 2.1, pos: [30, 50, 20] },
+    hillNear: 0x4c9a68, hillFar: 0x6ba6ba, skyline: 0x7b9fb5,
+    lampGlow: 0xfff4cf, lampOpacity: 0.34,
+    stripeLight: '#68b644', stripeDark: '#418c35',
+    apron: '#a8bc76', wear: ['#bfa460', '#a98e50', '#cfb672', '#957e46'],
+    chalkAlpha: 0.64,
+    ballGlow: 0xffe89c, streakCore: 0xfff6d2, streakOuter: 0xffd56b
+  },
+  golden: {
+    skyTop: 0x327ed2, skyBottom: 0xffcf94, bg: 0xffd59e, fog: [110, 370],
+    hemi: [0xffe9c7, 0x5c6449, 1.65],
+    sun: { color: 0xffd596, intensity: 2.35, pos: [44, 34, 24] },
+    hillNear: 0x5d7e58, hillFar: 0x8d828c, skyline: 0x9b8288,
+    lampGlow: 0xffd478, lampOpacity: 0.62,
+    stripeLight: '#76b543', stripeDark: '#488236',
+    apron: '#b9be76', wear: ['#c7a35a', '#b18b49', '#d6b46c', '#987742'],
+    chalkAlpha: 0.60,
+    ballGlow: 0xffdf80, streakCore: 0xfff2c2, streakOuter: 0xffb84d
+  }
+};
+const G = GRADES[GRADE];
+
+const S = { title: 'RANGE HOLE', sub: '100 golfers. One hole. Catch the balls while they\'re fast! 60 seconds.', seconds: +(qs.get('seconds') || 60), ringColor: 0x7b4bff, skyTop: G.skyTop, skyBottom: G.skyBottom, bg: G.bg, winScore: 1000 };
+const st = createStage({ style: 'toon', bg: S.bg, fitWidth: 16, fov: 56 });
+st.renderer.shadowMap.enabled = true; st.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+st.scene.add(new THREE.HemisphereLight(G.hemi[0], G.hemi[1], G.hemi[2]));
+const sun = new THREE.DirectionalLight(G.sun.color, G.sun.intensity);
+sun.position.set(...G.sun.pos); sun.castShadow = true;
+sun.shadow.camera.left = -64; sun.shadow.camera.right = 64; sun.shadow.camera.top = 64; sun.shadow.camera.bottom = -64;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 175; sun.shadow.bias = -0.0012; sun.shadow.mapSize.set(2048, 2048);
+sun.target.position.set(0, 0, -6); st.scene.add(sun); st.scene.add(sun.target);
+sky(st.scene, S.skyTop, S.skyBottom, G.fog); const fx = particles(st.scene, 480);
+
+/* ============================ the range ============================ */
+const HX = [-52, 52], HZ = [-39.5, 30];
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), toon(GRADE === 'golden' ? 0xe7dca8 : 0xffffff, { map: groundTex('grass', 290) }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; st.scene.add(ground);
+
+/* MISSION 1 — Painted range field tuned to read crisply from locked gameplay camera:
+   stronger alternating mowing stripes, Palm City curved gouache strokes & indigo
+   shadow dabs, visible warm worn landing corridor, chalk yardage lines + numbers
+   visible right in the spawn corridor (x=±10.5) as well as flanks (x=±30), and
+   manicured target-green ovals with sand-bunker accents. Static init-only canvas. */
+function rangeTex() {
+  let seed = 20261127;
+  const rnd = (a = 1, b) => { seed = (seed * 16807) % 2147483647; const r = (seed - 1) / 2147483646; return b === undefined ? r * a : a + r * (b - a); };
+  const W = 2048, H = 1556, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d'), KX = W / 116, KZ = H / 88, X = x => (x + 58) * KX, Z = z => (z + 52) * KZ;
+
+  /* Base fill */
+  g.fillStyle = G.stripeDark;
+  g.fillRect(0, 0, W, H);
+
+  /* Crisp alternating mowing stripes (5.8u rhythm so 5-6 full bands read clearly in 390px spawn frame) */
+  const STRIPE_W = 5.8;
+  for (let x = -58, i = 0; x < 58; x += STRIPE_W, i++) {
+    const sx = X(x), sw = STRIPE_W * KX + 1.5;
+    g.fillStyle = i % 2 === 0 ? G.stripeLight : G.stripeDark;
+    g.fillRect(sx, Z(-43), sw, Z(36) - Z(-43));
+    /* Subtle edge feather & sunlit sheen inside each stripe */
+    const sg = g.createLinearGradient(sx, 0, sx + sw, 0);
+    if (i % 2 === 0) {
+      sg.addColorStop(0, 'rgba(255,255,220,0)');
+      sg.addColorStop(0.5, 'rgba(255,255,220,0.14)');
+      sg.addColorStop(1, 'rgba(255,255,220,0)');
+    } else {
+      sg.addColorStop(0, 'rgba(18,45,28,0)');
+      sg.addColorStop(0.5, 'rgba(18,45,28,0.15)');
+      sg.addColorStop(1, 'rgba(18,45,28,0)');
+    }
+    g.fillStyle = sg;
+    g.fillRect(sx, Z(-43), sw, Z(36) - Z(-43));
+  }
+
+  /* Palm City painterly gouache sweeps & tonal blooms across the turf */
+  const GREENS = GRADE === 'golden'
+    ? ['#7bb94a', '#5da13d', '#498636', '#88c052', '#52943a']
+    : ['#6ec04c', '#54a540', '#3f8c36', '#7bc954', '#4d9c3b'];
+  const dab = (cols, n, amax, rmax, x0, x1, z0, z1) => {
+    for (let i = 0; i < n; i++) {
+      const x = rnd(x0, x1), z = rnd(z0, z1), r = rnd(26, rmax);
+      const gr = g.createRadialGradient(X(x), Z(z), 0, X(x), Z(z), r);
+      const c = cols[(rnd(cols.length)) | 0];
+      gr.addColorStop(0, c); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.globalAlpha = rnd(.07, amax); g.fillStyle = gr; g.beginPath(); g.arc(X(x), Z(z), r, 0, 7); g.fill();
+    }
+  };
+  dab(GREENS, 140, .24, 180, -56, 56, -42, 34);
+  dab(['#1c163e'], 55, GRADE === 'golden' ? .14 : .11, 130, -56, 56, -42, 34);   // Palm City cool indigo shadow pools
+
+  /* Curved Palm City brushstrokes visible at gameplay height */
+  g.lineCap = 'round';
+  for (let i = 0; i < 680; i++) {
+    const px = rnd(-54, 54), pz = rnd(-38, 33);
+    const len = rnd(2.2, 5.4), ang = Math.sin(px * 0.08 + pz * 0.06) * 0.45 + (rnd() < 0.5 ? 0 : Math.PI);
+    const bend = rnd(-1.1, 1.1);
+    const xA = px - Math.cos(ang) * len * 0.5, zA = pz - Math.sin(ang) * len * 0.5;
+    const xB = px + Math.cos(ang) * len * 0.5, zB = pz + Math.sin(ang) * len * 0.5;
+    const mx = px - Math.sin(ang) * bend, mz = pz + Math.cos(ang) * bend;
+    g.strokeStyle = rnd() < 0.55 ? GREENS[(rnd(GREENS.length)) | 0] : (rnd() < 0.5 ? '#d9eb86' : '#244f2c');
+    g.globalAlpha = rnd(0.08, 0.20);
+    g.lineWidth = rnd(6, 16);
+    g.beginPath();
+    g.moveTo(X(xA), Z(zA));
+    g.quadraticCurveTo(X(mx), Z(mz), X(xB), Z(zB));
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+
+  /* Manicured pale apron in front of decks + crisp chalk tee-line border */
+  const apGrad = g.createLinearGradient(0, Z(-42), 0, Z(-33.5));
+  apGrad.addColorStop(0, G.apron);
+  apGrad.addColorStop(0.84, G.apron);
+  apGrad.addColorStop(1, 'rgba(168,188,118,0)');
+  g.globalAlpha = 0.72; g.fillStyle = apGrad; g.fillRect(X(-52), Z(-42), 104 * KX, Z(-33.5) - Z(-42));
+  g.globalAlpha = 0.72; g.strokeStyle = '#f6f2e6'; g.lineWidth = 5;
+  g.beginPath(); g.moveTo(X(-50), Z(-34.5)); g.lineTo(X(50), Z(-34.5)); g.stroke();
+  g.globalAlpha = 1;
+
+  /* Worn central landing zone: soft painterly scuffed ochre-straw turf where high arcs rain down */
+  dab(G.wear, 110, .30, 125, -22, 22, -16, 10);
+  dab(G.wear, 70, .26, 90, -14, 14, -12, 4);
+  dab(['#8b7a42', '#7d6e3b'], 40, .18, 65, -16, 16, -13, 6);
+  for (let i = 0; i < 950; i++) {
+    const a = rnd(6.28), rr = Math.sqrt(rnd(1)), px = Math.cos(a) * rr * 21, pz = -3 + Math.sin(a) * rr * 12;
+    g.globalAlpha = rnd(0.12, 0.28);
+    g.fillStyle = rnd() < 0.72 ? G.wear[(rnd(G.wear.length)) | 0] : '#6b5a34';
+    g.fillRect(X(px), Z(pz), rnd(1.5, 3.6), rnd(1.5, 3.6));
+  }
+  g.globalAlpha = 1;
+
+  /* Crisp weathered chalk yardage lines across the range (50 / 100 / 150 / 200 yds) */
+  for (const [, zy] of [['50', -27], ['100', -15], ['150', -3], ['200', 9]]) {
+    g.save();
+    g.strokeStyle = '#f6f2e6';
+    g.globalAlpha = G.chalkAlpha * 0.62;
+    g.lineWidth = 4.5;
+    g.setLineDash([28, 16]);
+    g.beginPath();
+    g.moveTo(X(-48), Z(zy));
+    g.quadraticCurveTo(X(0), Z(zy + 2.4), X(48), Z(zy));
+    g.stroke();
+    g.restore();
+  }
+
+  /* Manicured target greens (putting-green ovals + soft sand bunker accent + crisp rings) */
+  const drawGreen = (cx, cz, rx, rz, ringCol, hasBunker) => {
+    if (hasBunker) {
+      g.save();
+      g.translate(X(cx + rx * 0.72), Z(cz + rz * 0.42));
+      g.rotate(-0.35);
+      g.fillStyle = '#e5d39e';
+      g.globalAlpha = 0.85;
+      g.beginPath(); g.ellipse(0, 0, rx * 0.42 * KX, rz * 0.24 * KZ, 0, 0, 7); g.fill();
+      g.strokeStyle = '#b49c66'; g.lineWidth = 4; g.globalAlpha = 0.55; g.stroke();
+      g.restore();
+    }
+    /* Dark fairway collar + bright manicured putting-green inner pad */
+    g.save();
+    g.translate(X(cx), Z(cz));
+    g.fillStyle = '#2d7534'; g.globalAlpha = 0.72;
+    g.beginPath(); g.ellipse(0, 0, (rx + 0.9) * KX, (rz + 0.8) * KZ, 0, 0, 7); g.fill();
+    g.fillStyle = '#53b859'; g.globalAlpha = 0.88;
+    g.beginPath(); g.ellipse(0, 0, rx * KX, rz * KZ, 0, 0, 7); g.fill();
+    /* Concentric crisp target ring */
+    g.strokeStyle = ringCol; g.lineWidth = 10; g.globalAlpha = 0.85;
+    g.beginPath(); g.ellipse(0, 0, (rx - 0.55) * KX, (rz - 0.45) * KZ, 0, 0, 7); g.stroke();
+    g.strokeStyle = '#f8f5eb'; g.lineWidth = 4; g.globalAlpha = 0.78;
+    g.beginPath(); g.ellipse(0, 0, rx * 0.48 * KX, rz * 0.48 * KZ, 0, 0, 7); g.stroke();
+    g.restore();
+    g.globalAlpha = 1;
+  };
+  /* Existing 3D target rings + 2 scenic central range greens visible right in spawn view */
+  drawGreen(-20, -10, 4.7, 4.1, '#2a9d8f', true);
+  drawGreen(19, -22, 5.7, 4.9, '#f1c453', true);
+  drawGreen(2, 6, 3.8, 3.3, '#e63946', false);
+  drawGreen(-6.8, -19, 3.5, 2.9, '#2a9d8f', true);
+  drawGreen(7.8, -26.5, 3.8, 3.1, '#f1c453', false);
+
+  /* Crisp painted yardage numbers visible BOTH in locked spawn corridor (x=±10.5) & wide flanks (±30) */
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const paintYardage = (txt, wx, wz, fontSize) => {
+    g.font = `900 ${fontSize}px "Arial Black", Impact, system-ui, sans-serif`;
+    const cx = X(wx), cy = Z(wz);
+    /* Subtle dark grass shadow so cream numbers pop from 21u camera height */
+    g.globalAlpha = 0.34; g.fillStyle = '#1b3b1e'; g.fillText(txt, cx + 4, cy + 5);
+    g.globalAlpha = 0.90; g.fillStyle = '#f7f3e6'; g.fillText(txt, cx, cy);
+    /* Light weathered chalk scuffing */
+    g.save();
+    g.fillStyle = G.stripeDark;
+    for (let i = 0; i < 42; i++) {
+      g.globalAlpha = rnd(0.16, 0.38);
+      g.fillRect(cx + rnd(-fontSize * 0.85, fontSize * 0.85), cy + rnd(-fontSize * 0.35, fontSize * 0.35), rnd(2, 5), rnd(2, 5));
+    }
+    g.restore();
+  };
+  paintYardage('50', -6.8, -26.8, 68);
+  paintYardage('100', 5.2, -14.2, 68);
+  paintYardage('150', -4.8, -2.0, 68);
+  paintYardage('200', -4.4, 8.2, 64);
+  paintYardage('50', -30, -25, 92);
+  paintYardage('100', 30, -10, 92);
+  paintYardage('150', -30, 5, 92);
+  paintYardage('200', 30, 20, 92);
+
+  /* Side range chalk out-of-bounds sidelines */
+  g.globalAlpha = 0.65; g.strokeStyle = '#f5f1e6'; g.lineWidth = 6;
+  g.beginPath(); g.moveTo(X(-51), Z(-40)); g.lineTo(X(-51), Z(33)); g.moveTo(X(51), Z(-40)); g.lineTo(X(51), Z(33)); g.stroke();
+
+  /* Fine turf speckle */
+  for (let i = 0; i < 2400; i++) { g.globalAlpha = rnd(.06, .16); g.fillStyle = GREENS[(rnd(GREENS.length)) | 0]; g.fillRect(rnd(W), rnd(H), rnd(1.5, 3.2), rnd(1.5, 3.2)); }
+
+  /* Soft edge melt into surround */
+  const meltColor = GRADE === 'golden' ? 'rgba(92,138,56,' : 'rgba(72,148,58,';
+  const melt = (rx, ry, rw, rh, gx0, gy0, gx1, gy1) => {
+    const gr = g.createLinearGradient(gx0, gy0, gx1, gy1);
+    gr.addColorStop(0, meltColor + '0.92)'); gr.addColorStop(1, meltColor + '0)');
+    g.globalAlpha = 1; g.fillStyle = gr; g.fillRect(rx, ry, rw, rh);
+  };
+  melt(0, 0, W, 72, 0, 0, 0, 72); melt(0, H - 72, W, 72, 0, H, 0, H - 72);
+  melt(0, 0, 72, H, 0, 0, 72, 0); melt(W - 72, 0, 72, H, W, 0, W - 72, 0);
+  g.globalAlpha = 1;
+
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+{
+  const mat = toon(0xffffff, { map: rangeTex(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(116, 88), mat);
+  m.rotation.x = -Math.PI / 2; m.position.set(0, .04, -8); m.receiveShadow = true; st.scene.add(m);
+}
+
+/* ===================== triple-deck structure ===================== */
+const DECK_TOPS = [0.6, 5.0, 9.4];
+const LAUNCH_EL = [[.72, .90], [.65, .83], [.58, .76]];
+const ARC_SPD = .78;
+const DECK_COUNTS = [34, 33, 33];
+const BAY_W = 2.6, DECK_Z = -44.5, ROOF_Y = 14.9;
+const FASCIA = [0x2a9d8f, 0xf1c453, 0xe63946];
+{
+  const P = [];
+  const box = (s, p, c) => P.push({ g: 'box', s, p, c });
+  box([94, 15.4, .6], [0, 7.7, -49.1], 0x87a0b8);
+  box([.6, 15.4, 8.5], [-47, 7.7, DECK_Z], 0x87a0b8); box([.6, 15.4, 8.5], [47, 7.7, DECK_Z], 0x87a0b8);
+  box([96, .6, 10.5], [0, ROOF_Y, -44.6], 0xe63946);
+  box([96, .9, .25], [0, ROOF_Y - .75, -39.45], 0xffd34d);
+  for (let x = -46; x <= 46; x += 11.5) box([.7, ROOF_Y, .7], [x, ROOF_Y / 2, -48.2], 0x9fb2c8);
+  for (const x of [-46, -23, 0, 23, 46]) box([.6, ROOF_Y, .6], [x, ROOF_Y / 2, -40.9], 0x9fb2c8);
+  DECK_TOPS.forEach((top, d) => {
+    box([94, .6, 8.5], [0, top - .3, DECK_Z], 0x9fb0c6);
+    box([94, .55, .3], [0, top - .32, -40.32], FASCIA[d]);
+    box([94, .12, .34], [0, top - .70, -40.32], 0xf4efe4);
+    box([93, .14, .14], [0, top + 1.08, -40.55], 0x37474f);
+    box([93, .09, .09], [0, top + .58, -40.55], 0x37474f);
+    for (let x = -46; x <= 46; x += 5.75) box([.1, 1.08, .1], [x, top + .54, -40.55], 0x37474f);
+    const n = DECK_COUNTS[d], x0 = -(n - 1) / 2 * BAY_W;
+    for (let i = 0; i <= n; i++) { const dx = x0 - BAY_W / 2 + i * BAY_W; box([.08, 2.1, 6.8], [dx, top + 1.05, -44.9], 0x5f7185); box([.14, .09, 6.8], [dx, top + 1.05, -44.9], 0x46586a); }
+    for (let i = 0; i < n; i++) {
+      const bx = x0 + i * BAY_W;
+      if (i % 4 === 1) { const px = bx - .82, pz = -46.4;
+        for (const [ox, oz, oy] of [[-.26, -.18, .23], [.26, -.18, .23], [0, .26, .23], [-.13, .02, .59], [.13, .02, .59], [0, .03, .93]])
+          P.push({ g: 'sphere', s: [.46, .46, .46], p: [px + ox, top + oy, pz + oz], c: 0xf7f3e8 }); }
+      if (i % 4 === 3) { P.push({ g: 'cyl', s: [.58, .5, .58], p: [bx + .82, top + .25, -46.4], c: 0xf4efe4 }, { g: 'cyl', s: [.46, .06, .46], p: [bx + .82, top + .5, -46.4], c: 0x2c313a }); }
+    }
+  });
+  const m = new THREE.Mesh(build(P), toon(0xffffff, { vertexColors: true })); m.castShadow = true; m.receiveShadow = true; st.scene.add(m);
+}
+
+/* ================= MISSION 2 — Signage, Light Poles, Fencing & Background World ================= */
+/* 1. Big iconic rooftop "RANGE HOLE" marquee sign — centered between SCORE & BALLS HUD */
+function makeMarqueeTex() {
+  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 256;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#1d2d44'; g.fillRect(0, 0, 1024, 256);
+  /* Vintage golf-range cream & gold border */
+  g.strokeStyle = '#ffd34d'; g.lineWidth = 14; g.strokeRect(14, 14, 996, 228);
+  g.strokeStyle = '#e63946'; g.lineWidth = 6; g.strokeRect(30, 30, 964, 196);
+  /* Subtle warm diagonal stripe sheen */
+  g.fillStyle = 'rgba(255,255,255,0.05)';
+  g.beginPath(); g.moveTo(0, 0); g.lineTo(360, 0); g.lineTo(240, 256); g.lineTo(0, 256); g.closePath(); g.fill();
+  /* Marquee bulbs along top & bottom border */
+  for (let bx = 46; bx <= 978; bx += 44) {
+    for (const by of [14, 242]) {
+      g.fillStyle = '#fff5cc'; g.beginPath(); g.arc(bx, by, 5.5, 0, 7); g.fill();
+    }
+  }
+  /* Bold "RANGE HOLE" typography */
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '900 124px Impact, "Arial Black", system-ui, sans-serif';
+  g.fillStyle = '#0e1624'; g.fillText('RANGE HOLE', 518, 138);
+  g.fillStyle = '#ffd34d'; g.fillText('RANGE HOLE', 512, 132);
+  g.lineWidth = 4; g.strokeStyle = '#fff8df'; g.strokeText('RANGE HOLE', 512, 132);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+{
+  /* Sleek rooftop fascia marquee board centered between SCORE & BALLS HUD (100% unclipped in spawn & mid-field) */
+  const signMesh = new THREE.Mesh(new THREE.PlaneGeometry(13.6, 2.05), new THREE.MeshBasicMaterial({ map: makeMarqueeTex() }));
+  signMesh.position.set(0, ROOF_Y + 0.15, -39.18);
+  st.scene.add(signMesh);
+
+  const SP = [];
+  /* Sign backing box + rooftop support struts */
+  SP.push({ g: 'box', s: [14.1, 2.25, .48], p: [0, ROOF_Y + 0.15, -39.46], c: 0x1a2639 });
+  for (const sx of [-5.8, -2.0, 2.0, 5.8]) {
+    SP.push({ g: 'box', s: [.26, 1.8, .26], p: [sx, ROOF_Y + .55, -40.3], r: [.45, 0, 0], c: 0x455a64 });
+  }
+  /* Stadium floodlight towers rising from the deck roof parapet */
+  const LIGHT_X = [-44, -26, -10.5, 10.5, 26, 44];
+  for (const lx of LIGHT_X) {
+    SP.push({ g: 'cyl', s: [.30, 4.2, .30], p: [lx, ROOF_Y + 2.1, -40.8], c: 0xdbe3ec });
+    SP.push({ g: 'box', s: [2.8, .42, .42], p: [lx, ROOF_Y + 4.1, -40.55], c: 0x2c3a47 });
+    SP.push({ g: 'box', s: [2.4, .34, .26], p: [lx, ROOF_Y + 4.05, -40.25], c: G.lampGlow });
+  }
+  /* Perimeter range fencing & tall safety netting stanchions along both sides (outside HX=[-52,52]) */
+  for (const side of [-1, 1]) {
+    const fx = side * 54.5;
+    for (let z = -44; z <= 34; z += 11) {
+      SP.push({ g: 'cyl', s: [.32, 16.0, .32], p: [fx, 8.0, z], c: 0x46586a });
+    }
+    /* Lower perimeter rail & base curb */
+    SP.push({ g: 'box', s: [.4, 1.1, 80], p: [fx, .55, -5], c: 0xf4efe4 });
+    SP.push({ g: 'box', s: [.22, .22, 80], p: [fx, 15.8, -5], c: 0x37474f });
+  }
+  /* Clubhouse pavilion silhouette behind left/right flanks of the decks */
+  SP.push({ g: 'box', s: [28, 12, 14], p: [-59, 6, -54], c: 0xd9cdb8 });
+  SP.push({ g: 'box', s: [30, 1.2, 16], p: [-59, 12.6, -54], c: 0xb9473e });
+  SP.push({ g: 'box', s: [24, 10, 12], p: [58, 5, -55], c: 0xd4c7b2 });
+  SP.push({ g: 'box', s: [26, 1.1, 14], p: [58, 10.5, -55], c: 0x2a8078 });
+
+  const infra = new THREE.Mesh(build(SP), toon(0xffffff, { vertexColors: true }));
+  infra.castShadow = true; infra.receiveShadow = true;
+  st.scene.add(infra);
+
+  /* Soft additive floodlight glow halos (subtle in daytime, warm golden bloom in golden hour) */
+  const glowMat = new THREE.MeshBasicMaterial({ color: G.lampGlow, transparent: true, opacity: G.lampOpacity, blending: THREE.AdditiveBlending, depthWrite: false });
+  const glowGeo = new THREE.SphereGeometry(0.95, 10, 8);
+  for (const lx of LIGHT_X) {
+    const gm = new THREE.Mesh(glowGeo, glowMat);
+    gm.scale.set(1.6, 0.6, 0.6);
+    gm.position.set(lx, ROOF_Y + 4.05, -40.1);
+    st.scene.add(gm);
+  }
+
+  /* Translucent range side netting sheets along x = ±54.5 */
+  const netMat = new THREE.MeshBasicMaterial({ color: 0x2b3e4c, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false });
+  for (const side of [-1, 1]) {
+    const net = new THREE.Mesh(new THREE.PlaneGeometry(80, 14.8), netMat);
+    net.rotation.y = Math.PI / 2;
+    net.position.set(side * 54.4, 8.4, -5);
+    st.scene.add(net);
+  }
+}
+
+/* 2. Layered background world behind the decks: rolling foothills + distant skyline silhouettes */
+{
+  const BG = [];
+  /* Near rolling green foothills rising cleanly above the 14.9u roof from mid-field & spawn */
+  for (const [x, z, r, h] of [
+    [-70, -84, 38, 28], [-24, -88, 44, 30], [20, -90, 46, 32], [64, -86, 40, 28],
+    [-95, -72, 34, 24], [95, -72, 34, 24]
+  ]) {
+    BG.push({ g: 'sphere', s: [r * 2.1, h * 2.0, r * 1.3], p: [x, 1.5, z], c: G.hillNear });
+  }
+  /* Far atmospheric hills */
+  for (const [x, z, r, h] of [
+    [-85, -132, 60, 38], [-16, -142, 68, 42], [54, -138, 64, 40], [115, -130, 54, 35]
+  ]) {
+    BG.push({ g: 'sphere', s: [r * 2.2, h * 2.0, r * 1.4], p: [x, 2.0, z], c: G.hillFar });
+  }
+  /* Subtle distant city skyline towers nestled in the far horizon behind the center/flanks */
+  for (const [x, w, h, z] of [
+    [-38, 6, 28, -118], [-29, 8, 34, -122], [-18, 7, 30, -120],
+    [-7, 6, 26, -126], [8, 7, 32, -124], [19, 9, 38, -126],
+    [31, 7, 29, -120], [42, 6, 25, -118]
+  ]) {
+    BG.push({ g: 'box', s: [w, h, w], p: [x, h * 0.5, z], c: G.skyline });
+  }
+  const bgMesh = new THREE.Mesh(build(BG), toon(0xffffff, { vertexColors: true }));
+  st.scene.add(bgMesh);
+}
+
+/* target rings + yardage flags on the grass (3D rings + central sightline flags) */
+for (const [x, z, r, c] of [[-20, -10, 4.5, 0x2a9d8f], [19, -22, 5.5, 0xf1c453], [2, 6, 3.5, 0xe63946]]) {
+  const ringM = new THREE.Mesh(new THREE.RingGeometry(r - .8, r, 40), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .55, side: THREE.DoubleSide, depthWrite: false }));
+  ringM.rotation.x = -Math.PI / 2; ringM.position.set(x, .065, z); st.scene.add(ringM);
+}
+{
+  const P = [];
+  for (const [x, z, c] of [
+    [-27, -27, 0xe63946], [27, -27, 0xf1c453], [-27, 1, 0x2a9d8f], [27, 1, 0x4361ee],
+    [-6.8, -19, 0x2a9d8f], [7.8, -26.5, 0xf1c453]
+  ]) {
+    P.push({ g: 'cyl', s: [.10, 3.8, .10], p: [x, 1.9, z], c: 0xf6f2e8 }, { g: 'box', s: [1.3, .82, .08], p: [x + .66, 3.35, z], c });
+  }
+  const m = new THREE.Mesh(build(P), toon(0xffffff, { vertexColors: true })); m.castShadow = true; st.scene.add(m);
+}
+
+/* Taller, richer multi-row tree line behind the decks (crests cleanly above the 14.9u roof) + sides */
+{
+  const LEAF = GRADE === 'golden' ? [0x3c8a47, 0x4d9d51, 0x6ea84b] : [0x2a8647, 0x38a056, 0x56b458];
+  const spots = [];
+  for (let x = -78; x <= 78; x += rand(4.5, 7.0)) spots.push([x + rand(-1.4, 1.4), rand(-62, -53), rand(3.2, 4.8)]);
+  for (let z = -50; z <= 32; z += rand(6, 8.5)) { spots.push([rand(-66, -58), z, rand(2.0, 3.0)]); spots.push([rand(58, 66), z, rand(2.0, 3.0)]); }
+  const round = crowd(st.scene, treeGeo('round'), spots.length, true, 0);
+  spots.forEach(([x, z, sc], i) => { round.set(i, x, 0, z, sc, rand(0, 6.3), 0, 0); round.color(i, LEAF[i % 3]); });
+  round.done(spots.length); round.mesh.castShadow = true;
+  const pines = [];
+  for (let x = -78; x <= 78; x += rand(5.5, 8.5)) pines.push([x, rand(-72, -62), rand(3.8, 5.6)]);
+  const pine = crowd(st.scene, treeGeo('pine'), pines.length, true, 0);
+  pines.forEach(([x, z, sc], i) => { pine.set(i, x, 0, z, sc, rand(0, 6.3), 0, 0); pine.color(i, LEAF[(i + 1) % 3]); });
+  pine.done(pines.length); pine.mesh.castShadow = true;
+}
+
+/* the hole — exact BHC disc + purple ring + aura, raised slightly above painted range sheet to prevent Z-fighting */
+const hole = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0x000000 })); hole.rotation.x = -Math.PI / 2; hole.position.y = .08; st.scene.add(hole);
+const aura = new THREE.Mesh(new THREE.RingGeometry(1.12, 1.7, 40), new THREE.MeshBasicMaterial({ color: S.ringColor, transparent: true, opacity: .34, side: THREE.DoubleSide, depthWrite: false })); aura.rotation.x = -Math.PI / 2; aura.position.y = .085; st.scene.add(aura);
+const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 40), new THREE.MeshBasicMaterial({ color: S.ringColor, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = .09; st.scene.add(ring);
+
+/* ============================ golfers (verbatim from art-attempt1) ============================ */
+const SKIN_TONES = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac];
+const OUTFITS = [
+  { skin: SKIN_TONES[0], shirt: 0xe63946, pants: 0x2c3e66, cap: 0xf4efe4 },
+  { skin: SKIN_TONES[3], shirt: 0x2a9d8f, pants: 0xf4efe4, cap: 0x2a9d8f },
+  { skin: SKIN_TONES[1], shirt: 0xf1c453, pants: 0x37474f, cap: 0xe63946 },
+  { skin: SKIN_TONES[2], shirt: 0x457b9d, pants: 0x5a5148, cap: 0xf1c453 },
+  { skin: SKIN_TONES[4], shirt: 0xff7ab6, pants: 0x2a3a5e, cap: 0xf4efe4 },
+  { skin: SKIN_TONES[0], shirt: 0x8ac926, pants: 0x23232a, cap: 0x24304a },
+  { skin: SKIN_TONES[1], shirt: 0xf4efe4, pants: 0x5e1f24, cap: 0xff8a3c },
+  { skin: SKIN_TONES[3], shirt: 0xff8a3c, pants: 0x3a3f44, cap: 0x457b9d },
+];
+const shirtGeo = () => build([
+  { g: 'box', s: [.48, .60, .27], p: [0, 1.32, 0] },
+  { g: 'box', s: [.50, .10, .29], p: [0, 1.40, 0], c: 0xf4efe4 },
+  { g: 'cyl', s: [.13, .62, .13], p: [-.28, 1.02, .16], r: [.5, 0, .18] },
+  { g: 'cyl', s: [.13, .62, .13], p: [.28, 1.02, .16], r: [.5, 0, -.18] },
+]);
+const skinGeo = () => build([
+  { g: 'sphere', s: [.34, .34, .34], p: [0, 1.70, 0] },
+  { g: 'cyl', s: [.10, .10, .10], p: [0, 1.60, 0] },
+  { g: 'sphere', s: [.12, .12, .12], p: [.08, .80, .36] },
+  { g: 'sphere', s: [.12, .12, .12], p: [.20, .76, .39] },
+]);
+const pantsGeo = () => build([
+  { g: 'box', s: [.34, .18, .21], p: [0, .95, 0] },
+  { g: 'box', s: [.18, .84, .20], p: [-.10, .47, 0] },
+  { g: 'box', s: [.18, .84, .20], p: [.10, .47, 0] },
+  { g: 'box', s: [.11, .07, .25], p: [-.10, .035, .04], c: 0x232327 },
+  { g: 'box', s: [.11, .07, .25], p: [.10, .035, .04], c: 0x232327 },
+  { g: 'cyl', s: [.06, 1.15, .06], p: [.16, .6, .44], r: [.35, 0, 0], c: 0x222831 },
+  { g: 'box', s: [.17, .09, .09], p: [.16, .07, .62], c: 0x9aa0aa },
+]);
+const capGeo = () => build([
+  { g: 'sphere', s: [.37, .20, .37], p: [0, 1.80, -.01] },
+  { g: 'box', s: [.30, .05, .24], p: [0, 1.76, .22], r: [.15, 0, 0] },
+  { g: 'sphere', s: [.07, .06, .07], p: [0, 1.90, -.01] },
+]);
+const golfers = [];
+DECK_TOPS.forEach((top, d) => {
+  const n = DECK_COUNTS[d], x0 = -(n - 1) / 2 * BAY_W;
+  for (let i = 0; i < n; i++) golfers.push({
+    x: x0 + i * BAY_W, y: top, z: -45.7, deck: d,
+    power: rand(27, 44), period: rand(3.4, 5.4), start: -rand(0, 5), prevC: 0,
+    aim: rand(-2.2, 2.2), ph: rand(0, 6.28),
+  });
+});
+const gShirt = crowd(st.scene, shirtGeo(), golfers.length, true, 0);
+const gSkin = crowd(st.scene, skinGeo(), golfers.length, true, 0);
+const gPants = crowd(st.scene, pantsGeo(), golfers.length, true, 0);
+const gCap = crowd(st.scene, capGeo(), golfers.length, true, 0);
+for (const c of [gShirt, gSkin, gPants, gCap]) c.mesh.castShadow = true;
+golfers.forEach((g, i) => { const o = OUTFITS[i % OUTFITS.length]; gShirt.color(i, o.shirt); gSkin.color(i, o.skin); gPants.color(i, o.pants); gCap.color(i, o.cap); });
+const GSCALE = golfers.map(() => rand(1.06, 1.18));
+const IMPACT_TAIL = .38;
+function swingPose(g, c, t) {
+  const impactAt = g.period - IMPACT_TAIL, windStart = g.period - 1.15, swingStart = g.period - .62;
+  if (c < windStart) return { yaw: .04 * Math.sin(t * 1.4 + g.ph), pitch: .02 * Math.sin(t * 1.1 + g.ph) };
+  if (c < swingStart) { const k = (c - windStart) / .53, e = 1 - (1 - k) * (1 - k); return { yaw: -.62 * e, pitch: -.06 * e }; }
+  if (c < impactAt) { const k = (c - swingStart) / .24, e = k * k; return { yaw: -.62 + 1.0 * e, pitch: -.06 + .16 * e }; }
+  const k = Math.min(1, (c - impactAt) / IMPACT_TAIL), e = 1 - Math.pow(1 - k, 3);
+  return { yaw: .38 + .2 * e, pitch: .1 - .04 * e };
+}
+
+/* ============================ balls + MISSION 4 high-arc glow, trails & landing puffs ============================ */
+const BALL_R = .23, MAX_BALLS = 240, GRAV = 22, SLOW_TS = .3, SLOW_DUR = 1.3;
+const ballGeo = () => build([{ g: 'sphere', s: [BALL_R * 2, BALL_R * 2, BALL_R * 2], p: [0, 0, 0] }]);
+const balls = Array.from({ length: MAX_BALLS }, () => ({ on: false, x: 0, y: -50, z: 0, vx: 0, vy: 0, vz: 0, state: 'off', bounces: 0, restT: 0, fall: 0, fallY0: 0, pts: 0, s: 1, slowT: 0 }));
+const bcr = crowd(st.scene, ballGeo(), MAX_BALLS, true, 0);
+bcr.mesh.castShadow = true;
+
+/* Altitude-tuned soft radial-gradient ball glow sprites + sleek two-layer comet streaks + ground landing reticles */
+function makeGlowTex() {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const g = cv.getContext('2d');
+  const rg = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+  rg.addColorStop(0, 'rgba(255,252,230,0.95)');
+  rg.addColorStop(0.28, 'rgba(255,232,148,0.52)');
+  rg.addColorStop(0.65, 'rgba(255,208,100,0.14)');
+  rg.addColorStop(1, 'rgba(255,190,80,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const bGlows = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: makeGlowTex(), color: G.ballGlow, transparent: true, opacity: .82, blending: THREE.AdditiveBlending, depthWrite: false }), MAX_BALLS);
+bGlows.frustumCulled = false; st.scene.add(bGlows);
+const streaks = new THREE.InstancedMesh(ballGeo(), new THREE.MeshBasicMaterial({ color: G.streakCore, transparent: true, opacity: .44, blending: THREE.AdditiveBlending, depthWrite: false }), MAX_BALLS);
+streaks.frustumCulled = false; st.scene.add(streaks);
+const streaksOuter = new THREE.InstancedMesh(ballGeo(), new THREE.MeshBasicMaterial({ color: G.streakOuter, transparent: true, opacity: .18, blending: THREE.AdditiveBlending, depthWrite: false }), MAX_BALLS);
+streaksOuter.frustumCulled = false; st.scene.add(streaksOuter);
+const dropDots = new THREE.InstancedMesh(new THREE.CircleGeometry(.52, 14), new THREE.MeshBasicMaterial({ color: 0x16361c, transparent: true, opacity: .34, depthWrite: false }), MAX_BALLS);
+dropDots.frustumCulled = false; st.scene.add(dropDots);
+
+/* Expanding turf-chalk landing rings (pure visual punctuation when high-arc balls touch down) */
+const MAX_PUFFS = 32;
+const puffs = Array.from({ length: MAX_PUFFS }, () => ({ on: false, x: 0, z: 0, t: 0 }));
+const puffRing = new THREE.InstancedMesh(new THREE.RingGeometry(.45, .85, 20), new THREE.MeshBasicMaterial({ color: 0xf7eed2, transparent: true, opacity: .68, side: THREE.DoubleSide, depthWrite: false }), MAX_PUFFS);
+puffRing.frustumCulled = false; st.scene.add(puffRing);
+function spawnLandingPuff(x, z) {
+  fx.burst(6, { x, y: .32, z, size: .20, life: .48, color: 0xf3e5bf, g: 3.2 }, 2.1);
+  fx.burst(3, { x, y: .22, z, size: .14, life: .42, color: 0x8dc252, g: 4.5 }, 1.6);
+  const pf = puffs.find(p => !p.on) || puffs[0];
+  pf.on = true; pf.x = x; pf.z = z; pf.t = 0;
+}
+
+const _o = new THREE.Object3D(); _o.rotation.order = 'YXZ';
+const HOT = new THREE.Color(0xfff4b8), DEAD = new THREE.Color(0x565e66), _c = new THREE.Color();
+const ballSpeed = b => b.state === 'fly' ? Math.hypot(b.vx, b.vy, b.vz) : Math.hypot(b.vx, b.vz);
+const ballValue = b => b.state === 'rest' ? 0 : Math.max(10, 50 - 10 * b.bounces);
+const ballTier = b => b.state === 'rest' ? 0 : clamp(1 - b.bounces * .22, .12, 1);
+function launchBall(g) {
+  let b = balls.find(b => !b.on);
+  if (!b) { b = balls.filter(b => b.on && b.state !== 'fall').sort((a, c) => ballValue(a) - ballValue(c))[0]; if (!b) return; }
+  const elr = LAUNCH_EL[g.deck] || LAUNCH_EL[1];
+  const spd = g.power * rand(.9, 1.1) * ARC_SPD, el = rand(elr[0], elr[1]), az = rand(-.045, .045) + g.aim * .002;
+  const vh = Math.cos(el) * spd;
+  b.on = true; b.state = 'fly'; b.fall = 0; b.s = 1; b.restT = 0; b.bounces = 0;
+  b.x = g.x + .16; b.y = g.y + .3; b.z = g.z + 1.05;
+  b.vx = vh * Math.sin(az); b.vz = vh * Math.cos(az); b.vy = Math.sin(el) * spd;
+  b.slowT = SLOW_DUR;
+}
+
+/* ============================ game state (verbatim frozen) ============================ */
+let hx = 0, hz = 2, tx = 0, tz = 2, size = 1.4;
+let score = 0, eatenCt = 0, chain = 0, chainT = 0, bestChain = 0, bestCatch = 0;
+let tleft = S.seconds, over = false;
+const comboMult = () => chain >= 3 ? Math.min(chain - 1, 6) : 1;
+const endcard = document.createElement('div');
+endcard.style.cssText = 'position:fixed;left:0;right:0;top:66%;display:none;text-align:center;color:#fff;font-size:4.4vmin;text-shadow:0 .5vmin 0 #000,0 0 1.2vmin #000;pointer-events:none;line-height:1.7;z-index:10';
+document.body.appendChild(endcard);
+function reset() {
+  for (const b of balls) { b.on = false; b.state = 'off'; b.y = -50; }
+  for (const pf of puffs) pf.on = false;
+  hx = tx = 0; hz = tz = 2; size = 1.4;
+  score = 0; eatenCt = 0; chain = 0; chainT = 0; bestChain = 0; bestCatch = 0;
+  tleft = S.seconds; over = false; endcard.style.display = 'none';
+  st.hud.banner('GO!', .8);
+}
+
+/* ===================== camera geometry (verbatim frozen) ===================== */
+const CAM_H = 21.2, CAM_D = 19.9, LOOK_Y = 2, LOOK_Z = 10;
+st.shell({ id: 'range-hole', title: S.title, sub: S.sub, onReset: reset });
+
+let ptrWasDown = false, ptrPX = 0, ptrPY = 0;
+function dragStep(dt) {
+  const k = st.keys, spd = 30;
+  if (k.a || k.arrowleft) tx -= spd * dt; if (k.d || k.arrowright) tx += spd * dt;
+  if (k.w || k.arrowup) tz -= spd * dt; if (k.s || k.arrowdown) tz += spd * dt;
+  if (st.ptr.down) {
+    if (!ptrWasDown) { ptrPX = st.ptr.x; ptrPY = st.ptr.y; }
+    else {
+      const dxn = st.ptr.x - ptrPX, dyn = st.ptr.y - ptrPY; ptrPX = st.ptr.x; ptrPY = st.ptr.y;
+      const D = Math.hypot(CAM_H, CAM_D);
+      const H_w = 2 * D * Math.tan(28 * Math.PI / 180);
+      const W_w = H_w * (innerWidth / innerHeight);
+      const pitch = Math.atan2(CAM_H - LOOK_Y, CAM_D + LOOK_Z);
+      tx += dxn * .5 * W_w;
+      tz += dyn * .5 * H_w * (0.98 / Math.sin(pitch));
+    }
+    ptrWasDown = true;
+  } else ptrWasDown = false;
+  tx = clamp(tx, HX[0], HX[1]); tz = clamp(tz, HZ[0], HZ[1]);
+  const f = Math.min(1, dt * 7), mx = (tx - hx) * f, mz = (tz - hz) * f, cap = 34 * dt, ml = Math.hypot(mx, mz);
+  if (ml > cap) { hx += mx / ml * cap; hz += mz / ml * cap; } else { hx += mx; hz += mz; }
+  hx = clamp(hx, HX[0], HX[1]); hz = clamp(hz, HZ[0], HZ[1]);
+}
+
+function update(dt) {
+  if (over) { fx.update(dt); return; }
+  walkClock.value = st.t; tleft -= dt;
+  dragStep(dt);
+  if (chainT > 0) { chainT -= dt; if (chainT <= 0) chain = 0; }
+
+  for (const g of golfers) {
+    let c = st.t - g.start;
+    if (c >= g.period) {
+      g.start += g.period;
+      g.period = rand(3.4, 5.4) * (Math.random() < .22 ? rand(1.4, 1.9) : 1);
+      c = st.t - g.start;
+      g.prevC = c; continue;
+    }
+    const impactAt = g.period - IMPACT_TAIL;
+    if (g.prevC < impactAt && c >= impactAt) launchBall(g);
+    g.prevC = c;
+  }
+
+  const trig = size * .95 + .1, reachY = 1.5 + size * .55;
+  for (const b of balls) {
+    if (!b.on) continue;
+    if (b.state === 'fall') {
+      b.fall += dt * 1.7; b.x += (hx - b.x) * Math.min(1, dt * 8); b.z += (hz - b.z) * Math.min(1, dt * 8);
+      b.y = b.fallY0 * (1 - b.fall) - b.fall * .5; b.s = Math.max(0, 1 - b.fall);
+      if (b.fall >= 1) {
+        b.on = false; b.state = 'off'; b.y = -50;
+        const mult = comboMult(), got = b.pts * mult;
+        score += got; eatenCt++;
+        if (b.pts > 0) chainT = 2.0;
+        bestCatch = Math.max(bestCatch, got);
+        size = Math.min(1.4 + Math.sqrt(eatenCt) * .055, 2.6);
+        st.popup('+' + got + (mult > 1 ? ' ×' + mult : ''), { x: hx, y: 2.6, z: hz }, b.pts >= 50 ? '#ffd34d' : '#ffffff', b.pts >= 50 ? 7.5 : 5.5);
+        if (b.pts >= 50) { sfx('pop', .5); st.hitstop(.03); } else if (b.pts > 0 && Math.random() < .5) sfx('tick', .3);
+        fx.burst(4, { x: hx, y: .6, z: hz, size: .16, life: .45, color: 0xfff0a8, g: 3 }, 2);
+      }
+      continue;
+    }
+    if (b.state === 'fly') {
+      const bdt = b.slowT > 0 ? dt * SLOW_TS : dt;
+      if (b.slowT > 0) b.slowT -= bdt;
+      b.vy -= GRAV * bdt; b.x += b.vx * bdt; b.y += b.vy * bdt; b.z += b.vz * bdt;
+      if (b.y <= BALL_R && b.vy < 0) {
+        b.y = BALL_R;
+        if (Math.abs(b.vy) > 2.4) {
+          if (b.bounces === 0) spawnLandingPuff(b.x, b.z);
+          b.vy = -b.vy * .45; b.vx *= .8; b.vz *= .8; b.bounces++;
+        } else { b.vy = 0; b.state = 'roll'; }
+      }
+    } else if (b.state === 'roll') {
+      const h = Math.hypot(b.vx, b.vz), nh = h - 7.5 * dt;
+      if (nh <= .35) { b.vx = b.vz = 0; b.state = 'rest'; b.restT = 0; }
+      else { b.vx *= nh / h; b.vz *= nh / h; b.x += b.vx * dt; b.z += b.vz * dt; }
+    } else if (b.state === 'rest') {
+      b.restT += dt; b.s = b.restT > 2.0 ? Math.max(0, 1 - (b.restT - 2.0) / .6) : 1;
+      if (b.restT >= 2.6) { b.on = false; b.state = 'off'; b.y = -50; continue; }
+    }
+    if (b.z > 70 || b.z < -52 || Math.abs(b.x) > 95) { b.on = false; b.state = 'off'; b.y = -50; continue; }
+    const dx = b.x - hx, dz = b.z - hz;
+    if (dx * dx + dz * dz < trig * trig && b.y < reachY) {
+      b.state = 'fall'; b.fall = 1e-3; b.fallY0 = b.y; b.pts = ballValue(b);
+      if (b.pts > 0) { chain++; bestChain = Math.max(bestChain, chain); }
+    }
+  }
+  for (const pf of puffs) {
+    if (!pf.on) continue;
+    pf.t += dt;
+    if (pf.t >= 0.45) pf.on = false;
+  }
+  fx.update(dt);
+  st.hud.left(`SCORE<br><span style="color:#ffd34d;font-size:8vmin">${score}</span>`);
+  st.hud.right(`BALLS ${eatenCt}<br>${Math.ceil(Math.max(0, tleft))}s`);
+  st.hud.hint(chain >= 3 && chainT > 0 ? `COMBO ×${comboMult()} — ${chain} IN A ROW!` : 'Drag the hole — straight in pays 50, each bounce costs 10!');
+  if (tleft <= 0) {
+    over = true; st.hud.banner('TIME UP', 3); sfx('win'); st.flash('#7b4bff', .5);
+    const bestMult = bestChain >= 3 ? Math.min(bestChain - 1, 6) : 1;
+    endcard.innerHTML = `BALLS EATEN <b style="color:#ffd34d">${eatenCt}</b> &nbsp;·&nbsp; BEST COMBO <b style="color:#ffd34d">×${bestMult} (${bestChain} in a row)</b><br>BEST CATCH <b style="color:#ffd34d">+${bestCatch} pts</b>`;
+    endcard.style.display = 'block';
+    st.end({ win: score >= S.winScore, score, label: 'POINTS' });
+  }
+  window.__game = { score, eaten: eatenCt, size: +size.toFixed(2), chain, bestChain, bestCatch, live: balls.filter(b => b.on).length, flying: balls.filter(b => b.on && b.state === 'fly').length, slow: balls.filter(b => b.on && b.state === 'fly' && b.slowT > 0).length, ts: st.timeScale, grade: GRADE };
+}
+
+const camP = new THREE.Vector3(0, 12, 12), look = new THREE.Vector3();
+let camSnap = false;
+function pre() {
+  const t = st.t;
+  golfers.forEach((g, i) => {
+    let c = t - g.start; if (c < 0) c = 0; if (c >= g.period) c = g.period - .001;
+    const p = swingPose(g, c, t);
+    gShirt.set(i, g.x, g.y, g.z, GSCALE[i], p.yaw, p.pitch, 0);
+    gSkin.set(i, g.x, g.y, g.z, GSCALE[i], p.yaw, p.pitch, 0);
+    gPants.set(i, g.x, g.y, g.z, GSCALE[i], p.yaw, p.pitch, 0);
+    gCap.set(i, g.x, g.y, g.z, GSCALE[i], p.yaw, p.pitch, 0);
+  });
+  gShirt.done(golfers.length); gSkin.done(golfers.length); gPants.done(golfers.length); gCap.done(golfers.length);
+
+  balls.forEach((b, i) => {
+    if (!b.on) {
+      bcr.set(i, 0, -50, 0, .01, 0, 0, 0);
+      _o.position.set(0, -50, 0); _o.rotation.set(0, 0, 0); _o.scale.setScalar(.01); _o.updateMatrix();
+      bGlows.setMatrixAt(i, _o.matrix); streaks.setMatrixAt(i, _o.matrix); streaksOuter.setMatrixAt(i, _o.matrix); dropDots.setMatrixAt(i, _o.matrix);
+      return;
+    }
+    /* High-altitude visual scale boost (tiny subtle boost at peak y so high arcs stay crisp on 390px phone) */
+    const altBoost = b.state === 'fly' ? 1 + clamp(b.y / 28, 0, 0.25) : 1;
+    bcr.set(i, b.x, b.y, b.z, b.s * altBoost, 0, 0, 0);
+    _c.copy(DEAD).lerp(HOT, ballTier(b)); bcr.color(i, _c.getHex());
+
+    /* Mission 4: Soft radial-gradient altitude-tuned glow billboard around clean flying balls */
+    if (b.state === 'fly' && b.bounces === 0) {
+      const altK = 1.15 + clamp(b.y / 14, 0, 1.05) + (b.slowT > 0 ? 0.35 : 0);
+      _o.position.set(b.x, b.y, b.z); _o.quaternion.copy(st.camera.quaternion); _o.scale.setScalar(altK); _o.updateMatrix();
+      bGlows.setMatrixAt(i, _o.matrix);
+    } else {
+      _o.position.set(0, -50, 0); _o.rotation.set(0, 0, 0); _o.scale.setScalar(.01); _o.updateMatrix();
+      bGlows.setMatrixAt(i, _o.matrix);
+    }
+
+    /* Mission 4: Sleek two-layer comet streak (bright core during slow-mo peak, soft warm tail throughout flight) */
+    if (b.state === 'fly' && (b.slowT > 0 || b.bounces === 0)) {
+      const sp = Math.hypot(b.vx, b.vy, b.vz) || 1;
+      const isSlow = b.slowT > 0;
+      const pitch = -Math.asin(clamp(b.vy / sp, -1, 1)), yaw = Math.atan2(b.vx, b.vz);
+      const lenCore = clamp(sp * (isSlow ? .32 : .20), .45, 9.2);
+      const offCore = isSlow ? .055 : .042;
+      _o.position.set(b.x - b.vx * offCore, b.y - b.vy * offCore, b.z - b.vz * offCore);
+      _o.rotation.set(pitch, yaw, 0);
+      _o.scale.set(isSlow ? .58 : .38, isSlow ? .58 : .38, lenCore);
+      _o.updateMatrix(); streaks.setMatrixAt(i, _o.matrix);
+
+      _o.position.set(b.x - b.vx * (offCore * 1.45), b.y - b.vy * (offCore * 1.45), b.z - b.vz * (offCore * 1.45));
+      _o.scale.set(isSlow ? 1.02 : .68, isSlow ? 1.02 : .68, lenCore * 1.35);
+      _o.updateMatrix(); streaksOuter.setMatrixAt(i, _o.matrix);
+    } else {
+      _o.position.set(0, -50, 0); _o.rotation.set(0, 0, 0); _o.scale.setScalar(.01); _o.updateMatrix();
+      streaks.setMatrixAt(i, _o.matrix); streaksOuter.setMatrixAt(i, _o.matrix);
+    }
+
+    /* Ground landing reticle/shadow dot under airborne balls */
+    if (b.state === 'fly' && b.y > 0.6 && b.z > -40) {
+      const sc = clamp(1.35 - b.y * 0.038, 0.45, 1.35);
+      _o.position.set(b.x, .055, b.z); _o.rotation.set(-Math.PI / 2, 0, 0); _o.scale.setScalar(sc); _o.updateMatrix();
+      dropDots.setMatrixAt(i, _o.matrix);
+    } else {
+      _o.position.set(0, -50, 0); _o.rotation.set(0, 0, 0); _o.scale.setScalar(.01); _o.updateMatrix();
+      dropDots.setMatrixAt(i, _o.matrix);
+    }
+  });
+  bcr.done(MAX_BALLS);
+  bGlows.instanceMatrix.needsUpdate = true;
+  streaks.instanceMatrix.needsUpdate = true;
+  streaksOuter.instanceMatrix.needsUpdate = true;
+  dropDots.instanceMatrix.needsUpdate = true;
+
+  /* Landing dust ring puffs */
+  puffs.forEach((pf, i) => {
+    if (!pf.on) { _o.position.set(0, -50, 0); _o.scale.setScalar(.01); }
+    else {
+      const k = pf.t / 0.45;
+      _o.position.set(pf.x, .07, pf.z);
+      _o.rotation.set(-Math.PI / 2, 0, 0);
+      _o.scale.setScalar((0.5 + k * 2.4) * (1 - k * 0.35));
+    }
+    _o.updateMatrix(); puffRing.setMatrixAt(i, _o.matrix);
+  });
+  puffRing.instanceMatrix.needsUpdate = true;
+
+  hole.scale.setScalar(size); ring.scale.setScalar(size); aura.scale.setScalar(size); aura.rotation.z = st.t * 2;
+  hole.position.x = ring.position.x = aura.position.x = hx; hole.position.z = ring.position.z = aura.position.z = hz;
+  camP.set(hx, CAM_H, hz + CAM_D); st.camera.position.lerp(camP, camSnap ? 1 : .08); camSnap = false;
+  look.set(hx, LOOK_Y, hz - LOOK_Z);
+  st.camera.lookAt(look);
+}
+st.camera.position.set(hx, CAM_H, hz + CAM_D); st.run(update, pre);
+
+/* QA hooks (verbatim) */
+const _v = new THREE.Vector3();
+function toScreen(x, y, z) { _v.set(x, y, z).project(st.camera); return { x: Math.round((_v.x * .5 + .5) * innerWidth), y: Math.round((-_v.y * .5 + .5) * innerHeight) }; }
+window.__SAMPLE = {
+  setHole: (x, z) => { hx = tx = x; hz = tz = z; camSnap = true; },
+  hole: () => toScreen(hx, 0, hz),
+  holeWorld: () => ({ x: +hx.toFixed(1), z: +hz.toFixed(1), size: +size.toFixed(2) }),
+  toScreen: (x, y, z) => toScreen(x, y, z),
+  state: () => ({ ...window.__game, tleft: Math.ceil(Math.max(0, tleft)), over }),
+  balls: () => balls.filter(b => b.on).map(b => ({ x: +b.x.toFixed(1), y: +b.y.toFixed(1), z: +b.z.toFixed(1), spd: +ballSpeed(b).toFixed(1), val: ballValue(b), bounces: b.bounces, state: b.state, slow: b.state === 'fly' && b.slowT > 0, slowT: +b.slowT.toFixed(2), scr: toScreen(b.x, b.y, b.z) })),
+  golfers: () => golfers.length,
+  cam: () => ({ x: +st.camera.position.x.toFixed(1), y: +st.camera.position.y.toFixed(1), z: +st.camera.position.z.toFixed(1), fov: st.camera.fov }),
+};
+</script>
+</body>
+</html>
