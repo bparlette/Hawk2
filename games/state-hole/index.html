@@ -13,7 +13,7 @@
    everyone above loses their footing, teeters, tumbles off the stack and
    is sucked into the disc — the tower crumbles figure by figure. */
 import { createStage, sfx, rand, clamp, THREE } from './vendor/gp3d.js';
-import { toon, personGeo, crowd, particles, sky, walkClock } from './vendor/gpkit.js';
+import { toon, personGeo, crowd, particles, sky, walkClock, build } from './vendor/gpkit.js';
 import { TouchController, isTouchDevice } from './vendor/gptouch.js';
 /* DETERMINISM (OPUS-NEXT task 1): every layout and physics random number comes from a seeded mulberry32 (?seed=, default 7);
    the vendor rand() (Math.random) is left to cosmetic particles / camera shake only. */
@@ -200,6 +200,152 @@ persons.forEach((p, i) => { cr.color(i, SHIRT[i % SHIRT.length]); p.i = i; });
 const TOTAL_PERSONS = persons.length;
 columns.forEach(c => { for (let L = 0; L < c.figs.length; L++) c.figs[L].above = c.figs[L + 1] || null; c.standH = c.h; });
 states.forEach(s => { s.maxH = columns.reduce((a, c) => (c.state === s ? Math.max(a, c.h) : a), 0); });
+/* ================= LANDMARKS — NEON-BRIEF Mission 2 (owner-approved Nov 27) =================
+   One tiny toon landmark per major state, in the people's visual idiom: gpkit build()
+   merged primitives, vertex colours, no imported models, no textures. Each is planted
+   ON the slab at the landmark's real in-state location (bbox fraction -> nearest
+   in-outline point, nudged clear of the people towers), among the towers.
+   Landmarks are ROOTED scenery, eaten LAST: the hole cannot nibble one. A landmark
+   only goes when its state is nearly eaten (<= 12% of its figures still standing)
+   AND the disc is under its base — then it tips toward the hole and sinks whole,
+   like a Black Hole City tower. No score value: scenery only, per the brief. */
+const LM_MAT = toon(0xffffff, { vertexColors: true });
+function lmBeam(x1, y1, x2, y2, z, w, c) { const dx = x2 - x1, dy = y2 - y1; return { g: 'box', s: [Math.hypot(dx, dy), w, w], p: [(x1 + x2) / 2, (y1 + y2) / 2, z], r: [0, 0, Math.atan2(dy, dx)], c }; }
+const LM_BUILD = {
+  needle() { const cream = 0xefe7d0, trim = 0xb9ac8e, parts = [];
+    for (let i = 0; i < 3; i++) { const a = Math.PI / 2 + i * 2.094; parts.push({ g: 'cyl', s: [.17, 2.5, .17], p: [Math.cos(a) * .6, 1.05, Math.sin(a) * .6], r: [-Math.sin(a) * .4, 0, Math.cos(a) * .4], c: cream }); }
+    parts.push({ g: 'cyl', s: [.3, 3.6, .3], p: [0, 1.8, 0], c: cream },
+      { g: 'cyl', s: [2.1, .34, 2.1], p: [0, 3.45, 0], c: trim },
+      { g: 'cyl', s: [3.0, .55, 3.0], p: [0, 3.95, 0], c: cream },
+      { g: 'cyl', s: [.55, .5, .55], p: [0, 4.45, 0], c: trim },
+      { g: 'cyl', s: [.09, 1.7, .09], p: [0, 5.4, 0], c: cream },
+      { g: 'sphere', s: [.2, .2, .2], p: [0, 6.28, 0], c: 0xd6501f });
+    return { parts, h: 6.4 }; },
+  liberty() { const g = 0x53b08e, stone = 0x9aa0a3, parts = [
+      { g: 'box', s: [1.8, .7, 1.8], p: [0, .35, 0], c: stone }, { g: 'box', s: [1.35, .55, 1.35], p: [0, .97, 0], c: stone },
+      { g: 'cone', s: [1.55, 2.6, 1.55], p: [0, 2.5, 0], c: g }, { g: 'box', s: [.62, .85, .42], p: [0, 4.1, 0], c: g },
+      { g: 'sphere', s: [.54, .54, .54], p: [0, 4.72, 0], c: g },
+      { g: 'cyl', s: [.15, 1.0, .15], p: [.52, 4.6, 0], r: [0, 0, -.45], c: g },
+      { g: 'cyl', s: [.1, .45, .1], p: [.82, 5.25, 0], c: 0x8a6d3b },
+      { g: 'cone', s: [.34, .55, .34], p: [.82, 5.72, 0], c: 0xff8c3a }, { g: 'sphere', s: [.17, .17, .17], p: [.82, 5.5, 0], c: 0xffc93c },
+      { g: 'box', s: [.36, .46, .12], p: [-.5, 3.95, .18], r: [0, .3, 0], c: g }];
+    for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; parts.push({ g: 'cone', s: [.14, .46, .14], p: [Math.cos(a) * .21, 5.05, Math.sin(a) * .21], r: [Math.sin(a) * .38, 0, -Math.cos(a) * .38], c: g }); }
+    return { parts, h: 6.0 }; },
+  alamo() { const cream = 0xe9dcbc, dark = 0x4a3826, parts = [
+      { g: 'box', s: [4.4, 2.2, 1.1], p: [0, 1.1, 0], c: cream },
+      { g: 'box', s: [3.0, .8, 1.12], p: [0, 2.6, 0], c: cream }, { g: 'box', s: [1.9, .7, 1.12], p: [0, 3.32, 0], c: cream },
+      { g: 'box', s: [.95, .85, 1.12], p: [0, 4.05, 0], c: cream }, { g: 'box', s: [.42, .55, .08], p: [0, 4.0, .57], c: dark },
+      { g: 'box', s: [.85, 1.35, .08], p: [0, .68, .57], c: dark },
+      { g: 'cyl', s: [.46, .08, .46], p: [0, 1.78, .57], r: [Math.PI / 2, 0, 0], c: 0x6b543a },
+      { g: 'box', s: [.5, .72, .08], p: [-1.55, 1.3, .57], c: dark }, { g: 'box', s: [.5, .72, .08], p: [1.55, 1.3, .57], c: dark },
+      { g: 'box', s: [4.6, .22, 1.3], p: [0, .11, 0], c: 0xcbb489 }];
+    return { parts, h: 4.5 }; },
+  gate() { const o = 0xcf4f22, parts = [{ g: 'box', s: [8.8, .32, 1.7], p: [0, 1.6, 0], c: 0x646e76 },
+      { g: 'box', s: [.75, 1.25, 1.45], p: [-4.4, .62, 0], c: o }, { g: 'box', s: [.75, 1.25, 1.45], p: [4.4, .62, 0], c: o }];
+    for (const tx of [-2.2, 2.2]) { for (const lz of [-.6, .6]) parts.push({ g: 'box', s: [.42, 4.9, .42], p: [tx, 2.45, lz], c: o });
+      for (const cy of [.95, 2.25, 3.55, 4.6]) parts.push({ g: 'box', s: [.38, .42, 1.62], p: [tx, cy, 0], c: o }); }
+    const cable = [[-4.4, 3.3], [-2.2, 4.95], [-1.1, 2.8], [0, 2.4], [1.1, 2.8], [2.2, 4.95], [4.4, 3.3]];
+    for (const cz of [-.72, .72]) for (let i = 0; i + 1 < cable.length; i++) parts.push(lmBeam(cable[i][0], cable[i][1], cable[i + 1][0], cable[i + 1][1], cz, .09, o));
+    for (const sx of [-1.1, 0, 1.1]) { const cy = sx === 0 ? 2.4 : 2.8; for (const cz of [-.72, .72]) parts.push({ g: 'cyl', s: [.07, cy - 1.76, .07], p: [sx, (cy + 1.76) / 2, cz], c: o }); }
+    return { parts, h: 5.0 }; },
+  gantry() { const grey = 0xc3ccd4, dark = 0x8b95a1, parts = [
+      { g: 'box', s: [3.6, .25, 2.3], p: [.6, .12, 0], c: 0x6a737c },
+      { g: 'box', s: [.95, 5.2, .95], p: [-.6, 2.6, 0], c: grey },
+      { g: 'box', s: [1.55, .28, 1.55], p: [-.6, 1.45, 0], c: dark }, { g: 'box', s: [1.55, .28, 1.55], p: [-.6, 2.85, 0], c: dark }, { g: 'box', s: [1.55, .28, 1.55], p: [-.6, 4.25, 0], c: dark },
+      { g: 'box', s: [2.3, .42, .5], p: [.35, 5.05, 0], c: dark }, { g: 'box', s: [.4, .7, .4], p: [1.45, 4.7, 0], c: dark },
+      { g: 'cyl', s: [.64, 3.4, .64], p: [1.75, 1.95, 0], c: 0xf4f6f8 }, { g: 'cone', s: [.64, .95, .64], p: [1.75, 4.12, 0], c: dark },
+      { g: 'cyl', s: [.66, .32, .66], p: [1.75, .85, 0], c: 0xcf4f22 },
+      { g: 'box', s: [.5, .8, .1], p: [1.42, .55, 0], r: [0, 0, .5], c: 0xcf4f22 }, { g: 'box', s: [.5, .8, .1], p: [2.08, .55, 0], r: [0, 0, -.5], c: 0xcf4f22 }];
+    return { parts, h: 5.3 }; },
+  bean() { return { parts: [
+      { g: 'sphere', s: [3.4, 2.2, 2.4], p: [0, 1.02, 0], c: 0xd3dce2 },
+      { g: 'sphere', s: [2.1, .85, 1.5], p: [-.3, 1.62, .2], c: 0xf2f6f9 }], h: 2.2 }; },
+  vegas() { const parts = [
+      { g: 'cyl', s: [.15, 2.3, .15], p: [-.85, 1.15, 0], c: 0x9aa0a3 }, { g: 'cyl', s: [.15, 2.3, .15], p: [.85, 1.15, 0], c: 0x9aa0a3 },
+      { g: 'box', s: [2.15, 2.15, .16], p: [0, 3.35, 0], r: [0, 0, Math.PI / 4], c: 0xf7f3e6 },
+      { g: 'box', s: [1.5, 1.5, .07], p: [0, 3.35, .1], r: [0, 0, Math.PI / 4], c: 0xd23b3b },
+      { g: 'sphere', s: [.42, .42, .42], p: [0, 3.35, .16], c: 0xffc93c },
+      { g: 'cone', s: [.55, .8, .55], p: [0, 5.2, 0], c: 0xffc93c }];
+    return { parts, h: 5.6 }; },
+  monument() { const stone = 0xe8e6da; return { parts: [
+      { g: 'box', s: [1.5, .4, 1.5], p: [0, .2, 0], c: stone }, { g: 'box', s: [1.1, .35, 1.1], p: [0, .57, 0], c: stone },
+      { g: 'box', s: [.52, 4.4, .52], p: [0, 2.95, 0], c: stone },
+      { g: 'cone', s: [.74, .85, .74], p: [0, 5.57, 0], r: [0, Math.PI / 4, 0], c: stone }], h: 6.0 }; },
+  rockies() { const rock = 0x87919c, snow = 0xf6f9fb; return { parts: [
+      { g: 'box', s: [4.3, .5, 3.1], p: [0, .25, 0], c: 0x77816f },
+      { g: 'cone', s: [2.6, 4.4, 2.6], p: [-.95, 2.7, -.3], c: rock }, { g: 'cone', s: [1.15, 1.9, 1.15], p: [-.95, 3.95, -.3], c: snow },
+      { g: 'cone', s: [2.0, 3.4, 2.0], p: [1.15, 2.2, .45], c: rock }, { g: 'cone', s: [.9, 1.5, .9], p: [1.15, 3.15, .45], c: snow },
+      { g: 'cone', s: [1.6, 2.6, 1.6], p: [.15, 1.8, -1.05], c: rock }, { g: 'cone', s: [.72, 1.15, .72], p: [.15, 2.52, -1.05], c: snow }], h: 4.9 }; },
+  canyon() { const mid = 0xc96f3f, dark = 0xa84e2c, lite = 0xe2a763, grn = 0x3f914f, parts = [
+      { g: 'box', s: [4.8, .7, .95], p: [0, .35, -1.25], c: mid },
+      { g: 'box', s: [2.2, 1.1, 1.85], p: [-1.55, .55, 0], c: mid }, { g: 'box', s: [1.9, .8, 1.6], p: [-1.65, 1.5, .1], c: lite }, { g: 'box', s: [1.2, .55, 1.2], p: [-1.5, 2.17, 0], c: dark },
+      { g: 'box', s: [2.2, 1.1, 1.85], p: [1.55, .55, 0], c: dark }, { g: 'box', s: [1.9, .8, 1.6], p: [1.65, 1.5, .1], c: mid }, { g: 'box', s: [1.2, .55, 1.2], p: [1.5, 2.17, 0], c: lite },
+      { g: 'box', s: [1.25, .5, 1.45], p: [0, .25, 0], c: 0x7a3b22 },
+      { g: 'cyl', s: [.42, 2.4, .42], p: [2.85, 1.2, 1.35], c: grn },
+      { g: 'cyl', s: [.3, .85, .3], p: [2.5, 1.55, 1.35], r: [0, 0, Math.PI / 2], c: grn }, { g: 'cyl', s: [.3, 1.05, .3], p: [2.2, 2.0, 1.35], c: grn },
+      { g: 'cyl', s: [.3, .7, .3], p: [3.17, 1.25, 1.35], r: [0, 0, Math.PI / 2], c: grn }, { g: 'cyl', s: [.3, .8, .3], p: [3.45, 1.6, 1.35], c: grn }];
+    return { parts, h: 2.9 }; }
+};
+/* fx/fz = the landmark's real location as a fraction of its state's bbox
+   (fx west->east, fz north->south); DC sits on its STATE_DATA anchor. */
+const LM_SPEC = [
+  { abbr: 'WA', build: 'needle', fx: .31, fz: .47, r: 1.6 },
+  { abbr: 'CA', build: 'gate', fx: .19, fz: .44, r: 2.4 },
+  { abbr: 'NY', build: 'liberty', fx: .72, fz: .96, r: 1.2 },
+  { abbr: 'TX', build: 'alamo', fx: .62, fz: .66, r: 2.2 },
+  { abbr: 'FL', build: 'gantry', fx: .93, fz: .39, r: 1.9 },
+  { abbr: 'IL', build: 'bean', fx: .97, fz: .11, r: 1.7 },
+  { abbr: 'AZ', build: 'canyon', fx: .47, fz: .17, r: 2.3 },
+  { abbr: 'NV', build: 'vegas', fx: .81, fz: .83, r: 1.5 },
+  { abbr: 'DC', build: 'monument', anchor: true, sc: .5, r: .5 },
+  { abbr: 'CO', build: 'rockies', fx: .32, fz: .45, r: 2.1 }
+];
+const landmarks = [];
+for (const spec of LM_SPEC) {
+  const s = byAbbr[spec.abbr]; if (!s) continue;
+  let x = spec.anchor ? s.cx : s.x0 + spec.fx * (s.x1 - s.x0), z = spec.anchor ? s.cz : s.z0 + spec.fz * (s.z1 - s.z0);
+  const inside = (px, pz) => pointInRings(s.ringsW, px, pz);
+  if (!inside(x, z)) {                                   // coastal/harbour spots: pull to the nearest land
+    let done = false;
+    for (let rr = .8; rr <= 9 && !done; rr += .8) for (let i = 0; i < 16 && !done; i++) { const a = i / 16 * Math.PI * 2, px = x + Math.cos(a) * rr, pz = z + Math.sin(a) * rr; if (inside(px, pz)) { x = px; z = pz; done = true; } }
+  }
+  const cols = columns.filter(c => c.state === s);
+  const clear = (px, pz) => inside(px, pz) && cols.every(c => Math.hypot(c.x - px, c.z - pz) > 1.5);
+  if (!clear(x, z)) for (let rr = 1.6; rr <= 4.8; rr += .8) { let moved = false;
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, px = x + Math.cos(a) * rr, pz = z + Math.sin(a) * rr; if (clear(px, pz)) { x = px; z = pz; moved = true; break; } }
+    if (moved) break; }
+  const { parts, h } = LM_BUILD[spec.build]();
+  const group = new THREE.Group();
+  const mesh = new THREE.Mesh(build(parts), LM_MAT); group.add(mesh);
+  const sc = spec.sc || 1; group.scale.setScalar(sc);
+  group.position.set(x, SLAB, z); st.scene.add(group);
+  const yawQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, spec.yaw || 0, 0)); group.quaternion.copy(yawQ);
+  landmarks.push({ state: s, cols, group, x, z, r: spec.r * sc, h: h * sc, sc0: sc, mode: 'stand', tipT: 0, axis: new THREE.Vector3(1, 0, 0), yawQ });
+}
+const _lmQ = new THREE.Quaternion();
+function stepLandmarks(dt) {
+  for (const lm of landmarks) {
+    if (lm.mode === 'gone') continue;
+    if (lm.mode === 'tip') {
+      lm.tipT += dt;
+      const u = Math.min(1, lm.tipT / .95), ang = 1.45 * u * u;         // accelerating tip toward the hole
+      _lmQ.setFromAxisAngle(lm.axis, ang); lm.group.quaternion.copy(_lmQ).multiply(lm.yawQ);
+      const sk = u < .3 ? 0 : (u - .3) / .7;
+      lm.group.position.y = SLAB - sk * sk * lm.h * .8;                // then sinks whole, BHC-style
+      if (u > .55) lm.group.scale.setScalar(lm.sc0 * (1 - .3 * (u - .55) / .45));
+      if (u >= 1) { lm.mode = 'gone'; lm.group.visible = false; }
+      continue;
+    }
+    let standing = 0; for (const c of lm.cols) for (const f of c.figs) if (!f.gone && f.mode === 'stand') standing++;
+    if (standing > lm.state.total * .12) continue;                     // rooted while its towers stand
+    const d = Math.hypot(hx - lm.x, hz - lm.z);
+    if (d > size + lm.r * .45) continue;                               // the disc must be under its base
+    lm.mode = 'tip'; lm.tipT = 0;
+    lm.axis.set((hz - lm.z) / (d || 1), 0, -(hx - lm.x) / (d || 1)).normalize();
+    sfx('pop', .5); fx.burst(10, { x: lm.x, y: 1, z: lm.z, size: .3, life: .6, color: 0xd8cfb8, g: 5 }, 3);
+  }
+}
+
 
 /* ===================== TASK 1: emergent collapse — support graph + rigid bodies =====================
    Every figure is supported by the slab (level 0) or by the figure under it (p.below). A figure that leaves its
@@ -401,6 +547,7 @@ function reset() {
     p.doomed = false; p.rimT = -1; p.kx = p.kz = 0; p.contact = 0; p.gyT = 0; p.fieldT = -1; p.lean = 0; p.fieldTip = false; }
   for (const c of columns) { c.standH = c.h; c.touched = false; }
   for (const s of states) { s.eatenCount = 0; s.announced = false; s.share = 0; }
+  for (const lm of landmarks) { lm.mode = 'stand'; lm.tipT = 0; lm.group.visible = true; lm.group.position.y = SLAB; lm.group.scale.setScalar(lm.sc0); lm.group.quaternion.copy(lm.yawQ); }
   hx = _ga.cx; hz = _ga.cz; hvx = hvz = 0; eatenVol = 0; peopleEaten = 0; peopleSum = 0; statesDone = 0; pbT = -1; pbState = null; popBanner.style.opacity = '0'; size = 2.0; sizeLock = 0; scripted = null; tleft = TEST ? 1e9 : S.seconds; over = false;
   st.hud.banner('GO!', .8);
 }
@@ -459,6 +606,7 @@ function update(dt) {
     if (m === 'stand' && p.doomed && simT >= p.doomAt && (p.rimT < 0 || simT - p.rimT >= p.tt)) { p.frozeOff = swayOff(p); release(p); }   // a doomed figure that wandered into the rim still teeters first
   }
   stepBodies(dt, trig);
+  stepLandmarks(dt);
   fx.update(dt);
   size = sizeLock || 2.0 + Math.sqrt(eatenVol) * .34;   // BHC: size = 1.4 + sqrt(eaten) * .36
   const left = TOTAL_PERSONS - peopleEaten;
@@ -579,7 +727,7 @@ window.__SIM = { ready: true,
   figInfo: i => { const p = persons[i]; return { mode: p.gone ? 'gone' : p.mode, x: p.x, z: p.z, y: p.y, lean: p.lean || 0 }; },
   placeDowned: (i, x, z) => { const p = persons[i]; if (p.mode === 'stand') leaveStand(p); p.x = x; p.z = z; p.pitch = 1.45; p.roll = 0; p.mode = 'act'; setRest(p); },
   outsideField: R => persons.filter(p => !p.gone && (p.mode === 'stand' || p.mode === 'rest') && Math.hypot(p.x - hx, p.z - hz) > R).map(p => [p.i, p.x, p.z, p.mode]),
-  colStanding: id => columns[id].figs.filter(f => !f.gone && f.mode === 'stand').length, fieldViolations: () => fieldViol,
+  colStanding: id => columns[id].figs.filter(f => !f.gone && f.mode === 'stand').length, fieldViolations: () => fieldViol, landmarks: () => landmarks.map(l => ({ abbr: l.state.abbr, mode: l.mode, x: +l.x.toFixed(1), z: +l.z.toFixed(1), h: +l.h.toFixed(1) })), landmarkAt: ab => { const l = landmarks.find(q => q.state.abbr === ab); return l ? { mode: l.mode, x: +l.x.toFixed(1), z: +l.z.toFixed(1), screen: toScreen(l.x, SLAB + l.h * .55, l.z) } : null; },
   counts: () => window.__SAMPLE.counts(), simCost: () => ({ updateMs: +simCostMs.toFixed(2), preMs: +preCostMs.toFixed(2) })
 };
 </script>
