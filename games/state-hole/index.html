@@ -201,7 +201,9 @@ const TOTAL_PERSONS = persons.length;
 columns.forEach(c => { for (let L = 0; L < c.figs.length; L++) c.figs[L].above = c.figs[L + 1] || null; c.standH = c.h; });
 states.forEach(s => { s.maxH = columns.reduce((a, c) => (c.state === s ? Math.max(a, c.h) : a), 0); });
 /* ================= LANDMARKS — NEON-BRIEF Mission 2 (owner-approved Nov 27) =================
-   One tiny toon landmark per major state, in the people's visual idiom: gpkit build()
+   One BIG toon landmark per major state (sc ~3x in LM_SPEC — owner, Nov 27: the first
+   build read tiny at play framing, "needs to be big": silhouettes must read at the
+   default camera and stand proud of the people towers), in the people's visual idiom: gpkit build()
    merged primitives, vertex colours, no imported models, no textures. Each is planted
    ON the slab at the landmark's real in-state location (bbox fraction -> nearest
    in-outline point, nudged clear of the people towers), among the towers.
@@ -289,16 +291,16 @@ const LM_BUILD = {
 /* fx/fz = the landmark's real location as a fraction of its state's bbox
    (fx west->east, fz north->south); DC sits on its STATE_DATA anchor. */
 const LM_SPEC = [
-  { abbr: 'WA', build: 'needle', fx: .31, fz: .47, r: 1.6 },
-  { abbr: 'CA', build: 'gate', fx: .19, fz: .44, r: 2.4 },
-  { abbr: 'NY', build: 'liberty', fx: .72, fz: .96, r: 1.2 },
-  { abbr: 'TX', build: 'alamo', fx: .62, fz: .66, r: 2.2 },
-  { abbr: 'FL', build: 'gantry', fx: .93, fz: .39, r: 1.9 },
-  { abbr: 'IL', build: 'bean', fx: .97, fz: .11, r: 1.7 },
-  { abbr: 'AZ', build: 'canyon', fx: .47, fz: .17, r: 2.3 },
-  { abbr: 'NV', build: 'vegas', fx: .81, fz: .83, r: 1.5 },
-  { abbr: 'DC', build: 'monument', anchor: true, sc: .5, r: .5 },
-  { abbr: 'CO', build: 'rockies', fx: .32, fz: .45, r: 2.1 }
+  { abbr: 'WA', build: 'needle', fx: .31, fz: .47, r: 1.6, sc: 3.2 },
+  { abbr: 'CA', build: 'gate', fx: .19, fz: .44, r: 2.4, sc: 3.0 },
+  { abbr: 'NY', build: 'liberty', fx: .72, fz: .96, r: 1.2, sc: 3.4 },
+  { abbr: 'TX', build: 'alamo', fx: .62, fz: .66, r: 2.2, sc: 3.3 },
+  { abbr: 'FL', build: 'gantry', fx: .93, fz: .39, r: 1.9, sc: 3.2 },
+  { abbr: 'IL', build: 'bean', fx: .97, fz: .11, r: 1.7, sc: 3.4 },
+  { abbr: 'AZ', build: 'canyon', fx: .47, fz: .17, r: 2.3, sc: 3.2 },
+  { abbr: 'NV', build: 'vegas', fx: .81, fz: .83, r: 1.5, sc: 3.0 },
+  { abbr: 'DC', build: 'monument', anchor: true, sc: 1.5, r: .5 },
+  { abbr: 'CO', build: 'rockies', fx: .32, fz: .45, r: 2.1, sc: 3.2 }
 ];
 const landmarks = [];
 for (const spec of LM_SPEC) {
@@ -310,7 +312,8 @@ for (const spec of LM_SPEC) {
     for (let rr = .8; rr <= 9 && !done; rr += .8) for (let i = 0; i < 16 && !done; i++) { const a = i / 16 * Math.PI * 2, px = x + Math.cos(a) * rr, pz = z + Math.sin(a) * rr; if (inside(px, pz)) { x = px; z = pz; done = true; } }
   }
   const cols = columns.filter(c => c.state === s);
-  const clear = (px, pz) => inside(px, pz) && cols.every(c => Math.hypot(c.x - px, c.z - pz) > 1.5);
+  const clearD = Math.max(1.5, spec.r * (spec.sc || 1) * .5);   // BIG landmarks: keep towers out of the mesh core
+  const clear = (px, pz) => inside(px, pz) && cols.every(c => Math.hypot(c.x - px, c.z - pz) > clearD);
   if (!clear(x, z)) for (let rr = 1.6; rr <= 4.8; rr += .8) { let moved = false;
     for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, px = x + Math.cos(a) * rr, pz = z + Math.sin(a) * rr; if (clear(px, pz)) { x = px; z = pz; moved = true; break; } }
     if (moved) break; }
