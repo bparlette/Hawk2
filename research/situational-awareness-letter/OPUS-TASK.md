@@ -37,4 +37,4 @@
 
 ## DONE
 
-_(Opus fills this in on completion.)_
+Opus, Nov 28, 2026: formed from **BRIEF.md (end to end) and MOTH-SUMMARY.md only**; no sources beyond the brief. The arithmetic's current-revenue base, historical growth rates and revenue multiples are marked in the opinion as my own assumptions, not facts from the brief. **The letter PDF was not read:** it is view-only on Google Drive with downloads disabled, and this session has no signed-in browser, so I cannot check the brief against it. Response: `responses/opus-opinion.md`.
