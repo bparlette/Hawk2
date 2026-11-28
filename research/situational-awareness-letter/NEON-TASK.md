@@ -37,4 +37,4 @@
 
 ## DONE
 
-_(Neon fills this in on completion.)_
+- 2026-11-27 (Neon): Formed from `BRIEF.md` (including primary Q2/Q3 2026 13F figures and claim audit), `MOTH-SUMMARY.md`, and `NEON-TASK.md` — brief + Moth summary only (did not access the view-only Google Drive PDF); committed opinion to `research/situational-awareness-letter/responses/neon-opinion.md`.
