@@ -7,6 +7,7 @@
 
 - **Brief (read this first, in full):** repo `bparlette/Hawk2`, branch `main`, folder `research/situational-awareness-letter/`, file `BRIEF.md`
   - https://github.com/bparlette/Hawk2/blob/main/research/situational-awareness-letter/BRIEF.md
+- **Also read `MOTH-SUMMARY.md`** (same repo/branch/folder) alongside the brief, and in your opinion say explicitly where you agree and disagree with Moth's read (§2 of that file).
 - **This task file:** `research/situational-awareness-letter/NEON-TASK.md` in the same repo/branch.
 - **Your response goes here:** repo `bparlette/Hawk2`, branch `main`, file `research/situational-awareness-letter/responses/neon-opinion.md`
   - https://github.com/bparlette/Hawk2/blob/main/research/situational-awareness-letter/responses/neon-opinion.md
