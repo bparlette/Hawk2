@@ -366,7 +366,12 @@ const G = 26, BUDGET = 220, LIE = .12, RIMW = 1.4, HEADY = 1.95;
    standing base figures lean toward the hole (pitch grows as the distance closes), lose their footing and fall toward it;
    downed figures are woken and DRAGGED — they inherit DRAG_INHERIT of the hole's velocity plus a steady inward pull, so a
    moving hole sweeps a tumbling comet-tail that lags to its trailing side and feeds the rim. Outside the field nothing is
-   pulled: only Task 1 physics moves a figure there, and what the hole leaves behind lies where it stopped. */
+   pulled: only Task 1 physics moves a figure there, and what the hole leaves behind lies where it stopped.
+   OWNER FIX (Nov 27 playtest — "people on the outer edge get pushed off instead of in; once they touch they
+   don't fall off"): the pull is x1.5 (1.2 + 3.75 u^2) and TOUCH = COMMITTED — inside the field a body's radial
+   velocity toward the centre is clamped to at least the pull speed, so the hole's own travel and body shoves
+   can carry a touched figure along but never eject it outward; figures doomed inside the field tip toward the
+   hole (inward weight 1.5 vs the sway's 1), not off the edge. A touched figure ends up swallowed. */
 const FIELD = 2.2, DRAG_INHERIT = .85;
 let fieldRad = 5, fieldViol = 0;
 let simT = 0, active = [], pending = [], restGrid = new Map(), peakActive = 0, doomedN = 0;
@@ -399,8 +404,9 @@ function activate(p) {
   const off = p.mode === 'pend' ? p.frozeOff : swayOff(p), col = p.col;
   p.x = p.x0 + col.dirX * off; p.z = p.z0 + col.dirZ * off; p.y = p.y0;
   const sg = off >= 0 ? 1 : -1; let dx = col.dirX * sg, dz = col.dirZ * sg;
-  if (p.fieldTip) { dx = 0; dz = 0; p.fieldTip = false; }   // the field tips it straight at the hole
-  const th = Math.hypot(hx - p.x, hz - p.z) || 1; dx += (hx - p.x) / th * .35; dz += (hz - p.z) / th * .35;
+  const th = Math.hypot(hx - p.x, hz - p.z) || 1, ux = (hx - p.x) / th, uz = (hz - p.z) / th;
+  if (p.fieldTip) { dx = ux; dz = uz; p.fieldTip = false; }   // the field tips it straight at the hole
+  else { const w = th < fieldRad ? 1.5 : .35; dx += ux * w; dz += uz * w; }   // inside the field a falling figure tips IN, never off the edge
   const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
   const hs = (.45 + .11 * p.lvl) * PR(.8, 1.2);
   p.vx = dx * hs + (p.kx || 0); p.vz = dz * hs + (p.kz || 0); p.vy = PR(0, .8);
@@ -435,10 +441,12 @@ function stepBody(p, dt, trig) {
   p.vy -= G * dt;
   const dh = Math.hypot(hx - p.x, hz - p.z), inF = dh < fieldRad;
   if (inF) {                                                 // drag-along: hole velocity x DRAG_INHERIT + inward pull, eased in
-    const u = 1 - dh / fieldRad, pull = .8 + 2.5 * u * u, nx = (hx - p.x) / (dh || 1), nz = (hz - p.z) / (dh || 1);
+    const u = 1 - dh / fieldRad, pull = 1.2 + 3.75 * u * u, nx = (hx - p.x) / (dh || 1), nz = (hz - p.z) / (dh || 1);
     const tx = hvx * DRAG_INHERIT + nx * pull, tz = hvz * DRAG_INHERIT + nz * pull, e = Math.min(1, dt * 8);
     if (dh >= fieldRad) fieldViol++;
     p.vx += (tx - p.vx) * e; p.vz += (tz - p.vz) * e;
+    const vr = p.vx * nx + p.vz * nz;                        // TOUCH = COMMITTED: radial speed toward the centre never drops below the pull
+    if (vr < pull) { p.vx += (pull - vr) * nx; p.vz += (pull - vr) * nz; }
   }
   p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
   p.pitch = clamp(p.pitch + p.pitchV * dt, -1.52, 1.52); p.roll = clamp(p.roll + p.rollV * dt, -1.52, 1.52);
@@ -475,14 +483,24 @@ function stepBody(p, dt, trig) {
   if (p.y < p.gy + .8) { const k0x = Math.floor(p.x), k0z = Math.floor(p.z);
     for (let ix = -1; ix <= 1; ix++) for (let iz = -1; iz <= 1; iz++) { const a = restGrid.get((k0x + ix) * 73856093 ^ (k0z + iz) * 19349663); if (!a) continue;
       for (const q of a) { const ddx = p.x - q.x, ddz = p.z - q.z, d = Math.hypot(ddx, ddz); if (d < .45 && d > 1e-4) { p.x += ddx / d * (.45 - d); p.z += ddz / d * (.45 - d); } } } }
+  if (inF) { const nd = Math.hypot(p.x - hx, p.z - hz);   // COMMITTED means contained: pile separation can squeeze a touched body around inside the field, never out of it
+    if (nd > fieldRad) { const s = fieldRad / nd; p.x = hx + (p.x - hx) * s; p.z = hz + (p.z - hz) * s; } }
   if (!inF && p.contact > 6 && Math.hypot(p.vx, p.vz) < .5 && Math.abs(p.vy) < .6) return 'rest';
   return null;
+}
+function containB(p, dWas) {                        // a body that was inside the field stays inside it (see stepBody's end-clamp)
+  if (dWas > fieldRad) return;
+  const dx = p.x - hx, dz = p.z - hz, d = Math.hypot(dx, dz);
+  if (d > fieldRad) { const s = fieldRad / d; p.x = hx + dx * s; p.z = hz + dz * s; }
 }
 function stepBodies(dt, trig) {
   // body vs body: mid spheres, positional separation + velocity exchange (<= 220^2/2 cheap checks)
   for (let i = 0; i < active.length; i++) { const a = active[i];
     for (let j = i + 1; j < active.length; j++) { const b = active[j], dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z; if (Math.abs(dx) > .6 || Math.abs(dz) > .6 || Math.abs(dy) > 1.2) continue;
-      const d = Math.hypot(dx, dy * .5, dz); if (d < .6 && d > 1e-4) { const nx = dx / d, nz = dz / d, push = (.6 - d) * .5; a.x -= nx * push; a.z -= nz * push; b.x += nx * push; b.z += nz * push;
+      const d = Math.hypot(dx, dy * .5, dz); if (d < .6 && d > 1e-4) { const nx = dx / d, nz = dz / d, push = (.6 - d) * .5;
+        const da = Math.hypot(a.x - hx, a.z - hz), db = Math.hypot(b.x - hx, b.z - hz);
+        a.x -= nx * push; a.z -= nz * push; b.x += nx * push; b.z += nz * push;
+        containB(a, da); containB(b, db);            // separation runs before the drag: a squeezed-out body would otherwise never be pulled back
         const rv = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz; if (rv < 0) { a.vx += rv * nx * .5; a.vz += rv * nz * .5; b.vx -= rv * nx * .5; b.vz -= rv * nz * .5; } } } }
   for (let i = active.length - 1; i >= 0; i--) { const p = active[i], r = stepBody(p, dt, trig);
     if (r) { active.splice(i, 1); if (r === 'rest') setRest(p); else swallow(p); } }
