@@ -101,52 +101,20 @@ async function run() {
       await sleep(150);
     }
 
-    const h0 = await cdp.eval('window.__SAMPLE.hour()');
-    await sleep(6000);
-    const h1 = await cdp.eval('window.__SAMPLE.hour()');
+    await sleep(5500);
     const info = await cdp.eval('({ golfers: window.__SAMPLE.golfers(), state: window.__SAMPLE.state(), cam: window.__SAMPLE.cam() })');
-    console.log('Live check:', JSON.stringify({ h0, h1, deltaHour: +(h1 - h0).toFixed(3), ...info }));
+    console.log('Live check:', JSON.stringify(info));
 
     if (info.golfers !== 50) throw new Error(`Expected 50 golfers (half-width), got ${info.golfers}`);
     if (info.state.flying > 0 && info.state.slow !== info.state.flying) {
       throw new Error(`Expected permanent slow-mo (slow=${info.state.slow} === flying=${info.state.flying})`);
     }
-    if (h1 <= h0) throw new Error(`Expected real-time hour progression (h0=${h0}, h1=${h1})`);
 
-    const shots = [
-      { key: 'day', hour: 16.15, label: '4:09 PM · HOA Bright Day' },
-      { key: 'golden', hour: 17.2, label: '5:12 PM · Golden Hour' },
-      { key: 'night', hour: 19.8, label: '7:48 PM · Night Lights' }
-    ];
-    for (const s of shots) {
-      await cdp.eval(`window.__SAMPLE.setHour(${s.hour}); window.__SAMPLE.setHole(0, 2);`);
-      await cdp.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))))');
-      await sleep(80);
-      const png = await cdp.send('Page.captureScreenshot', { format: 'png' });
-      fs.writeFileSync(path.join(OUT_DIR, `live-${s.key}.png`), Buffer.from(png.data, 'base64'));
-    }
-
-    const py = `
-import os
-from PIL import Image, ImageDraw, ImageFont
-out_dir = ${JSON.stringify(OUT_DIR)}
-shots = ${JSON.stringify(shots.map(s => [s.key, s.label]))}
-imgs = [Image.open(os.path.join(out_dir, f"live-{k}.png")) for k, _ in shots]
-pw, ph, gap, pad, hdr = 390, 844, 14, 16, 46
-sheet = Image.new("RGB", (pad * 2 + 3 * pw + 2 * gap, pad * 2 + hdr + ph), (16, 18, 26))
-draw = ImageDraw.Draw(sheet)
-try: font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 19)
-except Exception: font = ImageFont.load_default()
-for i, ((k, label), im) in enumerate(zip(shots, imgs)):
-    x = pad + i * (pw + gap)
-    sheet.paste(im.resize((pw, ph), Image.Resampling.LANCZOS), (x, pad + hdr))
-    draw.rectangle([x, pad + 4, x + pw, pad + hdr - 6], fill=(32, 35, 50))
-    draw.text((x + 12, pad + 13), label, fill=(255, 226, 145), font=font)
-out_path = os.path.join(out_dir, "SBS-live-time-cycle.png")
-sheet.save(out_path)
-print("Wrote", out_path, sheet.size)
-`;
-    execFileSync('/opt/homebrew/bin/uv', ['run', '--with', 'pillow', 'python3', '-c', py], { stdio: 'inherit' });
+    await cdp.eval('window.__SAMPLE.setHole(0, 2);');
+    await cdp.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))))');
+    await sleep(80);
+    const png = await cdp.send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(OUT_DIR, 'live-day.png'), Buffer.from(png.data, 'base64'));
     console.log(`Errors check: ${errs.length}`);
     if (errs.length) { console.error(errs); process.exitCode = 1; }
   } finally {

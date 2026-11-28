@@ -1,23 +1,15 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>Range Hole</title></head><body>
 <script type="module">
-/* RANGE HOLE — Cherie's concept: a triple-deck driving range, 100 golfers
-   all hitting, and YOU are the hole. Built on the Black Hole City kit
-   (same gp3d/gpkit vendor stack, stage, sky, black disc + purple ring +
-   aura, tip/shrink/sink swallow). Camera: one locked FULL VIEW — a
-   gentle follow at a fixed offset and fixed fov, never a zoom, never a
-   cut. Every ball carries its own state: on launch it flies its high
-   arch in personal slow motion (~0.3x for the first ~1.3 s of its own
-   flight), then flips to normal speed for the drop, bounce and roll.
-   Drag the hole around the range grass and swallow balls BEFORE they
-   bounce away their value: a ball eaten on the fly (straight into the
-   cup, no bounce) pays the full 50 pts; every bounce before the eat
-   costs 10 pts (40/30/20/10), and a ball that has stopped rolling
-   pays 0 — it still fills the hole, but it doesn't feed the combo.
-   Chain scoring catches inside 2 s to build a combo multiplier.
-   60 seconds.
-   Time-of-day cycle: 1 real minute = 1 in-game hour (starts at 16:09
-   HOA Bright Day and glides smoothly into Golden Hour over the 60s
-   round, continuing into dusk/lit night range/dawn across replays). */
+/* RANGE HOLE — Cherie's concept: a half-width triple-deck driving range
+   (50 golfers all hitting), and YOU are the hole. Built on the Black Hole
+   City kit (same gp3d/gpkit vendor stack, stage, sky, black disc + purple
+   ring + aura, tip/shrink/sink swallow). Camera: open full-range view
+   showing the drivers, high-arcing slow-mo balls, and painted field.
+   Every ball flies, bounces, and rolls in smooth slow motion (0.3x) the
+   whole time — no speed-up. Drag the hole around the range grass and
+   swallow balls BEFORE they bounce away their value: 50 pts on the fly,
+   −10 per bounce, 0 once stopped. Chain catches inside 2 s for combos.
+   HOA Bright Day grade only. 60 seconds. */
 import { createStage, sfx, rand, clamp, THREE } from './vendor/gp3d.js';
 import { toon, build, crowd, particles, sky, groundTex, treeGeo, walkClock } from './vendor/gpkit.js';
 
@@ -25,39 +17,14 @@ const qs = new URLSearchParams(location.search);
 const S = { title: 'RANGE HOLE', sub: '50 golfers. One hole. Catch the balls while they\'re fast! 60 seconds.', seconds: +(qs.get('seconds') || 60), ringColor: 0x7b4bff, skyTop: 0x3b9cf5, skyBottom: 0xcbeaff, bg: 0x9fd8ff, winScore: 1000 };
 const st = createStage({ style: 'toon', bg: S.bg, fitWidth: 16, fov: 58 });
 st.renderer.shadowMap.enabled = true; st.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-const hemi = new THREE.HemisphereLight(0xdff4ff, 0x6a8d4a, 1.8);
-st.scene.add(hemi);
+st.scene.add(new THREE.HemisphereLight(0xdff4ff, 0x6a8d4a, 1.8));
 const sun = new THREE.DirectionalLight(0xfff3d6, 2.1);
 sun.position.set(30, 50, 20); sun.castShadow = true;
 sun.shadow.camera.left = -42; sun.shadow.camera.right = 42; sun.shadow.camera.top = 54; sun.shadow.camera.bottom = -54;
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 175; sun.shadow.bias = -0.0012; sun.shadow.mapSize.set(2048, 2048);
 sun.target.position.set(0, 0, -6); st.scene.add(sun); st.scene.add(sun.target);
-const skyMesh = sky(st.scene, S.skyTop, S.skyBottom, [135, 420]);
+sky(st.scene, S.skyTop, S.skyBottom, [135, 420]);
 const fx = particles(st.scene, 480);
-
-/* ================= 24-hour time-of-day cycle (1 real minute = 1 in-game hour) =================
-   Starts at 16.15 (4:09 PM HOA Bright Day) so a single 60-second round sweeps naturally from
-   crisp HOA Bright Day into Late-Afternoon Golden Hour (~17:09), and replays continue through
-   sunset, twilight, stadium-lit night range, dawn, and back to HOA Bright Day. */
-const START_HOUR = qs.has('hour') ? ((+qs.get('hour') || 0) % 24 + 24) % 24 : 16.15;
-const CLOCK_ORIGIN_MS = performance.now();
-let pinnedHour = qs.has('hour') ? START_HOUR : null;
-const currentHour = () => pinnedHour !== null
-  ? pinnedHour
-  : ((START_HOUR + (performance.now() - CLOCK_ORIGIN_MS) / 60000) % 24 + 24) % 24;
-
-const TOD_KEYS = [
-  { h: 0.0,  skyTop: 0x0b1630, skyBot: 0x1d2e52, fog: [100, 320], hemiTop: 0x6e8cc2, hemiBot: 0x2c3b36, hemiI: 1.18, sunC: 0xfff0c8, sunI: 1.35, sunP: [0, 36, -26],  rangeT: 0xc2d2de, groundT: 0x9fb4c4, hillN: 0x253b3c, hillF: 0x24334d, skyL: 0x283652, lampC: 0xffe49e, lampO: 0.90, glowC: 0xffe27a, outerC: 0xffb340 },
-  { h: 5.5,  skyTop: 0x234580, skyBot: 0xe69f84, fog: [110, 350], hemiTop: 0xffd7ba, hemiBot: 0x4c5848, hemiI: 1.45, sunC: 0xffc98b, sunI: 1.75, sunP: [-42, 24, 18], rangeT: 0xf7e6cf, groundT: 0xe2cfb4, hillN: 0x496658, hillF: 0x736b82, skyL: 0x7c6f85, lampC: 0xffd98a, lampO: 0.58, glowC: 0xffe28c, outerC: 0xffbe59 },
-  { h: 8.5,  skyTop: 0x3b9cf5, skyBot: 0xcbeaff, fog: [135, 420], hemiTop: 0xdff4ff, hemiBot: 0x6a8d4a, hemiI: 1.80, sunC: 0xfff3d6, sunI: 2.10, sunP: [-28, 48, 22], rangeT: 0xffffff, groundT: 0xffffff, hillN: 0x4c9a68, hillF: 0x6ba6ba, skyL: 0x7b9fb5, lampC: 0xfff4cf, lampO: 0.28, glowC: 0xffe89c, outerC: 0xffd56b },
-  { h: 16.15,skyTop: 0x3b9cf5, skyBot: 0xcbeaff, fog: [135, 420], hemiTop: 0xdff4ff, hemiBot: 0x6a8d4a, hemiI: 1.80, sunC: 0xfff3d6, sunI: 2.10, sunP: [30, 50, 20],  rangeT: 0xffffff, groundT: 0xffffff, hillN: 0x4c9a68, hillF: 0x6ba6ba, skyL: 0x7b9fb5, lampC: 0xfff4cf, lampO: 0.32, glowC: 0xffe89c, outerC: 0xffd56b },
-  { h: 17.2, skyTop: 0x327ed2, skyBot: 0xffcf94, fog: [110, 370], hemiTop: 0xffe9c7, hemiBot: 0x5c6449, hemiI: 1.65, sunC: 0xffd596, sunI: 2.35, sunP: [44, 34, 24],  rangeT: 0xfff4d6, groundT: 0xeadca8, hillN: 0x5d7e58, hillF: 0x8d828c, skyL: 0x9b8288, lampC: 0xffd478, lampO: 0.64, glowC: 0xffdf80, outerC: 0xffb84d },
-  { h: 18.35,skyTop: 0x223b78, skyBot: 0xf09278, fog: [105, 340], hemiTop: 0xffc8a8, hemiBot: 0x444552, hemiI: 1.38, sunC: 0xffb67a, sunI: 1.75, sunP: [48, 18, 22],  rangeT: 0xebd7c4, groundT: 0xcfbba8, hillN: 0x435252, hillF: 0x6c5c75, skyL: 0x725e78, lampC: 0xffd87c, lampO: 0.82, glowC: 0xffdd78, outerC: 0xffae42 },
-  { h: 19.6, skyTop: 0x0b1630, skyBot: 0x1d2e52, fog: [100, 320], hemiTop: 0x6e8cc2, hemiBot: 0x2c3b36, hemiI: 1.18, sunC: 0xfff0c8, sunI: 1.35, sunP: [0, 36, -26],  rangeT: 0xc2d2de, groundT: 0x9fb4c4, hillN: 0x253b3c, hillF: 0x24334d, skyL: 0x283652, lampC: 0xffe49e, lampO: 0.90, glowC: 0xffe27a, outerC: 0xffb340 },
-  { h: 24.0, skyTop: 0x0b1630, skyBot: 0x1d2e52, fog: [100, 320], hemiTop: 0x6e8cc2, hemiBot: 0x2c3b36, hemiI: 1.18, sunC: 0xfff0c8, sunI: 1.35, sunP: [0, 36, -26],  rangeT: 0xc2d2de, groundT: 0x9fb4c4, hillN: 0x253b3c, hillF: 0x24334d, skyL: 0x283652, lampC: 0xffe49e, lampO: 0.90, glowC: 0xffe27a, outerC: 0xffb340 }
-];
-const _ca = new THREE.Color(), _cb = new THREE.Color();
-function lerpCol(target, hexA, hexB, u) { _ca.setHex(hexA); _cb.setHex(hexB); target.copy(_ca).lerp(_cb, u); }
 
 /* ============================ the range ============================
    Half-width decks at the far end (z ~ -44), golfers hit toward +z.
@@ -503,44 +470,6 @@ function spawnLandingPuff(x, z) {
   pf.on = true; pf.x = x; pf.z = z; pf.t = 0;
 }
 
-function applyTimeOfDay(hr) {
-  let i = 0;
-  while (i < TOD_KEYS.length - 2 && TOD_KEYS[i + 1].h <= hr) i++;
-  const a = TOD_KEYS[i], b = TOD_KEYS[i + 1];
-  const u = clamp((hr - a.h) / Math.max(0.0001, b.h - a.h), 0, 1);
-  const e = u * u * (3 - 2 * u);
-
-  lerpCol(skyMesh.material.uniforms.a.value, a.skyTop, b.skyTop, e);
-  lerpCol(skyMesh.material.uniforms.b.value, a.skyBot, b.skyBot, e);
-  st.scene.background.copy(skyMesh.material.uniforms.b.value);
-  st.scene.fog.color.copy(skyMesh.material.uniforms.b.value);
-  st.scene.fog.near = a.fog[0] + (b.fog[0] - a.fog[0]) * e;
-  st.scene.fog.far = a.fog[1] + (b.fog[1] - a.fog[1]) * e;
-
-  lerpCol(hemi.color, a.hemiTop, b.hemiTop, e);
-  lerpCol(hemi.groundColor, a.hemiBot, b.hemiBot, e);
-  hemi.intensity = a.hemiI + (b.hemiI - a.hemiI) * e;
-
-  lerpCol(sun.color, a.sunC, b.sunC, e);
-  sun.intensity = a.sunI + (b.sunI - a.sunI) * e;
-  sun.position.set(
-    a.sunP[0] + (b.sunP[0] - a.sunP[0]) * e,
-    a.sunP[1] + (b.sunP[1] - a.sunP[1]) * e,
-    a.sunP[2] + (b.sunP[2] - a.sunP[2]) * e
-  );
-
-  lerpCol(rangeMat.color, a.rangeT, b.rangeT, e);
-  lerpCol(groundMat.color, a.groundT, b.groundT, e);
-  lerpCol(hillNearMat.color, a.hillN, b.hillN, e);
-  lerpCol(hillFarMat.color, a.hillF, b.hillF, e);
-  lerpCol(skylineMat.color, a.skyL, b.skyL, e);
-  lerpCol(lampGlowMat.color, a.lampC, b.lampC, e);
-  lampGlowMat.opacity = a.lampO + (b.lampO - a.lampO) * e;
-  lerpCol(bGlowMat.color, a.glowC, b.glowC, e);
-  lerpCol(streakOuterMat.color, a.outerC, b.outerC, e);
-}
-applyTimeOfDay(currentHour());
-
 const _o = new THREE.Object3D(); _o.rotation.order = 'YXZ';
 const HOT = new THREE.Color(0xfff4b8), DEAD = new THREE.Color(0x565e66), _c = new THREE.Color();
 const ballSpeed = b => b.state === 'fly' ? Math.hypot(b.vx, b.vy, b.vz) : Math.hypot(b.vx, b.vz);
@@ -685,14 +614,13 @@ function update(dt) {
     endcard.style.display = 'block';
     st.end({ win: score >= S.winScore, score, label: 'POINTS' });
   }
-  window.__game = { score, eaten: eatenCt, size: +size.toFixed(2), chain, bestChain, bestCatch, live: balls.filter(b => b.on).length, flying: balls.filter(b => b.on && b.state === 'fly').length, slow: balls.filter(b => b.on && b.state === 'fly' && b.slowT > 0).length, ts: st.timeScale, hour: +currentHour().toFixed(2) };
+  window.__game = { score, eaten: eatenCt, size: +size.toFixed(2), chain, bestChain, bestCatch, live: balls.filter(b => b.on).length, flying: balls.filter(b => b.on && b.state === 'fly').length, slow: balls.filter(b => b.on && b.state === 'fly' && b.slowT > 0).length, ts: st.timeScale };
 }
 
 const camP = new THREE.Vector3(0, 12, 12), look = new THREE.Vector3();
 let camSnap = false;
 function pre() {
   const t = st.t;
-  applyTimeOfDay(currentHour());
   golfers.forEach((g, i) => {
     let c = t - g.start; if (c < 0) c = 0; if (c >= g.period) c = g.period - .001;
     const p = swingPose(g, c, t);
@@ -777,13 +705,11 @@ function pre() {
 }
 st.camera.position.set(hx, CAM_H, hz + CAM_D); st.run(update, pre);
 
-/* QA hooks (read-only + capture placement + time-of-day preview) */
+/* QA hooks (read-only + capture placement) */
 const _v = new THREE.Vector3();
 function toScreen(x, y, z) { _v.set(x, y, z).project(st.camera); return { x: Math.round((_v.x * .5 + .5) * innerWidth), y: Math.round((-_v.y * .5 + .5) * innerHeight) }; }
 window.__SAMPLE = {
   setHole: (x, z) => { hx = tx = x; hz = tz = z; camSnap = true; },
-  setHour: h => { pinnedHour = h === null ? null : ((h % 24) + 24) % 24; applyTimeOfDay(currentHour()); },
-  hour: () => +currentHour().toFixed(2),
   hole: () => toScreen(hx, 0, hz),
   holeWorld: () => ({ x: +hx.toFixed(1), z: +hz.toFixed(1), size: +size.toFixed(2) }),
   toScreen: (x, y, z) => toScreen(x, y, z),
