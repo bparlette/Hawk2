@@ -337,7 +337,7 @@ function stepBodies(dt, trig) {
 /* ============================ game state ============================ */
 const _ga = byAbbr['GA'];
 const TEST = QS.has('test');
-let hx = _ga.cx, hz = _ga.cz, hvx = 0, hvz = 0, size = 2.0, eatenVol = 0, peopleEaten = 0, statesDone = 0, tleft = S.seconds, over = false;
+let hx = _ga.cx, hz = _ga.cz, hvx = 0, hvz = 0, size = 2.0, eatenVol = 0, peopleEaten = 0, peopleSum = 0, statesDone = 0, tleft = S.seconds, over = false;
 let screamCd = 0, sizeLock = 0, scripted = null;
 const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), tmp = new THREE.Vector3();
 /* TASK 2: hole mass feel. v_max(r) falls as the hole grows (a heavy hole is slower); the response to the drag also
@@ -346,9 +346,41 @@ const VMAX = [[2, 11], [3.5, 9.8], [5, 8.6], [7, 7.4], [10, 6.2], [14, 5.4]];
 function vmax(r) { if (r <= VMAX[0][0]) return VMAX[0][1]; for (let i = 1; i < VMAX.length; i++) if (r <= VMAX[i][0]) { const a = VMAX[i - 1], b = VMAX[i], u = (r - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * u; } return VMAX[VMAX.length - 1][1]; }
 const banners = [];
 const _banner = st.hud.banner.bind(st.hud); st.hud.banner = (t, d) => { banners.push(String(t)); return _banner(t, d); };
-function factLine(s) { return `${s.name} down — ${(s.pop / 1e6).toFixed(1)}M people · tallest stack ${s.maxH}`; }
+/* ================= OWNER ADD (Nov 27): the spit-out banner + honest people total =================
+   Display rule (owner, final): >= 10M -> whole millions floored ("31M"); < 10M -> one decimal floored
+   ("0.5M"). HUD total and banner use fmtM; the underlying peopleSum stays exact (per-figure share =
+   state pop / state figure count; completion snaps the state to exactly its table pop). */
+function fmtM(v) { return v >= 1e7 ? Math.floor(v / 1e6) + 'M' : (Math.floor(v / 1e5) / 10).toFixed(1) + 'M'; }
+function fmtExact(v) { return Math.round(v).toLocaleString('en-US'); }
+const popBanner = document.createElement('div');
+popBanner.style.cssText = 'position:fixed;left:0;right:0;top:15%;z-index:1200;text-align:center;pointer-events:none;opacity:0;font-family:inherit;';
+popBanner.innerHTML = '<div id="pbName" style="font-size:9vmin;font-weight:900;color:#fff;letter-spacing:.04em;text-shadow:0 3px 0 rgba(90,40,160,.55),0 6px 22px rgba(0,0,0,.45)"></div>'
+  + '<div id="pbNum" style="font-size:13.5vmin;font-weight:900;color:#ffd34d;line-height:1.02;text-shadow:0 3px 0 rgba(120,70,0,.5),0 8px 26px rgba(0,0,0,.5)"></div>'
+  + '<div id="pbFact" style="font-size:4.4vmin;font-weight:800;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.6)"></div>';
+document.body.appendChild(popBanner);
+const pbName = popBanner.querySelector('#pbName'), pbNum = popBanner.querySelector('#pbNum'), pbFact = popBanner.querySelector('#pbFact');
+let pbT = -1, pbState = null;
+function showPopBanner(s) {
+  pbState = s; pbT = 0;
+  pbName.textContent = s.name.toUpperCase() + ' DOWN';
+  pbFact.textContent = fmtExact(s.pop) + ' people · tallest stack ' + s.maxH;
+  pbNum.textContent = '0.0M PEOPLE';
+  popBanner.style.opacity = '1';
+}
+function tickPopBanner(dt) {
+  if (pbT < 0 || !pbState) return;
+  pbT += dt;
+  const D = 2.1, u = Math.min(1, pbT / (D * .43)), e = 1 - Math.pow(1 - u, 3);
+  pbNum.textContent = fmtM(pbState.pop * e) + ' PEOPLE';
+  const sc = pbT < .18 ? .7 + (pbT / .18) * .3 : 1;
+  popBanner.style.transform = 'scale(' + sc.toFixed(3) + ')';
+  popBanner.style.opacity = pbT > D ? '0' : (pbT > D - .35 ? String(Math.max(0, (D - pbT) / .35)) : '1');
+  if (pbT > D + .05) { pbT = -1; pbState = null; popBanner.style.opacity = '0'; }
+}
+function factLine(s) { return `${s.name} down — ${fmtM(s.pop)} people · tallest stack ${s.maxH}`; }
 function stateDone(s) {                                      // TASK 3: the real fact line + BHC's cine pull-back
   s.announced = true; statesDone++;
+  peopleSum += s.pop - (s.share || 0); s.share = s.pop; showPopBanner(s);   // owner add: exact snap + spit-out banner
   st.hud.banner(factLine(s), 2.2); sfx('win'); st.flash('#7b4bff', .3);
   st.popup(s.name, { x: hx, y: 5, z: hz }, '#c9a8ff', 7);
   const t0 = st.t, k = 2 + size * .8; st.cine([{ t: t0, p: [0, 0, 0] }, { t: t0 + .45, p: [0, k, k * .8] }, { t: t0 + 1.7, p: [0, 0, 0] }]);
@@ -358,8 +390,8 @@ function reset() {
   for (const p of persons) { p.fall = 0; p.gone = false; p.s = 1; p.mode = 'stand'; p.x = p.x0; p.z = p.z0; p.y = p.y0; p.pitch = 0; p.roll = 0; p.vy = 0; p.vx = 0; p.vz = 0;
     p.doomed = false; p.rimT = -1; p.kx = p.kz = 0; p.contact = 0; p.gyT = 0; p.fieldT = -1; p.lean = 0; p.fieldTip = false; }
   for (const c of columns) { c.standH = c.h; c.touched = false; }
-  for (const s of states) { s.eatenCount = 0; s.announced = false; }
-  hx = _ga.cx; hz = _ga.cz; hvx = hvz = 0; eatenVol = 0; peopleEaten = 0; statesDone = 0; size = 2.0; sizeLock = 0; scripted = null; tleft = TEST ? 1e9 : S.seconds; over = false;
+  for (const s of states) { s.eatenCount = 0; s.announced = false; s.share = 0; }
+  hx = _ga.cx; hz = _ga.cz; hvx = hvz = 0; eatenVol = 0; peopleEaten = 0; peopleSum = 0; statesDone = 0; pbT = -1; pbState = null; popBanner.style.opacity = '0'; size = 2.0; sizeLock = 0; scripted = null; tleft = TEST ? 1e9 : S.seconds; over = false;
   st.hud.banner('GO!', .8);
 }
 st.shell({ id: 'state-hole', title: S.title, sub: S.sub, onReset: reset });
@@ -368,6 +400,7 @@ reset();
 
 let simCostMs = 0;
 function update(dt) {
+  tickPopBanner(dt);
   if (over) { fx.update(dt); return; }
   const t0 = performance.now();
   walkClock.value = st.t; tleft -= dt; screamCd -= dt; simT += dt;
@@ -387,7 +420,7 @@ function update(dt) {
       p.fall += dt * 1.7; p.x += (hx - p.x) * Math.min(1, dt * 8); p.z += (hz - p.z) * Math.min(1, dt * 8); p.s = Math.max(0, 1 - p.fall);
       if (p.fall >= 1) {
         p.gone = true; peopleEaten++; eatenVol += .10;
-        const s = p.state; s.eatenCount++;
+        const s = p.state; s.eatenCount++; const shr = s.pop / s.total; s.share = (s.share || 0) + shr; peopleSum += shr;
         if (screamCd <= 0) { sfx('pop', .35); screamCd = .09; fx.burst(5, { x: hx, y: 1.2, z: hz, size: .22, life: .55, color: 0xffc9a0, g: 4 }, 3); }
         if (s.eatenCount >= s.total && !s.announced && s.total > 0) stateDone(s);
       }
@@ -416,10 +449,10 @@ function update(dt) {
   size = sizeLock || 2.0 + Math.sqrt(eatenVol) * .34;   // BHC: size = 1.4 + sqrt(eaten) * .36
   const left = TOTAL_PERSONS - peopleEaten;
   st.hud.left(`SIZE<br><span style="color:#ffd34d;font-size:8vmin">${size.toFixed(1)}m</span>`);
-  st.hud.right(`EATEN ${peopleEaten}<br>STATES ${statesDone}/51<br>${Math.ceil(Math.max(0, Math.min(tleft, S.seconds)))}s`);
+  st.hud.right(`EATEN ${peopleEaten}<br>PEOPLE ${fmtM(peopleSum)}<br>STATES ${statesDone}/51<br>${Math.ceil(Math.max(0, Math.min(tleft, S.seconds)))}s`);
   st.hud.hint('Drag to move the hole');
   if (tleft <= 0 || left === 0) { over = true; st.hud.banner(left === 0 ? 'AMERICA EATEN!' : 'TIME UP', 3); sfx('win'); st.flash('#7b4bff', .5); st.end({ win: peopleEaten > S.winScore, score: peopleEaten, label: 'PEOPLE EATEN' }); }
-  window.__game = { size: +size.toFixed(2), eaten: peopleEaten, left, active: active.length, pending: pending.length };
+  window.__game = { size: +size.toFixed(2), eaten: peopleEaten, people: peopleSum, left, active: active.length, pending: pending.length };
   simCostMs = simCostMs * .9 + (performance.now() - t0) * .1;
 }
 
