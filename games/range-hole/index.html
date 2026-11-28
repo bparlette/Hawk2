@@ -1,0 +1,353 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>Range Hole</title></head><body>
+<script type="module">
+/* RANGE HOLE — Cherie's concept: a triple-deck driving range, 100 golfers
+   all hitting, and YOU are the hole. Built on the Black Hole City kit
+   (same gp3d/gpkit vendor stack, stage, sky, black disc + purple ring +
+   aura, tip/shrink/sink swallow). Camera: one locked FULL VIEW — a
+   gentle follow at a fixed offset and fixed fov, never a zoom, never a
+   cut. Every ball carries its own state: on launch it flies its high
+   arch in personal slow motion (~0.3x for the first ~1 s of its own
+   flight), then flips to normal speed for the drop, bounce and roll.
+   Drag the hole around the range grass and swallow balls BEFORE they
+   stop: a ball's value decays with its speed — 50 pts at full launch
+   speed, 5 pts at rest. Chain catches inside 2 s to build a combo
+   multiplier. 60 seconds. */
+import { createStage, sfx, rand, clamp, THREE } from './vendor/gp3d.js';
+import { toon, build, crowd, particles, sky, groundTex, treeGeo, walkClock } from './vendor/gpkit.js';
+
+const qs = new URLSearchParams(location.search);
+const S = { title: 'RANGE HOLE', sub: '100 golfers. One hole. Catch the balls while they\'re fast! 60 seconds.', seconds: +(qs.get('seconds') || 60), ringColor: 0x7b4bff, skyTop: 0x4aa8ff, skyBottom: 0xdff3ff, bg: 0x9fd8ff, winScore: 1000 };
+const st = createStage({ style: 'toon', bg: S.bg, fitWidth: 16, fov: 56 }); st.light(); sky(st.scene, S.skyTop, S.skyBottom, [160, 520]); const fx = particles(st.scene, 400);
+
+/* ============================ the range ============================
+   Decks at the far end (z ~ -44), golfers hit toward +z. The hole plays
+   on the grass in front of the decks: x in [-52,52], z in [-39.5, 30]. */
+const HX = [-52, 52], HZ = [-39.5, 30];
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), toon(0xffffff, { map: groundTex('grass', 290) })); ground.rotation.x = -Math.PI / 2; st.scene.add(ground);
+
+/* mowed stripes down the range (merged flat boxes over the grass) */
+{
+  const parts = [];
+  for (let i = 0; i < 15; i++) parts.push({ g: 'box', s: [7.4, .04, 76], p: [-51.8 + i * 7.4, .02, -3], c: i % 2 ? 0x5da64e : 0x6ab257 });
+  const m = new THREE.Mesh(build(parts), toon(0xffffff, { vertexColors: true })); st.scene.add(m);
+}
+
+/* ===================== triple-deck structure =====================
+   One merged build(): slabs, bay dividers, columns, railings, roof —
+   three clearly stacked decks with a coloured fascia per level. */
+const DECK_TOPS = [0.6, 5.0, 9.4];            // floor height of decks 1..3
+const DECK_COUNTS = [34, 33, 33];             // 100 bays total
+const BAY_W = 2.6, DECK_Z = -44.5, ROOF_Y = 14.9;
+const FASCIA = [0x2a9d8f, 0xf1c453, 0xe63946];
+{
+  const P = [];
+  const box = (s, p, c) => P.push({ g: 'box', s, p, c });
+  box([94, 15.4, .6], [0, 7.7, -49.1], 0x87a0b8);                       // back wall
+  box([.6, 15.4, 8.5], [-47, 7.7, DECK_Z], 0x87a0b8); box([.6, 15.4, 8.5], [47, 7.7, DECK_Z], 0x87a0b8);
+  box([96, .6, 10.5], [0, ROOF_Y, -44.6], 0xe63946);                    // roof
+  box([96, .9, .25], [0, ROOF_Y - .75, -39.45], 0xffd34d);              // roof banner strip
+  for (let x = -46; x <= 46; x += 11.5) box([.7, ROOF_Y, .7], [x, ROOF_Y / 2, -48.2], 0x9fb2c8);   // back columns
+  for (const x of [-46, -23, 0, 23, 46]) box([.6, ROOF_Y, .6], [x, ROOF_Y / 2, -40.9], 0x9fb2c8);  // front columns
+  DECK_TOPS.forEach((top, d) => {
+    box([94, .6, 8.5], [0, top - .3, DECK_Z], 0x9fb0c6);                // floor slab (mid grey-blue so the golfers pop)
+    box([94, .55, .3], [0, top - .32, -40.32], FASCIA[d]);              // fascia strip
+    box([93, .14, .14], [0, top + 1.08, -40.55], 0x37474f);             // railing top bar
+    box([93, .09, .09], [0, top + .58, -40.55], 0x37474f);              // railing mid bar
+    for (let x = -46; x <= 46; x += 5.75) box([.1, 1.08, .1], [x, top + .54, -40.55], 0x37474f);
+    const n = DECK_COUNTS[d], x0 = -(n - 1) / 2 * BAY_W;
+    for (let i = 0; i <= n; i++) box([.18, 2.1, 6.8], [x0 - BAY_W / 2 + i * BAY_W, top + 1.05, -44.9], i % 2 ? 0xb9c6d4 : 0xc7d2de);  // bay dividers
+  });
+  const m = new THREE.Mesh(build(P), toon(0xffffff, { vertexColors: true })); st.scene.add(m);
+}
+
+/* target rings + yardage flags on the grass */
+for (const [x, z, r, c] of [[-20, -10, 4.5, 0x2a9d8f], [19, -22, 5.5, 0xf1c453], [2, 6, 3.5, 0xe63946]]) {
+  const ringM = new THREE.Mesh(new THREE.RingGeometry(r - .8, r, 40), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .45, side: THREE.DoubleSide, depthWrite: false }));
+  ringM.rotation.x = -Math.PI / 2; ringM.position.set(x, .05, z); st.scene.add(ringM);
+}
+{
+  const P = [];
+  for (const [x, z, c] of [[-27, -27, 0xe63946], [27, -27, 0xf1c453], [-27, 1, 0x2a9d8f], [27, 1, 0x4361ee]]) {
+    P.push({ g: 'cyl', s: [.09, 3.4, .09], p: [x, 1.7, z], c: 0xf4efe4 }, { g: 'box', s: [1.15, .72, .07], p: [x + .6, 3.05, z], c });
+  }
+  const m = new THREE.Mesh(build(P), toon(0xffffff, { vertexColors: true })); st.scene.add(m);
+}
+
+/* tree line behind the decks and along both sides — frames the range */
+{
+  const LEAF = [0x2f8f4a, 0x3aa65a, 0x5cb85c];
+  const spots = [];
+  for (let x = -72; x <= 72; x += rand(5, 8)) spots.push([x + rand(-1.5, 1.5), rand(-62, -55)]);
+  for (let z = -50; z <= 32; z += rand(6, 9)) { spots.push([rand(-66, -58), z]); spots.push([rand(58, 66), z]); }
+  const round = crowd(st.scene, treeGeo('round'), spots.length, true, 0);
+  spots.forEach(([x, z], i) => { round.set(i, x, 0, z, rand(1.5, 2.4), rand(0, 6.3), 0, 0); round.color(i, LEAF[i % 3]); });
+  round.done(spots.length);
+  const pines = [];
+  for (let x = -70; x <= 70; x += rand(7, 11)) pines.push([x, rand(-68, -63)]);
+  const pine = crowd(st.scene, treeGeo('pine'), pines.length, true, 0);
+  pines.forEach(([x, z], i) => { pine.set(i, x, 0, z, rand(1.6, 2.6), rand(0, 6.3), 0, 0); pine.color(i, LEAF[(i + 1) % 3]); });
+  pine.done(pines.length);
+}
+
+/* the hole — exactly as in Black Hole City: black disc, purple ring, aura */
+const hole = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0x000000 })); hole.rotation.x = -Math.PI / 2; hole.position.y = .06; st.scene.add(hole);
+const aura = new THREE.Mesh(new THREE.RingGeometry(1.12, 1.7, 40), new THREE.MeshBasicMaterial({ color: S.ringColor, transparent: true, opacity: .3, side: THREE.DoubleSide, depthWrite: false })); aura.rotation.x = -Math.PI / 2; aura.position.y = .065; st.scene.add(aura);
+const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 40), new THREE.MeshBasicMaterial({ color: S.ringColor, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = .07; st.scene.add(ring);
+
+/* ============================ golfers ============================
+   gpkit person + cap + club, merged. One InstancedMesh for all 100.
+   Swing = per-instance yaw/pitch: address, wind-up (shoulders turn),
+   fast downswing (ball launches at impact), follow-through, settle. */
+const golferGeo = () => build([
+  { g: 'box', s: [.5, .7, .3], p: [0, 1.15, 0] },                                            // shirt (tinted)
+  { g: 'sphere', s: [.38, .38, .38], p: [0, 1.68, 0], c: 0xf1c27d },                        // head
+  { g: 'sphere', s: [.4, .2, .4], p: [0, 1.83, -.02], c: 0xf4efe4 },                        // cap
+  { g: 'box', s: [.42, .07, .3], p: [0, 1.79, .24], c: 0xf4efe4 },                          // cap brim
+  { g: 'cyl', s: [.12, .65, .12], p: [-.28, 1.02, .16], r: [.5, 0, .18], c: 0xf1c27d },      // arms angled to the club
+  { g: 'cyl', s: [.12, .65, .12], p: [.28, 1.02, .16], r: [.5, 0, -.18], c: 0xf1c27d },
+  { g: 'cyl', s: [.06, 1.15, .06], p: [.16, .6, .44], r: [.35, 0, 0], c: 0x222831 },         // club shaft
+  { g: 'box', s: [.17, .09, .09], p: [.16, .07, .62], c: 0x9aa0aa },                        // club head
+  { g: 'box', s: [.2, .75, .22], p: [-.13, .38, 0], c: 0x2c3e66 },                          // legs
+  { g: 'box', s: [.2, .75, .22], p: [.13, .38, 0], c: 0x2c3e66 },
+]);
+const SHIRT = [0xe63946, 0x2a9d8f, 0xf1c453, 0x457b9d, 0xff7ab6, 0xf4efe4, 0x8ac926, 0xff8a3c];
+const golfers = [];
+DECK_TOPS.forEach((top, d) => {
+  const n = DECK_COUNTS[d], x0 = -(n - 1) / 2 * BAY_W;
+  for (let i = 0; i < n; i++) golfers.push({
+    x: x0 + i * BAY_W, y: top, z: -45.7, deck: d,
+    power: rand(27, 44), period: rand(3.4, 5.4), start: -rand(0, 5), prevC: 0,
+    aim: rand(-2.2, 2.2), ph: rand(0, 6.28),
+  });
+});
+const gcr = crowd(st.scene, golferGeo(), golfers.length, true, 0);
+golfers.forEach((g, i) => gcr.color(i, SHIRT[i % SHIRT.length]));
+const IMPACT_TAIL = .38;   // impact happens this long before cycle end
+function swingPose(g, c, t) {
+  const impactAt = g.period - IMPACT_TAIL, windStart = g.period - 1.15, swingStart = g.period - .62;
+  if (c < windStart) return { yaw: .04 * Math.sin(t * 1.4 + g.ph), pitch: .02 * Math.sin(t * 1.1 + g.ph) };
+  if (c < swingStart) { const k = (c - windStart) / .53, e = 1 - (1 - k) * (1 - k); return { yaw: -.62 * e, pitch: -.06 * e }; }
+  if (c < impactAt) { const k = (c - swingStart) / .24, e = k * k; return { yaw: -.62 + 1.0 * e, pitch: -.06 + .16 * e }; }
+  const k = Math.min(1, (c - impactAt) / IMPACT_TAIL), e = 1 - Math.pow(1 - k, 3);
+  return { yaw: .38 + .2 * e, pitch: .1 - .04 * e };
+}
+
+/* ============================ balls ============================
+   Instanced spheres, per-ball physics: gravity 22, bounce restitution
+   .45 (horizontal keeps .8), roll friction decel 7.5, rest after speed
+   < .35, fade out 2.0–2.6 s after stopping.
+   PER-BALL SLOW STATE: on launch a ball is SLOW — its own integrator
+   step is scaled by SLOW_TS for the first SLOW_DUR seconds of ITS OWN
+   flight time, so its rise and peak loop in slow motion; then it flips
+   to 1x for descent, bounce, roll, rest. Only the step is scaled, never
+   the velocities, so the trajectory is the true one played slower.
+   VALUE: pts = round(5 + 45 * clamp(speed / ownLaunchSpeed, 0, 1)) —
+   50 at full launch speed, 5 at rest. Speed here is the ball's true
+   physical speed, so a fresh ball in its slow state still reads (and
+   pays) as a fast ball. Tint cools white-hot -> grey as the ball truly
+   slows, so the decay is visible before you commit. */
+const BALL_R = .23, MAX_BALLS = 240, GRAV = 22, SLOW_TS = .3, SLOW_DUR = 1.0;
+const ballGeo = () => build([{ g: 'sphere', s: [BALL_R * 2, BALL_R * 2, BALL_R * 2], p: [0, 0, 0] }]);
+const balls = Array.from({ length: MAX_BALLS }, () => ({ on: false, x: 0, y: -50, z: 0, vx: 0, vy: 0, vz: 0, state: 'off', launchSpd: 1, restT: 0, fall: 0, fallY0: 0, pts: 0, s: 1, slowT: 0 }));
+const bcr = crowd(st.scene, ballGeo(), MAX_BALLS, true, 0);
+const HOT = new THREE.Color(0xfff0a8), COOL = new THREE.Color(0xaeb9c4), _c = new THREE.Color();
+const ballSpeed = b => b.state === 'fly' ? Math.hypot(b.vx, b.vy, b.vz) : Math.hypot(b.vx, b.vz);
+const ballValue = b => Math.round(5 + 45 * clamp(ballSpeed(b) / b.launchSpd, 0, 1));
+function launchBall(g) {
+  let b = balls.find(b => !b.on);
+  if (!b) { b = balls.filter(b => b.on && b.state !== 'fall').sort((a, c) => ballSpeed(a) - ballSpeed(c))[0]; if (!b) return; }
+  const spd = g.power * rand(.9, 1.1), el = rand(.19, .30), az = rand(-.045, .045) + g.aim * .002;
+  const vh = Math.cos(el) * spd;
+  b.on = true; b.state = 'fly'; b.fall = 0; b.s = 1; b.restT = 0;
+  b.x = g.x + .16; b.y = g.y + .3; b.z = g.z + 1.05;
+  b.vx = vh * Math.sin(az); b.vz = vh * Math.cos(az); b.vy = Math.sin(el) * spd;
+  b.launchSpd = spd;
+  b.slowT = SLOW_DUR;   // every ball starts its flight in its own slow state
+}
+
+/* ============================ game state ============================
+   SCORE MODEL (exact): catch pts = ballValue at the catch instant.
+   COMBO: a chain counts catches <= 2.0 s apart. For chain length
+   c >= 3 the multiplier is min(c - 1, 6) — 3rd in a row pays x2,
+   4th x3, 5th x4 ... capped x6. Awarded = pts * multiplier.
+   HOLE GROWTH: size = min(1.4 + sqrt(ballsEaten) * .055, 2.6). */
+let hx = 0, hz = 2, tx = 0, tz = 2, size = 1.4;
+let score = 0, eatenCt = 0, chain = 0, chainT = 0, bestChain = 0, bestCatch = 0;
+let tleft = S.seconds, over = false;
+const comboMult = () => chain >= 3 ? Math.min(chain - 1, 6) : 1;
+const endcard = document.createElement('div');
+endcard.style.cssText = 'position:fixed;left:0;right:0;top:66%;display:none;text-align:center;color:#fff;font-size:4.4vmin;text-shadow:0 .5vmin 0 #000,0 0 1.2vmin #000;pointer-events:none;line-height:1.7;z-index:10';
+document.body.appendChild(endcard);
+function reset() {
+  for (const b of balls) { b.on = false; b.state = 'off'; b.y = -50; }
+  hx = tx = 0; hz = tz = 2; size = 1.4;
+  score = 0; eatenCt = 0; chain = 0; chainT = 0; bestChain = 0; bestCatch = 0;
+  tleft = S.seconds; over = false; endcard.style.display = 'none';
+  st.hud.banner('GO!', .8);
+}
+
+/* ===================== camera geometry =====================
+   FULL VIEW, LOCKED (Cherie: "No zooming in and out. Just full view."):
+   fov 56, and the camera follows the hole at a FIXED offset — fixed
+   height, fixed distance, fixed look offset — so the framing never
+   zooms, never cuts, never tracks a ball. The offset is the wide
+   framing verified in the previous pass (decks + range + hole and the
+   full height of a ball's arc in the 390x844 frame), frozen at its
+   starting-size values: it no longer grows with the hole.
+   A fully static camera was rejected on the numbers: in portrait the
+   horizontal half-fov is ~13.8°, so framing the whole ±52-unit-wide
+   field at once needs the camera ~210 units back, where a ball is
+   under 2 px and nothing is readable. The gentle follow below keeps
+   the whole scene in view around the hole at a constant distance. */
+const CAM_H = 21.2, CAM_D = 19.9, LOOK_Y = 2, LOOK_Z = 10;
+
+st.shell({ id: 'range-hole', title: S.title, sub: S.sub, onReset: reset });
+
+/* delta drag — camera-immune: screen-space pointer deltas are converted
+   to world deltas at the hole's depth, so follow-cam motion can't feed
+   back into the target (the State Hole v2 runaway bug). */
+let ptrWasDown = false, ptrPX = 0, ptrPY = 0;
+function dragStep(dt) {
+  const k = st.keys, spd = 30;
+  if (k.a || k.arrowleft) tx -= spd * dt; if (k.d || k.arrowright) tx += spd * dt;
+  if (k.w || k.arrowup) tz -= spd * dt; if (k.s || k.arrowdown) tz += spd * dt;
+  if (st.ptr.down) {
+    if (!ptrWasDown) { ptrPX = st.ptr.x; ptrPY = st.ptr.y; }
+    else {
+      const dxn = st.ptr.x - ptrPX, dyn = st.ptr.y - ptrPY; ptrPX = st.ptr.x; ptrPY = st.ptr.y;
+      const D = Math.hypot(CAM_H, CAM_D);                              // camera distance to the hole (fixed offset)
+      const H_w = 2 * D * Math.tan(28 * Math.PI / 180);                // visible height at hole depth (fov 56)
+      const W_w = H_w * (innerWidth / innerHeight);
+      const pitch = Math.atan2(CAM_H - LOOK_Y, CAM_D + LOOK_Z);
+      tx += dxn * .5 * W_w;
+      tz += dyn * .5 * H_w * (0.98 / Math.sin(pitch));                 // ground foreshortening at this tilt
+    }
+    ptrWasDown = true;
+  } else ptrWasDown = false;
+  tx = clamp(tx, HX[0], HX[1]); tz = clamp(tz, HZ[0], HZ[1]);
+  const f = Math.min(1, dt * 7), mx = (tx - hx) * f, mz = (tz - hz) * f, cap = 34 * dt, ml = Math.hypot(mx, mz);
+  if (ml > cap) { hx += mx / ml * cap; hz += mz / ml * cap; } else { hx += mx; hz += mz; }
+  hx = clamp(hx, HX[0], HX[1]); hz = clamp(hz, HZ[0], HZ[1]);
+}
+
+function update(dt) {
+  if (over) { fx.update(dt); return; }
+  walkClock.value = st.t; tleft -= dt;
+  dragStep(dt);
+  if (chainT > 0) { chainT -= dt; if (chainT <= 0) chain = 0; }
+
+  /* golfers: detect impact moment -> launch; occasional long pause */
+  for (const g of golfers) {
+    let c = st.t - g.start;
+    if (c >= g.period) {
+      g.start += g.period;
+      g.period = rand(3.4, 5.4) * (Math.random() < .22 ? rand(1.4, 1.9) : 1);
+      c = st.t - g.start;
+      if (g.prevC < g.period && c >= 0) { /* wrapped past impact last cycle end */ }
+      g.prevC = c; continue;
+    }
+    const impactAt = g.period - IMPACT_TAIL;
+    if (g.prevC < impactAt && c >= impactAt) launchBall(g);
+    g.prevC = c;
+  }
+
+  /* balls: physics + swallow */
+  const trig = size * .95 + .1, reachY = 1.5 + size * .55;
+  for (const b of balls) {
+    if (!b.on) continue;
+    if (b.state === 'fall') {                                        // BHC swallow: pull to centre, shrink, sink
+      b.fall += dt * 1.7; b.x += (hx - b.x) * Math.min(1, dt * 8); b.z += (hz - b.z) * Math.min(1, dt * 8);
+      b.y = b.fallY0 * (1 - b.fall) - b.fall * .5; b.s = Math.max(0, 1 - b.fall);
+      if (b.fall >= 1) {
+        b.on = false; b.state = 'off'; b.y = -50;
+        const mult = comboMult(), got = b.pts * mult;
+        score += got; eatenCt++; chainT = 2.0;
+        bestCatch = Math.max(bestCatch, got);
+        size = Math.min(1.4 + Math.sqrt(eatenCt) * .055, 2.6);
+        st.popup('+' + got + (mult > 1 ? ' ×' + mult : ''), { x: hx, y: 2.6, z: hz }, b.pts >= 40 ? '#ffd34d' : '#ffffff', b.pts >= 40 ? 7.5 : 5.5);
+        if (b.pts >= 40) { sfx('pop', .5); st.hitstop(.03); } else if (Math.random() < .5) sfx('tick', .3);
+        fx.burst(4, { x: hx, y: .6, z: hz, size: .16, life: .45, color: 0xfff0a8, g: 3 }, 2);
+      }
+      continue;
+    }
+    if (b.state === 'fly') {
+      /* per-ball state: while slowT remains, THIS ball's step runs at
+         SLOW_TS — its arch loops in slow motion while everything else
+         moves at full speed. Velocities are never scaled, only the
+         step, so speed/value/tint stay the true physical values. */
+      const bdt = b.slowT > 0 ? dt * SLOW_TS : dt;
+      if (b.slowT > 0) b.slowT -= bdt;
+      b.vy -= GRAV * bdt; b.x += b.vx * bdt; b.y += b.vy * bdt; b.z += b.vz * bdt;
+      if (b.y <= BALL_R && b.vy < 0) {
+        b.y = BALL_R;
+        if (Math.abs(b.vy) > 2.4) { b.vy = -b.vy * .45; b.vx *= .8; b.vz *= .8; }
+        else { b.vy = 0; b.state = 'roll'; }
+      }
+    } else if (b.state === 'roll') {
+      const h = Math.hypot(b.vx, b.vz), nh = h - 7.5 * dt;
+      if (nh <= .35) { b.vx = b.vz = 0; b.state = 'rest'; b.restT = 0; }
+      else { b.vx *= nh / h; b.vz *= nh / h; b.x += b.vx * dt; b.z += b.vz * dt; }
+    } else if (b.state === 'rest') {
+      b.restT += dt; b.s = b.restT > 2.0 ? Math.max(0, 1 - (b.restT - 2.0) / .6) : 1;
+      if (b.restT >= 2.6) { b.on = false; b.state = 'off'; b.y = -50; continue; }
+    }
+    if (b.z > 70 || b.z < -52 || Math.abs(b.x) > 95) { b.on = false; b.state = 'off'; b.y = -50; continue; }
+    /* catch: close to the disc and low enough to be scooped */
+    const dx = b.x - hx, dz = b.z - hz;
+    if (dx * dx + dz * dz < trig * trig && b.y < reachY) {
+      b.state = 'fall'; b.fall = 1e-3; b.fallY0 = b.y; b.pts = ballValue(b); chain++;
+      bestChain = Math.max(bestChain, chain);
+    }
+  }
+  fx.update(dt);
+  st.hud.left(`SCORE<br><span style="color:#ffd34d;font-size:8vmin">${score}</span>`);
+  st.hud.right(`BALLS ${eatenCt}<br>${Math.ceil(Math.max(0, tleft))}s`);
+  st.hud.hint(chain >= 3 && chainT > 0 ? `COMBO ×${comboMult()} — ${chain} IN A ROW!` : 'Drag the hole — catch balls while they\'re fast!');
+  if (tleft <= 0) {
+    over = true; st.hud.banner('TIME UP', 3); sfx('win'); st.flash('#7b4bff', .5);
+    const bestMult = bestChain >= 3 ? Math.min(bestChain - 1, 6) : 1;
+    endcard.innerHTML = `BALLS EATEN <b style="color:#ffd34d">${eatenCt}</b> &nbsp;·&nbsp; BEST COMBO <b style="color:#ffd34d">×${bestMult} (${bestChain} in a row)</b><br>BEST CATCH <b style="color:#ffd34d">+${bestCatch} pts</b>`;
+    endcard.style.display = 'block';
+    st.end({ win: score >= S.winScore, score, label: 'POINTS' });
+  }
+  window.__game = { score, eaten: eatenCt, size: +size.toFixed(2), chain, bestChain, bestCatch, live: balls.filter(b => b.on).length, flying: balls.filter(b => b.on && b.state === 'fly').length, slow: balls.filter(b => b.on && b.state === 'fly' && b.slowT > 0).length, ts: st.timeScale };
+}
+
+const camP = new THREE.Vector3(0, 12, 12), look = new THREE.Vector3();
+let camSnap = false;   // QA capture aid: one-frame camera snap after a teleport
+function pre() {
+  const t = st.t;
+  golfers.forEach((g, i) => {
+    let c = t - g.start; if (c < 0) c = 0; if (c >= g.period) c = g.period - .001;
+    const p = swingPose(g, c, t);
+    gcr.set(i, g.x, g.y, g.z, 1.12, p.yaw, p.pitch, 0);
+  });
+  gcr.done(golfers.length);
+  balls.forEach((b, i) => {
+    if (!b.on) { bcr.set(i, 0, -50, 0, .01, 0, 0, 0); return; }
+    bcr.set(i, b.x, b.y, b.z, b.s, 0, 0, 0);
+    _c.copy(COOL).lerp(HOT, clamp(ballSpeed(b) / b.launchSpd, 0, 1)); bcr.color(i, _c.getHex());
+  });
+  bcr.done(MAX_BALLS);
+  hole.scale.setScalar(size); ring.scale.setScalar(size); aura.scale.setScalar(size); aura.rotation.z = st.t * 2;
+  hole.position.x = ring.position.x = aura.position.x = hx; hole.position.z = ring.position.z = aura.position.z = hz;
+  camP.set(hx, CAM_H, hz + CAM_D); st.camera.position.lerp(camP, camSnap ? 1 : .08); camSnap = false;
+  look.set(hx, LOOK_Y, hz - LOOK_Z);
+  st.camera.lookAt(look);
+}
+st.camera.position.set(hx, CAM_H, hz + CAM_D); st.run(update, pre);
+
+/* QA hooks (read-only + capture placement, same pattern as State Hole) */
+const _v = new THREE.Vector3();
+function toScreen(x, y, z) { _v.set(x, y, z).project(st.camera); return { x: Math.round((_v.x * .5 + .5) * innerWidth), y: Math.round((-_v.y * .5 + .5) * innerHeight) }; }
+window.__SAMPLE = {
+  setHole: (x, z) => { hx = tx = x; hz = tz = z; camSnap = true; },
+  hole: () => toScreen(hx, 0, hz),
+  holeWorld: () => ({ x: +hx.toFixed(1), z: +hz.toFixed(1), size: +size.toFixed(2) }),
+  toScreen: (x, y, z) => toScreen(x, y, z),
+  state: () => ({ ...window.__game, tleft: Math.ceil(Math.max(0, tleft)), over }),
+  balls: () => balls.filter(b => b.on).map(b => ({ x: +b.x.toFixed(1), y: +b.y.toFixed(1), z: +b.z.toFixed(1), spd: +ballSpeed(b).toFixed(1), val: ballValue(b), state: b.state, slow: b.state === 'fly' && b.slowT > 0, slowT: +b.slowT.toFixed(2), scr: toScreen(b.x, b.y, b.z) })),
+  golfers: () => golfers.length,
+  cam: () => ({ x: +st.camera.position.x.toFixed(1), y: +st.camera.position.y.toFixed(1), z: +st.camera.position.z.toFixed(1), fov: st.camera.fov }),
+};
+</script></body></html>
